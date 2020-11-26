@@ -1,0 +1,10 @@
+*.o
+build
+*.cmd
+_postbuild
+_postinstall
+_preinstall
+_install
+*.d
+kvs
+kvs.map
