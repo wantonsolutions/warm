@@ -26,7 +26,7 @@ function setup_nic {
     #set the link up
     sudo ip link set $iface up
     #turn the interface on and configure ip
-    sudo ifconfig $iface $ipaddr netmask 255.0.0.0 
+    sudo ifconfig $iface $ipaddr netmask 255.255.0.0 
     echo "Nic Configuration complete Configuration complete"
 }
 
