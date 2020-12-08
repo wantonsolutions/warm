@@ -50,6 +50,9 @@
 
 enum pkt_type{PUT, GET, PUT_ACK, GET_ACK, FAILED};
 
+
+
+
 typedef struct kv_put_header {
     int type;
     uint64_t timestamp;

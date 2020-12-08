@@ -6,7 +6,7 @@
 APP = kvs
 
 # all source are stored in SRCS-y
-SRCS-y := main.c config.c init.c  cuckoohash.c kvs.c runtime.c city.c
+SRCS-y := main.c config.c init.c  cuckoohash.c remote_memory_controller.c kvs.c packets.c runtime.c city.c
 #DEPS-y := libcuckoo-c
 #OBJS-y := libcuckoo-c/cuckoohash.o
 #DIRS-y := libcuckoo-c/
