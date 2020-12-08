@@ -1,2 +1,3 @@
 *.dat
 ethout
+control/lenv.sh
