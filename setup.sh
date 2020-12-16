@@ -52,12 +52,15 @@ function setup_switch {
     enable
     configure terminal
 
-    #Port 30 is Yak01
-    #Port 29 is Yak00
+    #Port Eth1/29 is Yak00 (192.168.1.11)
+    #Port Eth1/30 is Yak01 (192.168.1.12)
+    #Port Eth1/31 is Yak02 
 
+    #add redirection flows to table 0
     openflow add-flows 1 ,table=0,in_port=Eth1/30,nw_src=192.168.1.12/32,nw_dst=192.168.1.11/32,actions=output=Eth1/31
     openflow add-flows 2 ,table=0,in_port=Eth1/29,nw_src=192.168.1.11/32,nw_dst=192.168.1.12/32,actions=output=Eth1/31
 
+    #remove redirection flows
     openflow del-flows 1
     openflow del-flows 2
     "
