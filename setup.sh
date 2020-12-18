@@ -68,4 +68,14 @@ function setup_switch {
 
 setup_nic
 setup_hugepages
+
+if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then
+    #turn off roce
+    echo "turning off ROCEv2 on $hname"
+    sudo su
+    echo 0 >  /sys/bus/pci/devices/0000\:04\:00.0/roce_enable
+    exit
+fi
 exit 0
+
+
