@@ -4,7 +4,7 @@ date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 threads=("1" "2" "4" "8")
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
-opmodes=("MITSUME_YCSB_MODE_C")
+opmodes=("MITSUME_YCSB_MODE_A")
 #keyspaces=("100" "1000" "10000" "100000")
 keyspaces=("100000")
 
