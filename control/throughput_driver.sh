@@ -3,8 +3,13 @@
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 threads=("1" "2" "4" "8")
+<<<<<<< HEAD
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
 opmodes=("MITSUME_YCSB_MODE_A")
+=======
+opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
+#opmodes=("MITSUME_YCSB_MODE_C")
+>>>>>>> e4ad39dc3fb9b27d822ad58843f6aabe6c7d7338
 #keyspaces=("100" "1000" "10000" "100000")
 keyspaces=("100000")
 

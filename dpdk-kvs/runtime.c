@@ -42,6 +42,7 @@
 
 #include "cuckoohash.h"
 #include "kvs.h"
+#include "remote_memory_controller.h"
 
 #ifndef APP_LCORE_IO_FLUSH
 #define APP_LCORE_IO_FLUSH           1000000
@@ -53,8 +54,8 @@
 #endif
 
 #ifndef APP_STATS
-//#define APP_STATS                    1000000
-#define APP_STATS                    1000003
+#define APP_STATS                    1000000
+//#define APP_STATS                    1
 #endif
 
 #define APP_IO_RX_DROP_ALL_PACKETS   0
@@ -115,6 +116,7 @@ app_lcore_io_rx_buffer_to_send (
 		lp->rx.mbuf_out[worker].n_mbufs = pos;
 		return;
 	}
+
 
 	ret = rte_ring_sp_enqueue_bulk(
 		lp->rx.rings[worker],
@@ -549,8 +551,9 @@ app_lcore_worker(
 
 
             //update_stats(pkt,tracker);
-            print_packet_info(pkt);
-            printf("actually hit the print statement\n");
+			rmem_switch(pkt);
+            //print_packet_info(pkt);
+            //printf("actually hit the print statement\n");
             //turn_packet_around(pkt);
             //kv_request(pkt,table);
             /*
@@ -578,9 +581,11 @@ app_lcore_worker(
 			lp->mbuf_out[port].array[pos ++] = pkt;
 			if (likely(pos < bsz_wr)) {
 				lp->mbuf_out[port].n_mbufs = pos;
+				//printf("buffering output like a cuck\n");
 				continue;
 			}
 
+			//printf("Actually Sending packets ************\n");
 			ret = rte_ring_sp_enqueue_bulk(
 				lp->rings_out[port],
 				(void **) lp->mbuf_out[port].array,

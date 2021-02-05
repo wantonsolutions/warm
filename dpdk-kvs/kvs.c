@@ -2,6 +2,7 @@
 
 #include "cuckoohash.h"
 #include "kvs.h"
+#include "packets.h"
 
 #define FAILURE_STATS 1
 #define ERROR_PRINT_RATE 1000000
@@ -55,23 +56,47 @@ print_packet_info(
                 __func__,
                 __LINE__);
 
-        /*
-        printf("Raw Packet Contents \n\n[");
-        for (i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-            printf("%X",(uint8_t)((char *)(pkt->buf_addr))[i]);
+        printf("Raw Packet Contents with index\n\n[");
+        for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
+            printf("%X(%d) ",(uint8_t)((char *)(pkt->buf_addr))[i], i);
             //printf("%c-",((char *)pkt->userdata)[itter]);
         }
         printf("]\n\n");
-        */
+
+        printf("Raw Packet Contents \n\n[");
+        for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
+            printf("%02X",(uint8_t)((char *)(pkt->buf_addr))[i]);
+            //printf("%c-",((char *)pkt->userdata)[itter]);
+        }
+        printf("]\n\n");
+
+        printf("Raw Packet Contents python\n\n[");
+        for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
+            printf("\\x%02X",(uint8_t)((char *)(pkt->buf_addr))[i]);
+            //printf("%c-",((char *)pkt->userdata)[itter]);
+        }
+        printf("]\n\n");
+
+        int packet_index = rte_pktmbuf_headroom(pkt);
+        agg_header *full_header;
+        full_header = (agg_header*)(((char*)pkt->buf_addr)+packet_index);
+
+        if (ntohs(full_header->udp.sport) != ROCE_PORT && ntohs(full_header->udp.dport) != ROCE_PORT) {
+            printf("Packet is not ROCE, and we are only printing RoCEv2 packets\n");
+            return;
+        }
+
+        print_eth_header(&(full_header->eth));
+
 
         printf("Structured Packet Contents \n\n");
-        int packet_index = rte_pktmbuf_headroom(pkt);
-
         print_packet_feild(MAC_DEST_BYTES,&packet_index,"MAC DEST:\t",pkt);
         print_packet_feild(MAC_SRC_BYTES,&packet_index, "MAC SRC:\t",pkt);
         print_packet_feild(MAC_TYPE_BYTES,&packet_index, "MAC TYPE:\t",pkt);
-        printf("\n");
+        printf("\n");;
 
+
+        print_ip_header(&(full_header->ip));
         print_packet_feild(IP_VERSION_IHL_BYTES,&packet_index, "IP VERSION:\t",pkt);
         print_packet_feild(IP_TOS_BYTES,&packet_index, "IP TOS:\t",pkt);
         print_packet_feild(IP_LENGTH_BYTES,&packet_index, "IP LENGTH:\t",pkt);
@@ -84,6 +109,7 @@ print_packet_info(
         print_packet_feild(IP_DEST_BYTES,&packet_index, "IP DEST:\t",pkt);
         printf("\n");
 
+        print_udp_header(&(full_header->udp));
         print_packet_feild(UDP_SRC_PORT_BYTES,&packet_index, "UDP SRC PORT:\t",pkt);
         print_packet_feild(UDP_DEST_PORT_BYTES,&packet_index, "UDP DEST PORT:\t",pkt);
         print_packet_feild(UDP_LEN_BYTES,&packet_index, "UDP LEN:\t",pkt);
