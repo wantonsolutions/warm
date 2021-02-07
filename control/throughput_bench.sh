@@ -15,11 +15,13 @@ ssh yak2 'echo iwicbV15 | sudo -S killall basicfwd'
 export LCLOVER_THREADS=$1
 export LCLOVER_KEY_RANGE=$2
 export LCLOVER_YCSB_OP_MODE=$3
+export LCLOVER_PAYLOAD_SIZE=$4
 
 rm lenv.sh
 echo "export CLOVER_THREADS=$LCLOVER_THREADS;" > lenv.sh
 echo "export CLOVER_KEY_RANGE=$LCLOVER_KEY_RANGE;" >> lenv.sh
 echo "export CLOVER_YCSB_OP_MODE=$LCLOVER_YCSB_OP_MODE;" >> lenv.sh
+echo "export CLOVER_PAYLOAD_SIZE=$LCLOVER_PAYLOAD_SIZE;" >> lenv.sh
 lenv=`cat lenv.sh`
 
 buildSource=`cat build.sh`
