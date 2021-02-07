@@ -9,6 +9,8 @@ ssh b09-27 'sudo killall memcached'
 ssh yak0 'echo iwicbV15 | sudo -S killall init'
 ssh yak1 'echo iwicbV15 | sudo -S killall init'
 
+ssh yak2 'echo iwicbV15 | sudo -S killall basicfwd'
+
 #build the project
 export LCLOVER_THREADS=$1
 export LCLOVER_KEY_RANGE=$2
@@ -29,8 +31,13 @@ ssh yak1 $fullBuild
 
 
 
-#start up the program
+#start the middlebox
+echo "sshing yak2"
+switchSource=`cat pswitch_server.sh`
+ssh yak2 $switchSource &
+sleep 2
 
+#start up the program
 memcachedSource=`cat memcached_server.sh`
 ssh b09-27 $memcachedSource &
 sleep 1
