@@ -1,3 +1,4 @@
 *.dat
 ethout
 control/lenv.sh
+rmemc-dpdk/build
