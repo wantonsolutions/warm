@@ -1,0 +1,298 @@
+@inproceedings {189914,
+author = {Paolo Faraboschi and Kimberly Keeton and Tim Marsland and Dejan Milojicic},
+title = {Beyond Processor-centric Operating Systems},
+booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS {XV})},
+year = {2015},
+address = {Kartause Ittingen, Switzerland},
+url = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/faraboschi},
+publisher = {{USENIX} Association},
+}
+
+
+@inproceedings{helios,
+author = {Nightingale, Edmund B and Hodson, Orion and McIlroy, Ross and Hawblitzel, Chris and Hunt, Galen},
+title = {Helios: Heterogeneous Multiprocessing with Satellite Kernels},
+booktitle = {Proceedings of the 22nd Symposium on Operating Systems Principles (SOSP '09)},
+year = {2009},
+month = {October},
+abstract = {
+Helios is an operating system designed to simplify the task of writing,
+deploying, and tuning applications for heterogeneous platforms. Helios
+    introduces satellite kernels, which export a single, uniform set of OS
+    abstractions across CPUs of disparate architectures and performance
+    characteristics. Access to I/O services such as ﬁle systems are made
+    transparent via remote message passing, which extends a standard
+    microkernel message-passing abstraction to a satellite kernel
+    infrastructure. Helios retargets applications to available ISAs by
+    compiling froman intermediate language. To simplify deploying and tuning
+    application performance, Helios exposes an afﬁnity metric to developers.
+    Afﬁnity provides a hint to the operating system about whether a process
+    would beneﬁt from executing on the same platform as a service it depends
+    upon.  We developed satellite kernels for an XScale programmable I/O card
+    and for cache-coherent NUMA architectures. We ofﬂoaded several applications
+    and operating system components, often by changing only a single line of
+    metadata. We show up to a 28% performance improvement by ofﬂoading tasks to
+    the XScale I/O card. On a mail-server benchmark, we show a 39% improvement
+    in performance by automatically splitting the application among multiple
+    NUMA domains.
+},
+publisher = {Association for Computing Machinery, Inc.},
+url = {https://www.microsoft.com/en-us/research/publication/helios-heterogeneous-multiprocessing-with-satellite-kernels/},
+edition = {Proceedings of the 22nd Symposium on Operating Systems Principles (SOSP '09)},
+}
+
+@inproceedings{zombieland,
+ author = {Nitu, Vlad and Teabe, Boris and Tchana, Alain and Isci, Canturk and Hagimont, Daniel},
+ title = {Welcome to Zombieland: Practical and Energy-efficient Memory Disaggregation in a Datacenter},
+ booktitle = {Proceedings of the Thirteenth EuroSys Conference},
+ series = {EuroSys '18},
+ year = {2018},
+ isbn = {978-1-4503-5584-1},
+ location = {Porto, Portugal},
+ pages = {16:1--16:12},
+ articleno = {16},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/3190508.3190537},
+ doi = {10.1145/3190508.3190537},
+ acmid = {3190537},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {energy efficiency, memory disaggregation, virtualization},
+} 
+
+@inproceedings{Schroeder:2007:DFR:1267903.1267904,
+ author = {Schroeder, Bianca and Gibson, Garth A.},
+ title = {Disk Failures in the Real World: What Does an MTTF of 1,000,000 Hours Mean to You?},
+ booktitle = {Proceedings of the 5th USENIX Conference on File and Storage Technologies},
+ series = {FAST '07},
+ year = {2007},
+ location = {San Jose, CA},
+ articleno = {1},
+ url = {http://dl.acm.org/citation.cfm?id=1267903.1267904},
+ acmid = {1267904},
+ publisher = {USENIX Association},
+ address = {Berkeley, CA, USA},
+}
+
+@inproceedings {cachecloud,
+author = {Shelby Thomas and Geoffrey M. Voelker and George Porter},
+title = {CacheCloud: Towards Speed-of-light Datacenter Communication},
+booktitle = {10th {USENIX} Workshop on Hot Topics in Cloud Computing (HotCloud 18)},
+year = {2018},
+address = {Boston, MA},
+url = {https://www.usenix.org/conference/hotcloud18/presentation/thomas},
+publisher = {{USENIX} Association},
+}
+
+@inproceedings {legoos,
+author = {Yizhou Shan and Yutong Huang and Yilun Chen and Yiying Zhang},
+title = {LegoOS: A Disseminated, Distributed {OS} for Hardware Resource Disaggregation},
+booktitle = {13th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 18)},
+year = {2018},
+isbn = {978-1-931971-47-8},
+address = {Carlsbad, CA},
+pages = {69--87},
+url = {https://www.usenix.org/conference/osdi18/presentation/shan},
+publisher = {{USENIX} Association},
+}
+
+@inproceedings{the-multikernel,
+author = {Baumann, Andrew and Barham, Paul and Isaacs, Rebecca and Harris, Tim},
+title = {The Multikernel: A new OS architecture for scalable multicore systems},
+booktitle = {22nd Symposium on Operating Systems Principles},
+year = {2009},
+month = {October},
+abstract = {Commodity computer systems contain more and more processor cores and exhibit increasingly diverse architectural tradeoffs, including memory hierarchies, interconnects, instruction sets and variants, and IO configurations. Previous high-performance computing systems have scaled in specific cases, but the dynamic nature of modern client and server workloads, coupled with the impossibility of statically optimizing an OS for all workloads and hardware variants pose serious challenges for operating system structures.
+
+We argue that the challenge of future multicore hardware is best met by embracing the networked nature of the machine, rethinking OS architecture using ideas from distributed systems. We investigate a new OS structure, the multikernel, that treats the machine as a network of independent cores, assumes no inter-core sharing at the lowest level, and moves traditional OS functionality to a distributed system of processes that communicate via message-passing.
+
+We have implemented a multikernel OS to show that the approach is promising, and we describe how traditional scalability problems for operating systems (such as memory management) can be effectively recast using messages and can exploit insights from distributed systems and networking.  An evaluation of our prototype on multicore systems shows that, even on present-day machines, the performance of a multikernel is comparable with a conventional OS, and can scale better to support future hardware.
+
+},
+publisher = {Association for Computing Machinery, Inc.},
+url = {https://www.microsoft.com/en-us/research/publication/the-multikernel-a-new-os-architecture-for-scalable-multicore-systems/},
+edition = {22nd Symposium on Operating Systems Principles},
+}
+
+@inproceedings {clover,
+author = {Shin-Yeh Tsai and Yizhou Shan and Yiying Zhang},
+title = {Disaggregating Persistent Memory and Controlling Them Remotely: An Exploration of Passive Disaggregated Key-Value Stores},
+booktitle = {2020 {USENIX} Annual Technical Conference ({USENIX} {ATC} 20)},
+year = {2020},
+isbn = {978-1-939133-14-4},
+pages = {33--48},
+url = {https://www.usenix.org/conference/atc20/presentation/tsai},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+@article{storm,
+  author    = {Stanko Novakovic and
+               Yizhou Shan and
+               Aasheesh Kolli and
+               Michael Cui and
+               Yiying Zhang and
+               Haggai Eran and
+               Liran Liss and
+               Michael Wei and
+               Dan Tsafrir and
+               Marcos K. Aguilera},
+  title     = {Storm: a fast transactional dataplane for remote data structures},
+  journal   = {CoRR},
+  volume    = {abs/1902.02411},
+  year      = {2019},
+  url       = {http://arxiv.org/abs/1902.02411},
+  archivePrefix = {arXiv},
+  eprint    = {1902.02411},
+  timestamp = {Tue, 21 May 2019 18:03:40 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-1902-02411.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{lite,
+author = {Tsai, Shin-Yeh and Zhang, Yiying},
+title = {LITE Kernel RDMA Support for Datacenter Applications},
+year = {2017},
+isbn = {9781450350853},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3132747.3132762},
+doi = {10.1145/3132747.3132762},
+booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+pages = {306–324},
+numpages = {19},
+keywords = {RDMA, indirection, low-latency network, network stack},
+location = {Shanghai, China},
+series = {SOSP ’17}
+}
+
+@InProceedings{aguilera2019designing,
+author = {Aguilera, Marcos and Keeton, Kimberly and Novakovic, Stanko and Singhal, Sharad},
+title = {Designing Far Memory Data Structures: Think Outside the Box},
+organization = {ACM},
+booktitle = {17th Workshop on Hot Topics in Operating Systems (HotOS)},
+year = {2019},
+month = {May},
+abstract = {Technologies like RDMA and Gen-Z, which give access to memory outside the box, are gaining in popularity. These technologies provide the abstraction of far memory, where memory is attached to the network and can be accessed by remote processors without mediation by a local processor. Unfortunately, far memory is hard to use because existing data structures are mismatched to it. We argue that we need new data structures for far memory, borrowing techniques from concurrent data structures and distributed systems. We examine the requirements of these data structures and show how to realize them using simple hardware extensions},
+url = {https://www.microsoft.com/en-us/research/publication/designing-far-memory-data-structures-think-outside-the-box/},
+}
+
+@inproceedings{surf,
+author = {Zhang, Huanchen and Lim, Hyeontaek and Leis, Viktor and Andersen, David G. and Kaminsky, Michael and Keeton, Kimberly and Pavlo, Andrew},
+title = {SuRF: Practical Range Query Filtering with Fast Succinct Tries},
+year = {2018},
+isbn = {9781450347037},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3183713.3196931},
+doi = {10.1145/3183713.3196931},
+booktitle = {Proceedings of the 2018 International Conference on Management of Data},
+pages = {323–336},
+numpages = {14},
+keywords = {surf, range filter, fast succinct tries, lsm-trees, succinct data structures},
+location = {Houston, TX, USA},
+series = {SIGMOD ’18}
+}
+
+@inproceedings{10.1145/3342195.3387522,
+author = {Amaro, Emmanuel and Branner-Augmon, Christopher and Luo, Zhihong and Ousterhout, Amy and Aguilera, Marcos K. and Panda, Aurojit and Ratnasamy, Sylvia and Shenker, Scott},
+title = {Can Far Memory Improve Job Throughput?},
+year = {2020},
+isbn = {9781450368827},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3342195.3387522},
+doi = {10.1145/3342195.3387522},
+booktitle = {Proceedings of the Fifteenth European Conference on Computer Systems},
+articleno = {14},
+numpages = {16},
+location = {Heraklion, Greece},
+series = {EuroSys ’20}
+}
+
+@inproceedings {215933,
+author = {Marcos K. Aguilera and Nadav Amit and Irina Calciu and Xavier Deguillard and Jayneel Gandhi and Stanko Novakovi{\'c} and Arun Ramanathan and Pratap Subrahmanyam and Lalith Suresh and Kiran Tati and Rajesh Venkatasubramanian and Michael Wei},
+title = {Remote regions: a simple abstraction for remote memory},
+booktitle = {2018 {USENIX} Annual Technical Conference ({USENIX} {ATC} 18)},
+year = {2018},
+isbn = {978-1-939133-01-4},
+address = {Boston, MA},
+pages = {775--787},
+url = {https://www.usenix.org/conference/atc18/presentation/aguilera},
+publisher = {{USENIX} Association},
+month = jul,
+}
+ 
+@inproceedings {cell,
+author = {Christopher Mitchell and Kate Montgomery and Lamont Nelson and Siddhartha Sen and Jinyang Li},
+title = {Balancing {CPU} and Network in the Cell Distributed B-Tree Store},
+booktitle = {2016 {USENIX} Annual Technical Conference ({USENIX} {ATC} 16)},
+year = {2016},
+isbn = {978-1-931971-30-0},
+address = {Denver, CO},
+pages = {451--464},
+url = {https://www.usenix.org/conference/atc16/technical-sessions/presentation/mitchell},
+publisher = {{USENIX} Association},
+month = jun,
+}
+
+@inproceedings {254120,
+author = {Sebastian Angel and Mihir Nanavati and Siddhartha Sen},
+title = {Disaggregation and the Application},
+booktitle = {12th {USENIX} Workshop on Hot Topics in Cloud Computing (HotCloud 20)},
+year = {2020},
+url = {https://www.usenix.org/conference/hotcloud20/presentation/angel},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+@inproceedings{sonuma,
+author = {Novakovic, Stanko and Daglis, Alexandros and Bugnion, Edouard and Falsafi, Babak and Grot, Boris},
+title = {Scale-out NUMA},
+year = {2014},
+isbn = {9781450323055},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2541940.2541965},
+doi = {10.1145/2541940.2541965},
+abstract = {Emerging datacenter applications operate on vast datasets that are kept in DRAM to minimize latency. The large number of servers needed to accommodate this massive memory footprint requires frequent server-to-server communication in applications such as key-value stores and graph-based applications that rely on large irregular data structures. The fine-grained nature of the accesses is a poor match to commodity networking technologies, including RDMA, which incur delays of 10-1000x over local DRAM operations. We introduce Scale-Out NUMA (soNUMA) -- an architecture, programming model, and communication protocol for low-latency, distributed in-memory processing. soNUMA layers an RDMA-inspired programming model directly on top of a NUMA memory fabric via a stateless messaging protocol. To facilitate interactions between the application, OS, and the fabric, soNUMA relies on the remote memory controller -- a new architecturally-exposed hardware block integrated into the node's local coherence hierarchy. Our results based on cycle-accurate full-system simulation show that soNUMA performs remote reads at latencies that are within 4x of local DRAM, can fully utilize the available memory bandwidth, and can issue up to 10M remote memory operations per second per core.},
+booktitle = {Proceedings of the 19th International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {3–18},
+numpages = {16},
+keywords = {system-on-chips, numa, rmda},
+location = {Salt Lake City, Utah, USA},
+series = {ASPLOS '14}
+}
+
+@inproceedings {farm,
+author = {Aleksandar Dragojevi{\'c} and Dushyanth Narayanan and Miguel Castro and Orion Hodson},
+title = {FaRM: Fast Remote Memory},
+booktitle = {11th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 14)},
+year = {2014},
+isbn = {978-1-931971-09-6},
+address = {Seattle, WA},
+pages = {401--414},
+url = {https://www.usenix.org/conference/nsdi14/technical-sessions/dragojevi{\'c}},
+publisher = {{USENIX} Association},
+month = apr,
+}
+
+@article{ramcloud,
+author = {Ousterhout, John and Gopalan, Arjun and Gupta, Ashish and Kejriwal, Ankita and Lee, Collin and Montazeri, Behnam and Ongaro, Diego and Park, Seo Jin and Qin, Henry and Rosenblum, Mendel and Rumble, Stephen and Stutsman, Ryan and Yang, Stephen},
+title = {The RAMCloud Storage System},
+year = {2015},
+issue_date = {September 2015},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {33},
+number = {3},
+issn = {0734-2071},
+url = {https://doi.org/10.1145/2806887},
+doi = {10.1145/2806887},
+abstract = {RAMCloud is a storage system that provides low-latency access to large-scale datasets. To achieve low latency, RAMCloud stores all data in DRAM at all times. To support large capacities (1PB or more), it aggregates the memories of thousands of servers into a single coherent key-value store. RAMCloud ensures the durability of DRAM-based data by keeping backup copies on secondary storage. It uses a uniform log-structured mechanism to manage both DRAM and secondary storage, which results in high performance and efficient memory usage. RAMCloud uses a polling-based approach to communication, bypassing the kernel to communicate directly with NICs; with this approach, client applications can read small objects from any RAMCloud storage server in less than 5μs, durable writes of small objects take about 13.5μs. RAMCloud does not keep multiple copies of data online; instead, it provides high availability by recovering from crashes very quickly (1 to 2 seconds). RAMCloud’s crash recovery mechanism harnesses the resources of the entire cluster working concurrently so that recovery performance scales with cluster size.},
+journal = {ACM Trans. Comput. Syst.},
+month = aug,
+articleno = {7},
+numpages = {55},
+keywords = {low latency, storage systems, large-scale systems, Datacenters}
+}
