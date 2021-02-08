@@ -1,0 +1,491 @@
+\section{Introduction}
+\label{sec:intro}
+
+This document is broken into sections for the purpose of partitioning research
+concerns. Section~\ref{sec:issues} is a laundry list of design points in the
+DDC space. The intent is to build a cross paper set of arguments and references
+for each design point. Section~\ref{sec:related} summarizes papers at a high
+level, and contains ideas relevant to those papers.
+Section~\ref{sec:experiment} contains potential back of the envelope and large
+scale experiments which could be run to either validate or promote further
+research into an idea. Section~\ref{sec:arguments} is scratch space for
+rhetorical arguments. finally Section~\ref{sec:reading} contains citations to
+related work and tags for the level of detail at which they have been read.
+
+\section{DDC design issues}
+\label{sec:issues}
+
+\subsection{Coherence}
+
+As CPU's grow to thousands, and potentially hundreds of thousands of cores coherency becomes extremely expensive. A tiered approach may be required where some memory is strongly coherent and other memory is managed by lightweight distributed protocols~\cite{189914}
+
+\subsection{Failure}
+
+Disks fail more often than expected~\cite{Schroeder:2007:DFR:1267903.1267904}.
+Perhaps the same could happen to main memory at scale? What would this look
+like for NVM? What techniques are necessary to protect from failures of this
+particular frequency.
+
+\section{Related Work}
+\label{sec:related}
+
+\textbf{Beyond Processor Centric Architectures}~\cite{189914} \\
+%%
+This HP Machine position paper argues for a memory centric computing
+architecture where NVMe sits at the middle of many CPU banks, and where each
+bank manages a large amount of private by volatile main memory. It asserts
+that cache coherence is impossible at the scale of 100,000 cores and thus new
+memory models are required. Claims also include high radix optical switching
+will make NVM accessible at ultra low latencies. Key to their architectural
+proposal is that there will be a \textit{shared something} model where each CPU
+has it's own DRAM cache, and there is a large NVM shared resource behind all of
+it. Essentially they are just replacing main memory with NVM and using DRAM as
+cache with the difference that main is also persistent.
+
+\idea{There is potentially an argument against this if the timings for NVMe are
+within a comparable time to DRAM. The argument is why page out to DRAM if it's
+not the point of consistency anyways? Just use L3 or start calling DRAM L4 and
+NVM main.}
+
+\idea{Given that memory is so far apart in this architecture special techniques
+    may be needed for IPC. It's a given that writing to shared memory will be
+    expensive and copies will be huge, perhaps IPC will all have to be
+    implemented using pointer passing techniques. Another thought is that there
+may be DRAM which is closer to CPU's from a coherence perspective. It may make
+more sense for CPUs which some sort of \textit{Coherence Index} to share with
+one another.}
+
+\idea{If memory failures must occur, why not treat all function calls as RPC.
+Any lost remote memory is then just an RPC failure, the semantics of which are
+dealt with by the calling application. Could existing applications be modified
+to these semantics automatically?}
+
+\textbf{Welcome to Zombieland}\cite{zombieland}
+This paper argues for a disaggregated memory management scheme which decouples CPU's from memory via power supply. The idea is thus, CPU's do not run all the time, and thereby use too much memory given that they have a static allocation of memory up front. The proposed design is to put the CPU into a zombie state when it is not being used and then patch off of it using RDMA from other active CPU's
+
+\idea{While this idea is mainly about power consumption it may yield an
+interesting result, mainly a zombie memory sharing system whereby busy cores
+can "eat" the memory of a zombie process. Perhaps when the busy cores require
+memory they can swap the zombie cores out to disk.}
+
+\textbf{Disk failure in the real
+world}~\cite{Schroeder:2007:DFR:1267903.1267904} Disk failures are often far
+higher than expected given data sheets. In some cases expected disk failure
+rates of 0.8\% can average as high as 3-5\% with some applications ranging up to
+13\%.
+
+\textbf{CacheCloud}~\cite{cachecloud} The Network at 400GB is producing packets faster than DRAM can consume them, because of this L3 cache is proposed as an alternative, rather than go to DRAM just wire NIC's directly to L3. The argument is essentially that getting the packets closer to the compute faster will get them processed faster (intuitive, but it assumes no resource really need to be used).
+
+What should the memory hierarchy in a DDC look like. Once could imagine that if some CPU's can send messages to their L3 caches directly then they really are just sharing caches. This is identical to a NUMA system.
+
+\idea{Design an allocation strategy which dynamically builds NUMA systems. i.e.
+CPU caches directly message one another, and then use backing DRAM as a
+consistency mechanism. If the DRAM is really the latency hog and not the network
+then partitioning a system by these parameters may be beneficial.}
+
+\textbf{LegoOS}~\cite{legoos} Argues that each network attached component be an
+individual fault domain. I think that arguing for configurable fault domains is
+superior. Further they argue for a single controller for each component which
+requires a lot of overhead. They argue to \textit{virtualize}, I think I can
+make an argument for raw hardware. Loose coupling is pushed hard, a counter
+argument for tight coupling with an "amortized" failure cost could be far more
+compelling. Again I like the idea of \textit{binding} a failure domain.
+
+LegoOS uses an ExCache, which is just a large amount of DRAM associated with
+each processor to give them good locality. This is really a violation of what
+DDC will be in the future and deserves an explicit argument against it as
+being regressive, and false. At the same time an argument for the necessity of
+ExCache could be made if all of the backing memory is NVM. In which case
+caching a bunch of cores with a piece of fast DRAM makes total sense so that
+faults can be isolated. The big problem is that ExCache is not shared! They
+also seem to cut out TLB's because the idea of swapping virtual address spaces
+is not fast.
+
+\idea{It seems that one of the core concepts of DDC is the decoupling of
+physical memory and CPU cores. The ephemeral boundary typically exists at the L3
+cache level. Perhaps there is an argument to be made for fixing a chunk of
+physical memory to a set of CPU's, letting them coordinate over L3 cache, and
+then writeback to main memory when the time comes. the consistency level could
+be maintained on a per CPU allocation boundary.}
+
+\idea{Developers do not understand fault domains at the intra process level.
+However, for the savvy developer it may be nice to give them some form of fault
+tolerant knowledge. For example we could develop a signal (partial fault) which
+the DDC OS raises and which a process can use to resolve issues of partial
+failure before dying. These would all have to be mapped into the OS and be
+issued when the processes dies.}
+
+\textbf{Clover~\cite{clover}}
+
+Persistent memory is explored in the context of a key value store. The point
+of this paper is to explore the design space of how to use and access
+persistent memory (Non volatile main memory). The discussion is in the
+context of where the data and metadata should be stored. The authors explore
+a number of design decisions and explore protocols and architectures with
+various trade-offs. See figure 1 of the paper. The authors draw a distinction
+between active and passive memory. Active memory has a CPU like component on
+the memory controller which controls access. Passive memory is 100 percent
+controlled remotely. In this case by an RDMA NIC running at 100Gbps. The
+authors explore where to place the controller. They eventually come to the
+design that a metadata server should exist separate from the CPU's and
+memory. It is accessed only to determine where the appropriate memory for a
+given key is. Any attempt to put the metadata server between the CPU and the
+Memory leads to performance degradation, but can improve write contention. A
+large component of the solution space here is to allow reads and writes to
+execute concurrently in the normal case. The authors propose a chain like data
+structure with caches of pointers to the most recent data which allows
+processes to bypass the meta data server unless their information is out of
+date. 
+
+Even with their best efforts they get memory latencies of around 1us. This is
+super good, but far from the access latency of main memory. Finally they use
+values of size 1KB in order to saturate throughput. So the idea that
+persistent memory is going to be used for byte level access is not realistic
+as of yet.
+
+\idea{Given the current landscape using persistent memory for paging out
+might be the correct decision. This would allow huge banks of persistent
+pages, which could be accessed like a key value store. It would also allow a
+program to have a logical point in its execution at which it's state is
+persisted. Users of such a system would still need to run a \textit{Persist}
+instruction to create a snapshot. But the cost of performing the snapshot
+would be limited to the working set of main memory.}
+
+\textbf{Storm ~\cite{storm}} RDMA performance and scaling paper. They propose
+a transnational later for improving one sided operations on RDMA. They also
+do work to demonstrate that one sided operations are better suited to
+connection based protocols rather than conectionless (UDP) with one sided
+operations. This is in heavy contrast to prior work.
+
+Shu-Ting pointed out that this is really the logical successor to the Farm,
+Herd, eRPC work. With this being the version for the latest version of
+Melanox RDMA enabled NICs. I believe that the key takeaways from this work
+are the absolute values from the measurements taken. It is a snapshot of the time.
+
+Also the three takeaways of persistent connections, scaling to the rack
+level, and requirement for embedded data structures are key. The data
+structure / pointer chasing aspect is something that I had pointed out to
+Alex as a potential succession to the work we were doing on SmartNIC's.
+
+\idea{I could take each of the papers in the progression that Shu-Ting
+pointed out and build a table / plot of the competing technologies. The
+interesting takeaways would be the projections of where the technology is
+going. For example are we processing requests at an ever increasing rate? Is
+there a point in time at which we would expect certain traditional approaches
+to start applying again for disaggregated technologies?}
+
+\textbf{LITE ~\cite{lite}} Low level abstractions for a kernel which allow
+for high performance RDMA. Key here is that they avoid copy by using physical
+addresses for user space buffers. They provide a kernel level abstraction for
+better integrating data center applications with RDMA.
+
+\idea{I think that what this paper is getting at is that remote resources are
+difficult to interact with. My thought here is not only should a SmartNIC
+allow a programmer to perform API calls on remote data structures, that
+should be it's explicit purpose. I.E a SmartNIC should be a semantic gateway
+to remote structures. A programmer provides an API to a data structure such
+as a B-Tree, which is then offloaded onto the NIC. In cases where access is
+local, the B-Tree is accessed locally. When Remote the NIC amortizes the
+round trips by opaquely performing the operations in bulk. This will reduce
+overheads in the form of pointer chasing when many round trips are
+concurred.}
+
+\textbf{DDC applications~\cite{254120}} This paper is a nice breakdown of how
+OS's should be designed around applications. It forwards the view that prior
+attemps at DDC have aimed to make things like POSIX interfaces work, but that
+they really are suboptimal for DDC. Specifically they argue for the use of an
+intelliget rack level MMU which maintains virtual adresses for a cluster.
+They also argue for the fault tolerance cases stating that application should
+take grants of memory, support having their memory stolen, and be aware of
+failures. They detail the alternate cases of failures, cpu alive with memory
+dead, and memory dead but compute alive. In the first case they suggest that
+all application checkpoint so that another cpu can take over with the same
+memory location post failure. In the latter case they suggest that
+applications be prepared to have non persistant memory fail and perhaps adopt
+a scheme where they can checkpoint to persistant reliable storage
+occasionally.
+
+Overall this was a good position paper, but it does not address shared memory
+which will be an issue that probably needs to be solved. I think that this is
+perhaps one of the more thoughful papers on DDC. 
+
+
+\section{Experimental Questions}
+\label{sec:experiment}
+
+What is the mean time to failure for a byte on DRAM, FLASH, NVME? Perform a
+back of the envelope calculation as to the expected mean time to failure on a
+rack descried at the beginning of section 2 of~\cite{189914}. How often do
+failures occur in a data center filled with such racks? How much redundancy is
+justified?
+
+DDC represents a distributed OS that is far tightly coupled than prior WAN and
+LAN approaches.
+
+What view should a user have of a DDC? Should they know that individual
+components are connected over the network? Should all devices be mounted? How
+should developers reason about latency given a single PC view of a DDC?
+Arguably if everything is connected over the network latency should be the
+same, just slower.
+
+LegoOS~\cite{legoos} argues for heterogeneity in the DDC. This is an argument
+which should be countered. A key questions is if DDC at a rack scale will be
+homogeneous. I think that individual blades will probably be manufactured to
+have the same silicon on them. They cite TPU, which has dedicated racks.
+
+What is the correct failure domain? if I decide that a process is the correct
+failure domain, what do I do when some of the process disappears? \idea{Could it
+be possible to persist a process on a context switch? If NVM is a thing perhaps
+the act of migrating a process out of a processor could be a persistent
+operation. The question is what to do with side effects. A process would need
+to be persisted every time it made an action which could have a causal
+effect.}
+
+A quick survey of DC applications and their fault tolerance requirements would
+be a great motivator for the binding tactics I'm arguing for i.e. How many
+datacenters run Cassandra to manage their fault tolerance, how many are
+running ETCD? what are the protocols for any one of those processes failing in
+the first place? Treating a single rack as a partially independent failure
+domain is silly, lets argue for the number of failures which would effect an
+entire rack, and then talk about the ones that compromise some sub component of
+the rack. If the former highly outweighs the later, then it still falls to
+software to deal with fault tolerance and persistence and not the OS.
+
+Before making any large scale design decision make sure to REALLY understand
+the benefits of splitkernel / multi kernel design vs monolithic.
+
+\idea{(Sleepy) Use Kademlia as either virtual memory or as page table lookups}
+How should memory be accessed in a distributed rack? Lego's would say to use
+virtual memory~\cite{legoos} but that does not take into account that failures
+can and do occur. A page table is really just an address prefix, and a
+traversal of the page table is just an additional lookup for an extension of
+the prefix. Kademlia looks up each bit at a time, but it can be accelerated
+using buckets where groups of a hashes ID are bunched together. Assuming that
+there are processes running on the disaggregated rack when they want to alloc
+more memory or access a file, they perform a Kademlia \textit{FIND\_NODE}
+operation. If they do not find the file (potentially because it has failed),
+the lookup fails and the region of memory cannot be mapped into the processes
+memory region. These semantics assume copy on read. The memory model would be
+closer to a segmented model, sort of like Multics where the address space of
+any given process would just be a series of memory mapped regions. This has the
+advantage that processes operate in a single failure domain while still being
+able to share.
+
+\section{Arguments}
+\label{sec:arguments}
+
+Current servers share failure domains, why then should disaggregated servers, which
+in their manifestation appear to act as a single machine attempt to deal with
+fault tolerance at the kernel level? We argue that performance not fault
+tolerance should be the aim of a server, and that fault tolerance is an end to
+end concern which should be handled by software running on disaggregated
+machines rather than by the kernel. We propose the concept of \textit{binding
+failure domains} resources allocated per bind fate share. We propose multilevel
+binding at the process, VM and OS level. What then is a distributed OS to do in
+the face of a partial failure? The key idea here is that while a process might fail, an OS is eternal (at least in the face of a partial failure, and given that the OS itself is protected.
+
+There is an argument to be made that as long as a process does not have
+external effect's than it can be protected by the OS. However, if it makes
+external calls, networking or writes, then it must protect itself from itself.
+The argument is one of end to end: Any process which admits external effects,
+and wishes to operate under the assumption that those external effects are
+respected but account for them themselves. No operating system in the past has
+ever made guarantees to software which sent messages beyond it's boundaries, or
+which passed messages over the network, or to the disk.
+
+\subsection{Remote Memory Controller}
+
+Based on a lot of reading it seems that there is a big opprotunity for
+innovation with reguard to distributed data structures and client side
+caching when using one sided RDMA. People are solving this problem left right
+and center~\cite{cell}~\cite{serf}~\cite{aguilera2019designing}. In each they
+take a custom approach to dealing with write contention and versioning, with
+the BTree paper probably being the most elegant. I think that there is a very
+systems based approach that could be used to give each of these distinct
+systems a platform. Specifically I think that they could use a memory
+controller.
+
+What would this memory controller do? It would provide semantics for
+performing remote reads and writes. The main point would be to enable shared
+data, and have almost no overhead when the data is partitioned. It would
+therefore need to be low overhead, and make good use of existing hardware
+trends. For starters there is no option that it would not run on RDMA nics.
+I'm not sure if they need to be smartnics or if using some user space
+solution would work. The smartnics could manage some kinds of state but it's
+not obvious where.
+
+I think that the key thing to do would be to make writes propagate fast, and
+dead with contention. One way is to have tones of versioning and to do
+checksomes. Personally I think that the memory itself should do the
+versioning. If we have memory that allows for an add operation to be done at
+the memory, then each block can in isolation provide serializability by using
+a counter. Then each write increments the counter and a failed read can be
+detectecd when the counter does not match. Essentailly when a read fails the
+data, plus the version can be returned, and in the write case the version
+number is incremented. This could also allow for the memory to act as a
+moniter and lock access to itself. This is only important if writes are
+happening. I think that it would be very key to propagate writes, or at least
+the knowledge that some region of remote memory is dirty. I think that having
+a memory write generate a message to all client machines to mark the memory
+as dirty is essential. That way there is as low latency for contention
+detection as possible. Further I think that caching this dirty block
+information at the switch is a tempting idea as it also provides a
+centralized location to detect conficts, to lock, and to propagate new
+infomration.
+
+What I've described up to this point is the lowest level interface of the
+controller. Essentiall a memory centric layer that makes reads, writes, and
+deals with versioning and propagating of information. It would exist close to
+the hardware.
+
+Above the read write layer would be a transactional layer. This would expose
+transactions to applications and allow them to reason about distributed
+memory more clearly. Specifically, has the data that I wanted to get been
+gotten, and have a processed all the writes I needed to process. The point of
+the transactional layer is to batch operations which require multiple
+updates. In the case of a structure like a distributed B-Tree this might
+involve a traversal of the tree, followed by a write to a specific block.
+Here is where the determination between client side and server side caching
+can be made. I.e if a client want to use cached data they can submit a set of
+reads and writes to the transactional layer with a list of versions for their
+data. If the transaction is valid and the version numbers are up to date,
+then the operation goes through.
+
+These two pieces are a low level building block for applications to construct
+their own distributed structures with lower overhead and complexity. It also
+hides things like RDAM and can allow for a single address space abstraction,
+but with explicit local and remote pointers.
+
+The way I'm imagining this is that a distributed object would be built once,
+with a single discription for the local and remote parts, however some memory
+would be labeled cached, and that would live in local memory untill a remote
+request is made. When the remote request is made the transactional
+syncronziation occurs. Which again in the case of having zero shared data
+results in no contention and the write and read should just go through, in
+the worst case the local cache needs to be updated and the operation fails.
+
+
+
+
+
+\section{Reading}
+\label{sec:reading}
+
+\subsection{Read}
+\begin{itemize}
+    \item{Beyond process-centric operating systems}~\cite{189914}\rpaper{}
+    \item{Dark Packets}\rabstract{}
+    \item{CacheCloud}~\cite{cachecloud}\rintro{+}
+    \item{It's time for low latency (osterhouse)}
+    \item{LegoOS}\cite{legoos}\rpaper{}
+    \item {Clover}\cite{clover}\rpaper{}
+    \item{fault isolation (Amanda's work)}\rintro{}
+    \item{Decibel - Mohair}\rabstract{}
+    \item{Popcorn Linux}
+    \item{Helios - Heterogeneous multiprocessing with satellite kernels}~\cite{helios}\rabstract{}
+    \item{Welcome to Zombieland}~\cite{zombieland}\rintro{}
+    \item{Disk failure in the real world}~\cite{Schroeder:2007:DFR:1267903.1267904}\rabstract{}
+    \item{The Multikernel: A new OS Architecture for Scaleable
+        Multicore Systems}~\cite{the-multikenel}\rabstract{}
+    \item{Designing Far Memory Data Structures: Think Outside the Box}~\cite{aguilera2019designing}
+    \item{SuRF: Practical Range Query Filtering with Fast Succint Tries}~\cite{surf}\rabstract{}
+    \item{Can Far Memory Improve Job Throughput?}~\cite{10.1145/3342195.3387522}
+    \item{Remote Reigons: a simple abstraction for remote memory}~\cite{215933}
+    \item{Balancing CPU and Network in the Cell Distributed B-Tree Store}~\cite{cell}
+    \item{Dissaggregation and the application}~\cite{254120}
+    \item{Semeru: A Memory-Disaggregated Managed Runtime}
+    \item{RSCS: A Microsecond-Scale Scheduler for Rack-Scale Computers}
+    \item{Write Dependency Disentanglement with HOARE??}
+    \item{Fast RDMA-based Ordred Key-Value Store using Remote Learned Cache}
+    \item{Storm a fast transactional dataplane for remote data
+        structures}~\cite{storm}
+    \item{Scale-out NUMA}~\cite{sonuma}
+    \item{FaRM: Fast Remote Memory}~\cite{farm}
+    \item{The RAMCloud Storage System}~\cite{ramcloud}
+
+
+\end{itemize}
+
+\subsection{To Read}
+\begin{itemize}
+    \item{Taking advantage of a disaggregated storage and compute architecture. In Spark + AI Summit 2019 (SAIS'19)}
+    \item{Introducing bryce canyon: Our next-generation storage platform. https://code:fb:com/data-center-engineering/introducing-bryce-canyon-our-next-generation-storage-platform/ }
+
+\end{itemize}
+
+
+\section{notes}
+\label{sec:thoughts}
+
+Alex suggested that I take a view of the hardware landscape prior to making
+any proposal. I suggested that we could do some large scale benchmarking of
+know OS primitives and check which ones are essential to be local, and which
+can be make remote. This is a decent approach because it answers the
+question, \textit{How can a traditional kernel be modified to be
+disaggregated?} This is a problem which is slightly smaller in scope to what
+I should be proposing. If I take Alex's thought seriously I should not only
+collect a set of pieces of hardware, but completely understand what their
+limitations are. What are the characteristics which make them good or bad for
+disaggregated computing? For example in the Storm paper~\cite{storm} they
+note that advancements in RNIC technology have increased the cache sizes and
+allowed them to keep flow control and transmission state on the RNIC. This is
+one example of a hardware feature which has real cost implications whose
+absolute value determines the scalability of a rack scale computer. If I can
+find a few such hardware features which are the current bottle necks we can
+look to future technologies with will alleviate the bottleneck. With this in
+hand a study of current hardware trends will allow us to make good
+predictions about which aspects of disaggregated computing are hard stops, or
+potential go aheads. The final takeaway for the survey of the hardware
+landscape is that we will be able to point to areas in the architecture where
+new software innovations can come to the rescue. An example of this is the
+chain writing protocol in clover.
+
+I think that a brilliant take away from this sort of endeavor would be an
+approach to system design like SEDA which automatically adjusts resource
+allocation based on contention and bottlenecks. Except that in my case the
+measurement would be delay as a product of remote memory accesses. I.e a
+system could change it's location to be closer to or further away from
+resources depending on what the access latency demands. Think of an actor
+based operating system which could migrate it's state between distinct
+execution environments.
+
+\section{Todo} 
+\label{sec:todo}
+%% 
+\begin{itemize} 
+
+     \item{Make schedule to keep track of paper reading}
+
+    \item {Make taxonomy of hardware i.e smartnics, switches, memory
+    controllers, nvm, accelerators which might play a role and link to the
+    actual hardware with descriptions.}
+
+\end{itemize}
+
+\section{Hardware}
+
+\textbf{RDMA}
+\todo{list of RDMA NIC's thier prices and associated papers with flaws and stregnths}
+\\
+\textbf{Gen-Z}
+\todo{where has this been used, what is the future predicted performance}
+\\
+\textbf{NVM}
+\todo{What are the existing technologies and pricepoints (yiying says 6.18 per GB)}
+\\
+\textbf{Intiellegent Ram}
+
+Are there any exmaples of computing actually occuring at ram. The argument
+here is that the computation can be deffered to ram. I think that it's
+something like a computational moniter. Maybe there is some sort of argument
+for computational offload at the memory.
+
+
+
+\section{People}
+
+Yiying Zhang - UCSD
+Sharad Singhal - Hewlet Packard (The machine)
+Kimberly Keeton - Hewlet Packard (The machine)
+David G. Anderson - Carnegie Mellon
+Stanko Novakovic - MSR (so-NUMA)
