@@ -778,7 +778,7 @@ static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
-	const uint16_t rx_rings = 1, tx_rings = 1;
+	const uint16_t rx_rings = 2, tx_rings = 2;
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
 	int retval;
@@ -1186,9 +1186,12 @@ lcore_main(void)
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
 			//printf("%X bufs\n",&rx_pkts[0]);
 
-			//uint32_t queue = rte_lcore_id()/2;
-			//const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
-			const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
+			uint32_t queue = rte_lcore_id()/2;
+			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
+			//uint32_t current_ring =  rand() %2;
+			//printf("currently reading from ring %d\n",current_ring);
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, current_ring, rx_pkts, BURST_SIZE);
 			
 			if (unlikely(nb_rx == 0))
 				continue;
@@ -1261,7 +1264,8 @@ lcore_main(void)
 			log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
 
 			/* Send burst of TX packets, to the same port */
-			const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
+			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
+			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, rx_pkts, nb_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 
