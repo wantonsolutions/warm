@@ -757,6 +757,17 @@ static const struct rte_eth_conf port_conf_default = {
 	},
 };
 
+#define RSS_HASH_KEY_LENGTH 40 // for mlx5
+uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP; /* RSS IP by default. */
+uint64_t nb_rxq = 2;
+uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+};
+
 /* basicfwd.c: Basic DPDK skeleton forwarding example. */
 
 /*
@@ -784,6 +795,25 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 				port, strerror(-retval));
 		return retval;
 	}
+
+//STW RSS
+	if (nb_rxq > 1) {
+		//STW: use sym_hash_key for RSS
+		port_conf.rx_adv_conf.rss_conf.rss_key = sym_hash_key;
+		port_conf.rx_adv_conf.rss_conf.rss_key_len = RSS_HASH_KEY_LENGTH;
+		port_conf.rx_adv_conf.rss_conf.rss_hf =
+			rss_hf & dev_info.flow_type_rss_offloads;
+	} else {
+		port_conf.rx_adv_conf.rss_conf.rss_key = NULL;
+		port_conf.rx_adv_conf.rss_conf.rss_hf = 0;
+	}        if( port_conf.rx_adv_conf.rss_conf.rss_hf != 0){
+		port_conf.rxmode.mq_mode = (enum rte_eth_rx_mq_mode) ETH_MQ_RX_RSS;
+	}
+	else{
+		port_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
+	}
+//\STW RSS
+
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
@@ -1154,8 +1184,12 @@ lcore_main(void)
 
 			/* Get burst of RX packets, from first and only port */
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
+			//printf("%X bufs\n",&rx_pkts[0]);
+
+			//uint32_t queue = rte_lcore_id()/2;
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
-		
+			
 			if (unlikely(nb_rx == 0))
 				continue;
 
@@ -1209,7 +1243,7 @@ lcore_main(void)
 				}
 				#endif
 
-				true_classify(rx_pkts[i]);
+				//true_classify(rx_pkts[i]);
 
 				//this must be recomputed if the packet is changed
 				uint16_t ipcsum, old_ipcsum;
@@ -1274,6 +1308,7 @@ void fork_lcores() {
 	} 	
 }
 
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -1306,6 +1341,7 @@ main(int argc, char *argv[])
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
+
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
 		if (port_init(portid, mbuf_pool) != 0)
@@ -1316,6 +1352,7 @@ main(int argc, char *argv[])
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 
+	printf("master core %d\n",rte_get_master_lcore());
 
 	
 
