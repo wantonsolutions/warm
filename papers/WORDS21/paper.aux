@@ -1,0 +1,57 @@
+\relax 
+\citation{gms}
+\citation{aguilera2019designing}
+\citation{cell}
+\citation{sonuma}
+\citation{storm}
+\citation{clover}
+\citation{aguilera2019designing}
+\citation{memc3}
+\citation{cell}
+\citation{sonuma}
+\citation{storm}
+\citation{clover}
+\citation{aguilera2019designing}
+\citation{254120}
+\citation{memc3}
+\citation{cell}
+\citation{sonuma}
+\citation{storm}
+\citation{clover}
+\citation{aguilera2019designing}
+\citation{254120}
+\citation{254120}
+\citation{254120}
+\providecommand \oddpage@label [2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Proposal}{1}}
+\newlabel{sec:intro}{{1}{1}}
+\citation{sonuma}
+\citation{storm}
+\citation{clover}
+\citation{cell}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Anatomy of a disaggregated rack. On the left a traditional rack with processors colocated with their memory interconnected by a switch. On the right is a high density disaggregated rack with processors separated from their memory by a top of rack switch. Stars mark locations for memory access serialization. Red denotes traditional processor centric serialization\nobreakspace  {}\cite  { memc3, cell, sonuma, storm, clover}, blue marks a memory centric architecture\nobreakspace  {}\cite  {aguilera2019designing}, and green marks a switch centric solution similar in spirit to proposed middle box solutions\nobreakspace  {}\cite  {254120}.  \relax }}{2}}
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:overview}{{1}{2}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Software and Hardware}{2}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Illustration of a successful write across different resource centric architectures with the location of memory consistency information labeled: \textbf  {MV} (Memory version), \textbf  {CMV} (Cached Memory Version) and \textbf  {NG} (Notify Groups). Processor centric writes are initiated and validated by processors exclusively. Successful writes require 1 RTT. Notifications, and retries (Not depicted) incur additional round trips. A memory centric architecture places memory version and notify groups in remote memory. Upon a successful write \textit  {notify} messages (blue) are set to each group member with updated memory versions. Switch centric architecture places memory versions, and notification responsibility to the switch. Processors send notify group info with writes to reduce memory overhead on the switch. Switch centric architecture saves half an RTT over memory centric, and cuts notify bandwidth in half. In the presence of an optical network, with no centralized switching chip, pNICs can provide the same functionality for a single server memory bank.  \relax }}{3}}
+\newlabel{fig:notify}{{2}{3}}
+\citation{storm}
+\citation{storm}
+\citation{clover}
+\citation{cell}
+\citation{254120}
+\citation{amanda-hotnets}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Prototype software components}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Testbed}{4}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Satellite Problems}{4}}
+\bibstyle{acm}
+\bibdata{paper}
+\bibcite{aguilera2019designing}{1}
+\bibcite{254120}{2}
+\bibcite{amanda-hotnets}{3}
+\bibcite{memc3}{4}
+\bibcite{gms}{5}
+\bibcite{cell}{6}
+\bibcite{sonuma}{7}
+\bibcite{storm}{8}
+\bibcite{clover}{9}
