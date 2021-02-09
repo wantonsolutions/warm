@@ -759,7 +759,6 @@ static const struct rte_eth_conf port_conf_default = {
 
 #define RSS_HASH_KEY_LENGTH 40 // for mlx5
 uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP; /* RSS IP by default. */
-uint64_t nb_rxq = 2;
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
@@ -775,10 +774,11 @@ uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
  * coming from the mbuf_pool passed as a parameter.
  */
 static inline int
-port_init(uint16_t port, struct rte_mempool *mbuf_pool)
+port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
-	const uint16_t rx_rings = 2, tx_rings = 2;
+	const uint16_t rx_rings = core_count, tx_rings = core_count;
+	uint64_t nb_rxq = core_count;
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
 	int retval;
@@ -1200,6 +1200,8 @@ lcore_main(void)
 
 			for (uint16_t i = 0; i < nb_rx; i++){
 				//printf("HIT\n");
+				if (likely(i < nb_rx - 1))
+					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				
 
 				packet_counter++;
@@ -1217,8 +1219,9 @@ lcore_main(void)
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
-				udp_hdr = udp_hdr_process(ipv4_hdr);
 
+/*
+				udp_hdr = udp_hdr_process(ipv4_hdr);
 				if (unlikely(udp_hdr == NULL)) {
 					log_printf(DEBUG, "udp header not the correct format dropping packet\n");
 					rte_pktmbuf_free(rx_pkts[i]);
@@ -1238,7 +1241,7 @@ lcore_main(void)
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
-
+*/
 				#ifdef PACKET_DEBUG_PRINTOUT
 				classify_packet_size(ipv4_hdr,roce_hdr);
 				if (packet_counter % 1000000 == 0) {
@@ -1339,6 +1342,7 @@ main(int argc, char *argv[])
 	//	rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
 
 	/* Creates a new mempool in memory to hold the mbufs. */
+	//TODO create an mbuf pool per core
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 		MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 
@@ -1348,7 +1352,7 @@ main(int argc, char *argv[])
 
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
-		if (port_init(portid, mbuf_pool) != 0)
+		if (port_init(portid, mbuf_pool,rte_lcore_count()) != 0)
 			rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16 "\n",
 					portid);
 
