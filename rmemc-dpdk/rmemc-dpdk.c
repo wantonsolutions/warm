@@ -14,6 +14,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_hash_crc.h>
+#include <rte_launch.h>
 #include "rmemc-dpdk.h"
 #include "packets.h"
 #include "clover_structs.h"
@@ -1134,6 +1135,8 @@ lcore_main(void)
 	log_printf(INFO,"\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 			rte_lcore_id());
 
+	printf("Running lcore main\n");
+
 	/* Run until the application is quit or killed. */
 	struct rte_ether_hdr* eth_hdr;
 	struct rte_ipv4_hdr *ipv4_hdr; 
@@ -1145,6 +1148,7 @@ lcore_main(void)
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
+
 		RTE_ETH_FOREACH_DEV(port) {
 			uint16_t ipv4_udp_rx = 0;	
 
@@ -1158,6 +1162,7 @@ lcore_main(void)
 			log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);			
 
 			for (uint16_t i = 0; i < nb_rx; i++){
+				//printf("HIT\n");
 				
 
 				packet_counter++;
@@ -1253,6 +1258,22 @@ void debug_icrc(struct rte_mempool *mbuf_pool) {
 	exit(0);
 }
 
+
+int coretest() {
+	printf("I'm actually running on core %d\n",rte_lcore_id());
+	lcore_main();
+	return 1;
+}
+
+void fork_lcores() {
+	printf("Running on #%d cores\n",rte_lcore_count());
+	int lcore;
+	RTE_LCORE_FOREACH_SLAVE(lcore) {
+		printf("running core %d\n",lcore);
+		rte_eal_remote_launch(coretest, NULL, lcore);
+	} 	
+}
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -1294,7 +1315,7 @@ main(int argc, char *argv[])
 	if (rte_lcore_count() > 1)
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
-	printf("Running on #%d cores\n",rte_lcore_count());
+
 
 	
 
@@ -1302,6 +1323,8 @@ main(int argc, char *argv[])
 	init_ib_words();
 	/* Call lcore_main on the master core only. */
 	//debug_icrc(mbuf_pool);
+
+	fork_lcores();
 
 
 	lcore_main();
