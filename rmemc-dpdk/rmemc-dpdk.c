@@ -15,6 +15,7 @@
 #include <rte_udp.h>
 #include <rte_hash_crc.h>
 #include <rte_launch.h>
+#include <rte_rwlock.h>
 #include "rmemc-dpdk.h"
 #include "packets.h"
 #include "clover_structs.h"
@@ -384,6 +385,8 @@ static int init =0;
 static uint32_t write_value_packet_size = 0;
 static uint32_t predict_shift_value=0;
 
+rte_rwlock_t next_lock;
+
 
 
 void true_classify(struct rte_mbuf * pkt) {
@@ -397,24 +400,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 
-	if (init == 0) {
-		bzero(first_write,KEYSPACE*sizeof(uint64_t));
-		bzero(second_write,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
-		bzero(first_cns,KEYSPACE*sizeof(uint64_t));
-		bzero(predict_address,KEYSPACE*sizeof(uint64_t));
-		bzero(latest_cns_key,KEYSPACE*sizeof(uint64_t));
-		bzero(latest_key,TOTAL_ENTRY*sizeof(uint64_t));
-
-		bzero(core_pkt_counters,MAX_CORES*sizeof(uint32_t));
-
-		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
-		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
-		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
-		init_hash();
-		write_value_packet_size=0;
-		predict_shift_value=0;
-		init = 1;
-	}
 
 	/*
 	if (opcode == RC_ACK) {
@@ -450,8 +435,6 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	//Write Request
 	if (opcode == RC_WRITE_ONLY) {
-
-
 		if (size == 252) {
 			//TODO determine what these writes are doing
 			log_printf(DEBUG,"type1 size %d\n",size);
@@ -545,7 +528,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			latest_key[id] = *key;
 
-			#ifdef PACKET_DEBUG_PRINTOUT
+			#ifdef PACKET_DEBUG_PRINTOU
 			//Count the big writes, this is mostly for testing
 			if (size >= 1084) {
 				//printf("key %02X %02X %02X %02X \n",key[0], key[1], key[2], key[3]);
@@ -627,10 +610,11 @@ void true_classify(struct rte_mbuf * pkt) {
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
-
+			/*
 			if (vaddr_swaps++ % 1000 == 0) {
 				printf("virtual memory swaps %"PRIu64" packets %"PRIu64"\n",vaddr_swaps,packet_counter);
 			}
+			*/
 		}
 
 		//given that a cns has been determined move the next address for this 
@@ -1182,6 +1166,8 @@ lcore_main(void)
 	struct rte_udp_hdr* udp_hdr;
 	struct roce_v2_header * roce_hdr;
 	struct clover_hdr * clover_header;
+
+
 	for (;;) {
 		/*
 		 * Receive packets on a port and forward them on the paired
@@ -1258,7 +1244,9 @@ lcore_main(void)
 				}
 				#endif
 
-				//true_classify(rx_pkts[i]);
+				rte_rwlock_write_lock(&next_lock);
+				true_classify(rx_pkts[i]);
+				rte_rwlock_write_unlock(&next_lock);
 
 				/*
 				uint32_t core_id = rte_lcore_id() / 2;
@@ -1385,6 +1373,23 @@ main(int argc, char *argv[])
 
 	
 
+	if (init == 0) {
+		bzero(first_write,KEYSPACE*sizeof(uint64_t));
+		bzero(second_write,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
+		bzero(first_cns,KEYSPACE*sizeof(uint64_t));
+		bzero(predict_address,KEYSPACE*sizeof(uint64_t));
+		bzero(latest_cns_key,KEYSPACE*sizeof(uint64_t));
+		bzero(latest_key,TOTAL_ENTRY*sizeof(uint64_t));
+		bzero(core_pkt_counters,MAX_CORES*sizeof(uint32_t));
+		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
+		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
+		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
+		init_hash();
+		write_value_packet_size=0;
+		predict_shift_value=0;
+		init = 1;
+	}
+	rte_rwlock_init(&next_lock);
 
 	init_ib_words();
 	/* Call lcore_main on the master core only. */
