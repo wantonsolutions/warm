@@ -89,6 +89,9 @@ uint32_t read_req_addr_count[KEYSPACE];
 uint64_t read_resp_addr_index[KEYSPACE];
 uint32_t read_resp_addr_count[KEYSPACE];
 
+#define MAX_CORES 24
+uint32_t core_pkt_counters[MAX_CORES];
+
 uint64_t vaddr_swaps = 0;
 
 
@@ -401,6 +404,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		bzero(predict_address,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_cns_key,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_key,TOTAL_ENTRY*sizeof(uint64_t));
+
+		bzero(core_pkt_counters,MAX_CORES*sizeof(uint32_t));
 
 		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
@@ -758,7 +763,11 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 #define RSS_HASH_KEY_LENGTH 40 // for mlx5
-uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP; /* RSS IP by default. */
+uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+
+//uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;
+//uint64_t rss_hf = 0;
+//rss_hf = 0;
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
@@ -1042,7 +1051,7 @@ struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 
 		//udp_hdr->dgram_cksum = 0;									
 		//udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, (void*)udp_hdr);
-
+		//printf("udp src port : %d\n",udp_hdr->src_port);
 		return udp_hdr;
 	}
 	return NULL;
@@ -1220,13 +1229,13 @@ lcore_main(void)
 					continue;
 				}
 
-/*
 				udp_hdr = udp_hdr_process(ipv4_hdr);
 				if (unlikely(udp_hdr == NULL)) {
 					log_printf(DEBUG, "udp header not the correct format dropping packet\n");
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
+				/*
 
 				roce_hdr = roce_hdr_process(udp_hdr);
 				if (unlikely(roce_hdr == NULL)) {
@@ -1250,6 +1259,18 @@ lcore_main(void)
 				#endif
 
 				//true_classify(rx_pkts[i]);
+
+				/*
+				uint32_t core_id = rte_lcore_id() / 2;
+				core_pkt_counters[core_id]++;
+				if ((core_pkt_counters[core_id] % 10000) == 0) {
+					for(int i=0;i<MAX_CORES;i++) {
+						if (core_pkt_counters[i] != 0) {
+							printf("core_id %d -- pkts %d\n",i,core_pkt_counters[i]);
+						}
+					}
+				}*/
+
 
 				//this must be recomputed if the packet is changed
 				uint16_t ipcsum, old_ipcsum;
