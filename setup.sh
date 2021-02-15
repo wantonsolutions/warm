@@ -1,20 +1,43 @@
 #!/bin/bash
 
-function setup_nic {
+iface=""
+ipaddr=""
+numasocket=""
+function set_server_params {
     hname=`hostname`
     echo "Configuring NIC on $hname"
     case $hname in
         "yak-00.sysnet.ucsd.edu")
             iface="enp4s0" #100gbps NICS Mellanox
             ipaddr="192.168.1.12"
+            numasocket="0"
         ;;
         "yak-01.sysnet.ucsd.edu")
             iface="enp129s0"
             ipaddr="192.168.1.13"
+            numasocket="1"
         ;;
         "yak-02.sysnet.ucsd.edu")
             iface="enp4s0"
             ipaddr="192.168.1.14"
+            numasocket="0"
+        ;;
+
+        "yeti-03.sysnet.ucsd.edu")
+            iface="enp101s0"
+            ipaddr="192.168.1.15"
+            numasocket="0"
+        ;;
+        "yeti-04.sysnet.ucsd.edu")
+            iface="enp59s0"
+            ipaddr="192.168.1.16"
+            numasocket="0"
+        ;;
+
+        "yeti-05.sysnet.ucsd.edu")
+            iface="enp59s0"
+            ipaddr="192.168.1.17"
+            numasocket="0"
         ;;
 
         *)
@@ -22,6 +45,9 @@ function setup_nic {
         exit 1
         ;;
     esac
+}
+
+function setup_nic {
 
     #set the link up
     sudo ip link set $iface up
@@ -33,10 +59,10 @@ function setup_nic {
 function setup_hugepages {
     echo "Setting up hugepages"
     sudo hugeadm --pool-pages-min 2MB:8192
-    sudo mkdir -p /mnt/hugetlbfs ; mount -t hugetlbfs none /mnt/hugetlbfs
+    sudo mkdir -p /mnt/hugetlbfs ; sudo mount -t hugetlbfs none /mnt/hugetlbfs
 
     #TODO set this up so that it maps correctly on yak0, 1 and 2
-    sudo numactl --physcpubind=0 --localalloc LD_PRELOAD=libhugetlbfs.so HUGETLB_MORECORE=yes
+    sudo numactl --physcpubind="$numasocket" --localalloc LD_PRELOAD=libhugetlbfs.so HUGETLB_MORECORE=yes ls
     echo "HUGEPAGE INFO"
     cat /proc/meminfo | grep Huge
     echo "Hugepage setup complete"
@@ -52,6 +78,12 @@ function setup_switch {
     enable
     configure terminal
 
+    #enable the ports
+    interface ethernet 1/3 openflow mode hybrid
+    interface ethernet 1/29 openflow mode hybrid
+    interface ethernet 1/30 openflow mode hybrid
+    interface ethernet 1/31 openflow mode hybrid
+
     #Port Eth1/29 is Yak00 (192.168.1.11)
     #Port Eth1/30 is Yak01 (192.168.1.12)
     #Port Eth1/31 is Yak02 
@@ -66,6 +98,7 @@ function setup_switch {
     "
 }
 
+set_server_params
 setup_nic
 setup_hugepages
 
