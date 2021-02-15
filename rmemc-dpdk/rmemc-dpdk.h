@@ -15,7 +15,8 @@
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
-#define NUM_MBUFS 8191
+//#define NUM_MBUFS 8191
+#define NUM_MBUFS 8191 * 16
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 

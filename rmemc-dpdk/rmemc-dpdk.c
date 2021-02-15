@@ -14,6 +14,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_hash_crc.h>
+#include <rte_launch.h>
 #include "rmemc-dpdk.h"
 #include "packets.h"
 #include "clover_structs.h"
@@ -87,6 +88,9 @@ uint32_t read_req_addr_count[KEYSPACE];
 
 uint64_t read_resp_addr_index[KEYSPACE];
 uint32_t read_resp_addr_count[KEYSPACE];
+
+#define MAX_CORES 24
+uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
@@ -400,6 +404,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		bzero(predict_address,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_cns_key,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_key,TOTAL_ENTRY*sizeof(uint64_t));
+
+		bzero(core_pkt_counters,MAX_CORES*sizeof(uint32_t));
 
 		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
@@ -756,6 +762,20 @@ static const struct rte_eth_conf port_conf_default = {
 	},
 };
 
+#define RSS_HASH_KEY_LENGTH 40 // for mlx5
+uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+
+//uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;
+//uint64_t rss_hf = 0;
+//rss_hf = 0;
+uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+        0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
+};
+
 /* basicfwd.c: Basic DPDK skeleton forwarding example. */
 
 /*
@@ -763,10 +783,11 @@ static const struct rte_eth_conf port_conf_default = {
  * coming from the mbuf_pool passed as a parameter.
  */
 static inline int
-port_init(uint16_t port, struct rte_mempool *mbuf_pool)
+port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
-	const uint16_t rx_rings = 1, tx_rings = 1;
+	const uint16_t rx_rings = core_count, tx_rings = core_count;
+	uint64_t nb_rxq = core_count;
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
 	int retval;
@@ -783,6 +804,25 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 				port, strerror(-retval));
 		return retval;
 	}
+
+//STW RSS
+	if (nb_rxq > 1) {
+		//STW: use sym_hash_key for RSS
+		port_conf.rx_adv_conf.rss_conf.rss_key = sym_hash_key;
+		port_conf.rx_adv_conf.rss_conf.rss_key_len = RSS_HASH_KEY_LENGTH;
+		port_conf.rx_adv_conf.rss_conf.rss_hf =
+			rss_hf & dev_info.flow_type_rss_offloads;
+	} else {
+		port_conf.rx_adv_conf.rss_conf.rss_key = NULL;
+		port_conf.rx_adv_conf.rss_conf.rss_hf = 0;
+	}        if( port_conf.rx_adv_conf.rss_conf.rss_hf != 0){
+		port_conf.rxmode.mq_mode = (enum rte_eth_rx_mq_mode) ETH_MQ_RX_RSS;
+	}
+	else{
+		port_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
+	}
+//\STW RSS
+
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
@@ -1011,7 +1051,7 @@ struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 
 		//udp_hdr->dgram_cksum = 0;									
 		//udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, (void*)udp_hdr);
-
+		//printf("udp src port : %d\n",udp_hdr->src_port);
 		return udp_hdr;
 	}
 	return NULL;
@@ -1134,6 +1174,8 @@ lcore_main(void)
 	log_printf(INFO,"\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 			rte_lcore_id());
 
+	printf("Running lcore main\n");
+
 	/* Run until the application is quit or killed. */
 	struct rte_ether_hdr* eth_hdr;
 	struct rte_ipv4_hdr *ipv4_hdr; 
@@ -1145,19 +1187,30 @@ lcore_main(void)
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
+
 		RTE_ETH_FOREACH_DEV(port) {
 			uint16_t ipv4_udp_rx = 0;	
 
 			/* Get burst of RX packets, from first and only port */
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
-			const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
-		
+			//printf("%X bufs\n",&rx_pkts[0]);
+
+			uint32_t queue = rte_lcore_id()/2;
+			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
+			//uint32_t current_ring =  rand() %2;
+			//printf("currently reading from ring %d\n",current_ring);
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, current_ring, rx_pkts, BURST_SIZE);
+			
 			if (unlikely(nb_rx == 0))
 				continue;
 
 			log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);			
 
 			for (uint16_t i = 0; i < nb_rx; i++){
+				//printf("HIT\n");
+				if (likely(i < nb_rx - 1))
+					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				
 
 				packet_counter++;
@@ -1175,13 +1228,14 @@ lcore_main(void)
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
-				udp_hdr = udp_hdr_process(ipv4_hdr);
 
+				udp_hdr = udp_hdr_process(ipv4_hdr);
 				if (unlikely(udp_hdr == NULL)) {
 					log_printf(DEBUG, "udp header not the correct format dropping packet\n");
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
+				/*
 
 				roce_hdr = roce_hdr_process(udp_hdr);
 				if (unlikely(roce_hdr == NULL)) {
@@ -1196,7 +1250,7 @@ lcore_main(void)
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
-
+*/
 				#ifdef PACKET_DEBUG_PRINTOUT
 				classify_packet_size(ipv4_hdr,roce_hdr);
 				if (packet_counter % 1000000 == 0) {
@@ -1204,7 +1258,19 @@ lcore_main(void)
 				}
 				#endif
 
-				true_classify(rx_pkts[i]);
+				//true_classify(rx_pkts[i]);
+
+				/*
+				uint32_t core_id = rte_lcore_id() / 2;
+				core_pkt_counters[core_id]++;
+				if ((core_pkt_counters[core_id] % 10000) == 0) {
+					for(int i=0;i<MAX_CORES;i++) {
+						if (core_pkt_counters[i] != 0) {
+							printf("core_id %d -- pkts %d\n",i,core_pkt_counters[i]);
+						}
+					}
+				}*/
+
 
 				//this must be recomputed if the packet is changed
 				uint16_t ipcsum, old_ipcsum;
@@ -1222,7 +1288,8 @@ lcore_main(void)
 			log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
 
 			/* Send burst of TX packets, to the same port */
-			const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
+			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
+			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, rx_pkts, nb_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 
@@ -1253,6 +1320,23 @@ void debug_icrc(struct rte_mempool *mbuf_pool) {
 	exit(0);
 }
 
+
+int coretest() {
+	printf("I'm actually running on core %d\n",rte_lcore_id());
+	lcore_main();
+	return 1;
+}
+
+void fork_lcores() {
+	printf("Running on #%d cores\n",rte_lcore_count());
+	int lcore;
+	RTE_LCORE_FOREACH_SLAVE(lcore) {
+		printf("running core %d\n",lcore);
+		rte_eal_remote_launch(coretest, NULL, lcore);
+	} 	
+}
+
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -1279,22 +1363,25 @@ main(int argc, char *argv[])
 	//	rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
 
 	/* Creates a new mempool in memory to hold the mbufs. */
+	//TODO create an mbuf pool per core
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 		MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
+
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
-		if (port_init(portid, mbuf_pool) != 0)
+		if (port_init(portid, mbuf_pool,rte_lcore_count()) != 0)
 			rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16 "\n",
 					portid);
 
 	if (rte_lcore_count() > 1)
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
-	printf("Running on #%d cores\n",rte_lcore_count());
+
+	printf("master core %d\n",rte_get_master_lcore());
 
 	
 
@@ -1302,6 +1389,8 @@ main(int argc, char *argv[])
 	init_ib_words();
 	/* Call lcore_main on the master core only. */
 	//debug_icrc(mbuf_pool);
+
+	fork_lcores();
 
 
 	lcore_main();
