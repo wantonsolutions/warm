@@ -43,15 +43,15 @@ ssh b09-27 $memcachedSource &
 sleep 1
 
 metaSource=`cat meta_server.sh`
-ssh yak0 $metaSource &
+ssh yak1 $metaSource &
 sleep 1
 
 clientSource=`cat client_server.sh`
-ssh yak1 $clientSource &
+ssh yak0 $clientSource &
 sleep 1
 
 memorySource=`cat mem_server.sh`
-ssh yak0 $memorySource &
+ssh yak1 $memorySource &
 sleep 1
 
 # this is the big sleep
