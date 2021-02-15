@@ -43,23 +43,31 @@ ssh b09-27 $memcachedSource &
 sleep 1
 
 metaSource=`cat meta_server.sh`
-ssh yak0 $metaSource &
-sleep 1
-
-clientSource=`cat client_server.sh`
-ssh yak1 $clientSource &
+ssh yak1 $metaSource &
 sleep 1
 
 memorySource=`cat mem_server.sh`
-ssh yak0 $memorySource &
+ssh yak1 $memorySource &
 sleep 1
+
+clientSource=`cat client_server_1.sh`
+ssh yak0 $clientSource &
+sleep 1
+
+clientSource=`cat client_server_2.sh`
+ssh yeti5 $clientSource &
+sleep 1
+
 
 # this is the big sleep
 wait
 echo "DONE RUNNING"
 
-scp yak1:/home/ssgrant/pDPM/clover/clean.dat clean.dat
-tail -1 clean.dat >> results.dat
+scp yak0:/home/ssgrant/pDPM/clover/clean.dat clean_1.dat
+scp yeti5:/home/ssgrant/pDPM/clover/clean.dat clean_2.dat
+
+tail -1 clean_1.dat >> results.dat
+tail -1 clean_2.dat >> results.dat
 
 sleep 5
 

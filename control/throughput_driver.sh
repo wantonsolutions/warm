@@ -3,14 +3,14 @@
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("1" "2" "4" "8")
-threads=("4")
+threads=("1")
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
 #packet_size=("1000" "500" "250" "125" "64" "32")
 #packet_size=("500" "250" "125" "64" "32")
 packet_size=("1000")
 #packet_size=("1000" "900" "800" "700" "600" " 500")
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
-opmodes=("MITSUME_YCSB_MODE_A")
+opmodes=("MITSUME_YCSB_MODE_C")
 #keyspaces=("100" "1000" "10000" "100000")
 keyspaces=("1000")
 
