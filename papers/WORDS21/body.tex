@@ -22,23 +22,103 @@ memory~\cite{aguilera2019designing,cell,sonuma,storm,clover}. A common
 goal among them is to provide $O(1)$ read and write costs in the
 common case. To achieve this strategy such as memory versioning,
 checksums, and memory enforced serialization have been
-proposed~\cite{aguilera2019designing}. These strategies have
-significant shortcomings in their current implementations: versioning,
-typically performed by an endhost, requires that a failed remote
-memory write (\textit{RDMA-CAS})  must be propagated back to the
-writer over a network (a full RTT) prior to it reissuing a consistent
-write. Writers also only learn their version is out of date upon
-failing a write, making it a common occurrence as version information
-ages.  Serialization at the memory is more tenable, but requires
-currently nonexistent technologies. Specifically it reuqires either a
-memory controller or memory itself to perform a variety of inplace
-arthemtic operations in the absense of a CPU. These instructions are
-required to provide memory versioning for consistancy, and to trigger
-notification messages to alert remote CPU's that a memory address has
-been dirtied by another CPU's write.  We consider an alternative
-network centralized approach which achieves the same benefit of a memory
-centric architecture, with fundamentally lower latency, and currently
-available technology. 
+proposed~\cite{aguilera2019designing}.
+
+%%
+%%These are reasons from the proposal
+%%
+%%These strategies have
+%%significant shortcomings in their current implementations: versioning,
+%%typically performed by an endhost, requires that a failed remote
+%memory write (\textit{RDMA-CAS}) must be propagated back to the writer
+%over a network (a full RTT) prior to it reissuing a consistent write.
+%Writers also only learn their version is out of date upon failing a
+%write, making it a common occurrence as version information ages.
+%Serialization at the memory is more tenable, but requires currently
+%nonexistent technologies. Specifically it reuqires either a memory
+%controller or memory itself to perform a variety of inplace arthemtic
+%operations in the absense of a CPU. These instructions are required to
+%provide memory versioning for consistancy, and to trigger notification
+%messages to alert remote CPU's that a memory address has been dirtied
+%by another CPU's write.  We consider an alternative network
+%centralized approach which achieves the same benefit of a memory
+%centric architecture, with fundamentally lower latency, and currently
+%available technology.
+
+%% WORDS
+Prior remote memory sysetms require the use of CPU's on remote
+machines to coordinate RDMA~\cite{cell,sonuma,storm,erpc,farm}. Remote
+CPU's provide RDMA serialization and simplify consistancy for
+distributed data structures. Disaggregated memory poses a new problem:
+\textit{How can remote memory be coordinated without a remote CPU?}.
+
+%%
+Clover is the first attempt to have fast consistent remote memory
+without any datapath coordination via remote CPU~\cite{clover}. Other
+recent approaches such as Remote Reigons~\cite{reigons} discount
+remote consistancy, and HP's the machine requires computation in
+remote memory, which relies on non existant
+hardware~\cite{aguilera2019designing}.
+
+%%
+Clover proposes that disagregated datastructes seperate their
+computational concerns into distinct responsibilities. Mainly memory
+servers, which passivle accepty RDMA requests, Clients which issues read and
+writes to the remote memory banks, and Metadata severs which
+centralize and keep consistant the shared metadata of the disagregated
+datastructures.
+
+Through their experimentation they find that ideal throughput is
+gained by placing client shared metadata out of datapath entirely, and
+updating it opprotunistically. Placing a metadata coordinater in the
+datapath quickly leads to a performance bottlenck. Their algorithm
+concetrates on maximizing read operations, and allows for lockless
+line rate reads in the absence of writes. In the presence of writes
+however clovers operation throughput decreases due to contention. When
+concurrent writes contest the same data a race occurs in which the
+fastest writer wins. The slower writer will fail, and is forced to
+retry it's write after searching through clovers remote data structure
+for the next write location. On write heavy workloads these race
+conditions happen frequently~\ref{fig:conflicts}, which leads to a
+sharp decrease in overall throughput.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
+    \caption{Clover write conflicts grow with the number of clients
+    (50\% write zipf 0.99 distribution)}
+    \label{fig:conflicts}
+\end{figure}
+
+
+%% what are we discussing
+Clover's write strategy is opprotunistc, in that it attempts to make
+multiple updates without aquiring locks, in the hope that no conflicts
+occur. When they do occur it's just job of the writer to reconcile the
+conflict. This opprotunism amortizes the cost of lock aquisition when
+contention is low, providing average case O(1) read/write and is used
+in many high throughput concurrent datastructures.\todo{cite cocurrent
+data structures}.
+
+%%
+We propose a middleground betwen prior centralized approaches, and
+clover's out of datapath metadata separation. Our insite is that by
+caching small ammount of a disaggregated data structures metadata in a
+centralized location, write conflicts can be resolved in the data path
+allowing for conflict free full read and write throughput of
+disaggregated data structures.
+
+%%
+Using Clover as a platform to prove our concept we design a
+ligthweight middle box algorithm which intercepts clovers RDMA read
+and write requets, caches a small ammount (64 byte per key) ammount of
+structural meta data and resolves write conflicts within the data
+path. 
+
+%%
+Our algorithm is implemented in DPDK, but is designed to have
+extremely low space and computational overhead making it ideals for
+network devices such as programable switches and NICSs.
+
 
 
 %%our position
@@ -65,12 +145,12 @@ available technology.
 
 This work makes the contention that a programmable switch is an ideal
 centralized point at which to implement a remote memory controller.
-for rack scale disaggregation. Prior work has suggested the need for a
-distributed memory controller~\cite{254120}. But none have been built
-or proposed with existing hardware. We posit that if all remote reads
-and writes are performed within a rack using RDMA a programmable top
-of rack switch (TOR) will see every memory operation. This fact allows
-it to act as a centralized serialization point, where the last
+for rack scale disaggregation.  Prior work has suggested the need for
+a distributed memory controller~\cite{254120}. But none have been
+built or proposed with existing hardware. We posit that if all remote
+reads and writes are performed within a rack using RDMA a programmable
+top of rack switch (TOR) will see every memory operation. This fact
+allows it to act as a centralized serialization point, where the last
 instance of concurrency between the reads and writes of remote CPUs is
 the egress port of the switch. The switch can therefore notify CPUs
 which contest the same memory regions that their writes have failed
@@ -83,26 +163,7 @@ via a multicast of the write packet. This simple mechanism notifies
 CPU's which share a remote region that their local cache is dirty
 within half of an RTT of the write being issued.
 Figure~\ref{fig:notify} illustrates how switch centric memory
-management simplifies a notification protocol.  rack scale
-disaggregation. Prior work has suggested the need for a distributed
-memory controller~\cite{254120}. But none have been built or proposed
-with existing hardware. We posit that if all remote reads and writes
-are performed within a rack using RDMA a programmable top of rack
-switch (TOR) will see every memory operation. This fact allows it to
-act as a centralized serialization point, where the last instance of
-concurrency between the reads and writes of remote CPUs is the egress
-port of the switch. The switch can therefore notify CPUs which contest
-the same memory regions that their writes have failed within half an
-RTT, whereas performing the notify at memory requires a full RTT. In
-addition to the fast rejection of out of date writes, modern
-programmable switchs \textit{currently} have the ability to maintain
-memory version numbers, and to store lists of CPU's which wish to be
-notified upon a write occurring to a shared memory location via a
-multicast of the write packet. This simple mechanism notifies CPU's
-which share a remote region that their local cache is dirty within
-half of an RTT of the write being issued.  Figure~\ref{fig:notify}
-illustrates how switch centric memory management simplifies a
-notification protocol. 
+management simplifies a notification protocol. 
 
 %%Struggles
 A key problem with using a switch as a memory controller is its
