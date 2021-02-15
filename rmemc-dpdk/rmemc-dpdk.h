@@ -20,6 +20,8 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+#define DONT_SWAP_VADDR
+
 
 //checksum
 

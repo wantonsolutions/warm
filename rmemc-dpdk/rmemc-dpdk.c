@@ -118,6 +118,7 @@ uint32_t qp_values[TOTAL_ENTRY];
 } while(0)
 
 
+
 int init_hash(void) {
 	qp2id_table = rte_hash_create(&qp2id_params);
 	HASH_RETURN_IF_ERROR(qp2id_table, qp2id_table == NULL, "qp2id_table creation failed");
@@ -400,7 +401,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 
-
 	/*
 	if (opcode == RC_ACK) {
 		//This is purely here for testing CRC
@@ -434,21 +434,26 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 
 	//Write Request
+			//Dangerous section
+			//print_packet(pkt);
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 252) {
 			//TODO determine what these writes are doing
-			log_printf(DEBUG,"type1 size %d\n",size);
+			//log_printf(DEBUG,"type1 size %d\n",size);
 		} else if (size == 68) {
 			log_printf(DEBUG,"write (2) size %d\n",size);
 		} else {
+			//printf("Else\n");
+			//exit(0);
+			rte_rwlock_write_lock(&next_lock);
 
 			struct write_request * wr = (struct write_request*) clover_header;
 			//print_packet(pkt);
 			uint64_t *key = (uint64_t*)&(wr->data);
 			uint32_t id = get_id(r_qp);
+			log_printf(DEBUG,"ID: %d KEY: %"PRIu64"\n",id,*key);
 			log_printf(DEBUG,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
 			log_printf(DEBUG,"KEY: %"PRIu64"\n", *key);
-			log_printf(DEBUG,"ID: %d KEY: %"PRIu64"\n",id,*key);
 			//print_packet(pkt);
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
@@ -471,28 +476,12 @@ void true_classify(struct rte_mbuf * pkt) {
 					printf("Unknown packet size (%d) exiting\n",rdma_size);
 					exit(0);
 				}
-				/*
-				if (write_value_packet_size == 1084) {
-					predict_shift_value = 10;
-				} else if ( write_value_packet_size == 572 ) {
-					predict_shift_value = 9;
-				} else if ( write_value_packet_size == 316 ) {
-					predict_shift_value = 8;
-				} else if ( write_value_packet_size == 188 ) {
-					predict_shift_value = 7;
-				} else {
-					printf("Unknown packet size (%d) exiting\n",rdma_size);
-					exit(0);
-				}
-				*/
 			}
 			//Sanity check, we should only reach here if we are dealing with statically sized write packets
 			if (unlikely(write_value_packet_size != rdma_size)) {
 				printf("ERROR in write packet block, but packet size not correct Established runtime size %d, Found size %d\n",write_value_packet_size,size);
 				exit(0);
 			}
-
-
 
 			if(first_write[*key] != 0 && first_cns[*key] != 0) {
 				log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
@@ -525,10 +514,11 @@ void true_classify(struct rte_mbuf * pkt) {
 					log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
 				}
 			}
-
 			latest_key[id] = *key;
+			rte_rwlock_write_unlock(&next_lock);
 
-			#ifdef PACKET_DEBUG_PRINTOU
+			/*
+			#ifdef PACKET_DEBUG_PRINTOUT
 			//Count the big writes, this is mostly for testing
 			if (size >= 1084) {
 				//printf("key %02X %02X %02X %02X \n",key[0], key[1], key[2], key[3]);
@@ -549,10 +539,13 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			#endif
+			*/
 		} 
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
+
+		rte_rwlock_write_lock(&next_lock);
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
@@ -566,6 +559,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
+
 		if (first_cns[latest_key[id]] == 0) {
 			log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
 			first_cns[latest_key[id]] = swap;
@@ -580,6 +574,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			//Return and forward the packet if this is the first cns
+			rte_rwlock_write_unlock(&next_lock);
 			return;
 		}
 
@@ -605,16 +600,23 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("cs addr %"PRIu64"\n",cs->atomic_req.vaddr);
 			*/
 			//Modify the next cns to poinnt to the last scene write
+			//vaddr_swaps++;
+			//if (vaddr_swaps % 1000 == 0) {
+			//	printf("virtual memory swaps %"PRIu64" packets %"PRIu64"\n",vaddr_swaps,packet_counter);
+		//	}
+
+			//THIS IS TO Measure conflicts
+			#ifdef DONT_SWAP_VADDR
+			rte_rwlock_write_unlock(&next_lock);
+			return;
+			#endif
 			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
 			//modify the ICRC checksum
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
-			/*
-			if (vaddr_swaps++ % 1000 == 0) {
-				printf("virtual memory swaps %"PRIu64" packets %"PRIu64"\n",vaddr_swaps,packet_counter);
-			}
-			*/
+			
+
 		}
 
 		//given that a cns has been determined move the next address for this 
@@ -650,6 +652,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("unable to find the next oustanding write, how can this be? SWAP: %"PRIu64" latest_key[id = %d]=%"PRIu64", first cns[key = %"PRIu64"]=%"PRIu64"\n",swap,id,latest_key[id],latest_key[id],first_cns[latest_key[id]]);
 			exit(0);
 		}
+		rte_rwlock_write_unlock(&next_lock);
 	}
 
 	return;
@@ -1191,10 +1194,9 @@ lcore_main(void)
 			if (unlikely(nb_rx == 0))
 				continue;
 
-			log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);			
+			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);			
 
 			for (uint16_t i = 0; i < nb_rx; i++){
-				//printf("HIT\n");
 				if (likely(i < nb_rx - 1))
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				
@@ -1244,9 +1246,9 @@ lcore_main(void)
 				}
 				#endif
 
-				rte_rwlock_write_lock(&next_lock);
+				//rte_rwlock_write_lock(&next_lock);
 				true_classify(rx_pkts[i]);
-				rte_rwlock_write_unlock(&next_lock);
+				//rte_rwlock_write_unlock(&next_lock);
 
 				/*
 				uint32_t core_id = rte_lcore_id() / 2;
@@ -1273,7 +1275,7 @@ lcore_main(void)
 
 				//rte_pktmbuf_free(rx_pkts[i]);
 			}							
-			log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
+			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
 
 			/* Send burst of TX packets, to the same port */
 			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
