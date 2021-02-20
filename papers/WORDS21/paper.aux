@@ -1,25 +1,29 @@
 \relax 
-\citation{gms}
-\citation{aguilera2019designing}
+\citation{infiniswap}
+\citation{legoos}
+\citation{leap}
 \citation{cell}
 \citation{sonuma}
 \citation{storm}
-\citation{clover}
-\citation{aguilera2019designing}
-\citation{cell}
-\citation{sonuma}
-\citation{storm}
-\citation{erpc}
 \citation{farm}
+\citation{herd}
+\citation{erpc}
+\citation{requirements}
+\citation{aguilera2019designing}
+\citation{disandapp}
+\citation{amanda-hotnets}
+\citation{reigons}
 \citation{clover}
 \citation{reigons}
-\citation{aguilera2019designing}
+\citation{clover}
+\citation{disandapp}
 \providecommand \oddpage@label [2]{}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Proposal}{1}}
-\newlabel{sec:intro}{{1}{1}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Clover write conflicts grow with the number of clients (50\% write zipf 0.99 distribution)\relax }}{1}}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Abstract}{1}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Intro}{1}}
+\newlabel{sec:intro}{{2}{1}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Clover throughput degradation as a function of write workload {\color@box {}{todocolor}{\bfseries  \sffamily  \relax \fontsize  {7}{8}\selectfont  \leavevmode {\color  {white}TODO}}} {\leavevmode {\color  {todocolor}\sf  \relax \fontsize  {9}{11}\selectfont  \abovedisplayskip 8.5\p@ plus3\p@ minus4\p@ \abovedisplayshortskip \z@ plus2\p@ \belowdisplayshortskip 4\p@ plus2\p@ minus2\p@ \def \leftmargin \leftmargini \parsep 4\p@ plus2\p@ minus\p@ \topsep 8\p@ plus2\p@ minus4\p@ \itemsep 4\p@ plus2\p@ minus\p@ {\leftmargin \leftmargini \topsep 4\p@ plus2\p@ minus2\p@ \parsep 2\p@ plus\p@ minus\p@ \itemsep \parsep }\belowdisplayskip \abovedisplayskip $\blacktriangleright $\textit  {redo on my setup for consistent ops/s}$\blacktriangleleft $}}\relax }}{1}}
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:conflicts}{{1}{1}}
+\newlabel{fig:clover_tput}{{1}{1}}
 \citation{memc3}
 \citation{cell}
 \citation{sonuma}
@@ -34,36 +38,39 @@
 \citation{clover}
 \citation{aguilera2019designing}
 \citation{254120}
-\citation{254120}
-\citation{sonuma}
-\citation{storm}
-\citation{clover}
-\citation{cell}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Software and Hardware}{2}}
-\citation{storm}
-\citation{storm}
-\citation{clover}
-\citation{cell}
-\citation{254120}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Anatomy of a disaggregated rack. On the left a traditional rack with processors colocated with their memory interconnected by a switch. On the right is a high density disaggregated rack with processors separated from their memory by a top of rack switch. Stars mark locations for memory access serialization. Red denotes traditional processor centric serialization\nobreakspace  {}\cite  { memc3, cell, sonuma, storm, clover}, blue marks a memory centric architecture\nobreakspace  {}\cite  {aguilera2019designing}, and green marks a switch centric solution similar in spirit to proposed middle box solutions\nobreakspace  {}\cite  {254120}.  \relax }}{3}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Clover}{2}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Our System}{2}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces \nobreakspace  {} {\color@box {}{todocolor}{\bfseries  \sffamily  \relax \fontsize  {7}{8}\selectfont  \leavevmode {\color  {white}TODO}}} {\leavevmode {\color  {todocolor}\sf  \relax \fontsize  {9}{11}\selectfont  \abovedisplayskip 8.5\p@ plus3\p@ minus4\p@ \abovedisplayshortskip \z@ plus2\p@ \belowdisplayshortskip 4\p@ plus2\p@ minus2\p@ \def \leftmargin \leftmargini \parsep 4\p@ plus2\p@ minus\p@ \topsep 8\p@ plus2\p@ minus4\p@ \itemsep 4\p@ plus2\p@ minus\p@ {\leftmargin \leftmargini \topsep 4\p@ plus2\p@ minus2\p@ \parsep 2\p@ plus\p@ minus\p@ \itemsep \parsep }\belowdisplayskip \abovedisplayskip $\blacktriangleright $\textit  {redo diagram to remove memory centric organization (it's a pipe dream)}$\blacktriangleleft $}} Anatomy of a disaggregated rack. On the left a traditional rack with processors colocated with their memory interconnected by a switch. On the right is a high density disaggregated rack with processors separated from their memory by a top of rack switch. Stars mark locations for memory access serialization. Red denotes traditional processor centric serialization\nobreakspace  {}\cite  {memc3, cell, sonuma, storm, clover}, blue marks a memory centric architecture\nobreakspace  {}\cite  {aguilera2019designing}, and green marks a switch centric solution similar in spirit to proposed middle box solutions\nobreakspace  {}\cite  {254120}.  \relax }}{3}}
 \newlabel{fig:overview}{{2}{3}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Prototype software components}{3}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Testbed}{3}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Illustration of a successful write across different resource centric architectures with the location of memory consistency information labeled: \textbf  {MV} (Memory version), \textbf  {CMV} (Cached Memory Version) and \textbf  {NG} (Notify Groups). Processor centric writes are initiated and validated by processors exclusively. Successful writes require 1 RTT. Notifications, and retries (Not depicted) incur additional round trips. A memory centric architecture places memory version and notify groups in remote memory. Upon a successful write \textit  {notify} messages (blue) are set to each group member with updated memory versions. Switch centric architecture places memory versions, and notification responsibility to the switch. Processors send notify group info with writes to reduce memory overhead on the switch. Switch centric architecture saves half an RTT over memory centric, and cuts notify bandwidth in half. In the presence of an optical network, with no centralized switching chip, pNICs can provide the same functionality for a single server memory bank.  \relax }}{4}}
-\newlabel{fig:notify}{{3}{4}}
-\citation{amanda-hotnets}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Clover write conflicts grow with the number of clients (50\% write zipf 0.99 distribution) {\color@box {}{todocolor}{\bfseries  \sffamily  \relax \fontsize  {7}{8}\selectfont  \leavevmode {\color  {white}TODO}}} {\leavevmode {\color  {todocolor}\sf  \relax \fontsize  {9}{11}\selectfont  \abovedisplayskip 8.5\p@ plus3\p@ minus4\p@ \abovedisplayshortskip \z@ plus2\p@ \belowdisplayshortskip 4\p@ plus2\p@ minus2\p@ \def \leftmargin \leftmargini \parsep 4\p@ plus2\p@ minus\p@ \topsep 8\p@ plus2\p@ minus4\p@ \itemsep 4\p@ plus2\p@ minus\p@ {\leftmargin \leftmargini \topsep 4\p@ plus2\p@ minus2\p@ \parsep 2\p@ plus\p@ minus\p@ \itemsep \parsep }\belowdisplayskip \abovedisplayskip $\blacktriangleright $\textit  {redo with 64 cores and writes only}$\blacktriangleleft $}}\relax }}{3}}
+\newlabel{fig:conflicts}{{3}{3}}
+\citation{design-guidelines}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Evaluation}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Conflict Resolution}{4}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Default Clover throughput vs Clover with write conflict detection and correction turned on.\relax }}{4}}
+\newlabel{fig:conflicts}{{4}{4}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Memory Consumption}{4}}
 \bibstyle{acm}
 \bibdata{paper}
 \bibcite{aguilera2019designing}{1}
 \bibcite{reigons}{2}
-\bibcite{254120}{3}
-\bibcite{amanda-hotnets}{4}
-\bibcite{farm}{5}
-\bibcite{memc3}{6}
-\bibcite{gms}{7}
-\bibcite{erpc}{8}
-\bibcite{cell}{9}
-\bibcite{sonuma}{10}
-\bibcite{storm}{11}
-\bibcite{clover}{12}
-\@writefile{toc}{\contentsline {section}{\numberline {3}Satellite Problems}{5}}
+\bibcite{disandapp}{3}
+\bibcite{254120}{4}
+\bibcite{amanda-hotnets}{5}
+\bibcite{farm}{6}
+\bibcite{memc3}{7}
+\bibcite{requirements}{8}
+\bibcite{infiniswap}{9}
+\bibcite{erpc}{10}
+\bibcite{herd}{11}
+\bibcite{design-guidelines}{12}
+\bibcite{leap}{13}
+\bibcite{cell}{14}
+\bibcite{sonuma}{15}
+\bibcite{storm}{16}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Cost of caching metadata in network vs keyspace size.\relax }}{5}}
+\newlabel{fig:memory}{{5}{5}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Performance with reduced keyspace}{5}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{5}}
+\bibcite{legoos}{17}
+\bibcite{clover}{18}
