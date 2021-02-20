@@ -1,9 +1,14 @@
 #!/bin/bash
 #rm results.dat
+rm latest.dat
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("1" "2" "4" "8")
-threads=("1")
+#threads=("1" "2" "4" "8" "16" "32")
+#threads=("8" "16")
+threads=("1" "2" "4" "8" "12" "16" "20" "24" "28" "32")
+#threads=("20" "24" "28" "32")
+#threads=("16")
 #threads=()
 #threads=("1" "2" "4" "8" "16" "24" "32" "48")
 #threads=("16" "16" "16")
@@ -17,7 +22,7 @@ threads=("1")
 packet_size=("1000")
 #packet_size=("1000" "900" "800" "700" "600" " 500")
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
-opmodes=("MITSUME_YCSB_MODE_C")
+opmodes=("MITSUME_YCSB_MODE_A")
 #keyspaces=("100" "1000" "10000" "100000")
 keyspaces=("1000")
 
@@ -36,3 +41,6 @@ for k in ${keyspaces[@]}; do
     done
 done
 echo "<<<<<<<<< ($date)" >> results.dat
+
+
+python sum.py latest.dat > latest_clean.dat
