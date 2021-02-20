@@ -7,43 +7,60 @@
 %%State of the world
 Disaggregated computing promises higher resource density, increased
 power-efficiency, and flexible application scalability in datacenters.
-While enticing, these benefits have remained mostly untapped due to the proportionally large
-overhead of accessing remote resources. Nowhere is this disparity more
-noticeable than remote memory. Separating CPUs last level cache from
-their main memory incurs roughly a 20x overhead (approximately
-50\textit{ns} to 1\textit{us}).  The cost is only acceptable for
-select asynchronous workloads, such as paging out infrequently touched
-data~\cite{infiniswap,legoos,leap}, but are entirely unrealistic when multiple CPUs
-requires consistency for frequent reads and writes to remote memory.
-Figure~\ref{fig:overview} illustrates resource placement in a
-disaggregated rack in contrast to traditional servers.
+While enticing, these benefits have remained mostly untapped due to
+the proportionally large overhead of accessing remote resources.
+Nowhere is this disparity more noticeable than remote memory.
+Separating CPUs last level cache from their main memory incurs at
+least a 20x overhead (approximately 50\textit{ns} to 1\textit{us}).
+The cost is only acceptable for select asynchronous workloads, such as
+paging out infrequently touched data~\cite{infiniswap,legoos,leap},
+but are entirely unrealistic when multiple CPUs require consistency
+for frequent reads and writes to shared remote memory.
 
 A large body of work has investigated how to design high performance
 RDMA key value stores, and RPC
 frameworks~\cite{cell,sonuma,storm,farm,herd,erpc}. However, they
-require the use of a CPU, coresident with memory, to coordinate RDMA
+require that a CPU be coresident with remote memory to coordinate RDMA
 access and keep their remote data structures consistent. In the case
-of pure resource disaggregation no such remote exists. This
-architectural paradigm requires new techniques and algorithms to achieve
-similar functionality. 
+of pure resource disaggregation no CPUs are coresident with remote
+memory. This architectural difference requires new techniques and
+algorithms to achieve similar functionality and performance. 
 
 Some research has been done into the requirements for resource
-disaggregation, specifically in network, and memory
-requirement~\cite{requirements, aguilera2019designing, disandapp,
-amanda-hotnets}, however few have been tested practically or require
+disaggregation, specifically with reguard to network, and memory
+requirements~\cite{requirements, aguilera2019designing, disandapp,
+amanda-hotnets}. Few have been tested practically and some require
 non-existent hardware primitives. Those that have been constructed are
 first attempts at exposing remote memory to clients without the
-expectation of remote CPUs to coordinate RDMA operations and are
-subject to many limitations~\cite{reigons, clover}. Both Remote
+expectation of remote CPUs~\cite{reigons, clover}. Both Remote
 Regions~\cite{reigons} and Clover~\cite{clover} are designed to use
 remote memory with a read heavy workload on any shared resources.
+%%
 Their reason for avoiding writes is fundamental: concurrent consistent
 writes to remote memory are expensive. Lock acquisition and revocation
-requires multiple round trips devastating performance. Even with an
-intelligent concurrent algorithm to opportunistically avoid lock
-acquisition clovers throughput severely degraded under write heavy
-workloads. Figure~\ref{fig:clover_tput} shows clovers reported
-throughput drop when subjected to a 50\% write workload.
+requires multiple round trips which devistates throughput.  Even with
+an intelligent concurrent algorithm to opportunistically avoid lock
+acquisition the problem is pervasive due to the natural concurrency
+and relatively high latency of remote memory.
+%%
+In the oprotunistic case write conflicts due to inconsitancies in
+local caches occur frequently when resources are contested.
+Figure~\ref{fig:conflicts} shows the number of concurrent conflicting
+writes to shared resources as the number of clients requesting the
+resources are increased.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
+    \caption{Clover write conflicts grow with the number of clients
+    (50\% write zipf 0.99 distribution)\todo{redo with 64 cores and
+    writes only}}
+    \label{fig:conflicts}
+\end{figure}
+
+
+In clovers specific case its throughput is severely degraded under
+write heavy workloads. Figure~\ref{fig:clover_tput} shows clovers
+reported throughput drop when subjected to a 50\% write workload.
 
 \begin{figure}
     \includegraphics[width=0.45\textwidth]{fig/clover_tput.pdf}
@@ -53,16 +70,9 @@ throughput drop when subjected to a 50\% write workload.
 \end{figure}
 
 
-%Researchers and industry leaders have proposed techniques which reduce
-%cost of write contention with regard to remote
-%memory~\cite{aguilera2019designing,cell,sonuma,storm,clover}. A common
-%goal among them is to provide $O(1)$ read and write costs in the
-%common case. To achieve this strategy such as memory versioning,
-%checksums, and memory enforced serialization have been
-%proposed~\cite{aguilera2019designing}.
-
 \todo{Transition into this with something about rack scale
 architecture}
+
 This work makes the contention that a programmable switch is an ideal
 centralized point at which to implement a remote memory controller
 for rack scale disaggregation. Prior work has suggested the need for
@@ -221,13 +231,6 @@ pointer chasing). On write heavy workloads these race conditions
 happen frequently as illustrated in Figure~\ref{fig:conflicts}, which
 leads to a sharp decrease in throughput.
 
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
-    \caption{Clover write conflicts grow with the number of clients
-    (50\% write zipf 0.99 distribution)\todo{redo with 64 cores and
-    writes only}}
-    \label{fig:conflicts}
-\end{figure}
 
 
 %% what are we discussing
@@ -403,7 +406,7 @@ keys are distributed based on a zipf distribution generated with an
 experiment the number of client threads is increased which in turn
 increases the load on the system. Clover request are blocking, and
 thus the throughput is a factor of both the request latency and the
-number of client threads. Figure~\ref{fig:conflicts} shows the
+number of client threads. Figure~\ref{fig:throughput} shows the
 performance gains by resolving write conflicts in flight.
 
 As the number of clients increases so to does the probability that two
@@ -433,7 +436,7 @@ RDMA writes.
     \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
     \caption{Default Clover throughput vs Clover with write conflict
     detection and correction turned on.}
-    \label{fig:conflicts}
+    \label{fig:throughput}
 \end{figure}
 
 \subsection{Memory Consumption}

@@ -35,8 +35,11 @@ width = .85  # the width of the bars
 
 fig, ax = plt.subplots()
 
-rects = ax.bar(x, memory_per_key, width, label='Key Caching Memory',
+rects = ax.bar(x, memory_per_key, width,
         color='tab:red')
+
+ax.axhline(y=918, color='tab:blue', linestyle='--',
+label='Defult Throughput')
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
