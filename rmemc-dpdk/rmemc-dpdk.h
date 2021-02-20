@@ -30,11 +30,6 @@ uint32_t check_sums_wrap(const char* method, void* know, void* test);
 uint32_t csum_pkt_fast(struct rte_mbuf* pkt);
 uint32_t csum_pkt(struct rte_mbuf* pkt);
 
-
-
-
-
-
 int init_hash(void);
 int set_id(uint32_t qp, uint32_t id);
 uint32_t get_id(uint32_t qp);
