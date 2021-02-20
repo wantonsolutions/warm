@@ -173,78 +173,81 @@ programmable switches and NICs.
 %consistency this creates a problem as stale caches can lead to data
 %structure corruption.
 
-\section{Our System}
+\section{Write Conflict Resolution}
 
-Our system caches metadata for remote data structure on centralized
-networking devices. Our prototype is implemented in DPDK, however our
-algorithm could be implemented on a programmable switch or
-programmable NIC as long as it sees all requests to remote memory. 
+%Our system caches metadata for remote data structure on centralized
+%networking devices. Our prototype is implemented in DPDK, however our
+%algorithm could be implemented on a programmable switch or
+%programmable NIC as long as it sees all requests to remote memory. 
 %% kinds of devices
-A programmable TOR or our DPDK switch (which behaves as one) is ideal
-for rack scale disaggregated structures that potentially span multiple
-memory servers, while a programmable NIC implementation would be
-limited limited to the memory server it is attached to. 
+%A programmable TOR or our DPDK switch (which behaves as one) is ideal
+%for rack scale disaggregated structures that potentially span multiple
+%memory servers, while a programmable NIC implementation would be
+%limited limited to the memory server it is attached to. 
 
 %%Technique example
 The purpose of our technique is to resolve write conflicts to remote
-memory. As an example of a conflict take a linked list implemented as
-a remote data structure with a single operation, \textit{appendTail}.
-This operation ensures that the next write to the data structure
-writes to the tail of the linked list. This operation requires two
-steps.  First a writer sends and RDMA write to the remote memory which
-writes the data value for the new tail. After the data is written a
-second operations consisting of an RDMA check and set (CNS) is issued
-to the old tail which replaces it's NULL next pointer with the address
-of the newly written tail.
+memory. As an illustrative example of a conflict consider a linked
+list implemented as a remote memory data structure with a single
+operation, \textit{appendTail}. This operation ensures that the next
+write to the data structure writes to the tail of the linked list.
+This operation requires two steps.  First a writer sends and RDMA
+write to remote memory which writes the new data value for the tail to
+a scratch space. After the data is written a second operations
+consisting of an RDMA compare and swap (CNS) is issued to the old tail
+which replaces it's NULL next pointer with the address of the prior
+write.
 
 This operation succeeds every time in the single threaded case as the
 tail of the linked list is never moved by another process. Consider
-instead the multi-threaded case in which two writer both attempt to
+instead the multi-threaded case in which two writers both attempt to
 execute \textit{appendTail} concurrently. Both issue their first write
 to remote memory successfully and then attempt to run an RDMA CNS on
-the tail of the old list. This results in a race condition where one
-process succeeds, and the other will fail. The process which executes
-the CNS second fails because rather than finding a tail with a next
-value of NULL, it finds the now penultimate member of the linked list
-which now points to the value issued by the process which won the
-race. 
+the tail of the old list. This results in a race condition where the
+first process to write succeeds, and the other will fail. The process
+which executes the CNS second fails because rather than finding a tail
+with a next value of NULL, it finds the now penultimate member of the
+linked list which now points to the value issued by the process which
+won the race. 
 
 The process which lost the race now needs to engage in \textit{Pointer
-chasing}. It must iterative issue reads of the linked list until it
-finds the location of the new tail. At which point it can reissue a
-CNS to make the new tail point to it's value. This reconciliation
+chasing} to find the new tail. It must iterative issue reads of the
+linked list, step by step until it finds the location of the new tail.
+At which point it can reissue a CNS to make the new tail point to it's
+value. The reissued CNS is also subject to the same race condition as
+many writers may be execution \textit{appendTail}. This reconciliation
 algorithm of pointer chasing must be run each time a conflict occurs.
 For highly contested structures, the number of retries can grow
 quickly, leading to large and unpredictable tail latencies.
 
 In the case of clover this exact scenario occurs when key are write
 contested. Their experiments with a zipf distribution on their keys
-sees a \todo{5x} reduction in throughput.
+sees a 5x reduction in throughput at 50\% writes.
 
 %% What do we actually do
 If a central arbiter where to observer the writes to this linked list
 it would notice that the second CNS does not need to fail, it simply
 needs to be redirected to point at the new tail of the list. 
 %%
-Our contention is that such a coordinator can be implemented in
-network with minimal overheads to significantly improve the write
-throughput. Using data structure specific information the coordinator
-can cache recent writes, and steer concurrent ones to locations which
-will result in successful operations and maintain the correctness of
-the remote data structure.
+Our observation is that such a coordinator can be implemented in
+network can significantly improve throughput. Using data structure
+specific information the coordinator can cache recent writes, and
+steer concurrent ones to locations which will result in successful
+operations and maintain the correctness of the remote data structure.
 
-In the case of clover we cache the tail of the linked list for each
-key in clovers key value store. This results in an \textit{O(n)}
-overhead where n is the number of keys. In our case for a key value
-store consisting of 10k keys we need to store a key mapping and value
-for each (both 64 bits) resulting in a total in network storage of
-80KB. Note that this O(n) overhead is only a small fraction of clovers
-metadata. Each key has a versioned history of writes, however only the
-tail of the list is required to accelerate writes.
+In Clover each key value pair has versioning in the form of a linked
+list which operates identically to the \textit{appendTail} operation
+described above. We cache the tail of the linked list for each key in
+clovers key value store. This results in an \textit{O(n)} overhead
+where n is the number of keys. In our case for a key value store
+consisting of 10k keys we need to store a key mapping and value for
+each (both 64 bits) resulting in a total in network storage of 80KB.
+Note that this O(n) overhead is only a small fraction of clovers
+metadata which contains all key versions of the linked list. However
+only the tail of the list is required to resolve write conflicts.
 
-\textbf{Modifying RDMA in flight:}\sg{added long explicit explanation
-about RDMA and conflict fixing} Interposing on an RDMA protocol is non
-trivial. One solution (evaluated in as Clover
+\textbf{Modifying RDMA in flight:} Interposing on an RDMA protocol is
+non trivial. One solution (evaluated in as Clover
 pDPM-central~\cite{clover}) would be to use an RDMA enabled middlebox
 to setup connections between the clients and the memory servers which
 would reissue RDMA request to the consistent locations. This solution
@@ -258,8 +261,8 @@ When RDMA write requests are issued our algorithm stores the locations
 of the virtual addresses of the writes for each client thread. These
 writes are marked as \textit{outstanding}. Outstanding writes are
 writes which have been made to remote memory, but which have not yet
-been made consistent in clover. Outstanding writes are not yet
-connected to clovers key linked lists and therefore cannot be read by
+been made consistent in Clover. Outstanding writes are not yet
+connected to Clovers key linked lists and therefore cannot be read by
 other clients. Following an outstanding write clients will issue an
 RDMA CNS which points the tail of the last committed write to the last
 outstanding write the client issued, making it the new tail of the
@@ -276,15 +279,16 @@ Clover clients learn the updated locations using their default read
 algorithm.
 
 RDMA packets are not intended to be modified in flight, and care must
-be taken no to corrupt them. RDMA invariant CRCs are calculated at the
-time of sending and are designed to ensure the integrity of the
-payload. When CNS packets are modified their ICRC must be recalculated
-or the modified packet will be rejected the RDMA hardware on the
-receiving NIC. FPGA implementations of RDMA ICRC have been built in
-the past~\cite{Mansour_2019}, the required CRC calculation is
-identical to ethernet CRC, with the requirement of additional header
-injection and field masking. We believe that this algorithm can be
-implemented efficiently on a programmable switch.
+be taken no to corrupt them. RDMA invariant CRCs (ICRC) are calculated
+at the time of sending and are designed to ensure the integrity of the
+payload. When we modify CNS packets their ICRC must be recalculated or
+the packet will be rejected by the receiving NIC. FPGA implementations
+of RDMA ICRC have been built in the past~\cite{Mansour_2019}, the
+required CRC calculation is identical to ethernet CRC, with the
+requirement of additional header injection and field masking. Our DPDK
+solution uses zlibs crc32 for the calculation. We believe that this
+algorithm can also be implemented efficiently on a programmable
+switch.
 
 \section{Evaluation}
 
