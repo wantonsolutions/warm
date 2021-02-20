@@ -6,7 +6,7 @@ echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("1" "2" "4" "8")
 #threads=("1" "2" "4" "8" "16" "32")
 #threads=("8" "16")
-threads=("1" "2" "4" "8" "12" "16" "20" "24" "28" "32")
+threads=("32")
 #threads=("20" "24" "28" "32")
 #threads=("16")
 #threads=()
