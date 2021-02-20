@@ -205,17 +205,21 @@ data structures.
 
 Through their experimentation they find that ideal throughput is
 gained by placing client shared metadata out of datapath entirely, and
-updating it opportunistically. Placing a metadata coordinate in the
+updating it opportunistically. Placing a metadata coordinator in the
 datapath quickly leads to a performance bottleneck. Their algorithm
-concentrates on maximizing read operations, and allows for lockless
-line rate reads in the absence of writes. In the presence of writes
-however clovers operation throughput decreases due to contention. When
-concurrent writes contest the same data a race occurs in which the
-fastest writer wins. The slower writer will fail, and is forced to
-retry it's write after searching through clovers remote data structure
-for the next write location. On write heavy workloads these race
-conditions happen frequently~\ref{fig:conflicts}, which leads to a
-sharp decrease in overall throughput.
+optimizes read operations, and allows for lockless line rate reads. In
+the presence of writes however clovers operation throughput decreases
+due to contention. When concurrent writes contest the same data a race
+occurs in which the fastest writer wins. Write operations require two
+messages, a data update (RDMA WRITE) and a check and set (RDMA CNS)
+which updates old data to point to the new version. During this two
+RTT operation any concurrent write to the same key will cause a
+conflict. The slower writers will fail, and must retry their writes
+after searching through clovers remote data structure for the next
+write location to update their local cache (an operation known as
+pointer chasing). On write heavy workloads these race conditions
+happen frequently as illustrated in Figure~\ref{fig:conflicts}, which
+leads to a sharp decrease in throughput.
 
 \begin{figure}
     \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
@@ -227,28 +231,27 @@ sharp decrease in overall throughput.
 
 
 %% what are we discussing
-Clover's write strategy is opportunistic, in that it attempts to make
-multiple updates without acquiring locks, in the hope that no conflicts
-occur. When they do occur it's just job of the writer to reconcile the
-conflict. This opportunism amortizes the cost of lock acquisition when
+Clover's write strategy is opportunistic, it attempts to make updates
+without acquiring locks, in the hope that no conflicts occur. When
+they do occur it's just job of the writer to reconcile the conflict.
+This opportunism amortizes the cost of lock acquisition when
 contention is low, providing average case O(1) read/write and is used
 in many high throughput concurrent data structures.
 
-\todo{add a description of the reconciliation process}
 %%
 We propose a middle ground between prior centralized approaches, and
 clover's out of datapath metadata separation. Our insight is that by
 caching small amount of a disaggregated data structures metadata in a
-centralized location, write conflicts can be resolved in the data path
-allowing for conflict free full read and write throughput of
-disaggregated data structures.  Using Clover as a platform to prove
-our concept we design a lightweight middle box algorithm which
-intercepts clovers RDMA read and write request, caches a small amount
-(64 byte per key) amount of structural meta data and resolves write
-conflicts within the data path.  Our algorithm is implemented in DPDK,
-but is designed to have extremely low space and computational overhead
-making it ideals for network devices such as programmable switches and
-NICs.
+centralized location, write conflicts can be resolved at line rate in
+the data path allowing for conflict free full read and write
+throughput of disaggregated data structures. Using Clover as a
+platform to prove our concept we design a lightweight middle box
+algorithm which intercepts clovers RDMA read and write request, caches
+a small amount (64 byte per key) amount of structural meta data and
+resolves write conflicts by adjusting the destination RDMA address of
+the writes. Our algorithm is implemented in DPDK, but is designed to
+have low memory and computational overhead making it ideals for
+network devices such as programmable switches and NICs.
 
 
 %% The high level pitch about remote memory.
@@ -266,29 +269,28 @@ NICs.
 Our system caches metadata for remote data structure on centralized
 networking devices. Our prototype is implemented in DPDK, however our
 algorithm could be implemented on a programmable switch or
-programmable NIC as long as it sees requests to remote memory. 
-
-%%kinds of devices
+programmable NIC as long as it sees all requests to remote memory. 
+%% kinds of devices
 A programmable TOR or our DPDK switch (which behaves as one) is ideal
-for disaggregated structures that potentially span multiple memory
-servers , while a programmable NIC is limited to the memory it is
-attached to. 
+for rack scale disaggregated structures that potentially span multiple
+memory servers, while a programmable NIC implementation would be
+limited limited to the memory server it is attached to. 
 
 %%Technique example
 The purpose of our technique is to resolve write conflicts to remote
 memory. As an example of a conflict take a linked list implemented as
 a remote data structure with a single operation, \textit{appendTail}.
-This operation ensures that the next write to the data structure writes
-to the tail of the linked list. This operation requires two steps.
-First a writer sends and RDMA write to the remote memory which writes
-the data value for the new tail. After the data is written a second
-operations consisting of an RDMA check and set is issued to the old
-tail which replaces it's NULL next pointer with the address of the
-newly written tail.
+This operation ensures that the next write to the data structure
+writes to the tail of the linked list. This operation requires two
+steps.  First a writer sends and RDMA write to the remote memory which
+writes the data value for the new tail. After the data is written a
+second operations consisting of an RDMA check and set (CNS) is issued
+to the old tail which replaces it's NULL next pointer with the address
+of the newly written tail.
 
-This operation works every time in the single threaded case as the
+This operation succeeds every time in the single threaded case as the
 tail of the linked list is never moved by another process. Consider
-however the multi-threaded case in which two writer both attempt to
+instead the multi-threaded case in which two writer both attempt to
 execute \textit{appendTail} concurrently. Both issue their first write
 to remote memory successfully and then attempt to run an RDMA CNS on
 the tail of the old list. This results in a race condition where one
@@ -299,11 +301,11 @@ which now points to the value issued by the process which won the
 race. 
 
 The process which lost the race now needs to engage in \textit{Pointer
-chasing} It must iterative issue reads of the linked list until it
+chasing}. It must iterative issue reads of the linked list until it
 finds the location of the new tail. At which point it can reissue a
 CNS to make the new tail point to it's value. This reconciliation
 algorithm of pointer chasing must be run each time a conflict occurs.
-For highly contested structures the number of retries can grow
+For highly contested structures, the number of retries can grow
 quickly, leading to large and unpredictable tail latencies.
 
 In the case of clover this exact scenario occurs when key are write
@@ -313,12 +315,14 @@ sees a \todo{5x} reduction in throughput.
 %% What do we actually do
 If a central arbiter where to observer the writes to this linked list
 it would notice that the second CNS does not need to fail, it simply
-needs to be redirected to point at the new tail of the list. Our
-contention is that such an arbiter can be simply implemented in network
-to significantly improve the write throughput to contested keys by
-monitoring writes to shared locations, and using data structure
-specific information to resolve conflicting writes in the data path
-directly.
+needs to be redirected to point at the new tail of the list. 
+%%
+Our contention is that such a coordinator can be implemented in
+network with minimal overheads to significantly improve the write
+throughput. Using data structure specific information the coordinator
+can cache recent writes, and steer concurrent ones to locations which
+will result in successful operations and maintain the correctness of
+the remote data structure.
 
 In the case of clover we cache the tail of the linked list for each
 key in clovers key value store. This results in an \textit{O(n)}
@@ -328,6 +332,50 @@ for each (both 64 bits) resulting in a total in network storage of
 80KB. Note that this O(n) overhead is only a small fraction of clovers
 metadata. Each key has a versioned history of writes, however only the
 tail of the list is required to accelerate writes.
+
+\textbf{Modifying RDMA in flight:}\sg{added long explicit explaination
+about rdma and conflict fixing} Interposing on an RDMA protocol is non
+trivial. One solution (evaluated in as Clover
+pDPM-central~\cite{clover}) would be to use an RDMA enabled middlebox
+to setup connections between the clients and the memory servers which
+would reissue RDMA request to the consistent locations. This solution
+is impossible for a switch as it lacks the capabilities and resources
+to establish RDMA connections. Further it has been demonstrated to be
+a performance bottleneck. Our algorithm interposes on RDMA requests
+transparently without storing any explicit RDMA state, or establishing
+connections.
+
+When RDMA write requests are issued our algorithm stores the locations
+of the virtual addresses of the writes for each client thread. These
+writes are marked as \textit{outstanding}. Outstanding writes are
+writes which have been made to remote memory, but which have not yet
+been made consistent in clover. Outstanding writes are not yet
+connected to clovers key linked lists and therefore cannot be read by
+other clients. Following an outstanding write clients will issue an
+RDMA CNS which points the tail of the last committed write to the last
+outstanding write the client issued, making it the new tail of the
+list. Our algorithm detects the existence of a conflict when there is
+more than one outstanding write for a given key. In addition to
+tracking outstanding writes per client, our algorithm tracks the last
+CNS issued to each key. This CNS marks the true tail of a keys linked
+list. When a CNS for an outstanding write is seen, and the virtual
+address of it's CNS points to an old tail, it's virtual address is
+modified in flight (without the knowledge of the issuing client) to
+point to the true tail of the list. The cached latest version of the
+key is then updated to point to the address the CNS was directed to.
+Clover clients learn the updated locations using their default read
+algorithm.
+
+RDMA packets are not intended to be modified in flight, and care must
+be taken no to corrupt them. RDMA invariant CRCs are calculated at the
+time of sending and are designed to ensure the integrity of the
+payload. When CNS packets are modified their ICRC must be recalculated
+or the modified packet will be rejected the RDMA hardware on the
+receiving NIC. FPGA implementations of RDMA ICRC have been built in
+the past~\cite{Mansour_2019}, the required CRC calculation is
+identical to ethernet CRC, with the requirement of additional header
+injection and field masking. We believe that this algorithm can be
+implemented efficiently on a programmable switch.
 
 \section{Evaluation}
 
