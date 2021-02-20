@@ -34,15 +34,15 @@ void print_ip_addr(const char *name, uint32_t ip){
 }
 
 void print_ip_header(ip_header *ip) {
-    printf("IHL:           %d\n",ip->ihl);
-    printf("version:       %d\n",ip->version);
-    printf("tos            %d\n",ip->tos);
-    printf("len            %d\n",ntohs(ip->tot_len));
-    printf("id             %d\n",ip->id);
-    printf("frag_off       %d\n",ip->frag_off);
-    printf("ttl            %d\n",ip->ttl);
-    printf("protocol       %d\n",ip->protocol);
-    printf("check          %d\n",ip->check);
+    //printf("IHL:           %d\n",ip->ihl);
+    //printf("version:       %d\n",ip->version);
+    //printf("tos            %d\n",ip->tos);
+    //printf("len            %d\n",ntohs(ip->tot_len));
+    //printf("id             %d\n",ip->id);
+    //printf("frag_off       %d\n",ip->frag_off);
+    //printf("ttl            %d\n",ip->ttl);
+    //printf("protocol       %d\n",ip->protocol);
+    //printf("check          %d\n",ip->check);
     print_ip_addr("source",ip->saddr);
     print_ip_addr("dest",ip->daddr);
 }

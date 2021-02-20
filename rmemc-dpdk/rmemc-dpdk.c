@@ -108,6 +108,7 @@ static struct rte_hash_parameters qp2id_params = {
 struct rte_hash* qp2id_table;
 static uint32_t qp_id_counter=0;
 uint32_t qp_values[TOTAL_ENTRY];
+uint32_t id_qp[TOTAL_ENTRY];
 
 #define HASH_RETURN_IF_ERROR(handle, cond, str, ...) do {                \
     if (cond) {                         \
@@ -117,7 +118,9 @@ uint32_t qp_values[TOTAL_ENTRY];
     }                               \
 } while(0)
 
-
+uint32_t key_to_qp(uint64_t key) {
+	return id_qp[key%qp_id_counter];
+}
 
 int init_hash(void) {
 	qp2id_table = rte_hash_create(&qp2id_params);
@@ -129,6 +132,7 @@ int set_id(uint32_t qp, uint32_t id) {
 	log_printf(DEBUG,"adding (%d,%d) to hash table\n",qp,id);
 	printf("adding (%d,%d) to hash table\n",qp,id);
 	qp_values[id]=id;
+	id_qp[id]=qp;
 	int ret = rte_hash_add_key_data(qp2id_table,&qp,&qp_values[id]);
 	HASH_RETURN_IF_ERROR(qp2id_table, ret < 0, "unable to add new qp id (%d,%d)\n",qp,id);
 	return  ret;
@@ -385,6 +389,7 @@ static int init =0;
 
 static uint32_t write_value_packet_size = 0;
 static uint32_t predict_shift_value=0;
+static uint32_t nacked_cns =0;
 
 rte_rwlock_t next_lock;
 
@@ -436,6 +441,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	//Write Request
 			//Dangerous section
 			//print_packet(pkt);
+
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 252) {
 			//TODO determine what these writes are doing
@@ -446,6 +452,8 @@ void true_classify(struct rte_mbuf * pkt) {
 			//printf("Else\n");
 			//exit(0);
 			rte_rwlock_write_lock(&next_lock);
+			rte_smp_mb();
+
 
 			struct write_request * wr = (struct write_request*) clover_header;
 			//print_packet(pkt);
@@ -515,6 +523,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			latest_key[id] = *key;
+			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 
 			/*
@@ -543,9 +552,40 @@ void true_classify(struct rte_mbuf * pkt) {
 		} 
 	}
 
+    if (opcode == RC_ATOMIC_ACK) {
+		//printf("atomic ack\n");
+		struct cs_response * csr = (struct cs_response*) clover_header;
+		//printf("original contents A%"PRIu64"\n",be64toh(csr->atomc_ack_extended.original_remote_data));
+
+		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
+		if (original != 0) {
+			nacked_cns++;
+			printf("nacked cns %d\n",nacked_cns);
+			printf("EXITING!!!");
+			print_packet(pkt);
+			exit(0);
+		}
+		/*
+		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
+		print_bytes(&csr->atomc_ack_extended.original_remote_data,8);
+		printf("\n");
+		printf("opcode %d\n",csr->ack_extended.opcode);
+		printf("credit %d\n",csr->ack_extended.credit_count);
+		printf("res %d\n",csr->ack_extended.reserved);
+		print_ip_header(ipv4_hdr);
+		printf("\n");
+		*/
+		//print_packet(pkt);
+	}
+
 	if (size == 72 && opcode == RC_CNS) {
 
+		//print_packet(pkt);
+		//printf("csn\n");
+		//print_ip_header(ipv4_hdr);
+		//printf("\n");
 		rte_rwlock_write_lock(&next_lock);
+		rte_smp_mb();
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
@@ -553,9 +593,8 @@ void true_classify(struct rte_mbuf * pkt) {
 
 
 		uint32_t id = get_id(r_qp);
-
-
 		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
+
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -575,6 +614,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			}
 			//Return and forward the packet if this is the first cns
 			rte_rwlock_write_unlock(&next_lock);
+			rte_smp_mb();
 			return;
 		}
 
@@ -598,18 +638,19 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("Now we need to know how different these addresses are\n");
 			printf("next addr[key = %"PRIu64"] ID: %d vaddr %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
 			printf("cs addr %"PRIu64"\n",cs->atomic_req.vaddr);
-			*/
 			//Modify the next cns to poinnt to the last scene write
+			*/
+
 			//vaddr_swaps++;
-			//if (vaddr_swaps % 1000 == 0) {
+			//if (vaddr_swaps % 10000 == 0) {
 			//	printf("virtual memory swaps %"PRIu64" packets %"PRIu64"\n",vaddr_swaps,packet_counter);
-		//	}
+			//}
 
 			//THIS IS TO Measure conflicts
-			#ifdef DONT_SWAP_VADDR
-			rte_rwlock_write_unlock(&next_lock);
-			return;
-			#endif
+			//#ifdef DONT_SWAP_VADDR
+			//rte_rwlock_write_unlock(&next_lock);
+			//return;
+			//#endif
 			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
 			//modify the ICRC checksum
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -630,7 +671,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		} else {
 			//Fatal, unable to find the next key
 			printf("predicted: %"PRIu64"\n",be64toh(predict));
-			printf("actual: %"PRIu64"\n",be64toh(swap));
+			printf("actual:    %"PRIu64"\n",be64toh(swap));
 			print_address(&predict);
 			print_address(&swap);
 			print_binary_address(&predict);
@@ -652,8 +693,22 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("unable to find the next oustanding write, how can this be? SWAP: %"PRIu64" latest_key[id = %d]=%"PRIu64", first cns[key = %"PRIu64"]=%"PRIu64"\n",swap,id,latest_key[id],latest_key[id],first_cns[latest_key[id]]);
 			exit(0);
 		}
+		rte_smp_mb();
 		rte_rwlock_write_unlock(&next_lock);
+
+		//qp remapping
+		/*
+		if (qp_id_counter == 32) {
+			printf("old qp %d\n",roce_hdr->dest_qp);
+			roce_hdr->dest_qp = key_to_qp(latest_key[id]);
+			printf("new qp %d\n",roce_hdr->dest_qp);
+			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+			memcpy(current_checksum,&crc_check,4);
+		}
+		*/
 	}
+
 
 	return;
 }
