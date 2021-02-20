@@ -27,7 +27,7 @@ memory. This architectural difference requires new techniques and
 algorithms to achieve similar functionality and performance. 
 
 Some research has been done into the requirements for resource
-disaggregation, specifically with reguard to network, and memory
+disaggregation, specifically with regard to network, and memory
 requirements~\cite{requirements, aguilera2019designing, disandapp,
 amanda-hotnets}. Few have been tested practically and some require
 non-existent hardware primitives. Those that have been constructed are
@@ -38,12 +38,12 @@ remote memory with a read heavy workload on any shared resources.
 %%
 Their reason for avoiding writes is fundamental: concurrent consistent
 writes to remote memory are expensive. Lock acquisition and revocation
-requires multiple round trips which devistates throughput.  Even with
+requires multiple round trips which devastates throughput.  Even with
 an intelligent concurrent algorithm to opportunistically avoid lock
 acquisition the problem is pervasive due to the natural concurrency
 and relatively high latency of remote memory.
 %%
-In the oprotunistic case write conflicts due to inconsitancies in
+In the opportunistic case write conflicts due to inconsistencies in
 local caches occur frequently when resources are contested.
 Figure~\ref{fig:conflicts} shows the number of concurrent conflicting
 writes to shared resources as the number of clients requesting the
@@ -70,60 +70,34 @@ reported throughput drop when subjected to a 50\% write workload.
 \end{figure}
 
 
-\todo{Transition into this with something about rack scale
-architecture}
-
-This work makes the contention that a programmable switch is an ideal
-centralized point at which to implement a remote memory controller
-for rack scale disaggregation. Prior work has suggested the need for
-a distributed memory controller~\cite{disandapp}. But none have been
-built or proposed with existing hardware. We posit that if all remote
-reads and writes are performed within a rack using RDMA a programmable
-top of rack switch (TOR) will see every memory operation. This fact
+This work makes the contention that a programmable TOR is an ideal
+centralized point at which to resolve remote memory conflicts. Prior
+work has suggested the need for a distributed memory
+controller~\cite{disandapp}, but none have been built or proposed with
+existing hardware. We observe that in a disaggregated setting if all
+remote reads and writes are performed within a rack using RDMA a TOR
+in a unique position to observe every memory operation.  This fact
 allows it to act as a centralized serialization point, where the last
-instance of concurrency between the reads and writes of remote CPUs is
-the egress port of the switch. Figure~\ref{fig:overview} illustrates
-the organization of a disaggregated rack, and highlights different
-points of coordination for reads and writes.
+instance of read/write concurrency are the memory attached egress
+ports of the switch.  Figure~\ref{fig:overview} illustrates the
+organization of a disaggregated rack, and highlights different
+proposed points of coordination for reads and writes.
 
-This centralized in network vantage point allows a programmable switch
-to coordinate reads and writes to remote memory to remove conflicts.
 As a proof of concept we interpose on the Clover protocol and resolve
-write conflicts in the datapath. Our algorithm uses knowledge of
-Clovers remote data structures to detect write conflicts in the data
-path, and resolve them. Our technique caches clovers most recent
-writes to shared structures, and modifies the RDMA addresses of it's
-operations in flight so that each request succeeds. 
-
-A key problem with using a switch as a memory controller is its
-available memory. For context a Barefoot Tofino has \todo{22MB} of
-programmable SRAM. By default this SRAM is used as buffers.
-Reallocating buffer memory for storage trades off the usability of a
-switch as a packet forwarding device. Therefore any use SRAM for
-additional application must be carefully considered. 
-%%
-Our technique is designed to have low memory consumption and to act
-purely as an accelerator for memory regions which are highly
-contended. \sg{We rely on Clovers original algorithm to perform
-writes on non contested keys in the common case to reduce in network
-memory overhead further}
-
-
-%The switch can therefore notify CPUs
-%which contest the same memory regions that their writes have failed
-%within half an RTT, whereas performing the notify at memory requires a
-%full RTT. In addition to the fast rejection of out of date writes,
-%modern programmable switchs \textit{currently} have the ability to
-%maintain memory version numbers, and to store lists of CPU's which
-%wish to be notified upon a write occurring to a shared memory location
-%via a multicast of the write packet. This simple mechanism notifies
-%CPU's which share a remote region that their local cache is dirty
-%within half of an RTT of the write being issued.
-%Figure~\ref{fig:notify} illustrates how switch centric memory
-%management simplifies a notification protocol. 
-
-
-%%our position
+write conflicts in its datapath. Our conflict detection algorithm uses
+knowledge of Clovers remote data structures to detect write conflicts
+using a small amount of cached state (only a few bytes per key value
+pair). Conflict resolution is performed directly on the in flight RDMA
+packets by steering their destination virtual addresses to the most up
+to date read and write locations in Clovers key value store. This
+technique is complete, in that it resolves all read and write
+conflicts given that it caches all keys. As in network SRAM is expense
+we show that our technique can trade completeness for memory savings
+while still achieving performance gains. Our preliminary evaluation
+shows maximal throughput gains of 1.42x (tracking all reads and
+writes), and gains of 1.34x when correcting conflicts on the top 8
+keys of a zipf request distribution using only 128 bytes of in network
+memory.
 
 \begin{figure*}
       \centering
@@ -148,62 +122,7 @@ memory overhead further}
 
 
 
-%%Struggles
-
-
-%Each shared region must be bookmarked with a version number, and a
-%list of \textit{subscriber} CPU's must be maintained.  Maintaining
-%version numbers for byte addressable memory is unrealistic as the
-%number of versions would grow with the size of memory, and because a
-%remote read for a single byte of data is largely impractical. We
-%assume that remote memory is at least accessed in the form of pages or
-%blocks (likely 4K) which reduces the number of version numbers which
-%must be maintained.  Maintaining notify groups is a larger problem as
-%each shared region requires a list of CPUs with read/write access. As
-%the number of CPU's grows so too does the per block memory requirement
-%of the switch.  We place the responsibility of maintaining the
-%read/write access list to the cores themselves.  Prior to accessing a
-%region a core must be admitted via con census.  When a write occurs,
-%the writing node appends the list of cores which share the recon to
-%the packet. The switch parses the packet for the list and broadcasts
-%the notify message to the affected cores. While this adds bandwidth
-%overhead to each write it significantly reduces memory usage on the
-%switch where resources are tight. Figure~\ref{fig:notify} illustrates
-%the placement of memory state, alongside a notify algorithm in the
-%context of 3 distinct resource centric architectures.
-
-%%Position
-%We consider our use of a programmable switch as a remote memory
-%controller to be a disaggregation primitive upon which other
-%disaggregated systems and algorithms can be layered. We expose a
-%notification API as the lowest level interface with which applications
-%can utilize the distributed memory controller (\textit{Publish()},
-%\textit{Subscribe()}). To show it's applicability to existing
-%disaggregated systems we build both a cache coherent write interface
-%similar to soNUMA~\cite{sonuma}, and transactional interface upon the
-%notify API. We port three existing disaggregated systems
-%Storm~\cite{storm}, Clover~\cite{clover}, and Cell~\cite{cell} and
-%demonstrate throughput improvements for write intensive workloads
-%without degrading the performance of reads.
-
-
 \section{Clover}
-%% WORDS
-%Prior remote memory systems require the use of CPU's on remote
-%machines to coordinate RDMA~\cite{cell,sonuma,storm,erpc,farm}. Remote
-%CPU's provide RDMA serialization and simplify consistency for
-%distributed data structures. Disaggregated memory poses a new problem:
-%\textit{How can remote memory be coordinated without a remote CPU?}.
-
-%%
-%\todo{Separate the transparent from the non transparent world}
-%\todo{Cite the job throughput paper}
-%Clover is the first attempt to have fast consistent remote memory
-%without any datapath coordination via remote CPU~\cite{clover}. Other
-%recent approaches such as Remote Regions~\cite{reigons} discount
-%remote consistency, and HP's the machine requires computation in
-%remote memory, which relies on non existent
-%hardware~\cite{aguilera2019designing}.
 
 %%
 Clover proposes that disaggregated data structures separate their
