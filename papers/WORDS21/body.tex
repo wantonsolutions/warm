@@ -333,8 +333,8 @@ for each (both 64 bits) resulting in a total in network storage of
 metadata. Each key has a versioned history of writes, however only the
 tail of the list is required to accelerate writes.
 
-\textbf{Modifying RDMA in flight:}\sg{added long explicit explaination
-about rdma and conflict fixing} Interposing on an RDMA protocol is non
+\textbf{Modifying RDMA in flight:}\sg{added long explicit explanation
+about RDMA and conflict fixing} Interposing on an RDMA protocol is non
 trivial. One solution (evaluated in as Clover
 pDPM-central~\cite{clover}) would be to use an RDMA enabled middlebox
 to setup connections between the clients and the memory servers which
@@ -463,16 +463,30 @@ memory on a Barefoot Tofino programmable switch (22MB).
     \label{fig:memory}
 \end{figure}
 
-\subsection{Performance with reduced keyspace}
-\sg{Here I would like to run a short experiment where I only resolve
-conflicts for the top N keys. This experiment would be a repeat of the
-64 thread experiment above with the difference that I would track the
-top 1, 2 ,4 ,8, 16, 32 keys up to the whole keyspace to show that with
-highly contested keys we only need to cache a small amount. This will
-be a key motivator for actually doing some countmin sketch LRU stuff
-in the future to support a huge number of variable keys.}
-\todo{This experiment should be fast and easy to run but still needs
-to be done}
+\subsection{Caching top \textit{N} keys} 
+%%
+Hot keys which are written frequently are the most likely to
+contribute to conflict. Caching only hot keys results in relatively
+large performance gains while requiring only a small portion of the
+memory required to cache the entire keyspace. We test the effect of
+caching only hot keys by restricting our in network cache to track and
+resolve conflicts on only the top \textit{N} keys. In this experiment
+RDMA requests for keys which are not caches pass through our middlebox
+without modification, conflicts are resolved using Clovers
+reconciliation protocol. We ran our experiment with 64 client threads,
+with a total keyspace size of 1024 keys. Figure~\ref{fig:cache} shows
+the relative throughput gains from caching the top N keys. The request
+distribution is zipf(0.75), therefore the vast majority of conflicts
+occur on the top 8 keys. The in network memory requirement for 8 keys
+is 128 Bytes, which results in 1.3x throughput improvement.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
+    \caption{Performance as a function of keys cached. Caching a few
+    of the top n keys provides the greatest marginal throughput
+    benefits.}
+    \label{fig:cache}
+\end{figure}
 
 \section{Conclusion}
 
