@@ -22,6 +22,19 @@
 
 \section{Write Conflict Resolution}
 
+We propose a middle ground between a fully distributed and a
+centralized approach.  Our insight is that by using
+data-structure-specific knowledge and caching write locations in the
+network, conflicting writes can be resolved at line rate on the data
+path.  Using Clover as a platform to prove our concept we design a
+middle-box algorithm which intercepts Clover's RDMA read and
+write/c\&s requests, caches a small amount (64 bytes per key) of
+structural metadata, and resolves write conflicts by adjusting the
+destination RDMA virtual address of the writes and c\&s guards. Our
+algorithm is implemented using DPDK, but is designed to have low
+memory and computational overhead making it ideal for network devices
+such as programmable switches.
+
 %Our system caches metadata for remote data structure on centralized
 %networking devices. Our prototype is implemented in DPDK, however our
 %algorithm could be implemented on a programmable switch or
@@ -34,46 +47,41 @@
 
 %%Technique example
 The purpose of our technique is to resolve write conflicts to remote
-memory. As an illustrative example of a conflict consider a linked
-list implemented as a remote memory data structure with a single
-operation, \textit{appendTail}. This operation ensures that the next
-write to the data structure writes to the tail of the linked list.
-This operation requires two steps.  First a writer sends and RDMA
-write to remote memory which writes the new data value for the tail to
-a scratch space. After the data is written a second operations
-consisting of an RDMA compare and swap (CNS) is issued to the old tail
-which replaces it's NULL next pointer with the address of the prior
-write.
+memory.
 
-This operation succeeds every time in the single threaded case as the
-tail of the linked list is never moved by another process. Consider
-instead the multi-threaded case in which two writers both attempt to
-execute \textit{appendTail} concurrently. Both issue their first write
-to remote memory successfully and then attempt to run an RDMA CNS on
-the tail of the old list. This results in a race condition where the
-first process to write succeeds, and the other will fail. The process
-which executes the CNS second fails because rather than finding a tail
-with a next value of NULL, it finds the now penultimate member of the
-linked list which now points to the value issued by the process which
-won the race. 
+%As an illustrative example of a conflict consider a linked
+%list implemented as a remote memory data structure with a single
+%operation, \textit{appendTail}. 
 
-The process which lost the race now needs to engage in \textit{Pointer
-chasing} to find the new tail. It must iterative issue reads of the
-linked list, step by step until it finds the location of the new tail.
-At which point it can reissue a CNS to make the new tail point to it's
-value. The reissued CNS is also subject to the same race condition as
-many writers may be execution \textit{appendTail}. This reconciliation
-algorithm of pointer chasing must be run each time a conflict occurs.
-For highly contested structures, the number of retries can grow
-quickly, leading to large and unpredictable tail latencies.
+%% This operation succeeds every time in the single threaded case as the
+%% tail of the linked list is never moved by another process. Consider
+%% instead the multi-threaded case in which two writers both attempt to
+%% execute \textit{appendTail} concurrently. Both issue their first write
+%% to remote memory successfully and then attempt to run an RDMA c\&s on
+%% the tail of the old list. This results in a race condition where the
+%% first process to write succeeds, and the other will fail. The process
+%% which executes the c\&s second fails because rather than finding a tail
+%% with a next value of NULL, it finds the now penultimate member of the
+%% linked list which now points to the value issued by the process which
+%% won the race. 
 
-In the case of clover this exact scenario occurs when key are write
-contested. Their experiments with a zipf distribution on their keys
-sees a 5x reduction in throughput at 50\% writes.
+%% The process which lost the race now needs to engage in \textit{Pointer
+%% chasing} to find the new tail. It must iterative issue reads of the
+%% linked list, step by step until it finds the location of the new tail.
+%% At which point it can reissue a c\&s to make the new tail point to it's
+%% value. The reissued c\&s is also subject to the same race condition as
+%% many writers may be execution \textit{appendTail}. This reconciliation
+%% algorithm of pointer chasing must be run each time a conflict occurs.
+%% For highly contested structures, the number of retries can grow
+%% quickly, leading to large and unpredictable tail latencies.
+
+%% In the case of clover this exact scenario occurs when key are write
+%% contested. Their experiments with a zipf distribution on their keys
+%% sees a 5x reduction in throughput at 50\% writes.
 
 %% What do we actually do
 If a central arbiter where to observer the writes to this linked list
-it would notice that the second CNS does not need to fail, it simply
+it would notice that the second c\&s does not need to fail, it simply
 needs to be redirected to point at the new tail of the list. 
 %%
 Our observation is that such a coordinator can be implemented in
@@ -111,24 +119,24 @@ writes which have been made to remote memory, but which have not yet
 been made consistent in Clover. Outstanding writes are not yet
 connected to Clovers key linked lists and therefore cannot be read by
 other clients. Following an outstanding write clients will issue an
-RDMA CNS which points the tail of the last committed write to the last
+RDMA c\&s which points the tail of the last committed write to the last
 outstanding write the client issued, making it the new tail of the
 list. Our algorithm detects the existence of a conflict when there is
 more than one outstanding write for a given key. In addition to
 tracking outstanding writes per client, our algorithm tracks the last
-CNS issued to each key. This CNS marks the true tail of a keys linked
-list. When a CNS for an outstanding write is seen, and the virtual
-address of it's CNS points to an old tail, it's virtual address is
+c\&s issued to each key. This c\&s marks the true tail of a keys linked
+list. When a c\&s for an outstanding write is seen, and the virtual
+address of it's c\&s points to an old tail, it's virtual address is
 modified in flight (without the knowledge of the issuing client) to
 point to the true tail of the list. The cached latest version of the
-key is then updated to point to the address the CNS was directed to.
+key is then updated to point to the address the c\&s was directed to.
 Clover clients learn the updated locations using their default read
 algorithm.
 
 RDMA packets are not intended to be modified in flight, and care must
 be taken no to corrupt them. RDMA invariant CRCs (ICRC) are calculated
 at the time of sending and are designed to ensure the integrity of the
-payload. When we modify CNS packets their ICRC must be recalculated or
+payload. When we modify c\&s packets their ICRC must be recalculated or
 the packet will be rejected by the receiving NIC. FPGA implementations
 of RDMA ICRC have been built in the past~\cite{Mansour_2019}, the
 required CRC calculation is identical to ethernet CRC, with the
@@ -186,7 +194,7 @@ pairs increases~\cite{design-guidelines}. In future work we plan to
 both scale up the number of our client threads. Additionally our
 design reduces the need for expensive compare and swap operations as
 all cached keys have no conflicts. Our future implementations will
-seek to reduce or eliminate CNS and replace them with low overhead
+seek to reduce or eliminate c\&s and replace them with low overhead
 RDMA writes.
 
 \begin{figure}
@@ -211,7 +219,7 @@ last write per key. In addition we track the last key written per
 client thread. Clients are not explicitly known to our middlebox and
 are identified at runtime by their QP. Tracking clients in this way is
 necessary to detect write conflicts in clover. This overhead could be
-eliminated by explicitly adding key information to CNS requests.
+eliminated by explicitly adding key information to c\&s requests.
 
 Figure~\ref{fig:memory} Shows the memory overhead as a function of
 keys. Note that 100K keys can be supported using 7\% of the available
