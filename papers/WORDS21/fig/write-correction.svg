@@ -1,0 +1,1576 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="198.46455mm"
+   height="115.16648mm"
+   viewBox="0 0 198.46455 115.16648"
+   version="1.1"
+   id="svg8"
+   inkscape:version="0.92.4 (unknown)"
+   sodipodi:docname="write-correction.svg">
+  <defs
+     id="defs2">
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path8659"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-7"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-5"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-4"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-74"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#ff0000;fill-opacity:1;fill-rule:evenodd;stroke:#ff0000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-6"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-4"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-9"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-5"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2-0"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3-4"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-3"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-9"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-0"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-8"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2-8"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3-5"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-5"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-3"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-8"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-83"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2-1"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3-8"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-81"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-2"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-89"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-36"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2-80"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3-2"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-69"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-33"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-80"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-56"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-8-2-6"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-7-3-40"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-4-5"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path8659-74-3"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#ff0000;fill-opacity:1;fill-rule:evenodd;stroke:#ff0000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.98994949"
+     inkscape:cx="627.76159"
+     inkscape:cy="273.25342"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="2560"
+     inkscape:window-height="1412"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1" />
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-17.075517,-12.01641)">
+    <rect
+       style="fill:#ffffff;stroke:#ff0000;stroke-width:0.79400003;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+       id="rect845"
+       width="139.43541"
+       height="96.043747"
+       x="-178.76367"
+       y="17.522709" />
+    <rect
+       style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+       id="rect847"
+       width="23.8125"
+       height="8.6934528"
+       x="-129.79706"
+       y="194.96486" />
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-113.05501"
+       y="201.58478"
+       id="text857"><tspan
+         sodipodi:role="line"
+         id="tspan855"
+         x="-113.05501"
+         y="201.58478"
+         style="stroke-width:0.26458332">  </tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-101.42878"
+       y="179.0005"
+       id="text861"><tspan
+         sodipodi:role="line"
+         id="tspan859"
+         x="-101.42878"
+         y="179.0005"
+         style="stroke-width:0.26458332">Slab</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-78.844505"
+       y="178.46596"
+       id="text865"><tspan
+         sodipodi:role="line"
+         id="tspan863"
+         x="-78.844505"
+         y="178.46596"
+         style="stroke-width:0.26458332">Tail</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-63.476517"
+       y="186.08313"
+       id="text873"><tspan
+         sodipodi:role="line"
+         id="tspan871"
+         x="-63.476517"
+         y="186.08313"
+         style="stroke-width:0.26458332">Key</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-62.808334"
+       y="194.63577"
+       id="text877"><tspan
+         sodipodi:role="line"
+         id="tspan875"
+         x="-62.808334"
+         y="194.63577"
+         style="stroke-width:0.26458332">Value</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-102.46059"
+       y="185.69905"
+       id="text851-7"><tspan
+         sodipodi:role="line"
+         id="tspan849-5"
+         x="-102.46059"
+         y="185.69905"
+         style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+         sodipodi:role="line"
+         x="-102.46059"
+         y="191.09702"
+         style="stroke-width:0.26458332"
+         id="tspan853-3">Data Ptr</tspan></text>
+    <g
+       id="g11763">
+      <g
+         id="g12076">
+        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="47.330463"
+           y="158.32082"
+           id="text873-3"><tspan
+             sodipodi:role="line"
+             id="tspan871-6"
+             x="47.330463"
+             y="158.32082"
+             style="stroke-width:0.26458332">Key 0</tspan></text>
+        <g
+           id="g986"
+           transform="translate(-26.994222,-3.6081386)">
+          <rect
+             y="154.88289"
+             x="88.469681"
+             height="12.153817"
+             width="24.448217"
+             id="rect935"
+             style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+          <text
+             id="text851"
+             y="159.57347"
+             x="88.837578"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="159.57347"
+               x="88.837578"
+               id="tspan849"
+               sodipodi:role="line">Next Ptr</tspan><tspan
+               id="tspan853"
+               style="stroke-width:0.26458332"
+               y="164.97144"
+               x="88.837578"
+               sodipodi:role="line">RData Ptr</tspan></text>
+        </g>
+        <g
+           id="g986-2"
+           transform="translate(9.0203517,-3.7417604)">
+          <rect
+             y="154.88289"
+             x="88.469681"
+             height="12.153817"
+             width="24.448217"
+             id="rect935-7"
+             style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+          <text
+             id="text851-0"
+             y="159.57347"
+             x="88.837578"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="159.57347"
+               x="88.837578"
+               id="tspan849-9"
+               sodipodi:role="line">Next Ptr</tspan><tspan
+               id="tspan853-36"
+               style="stroke-width:0.26458332"
+               y="164.97144"
+               x="88.837578"
+               sodipodi:role="line">RData Ptr</tspan></text>
+        </g>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend)"
+           d="m 82.886962,154.41171 h 3.006782 10.95805"
+           id="path8654"
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="ccc" />
+        <g
+           id="g986-2-0"
+           transform="translate(44.071091,-3.9054821)">
+          <rect
+             y="154.88289"
+             x="88.469681"
+             height="12.153817"
+             width="24.448217"
+             id="rect935-7-6"
+             style="fill:#ff0000;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+          <text
+             id="text851-0-2"
+             y="159.57347"
+             x="88.837578"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="159.57347"
+               x="88.837578"
+               id="tspan849-9-6"
+               sodipodi:role="line">Next Ptr</tspan><tspan
+               id="tspan853-36-1"
+               style="stroke-width:0.26458332"
+               y="164.97144"
+               x="88.837578"
+               sodipodi:role="line">RData Ptr</tspan></text>
+        </g>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-8)"
+           d="m 118.15436,154.125 h 3.00678 10.95805"
+           id="path8654-9"
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="ccc" />
+        <text
+           transform="rotate(-90)"
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="-160.13139"
+           y="161.94591"
+           id="text865-2"><tspan
+             sodipodi:role="line"
+             id="tspan863-0"
+             x="-160.13139"
+             y="161.94591"
+             style="stroke-width:0.26458332">Tail</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="47.886272"
+           y="178.41435"
+           id="text873-3-9"><tspan
+             sodipodi:role="line"
+             id="tspan871-6-2"
+             x="47.886272"
+             y="178.41435"
+             style="stroke-width:0.26458332">Key N</tspan></text>
+        <g
+           id="g986-28"
+           transform="translate(-26.438414,16.485401)">
+          <rect
+             y="154.88289"
+             x="88.469681"
+             height="12.153817"
+             width="24.448217"
+             id="rect935-9"
+             style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+          <text
+             id="text851-73"
+             y="159.57347"
+             x="88.837578"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="159.57347"
+               x="88.837578"
+               id="tspan849-6"
+               sodipodi:role="line">Next Ptr</tspan><tspan
+               id="tspan853-1"
+               style="stroke-width:0.26458332"
+               y="164.97144"
+               x="88.837578"
+               sodipodi:role="line">RData Ptr</tspan></text>
+        </g>
+        <g
+           id="g986-2-0-7"
+           transform="translate(9.0971381,16.188051)">
+          <rect
+             y="154.88289"
+             x="88.469681"
+             height="12.153817"
+             width="24.448217"
+             id="rect935-7-6-8"
+             style="fill:#ff0000;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+          <text
+             id="text851-0-2-4"
+             y="159.57347"
+             x="88.837578"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="159.57347"
+               x="88.837578"
+               id="tspan849-9-6-5"
+               sodipodi:role="line">Next Ptr</tspan><tspan
+               id="tspan853-36-1-0"
+               style="stroke-width:0.26458332"
+               y="164.97144"
+               x="88.837578"
+               sodipodi:role="line">RData Ptr</tspan></text>
+        </g>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-8-2)"
+           d="m 83.180408,174.21853 h 3.00678 10.95805"
+           id="path8654-9-3"
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="ccc" />
+        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="106.01279"
+           y="169.37114"
+           id="text865-2-6"><tspan
+             sodipodi:role="line"
+             id="tspan863-0-1"
+             x="106.01279"
+             y="169.37114"
+             style="stroke-width:0.26458332">Tail</tspan></text>
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+       x="-58.59536"
+       y="196.16508"
+       id="text877-5"><tspan
+         sodipodi:role="line"
+         id="tspan875-5"
+         x="-58.59536"
+         y="196.16508"
+         style="stroke-width:0.26458332">Value</tspan></text>
+    <g
+       id="g11797"
+       transform="matrix(0.9,0,0,0.9,-0.47124981,52.572566)">
+      <g
+         id="g10978">
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10948"
+           width="40.632439"
+           height="10.394345"
+           x="49.136902"
+           y="237.46875" />
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10974"
+           width="7.1815524"
+           height="10.394345"
+           x="89.769341"
+           y="237.46875" />
+      </g>
+      <text
+         id="text861-6"
+         y="235.06534"
+         x="58.797241"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="235.06534"
+           x="58.797241"
+           id="tspan859-1"
+           sodipodi:role="line">Rmem Slabs</tspan></text>
+      <text
+         id="text877-4"
+         y="243.58266"
+         x="63.453197"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="243.58266"
+           x="63.453197"
+           id="tspan875-7"
+           sodipodi:role="line">Value</tspan></text>
+      <g
+         id="g10978-7"
+         transform="translate(58.302829,-0.09449413)">
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10948-4"
+           width="40.632439"
+           height="10.394345"
+           x="49.136902"
+           y="237.46875" />
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10974-5"
+           width="7.1815524"
+           height="10.394345"
+           x="89.769341"
+           y="237.46875" />
+      </g>
+      <text
+         id="text877-4-2"
+         y="243.48816"
+         x="121.75603"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="243.48816"
+           x="121.75603"
+           id="tspan875-7-5"
+           sodipodi:role="line">Value</tspan></text>
+      <path
+         sodipodi:nodetypes="ccc"
+         inkscape:connector-curvature="0"
+         id="path8654-4"
+         d="m 92.924449,242.57142 h 3.006782 10.958049"
+         style="fill:#ff0000;stroke:#ff0000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-4)" />
+      <text
+         transform="rotate(90)"
+         id="text869"
+         y="-150.71683"
+         x="237.61549"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="font-size:3.52777767px;line-height:0.25;stroke-width:0.26458332"
+           y="-150.71683"
+           x="237.61549"
+           id="tspan867"
+           sodipodi:role="line">NULL</tspan></text>
+      <text
+         id="text865-2-6-3"
+         y="234.70079"
+         x="126.28091"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="234.70079"
+           x="126.28091"
+           id="tspan863-0-1-0"
+           sodipodi:role="line">Tail</tspan></text>
+    </g>
+    <g
+       transform="translate(-19.884187,-100.10155)"
+       id="g11763-0">
+      <g
+         id="g13378"
+         transform="translate(-9.8889729,-30.468727)">
+        <flowRoot
+           transform="matrix(0.26458333,0,0,0.26458333,47.916017,109.26469)"
+           style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+           id="flowRoot11843"
+           xml:space="preserve"><flowRegion
+             id="flowRegion11845"><rect
+               y="122.51968"
+               x="120"
+               height="51.42857"
+               width="374.28571"
+               id="rect11847" /></flowRegion><flowPara
+             style="font-size:24px"
+             id="flowPara11849">MetaData Server</flowPara></flowRoot>        <rect
+           y="49.5084"
+           x="27.26149"
+           height="35.060467"
+           width="116.5749"
+           id="rect12771"
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           transform="translate(19.884187,100.10155)" />
+        <g
+           id="g12076-4">
+          <text
+             id="text873-3-6"
+             y="158.32082"
+             x="47.330463"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="158.32082"
+               x="47.330463"
+               id="tspan871-6-26"
+               sodipodi:role="line">Key 0</tspan></text>
+          <g
+             transform="translate(-26.994222,-3.6081386)"
+             id="g986-7">
+            <rect
+               style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-5"
+               width="24.448217"
+               height="12.153817"
+               x="88.469681"
+               y="154.88289" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-6"><tspan
+                 sodipodi:role="line"
+                 id="tspan849-98"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="164.97144"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-7">RData Ptr</tspan></text>
+          </g>
+          <g
+             transform="translate(9.0203517,-3.7417604)"
+             id="g986-2-2">
+            <rect
+               style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-7-8"
+               width="24.448217"
+               height="12.153817"
+               x="88.469681"
+               y="154.88289" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-0-29"><tspan
+                 sodipodi:role="line"
+                 id="tspan849-9-9"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="164.97144"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-36-6">RData Ptr</tspan></text>
+          </g>
+          <path
+             sodipodi:nodetypes="ccc"
+             inkscape:connector-curvature="0"
+             id="path8654-0"
+             d="m 82.886962,154.41171 h 3.006782 10.95805"
+             style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-69)" />
+          <g
+             transform="translate(44.071091,-3.9054821)"
+             id="g986-2-0-2">
+            <rect
+               style="fill:#ff0000;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-7-6-7"
+               width="24.448217"
+               height="12.153817"
+               x="88.469681"
+               y="154.88289" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-0-2-6"><tspan
+                 sodipodi:role="line"
+                 id="tspan849-9-6-1"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="164.97144"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-36-1-3">RData Ptr</tspan></text>
+          </g>
+          <path
+             sodipodi:nodetypes="ccc"
+             inkscape:connector-curvature="0"
+             id="path8654-9-2"
+             d="m 118.15436,154.125 h 3.00678 10.95805"
+             style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-8-80)" />
+          <text
+             id="text865-2-1"
+             y="161.94591"
+             x="-160.13139"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"
+             transform="rotate(-90)"><tspan
+               style="stroke-width:0.26458332"
+               y="161.94591"
+               x="-160.13139"
+               id="tspan863-0-5"
+               sodipodi:role="line">Tail</tspan></text>
+          <text
+             id="text873-3-9-9"
+             y="178.41435"
+             x="47.886272"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="178.41435"
+               x="47.886272"
+               id="tspan871-6-2-9"
+               sodipodi:role="line">Key N</tspan></text>
+          <g
+             transform="translate(-26.438414,16.485401)"
+             id="g986-28-1">
+            <rect
+               style="fill:#ffffff;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-9-4"
+               width="24.448217"
+               height="12.153817"
+               x="88.469681"
+               y="154.88289" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-73-9"><tspan
+                 sodipodi:role="line"
+                 id="tspan849-6-1"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="164.97144"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-1-0">RData Ptr</tspan></text>
+          </g>
+          <g
+             transform="translate(9.0971381,16.188051)"
+             id="g986-2-0-7-7">
+            <rect
+               style="fill:#ff0000;stroke:#000000;stroke-width:0.30094656;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-7-6-8-5"
+               width="24.448217"
+               height="12.153817"
+               x="88.469681"
+               y="154.88289" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-0-2-4-8"><tspan
+                 sodipodi:role="line"
+                 id="tspan849-9-6-5-7"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332">Next Ptr</tspan><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="164.97144"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-36-1-0-0">RData Ptr</tspan></text>
+          </g>
+          <path
+             sodipodi:nodetypes="ccc"
+             inkscape:connector-curvature="0"
+             id="path8654-9-3-4"
+             d="m 83.180408,174.21853 h 3.00678 10.95805"
+             style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-8-2-6)" />
+          <text
+             id="text865-2-6-8"
+             y="169.37114"
+             x="106.01279"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="169.37114"
+               x="106.01279"
+               id="tspan863-0-1-04"
+               sodipodi:role="line">Tail</tspan></text>
+        </g>
+        <g
+           id="g13763"
+           transform="translate(-0.53453906,-4.6772167)">
+          <rect
+             style="fill:#666666;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7"
+             width="107.37933"
+             height="21.632139"
+             x="47.924793"
+             y="199.96619" />
+          <flowRoot
+             xml:space="preserve"
+             id="flowRoot11843-0"
+             style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+             transform="matrix(0.26458333,0,0,0.26458333,48.797383,159.11209)"><flowRegion
+               id="flowRegion11845-8"><rect
+                 id="rect11847-6"
+                 width="374.28571"
+                 height="51.42857"
+                 x="120"
+                 y="122.51968" /></flowRegion><flowPara
+               id="flowPara11849-2"
+               style="font-size:24px">Client Machines</flowPara></flowRoot>          <rect
+             style="fill:#b3b3b3;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7-9"
+             width="107.37933"
+             height="21.632139"
+             x="51.515564"
+             y="201.76157" />
+          <rect
+             style="fill:#ffffff;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7-9-3"
+             width="107.37933"
+             height="21.632139"
+             x="55.269505"
+             y="204.14261" />
+          <rect
+             y="206.40474"
+             x="109.55311"
+             height="16.663574"
+             width="31.585733"
+             id="rect13741"
+             style="fill:#ffaaaa;stroke:#000000;stroke-width:0.26458332;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+          <text
+             id="text13745"
+             y="211.08195"
+             x="110.48856"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="211.08195"
+               x="110.48856"
+               id="tspan13743"
+               sodipodi:role="line">Opprotunistic </tspan><tspan
+               id="tspan13747"
+               style="stroke-width:0.26458332"
+               y="216.47992"
+               x="110.48856"
+               sodipodi:role="line">Metadata </tspan><tspan
+               id="tspan13749"
+               style="stroke-width:0.26458332"
+               y="221.87788"
+               x="110.48856"
+               sodipodi:role="line">Cache</tspan></text>
+        </g>
+        <g
+           transform="translate(-0.4244653,31.681423)"
+           id="g13763-9">
+          <rect
+             style="fill:#666666;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7-2"
+             width="107.37933"
+             height="21.632139"
+             x="47.924793"
+             y="199.96619" />
+          <flowRoot
+             xml:space="preserve"
+             id="flowRoot11843-0-8"
+             style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+             transform="matrix(0.26458333,0,0,0.26458333,36.513157,159.86804)"><flowRegion
+               id="flowRegion11845-8-3"><rect
+                 id="rect11847-6-0"
+                 width="374.28571"
+                 height="51.42857"
+                 x="120"
+                 y="122.51968" /></flowRegion><flowPara
+               id="flowPara11849-2-1"
+               style="font-size:24px">Remote Memory Servers</flowPara></flowRoot>          <rect
+             style="fill:#b3b3b3;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7-9-7"
+             width="107.37933"
+             height="21.632139"
+             x="51.515564"
+             y="201.76157" />
+          <rect
+             style="fill:#ffffff;stroke:#000000;stroke-width:0.59399998;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+             id="rect12771-7-9-3-8"
+             width="107.37933"
+             height="21.632139"
+             x="55.269505"
+             y="204.14261" />
+        </g>
+        <flowRoot
+           xml:space="preserve"
+           id="flowRoot14195"
+           style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+           transform="matrix(0.26458333,0,0,0.26458333,29.773159,130.57028)"><flowRegion
+             id="flowRegion14197"><rect
+               id="rect14199"
+               width="15.714286"
+               height="17.142857"
+               x="692.85712"
+               y="204.66254" /></flowRegion><flowPara
+             id="flowPara14201"></flowPara></flowRoot>        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="297.84448"
+           y="158.02896"
+           id="text14213"><tspan
+             sodipodi:role="line"
+             id="tspan14211"
+             x="297.84448"
+             y="161.88077"
+             style="stroke-width:0.26458332"></tspan><tspan
+             sodipodi:role="line"
+             x="297.84448"
+             y="167.17244"
+             style="stroke-width:0.26458332"
+             id="tspan14215" /></text>
+      </g>
+    </g>
+    <g
+       id="g13539">
+      <g
+         id="g11778">
+        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="50.686321"
+           y="203.89401"
+           id="text873-3-7"><tspan
+             sodipodi:role="line"
+             id="tspan871-6-8"
+             x="50.686321"
+             y="203.89401"
+             style="stroke-width:0.26458332">Key 0</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+           x="50.440319"
+           y="213.0295"
+           id="text873-3-9-6"><tspan
+             sodipodi:role="line"
+             id="tspan871-6-2-8"
+             x="50.440319"
+             y="213.0295"
+             style="stroke-width:0.26458332">Key N</tspan></text>
+        <g
+           id="g986-2-0-7-8"
+           transform="translate(1.8040751,49.311241)">
+          <g
+             id="g11699"
+             transform="translate(-23.434524,-5.0081845)">
+            <rect
+               style="fill:#ff0000;stroke:#000000;stroke-width:0.15047328;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-7-6-8-4"
+               width="17.468525"
+               height="5.8406692"
+               x="87.499092"
+               y="155.11501" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-0-2-4-3"><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-36-1-0-4">Tail Ptr</tspan></text>
+          </g>
+          <g
+             id="g11699-9"
+             transform="translate(-23.434378,3.7110824)">
+            <rect
+               style="fill:#ff0000;stroke:#000000;stroke-width:0.15047328;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+               id="rect935-7-6-8-4-2"
+               width="17.468525"
+               height="5.8406692"
+               x="87.499092"
+               y="155.11501" />
+            <text
+               xml:space="preserve"
+               style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+               x="88.837578"
+               y="159.57347"
+               id="text851-0-2-4-3-0"><tspan
+                 sodipodi:role="line"
+                 x="88.837578"
+                 y="159.57347"
+                 style="stroke-width:0.26458332"
+                 id="tspan853-36-1-0-4-6">Tail Ptr</tspan></text>
+          </g>
+        </g>
+      </g>
+      <flowRoot
+         transform="matrix(0.26458333,0,0,0.26458333,-42.841406,27.453262)"
+         style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+         id="flowRoot11799"
+         xml:space="preserve"><flowRegion
+           id="flowRegion11801"><rect
+             y="722.87683"
+             x="352.5"
+             height="18.571472"
+             width="155.71428"
+             id="rect11803" /></flowRegion><flowPara
+           id="flowPara11805">Oustanding Writes</flowPara></flowRoot>      <flowRoot
+         transform="matrix(0.26458333,0,0,0.26458333,-43.114384,1.4737896)"
+         style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+         id="flowRoot11799-8"
+         xml:space="preserve"><flowRegion
+           id="flowRegion11801-9"><rect
+             y="722.87683"
+             x="352.5"
+             height="18.571472"
+             width="155.71428"
+             id="rect11803-2" /></flowRegion><flowPara
+           id="flowPara11805-6">Cached Metadata</flowPara></flowRoot>      <flowRoot
+         transform="matrix(0.26458333,0,0,0.26458333,-43.219382,25.468887)"
+         style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+         id="flowRoot11831"
+         xml:space="preserve"><flowRegion
+           id="flowRegion11833"><rect
+             y="752.16254"
+             x="353.57144"
+             height="54.285713"
+             width="158.21428"
+             id="rect11835" /></flowRegion><flowPara
+           id="flowPara11837">Client 5 - Key 3</flowPara><flowPara
+           id="flowPara11839">Client 8 - Key N</flowPara></flowRoot>      <path
+         sodipodi:nodetypes="cc"
+         inkscape:connector-curvature="0"
+         id="path13473"
+         d="m 47.039437,216.55187 45.357537,0.0324"
+         style="fill:none;stroke:#000000;stroke-width:0.26458332;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.26458332, 0.52916663;stroke-dashoffset:0;stroke-opacity:1" />
+    </g>
+    <g
+       id="g11797-4"
+       transform="matrix(0.9,0,0,0.9,-14.621849,-100.28227)">
+      <g
+         id="g10978-9">
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10948-0"
+           width="40.632439"
+           height="10.394345"
+           x="49.136902"
+           y="237.46875" />
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10974-2"
+           width="7.1815524"
+           height="10.394345"
+           x="89.769341"
+           y="237.46875" />
+      </g>
+      <text
+         id="text861-6-0"
+         y="235.06534"
+         x="58.797241"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="235.06534"
+           x="58.797241"
+           id="tspan859-1-1"
+           sodipodi:role="line">Rmem Slabs</tspan></text>
+      <text
+         id="text877-4-9"
+         y="243.58266"
+         x="63.453197"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="243.58266"
+           x="63.453197"
+           id="tspan875-7-6"
+           sodipodi:role="line">Value</tspan></text>
+      <g
+         id="g10978-7-2"
+         transform="translate(58.302829,-0.09449413)">
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10948-4-1"
+           width="40.632439"
+           height="10.394345"
+           x="49.136902"
+           y="237.46875" />
+        <rect
+           style="fill:#ffffff;stroke:#000000;stroke-width:0.294;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+           id="rect10974-5-2"
+           width="7.1815524"
+           height="10.394345"
+           x="89.769341"
+           y="237.46875" />
+      </g>
+      <text
+         id="text877-4-2-0"
+         y="243.48816"
+         x="121.75603"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="243.48816"
+           x="121.75603"
+           id="tspan875-7-5-7"
+           sodipodi:role="line">Value</tspan></text>
+      <path
+         sodipodi:nodetypes="ccc"
+         inkscape:connector-curvature="0"
+         id="path8654-4-3"
+         d="m 92.924449,242.57142 h 3.006782 10.958049"
+         style="fill:#ff0000;stroke:#ff0000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Lend-4-5)" />
+      <text
+         transform="rotate(90)"
+         id="text869-1"
+         y="-150.71683"
+         x="237.61549"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="font-size:3.52777767px;line-height:0.25;stroke-width:0.26458332"
+           y="-150.71683"
+           x="237.61549"
+           id="tspan867-1"
+           sodipodi:role="line">NULL</tspan></text>
+      <text
+         id="text865-2-6-3-9"
+         y="234.70079"
+         x="126.28091"
+         style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.26458332"
+           y="234.70079"
+           x="126.28091"
+           id="tspan863-0-1-0-0"
+           sodipodi:role="line">Tail</tspan></text>
+    </g>
+    <g
+       id="g14275"
+       transform="translate(-11.024531,-22.588209)">
+      <flowRoot
+         transform="matrix(0.26458333,0,0,0.26458333,-11.091686,21.916103)"
+         style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+         id="flowRoot14217"
+         xml:space="preserve"><flowRegion
+           id="flowRegion14219"><rect
+             y="114.89252"
+             x="651.5484"
+             height="109.60155"
+             width="361.12955"
+             id="rect14221" /></flowRegion><flowPara
+           style="font-size:24px"
+           id="flowPara14223">pSwitch Remote</flowPara><flowPara
+           style="font-size:24px"
+           id="flowPara14225">Memory Coordinator</flowPara></flowRoot>      <rect
+         y="68.135414"
+         x="160.82886"
+         height="70.492554"
+         width="63.5"
+         id="rect14086"
+         style="fill:#ffffff;stroke:#000000;stroke-width:0.565;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+      <g
+         id="g13539-8"
+         transform="translate(123.61661,-112.02532)">
+        <g
+           id="g11778-9">
+          <text
+             id="text873-3-7-0"
+             y="203.89401"
+             x="50.686321"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="203.89401"
+               x="50.686321"
+               id="tspan871-6-8-6"
+               sodipodi:role="line">Key 0</tspan></text>
+          <text
+             id="text873-3-9-6-8"
+             y="213.0295"
+             x="50.440319"
+             style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+             xml:space="preserve"><tspan
+               style="stroke-width:0.26458332"
+               y="213.0295"
+               x="50.440319"
+               id="tspan871-6-2-8-7"
+               sodipodi:role="line">Key N</tspan></text>
+          <g
+             transform="translate(1.8040751,49.311241)"
+             id="g986-2-0-7-8-9">
+            <g
+               transform="translate(-23.434524,-5.0081845)"
+               id="g11699-0">
+              <rect
+                 y="155.11501"
+                 x="87.499092"
+                 height="5.8406692"
+                 width="17.468525"
+                 id="rect935-7-6-8-4-3"
+                 style="fill:#ff0000;stroke:#000000;stroke-width:0.15047328;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+              <text
+                 id="text851-0-2-4-3-3"
+                 y="159.57347"
+                 x="88.837578"
+                 style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+                 xml:space="preserve"><tspan
+                   id="tspan853-36-1-0-4-3"
+                   style="stroke-width:0.26458332"
+                   y="159.57347"
+                   x="88.837578"
+                   sodipodi:role="line">Tail Ptr</tspan></text>
+            </g>
+            <g
+               transform="translate(-23.434378,3.7110824)"
+               id="g11699-9-7">
+              <rect
+                 y="155.11501"
+                 x="87.499092"
+                 height="5.8406692"
+                 width="17.468525"
+                 id="rect935-7-6-8-4-2-3"
+                 style="fill:#ff0000;stroke:#000000;stroke-width:0.15047328;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none" />
+              <text
+                 id="text851-0-2-4-3-0-2"
+                 y="159.57347"
+                 x="88.837578"
+                 style="font-size:4.23333311px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px;stroke-width:0.26458332"
+                 xml:space="preserve"><tspan
+                   id="tspan853-36-1-0-4-6-6"
+                   style="stroke-width:0.26458332"
+                   y="159.57347"
+                   x="88.837578"
+                   sodipodi:role="line">Tail Ptr</tspan></text>
+            </g>
+          </g>
+        </g>
+        <flowRoot
+           xml:space="preserve"
+           id="flowRoot11799-5"
+           style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+           transform="matrix(0.26458333,0,0,0.26458333,-42.841406,27.453262)"><flowRegion
+             id="flowRegion11801-2"><rect
+               id="rect11803-6"
+               width="155.71428"
+               height="18.571472"
+               x="352.5"
+               y="722.87683" /></flowRegion><flowPara
+             id="flowPara11805-5">Oustanding Writes</flowPara></flowRoot>        <flowRoot
+           xml:space="preserve"
+           id="flowRoot11799-8-8"
+           style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+           transform="matrix(0.26458333,0,0,0.26458333,-43.114384,1.4737896)"><flowRegion
+             id="flowRegion11801-9-7"><rect
+               id="rect11803-2-9"
+               width="155.71428"
+               height="18.571472"
+               x="352.5"
+               y="722.87683" /></flowRegion><flowPara
+             style="font-weight:bold;font-size:14.66666698px"
+             id="flowPara11805-6-6">Cached Metadata</flowPara></flowRoot>        <flowRoot
+           xml:space="preserve"
+           id="flowRoot11831-0"
+           style="font-size:16px;line-height:1.25;font-family:'Noto Sans Ethiopic';-inkscape-font-specification:'Noto Sans Ethiopic';letter-spacing:0px;word-spacing:0px"
+           transform="matrix(0.26458333,0,0,0.26458333,-43.219382,25.468887)"><flowRegion
+             id="flowRegion11833-4"><rect
+               id="rect11835-1"
+               width="158.21428"
+               height="54.285713"
+               x="353.57144"
+               y="752.16254" /></flowRegion><flowPara
+             id="flowPara11837-0">Client 5 - Key 3</flowPara><flowPara
+             id="flowPara11839-4">Client 8 - Key N</flowPara></flowRoot>        <path
+           style="fill:none;stroke:#000000;stroke-width:0.26458332;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:0.26458332, 0.52916663;stroke-dashoffset:0;stroke-opacity:1"
+           d="m 47.039437,216.55187 45.357537,0.0324"
+           id="path13473-8"
+           inkscape:connector-curvature="0"
+           sodipodi:nodetypes="cc" />
+      </g>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 133.80357,35.818452 h 8.88244 l -0.18899,19.276785 h 7.18155"
+       id="path14277"
+       inkscape:connector-curvature="0" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56499994;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285"
+       width="3.96875"
+       height="3.5907736"
+       x="147.88319"
+       y="53.488838" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.565;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5"
+       width="3.96875"
+       height="3.5907738"
+       x="147.88318"
+       y="61.237354" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56500006;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5-6"
+       width="3.96875"
+       height="3.5907738"
+       x="147.97768"
+       y="70.497765" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56500006;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5-7"
+       width="3.96875"
+       height="3.5907738"
+       x="147.88319"
+       y="79.191216" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56500006;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5-74"
+       width="3.96875"
+       height="3.5907738"
+       x="147.88319"
+       y="87.412209" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56500006;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5-0"
+       width="3.96875"
+       height="3.5907738"
+       x="147.7887"
+       y="96.011162" />
+    <rect
+       style="fill:#999999;stroke:#000000;stroke-width:0.56500006;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect14285-5-64"
+       width="3.96875"
+       height="3.5907738"
+       x="147.5997"
+       y="106.21651" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.36523,72.694048 5.3788,-0.100227 v -8.619442 h 9.82215"
+       id="path14343"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.56568,79.643056 c 0,0 7.98528,0.376285 7.88445,0 -0.10082,-0.376287 0,-7.049235 0,-7.049235 h 7.31651"
+       id="path14345"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.49887,85.088671 h 9.72192 v -3.975632 h 5.44562"
+       id="path14347"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.56568,108.57498 h 6.28084 V 89.598845 h 8.95353"
+       id="path14349"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.83295,115.92489 h 9.48807 V 98.68601 h 4.94449"
+       id="path14353"
+       inkscape:connector-curvature="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 132.69932,122.20573 h 12.2944 v -14.29892 h 2.53906"
+       id="path14355"
+       inkscape:connector-curvature="0" />
+  </g>
+</svg>
