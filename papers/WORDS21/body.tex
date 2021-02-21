@@ -258,3 +258,34 @@ is 128 Bytes, which results in 1.3x throughput improvement.
 
 \section{Future Work}
 
+\textbf{Design bottlenecks}: Prior work notes that c\&s operations
+bottleneck quickly when locking is applies across
+QP~\cite{design-guidelines}. This limites the potential gains from
+just resolving write conflits. Two potenial aproaches for reducing NIC
+lock contention would be to remap rdma QPs in network on a per key
+basis so all requests on the same key arrive on the same destination
+QP on the NIC, thus removing the need for cross QP locking.
+Alternativly for keys which are cached by our algorithm, c\&s is not
+strictly required as all writes are ordered. An alternative is to swap
+c\&s requests with regular writes (which requires only a change of
+RDMA header) thereby removing locking on the desitation NIC all
+together.
+
+\textbf{More data strctures}: We demonstrate our approach on a single
+datastructure with a single associative operation. We hope to
+demonstrate the generality of our technqiue on more complex data
+strcutures in the future. For our caching algorithm to resolve
+metadata conflicts in network, it must be able to correctly enforce
+remote data structure integrety invariants with it's limited scope of
+cached data. Invariants such as strict ordering, or maintaining a
+balanced tree require more care to enforce than appending to the tail
+of a list. We plan to invistigate datastructures which have the ideal
+property of requiring a small amount of metadata (ideally O(log n), or
+O(log log n) to correctly enfornce their structural invariants while
+supporing more operations, such as range queries.
+
+\textbf{Resolution Interface}: Designing and running custom code on
+programmable switches is hard, while understanding how to resolve
+write conflicts is relativly easy. We would like to design a generic
+interface for developers to resolve write conflicts, and orchestrate
+inflight RDMA.
