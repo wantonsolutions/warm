@@ -84,22 +84,23 @@ While concurrent read operations will not prevent a write from
 succeeding, a reader that loses the race with a c\&s operation will
 need to issue another RDMA read to the new address to obtain the
 updated value.  On write-heavy workloads these race conditions happen
-frequently as illustrated in Figure~\ref{fig:conflicts},
+frequently
+%as illustrated in Figure~\ref{fig:conflicts},
 %, which leads to a sharp decrease in throughput.  For highly
 %contested structures, the number of retries can grow quickly,
-leading to large and unpredictable tail latencies.
+leading to large and unpredictable tail latencies~\cite{clover}.
 
 
 
 
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
-    \caption{Clover write conflicts grow with the number of clients
-    (50\% write Zipf 0.99 distribution)\todo{redo with 64 cores and
-    writes only}}
-    \label{fig:conflicts}
-    \vskip -0.5em
-\end{figure}
+%\begin{figure}
+%    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
+%    \caption{Clover write conflicts grow with the number of clients
+%    (50\% write Zipf 0.99 distribution)\todo{redo with 64 cores and
+%    writes only}}
+%    \label{fig:conflicts}
+%    \vskip -0.5em
+%\end{figure}
 
 
 
