@@ -47,11 +47,12 @@ writes, however, Clover's throughput decreases due to contention.
 If multiple clients attempt to update the value concurrently, each
 will succeed in writing their new value to remote memory but then
 issue conflicting RDMA c\&s operations to the end of the chain.  The
-race is resolved at the remote memory location: only the first c\&s
-operation will succeed; all subsequent operations will fail because
-rather than finding a value with a ``null'' next-update pointer, they
-find the now (at best) penultimate value in the chain which points to
-the update issued by the client that won the race.
+race is resolved at the remote memory location of the previous update
+in the chain: only the first c\&s operation will succeed; all
+subsequent operations will fail because rather than finding a value
+with a ``null'' next-update pointer, they find the now (at best)
+penultimate value in the chain which points to the update issued by
+the client that won the race.
 %When
 %concurrent writes update the same key a race occurs to write at the
 %end of the chain. Write operations require two separate RDMA
