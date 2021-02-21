@@ -89,7 +89,20 @@
 \maketitle
 
 \section{Abstract}
-\todo{the whole thing :(}
+
+Passive remote memory remains the holy grail of disaggregation.  Most
+existing systems for disaggregated memory either use remote memory
+simply as a backing store, or design special-purposes data structures
+that require some amount of processing co-resident with the remote
+memory to manage and apply updates.  The few proposals for truly
+passive remote memory perform well only with read-mostly workloads,
+rapidly deteriorating in the face of even low levels of write
+contention.  We propose to leverage in-network devices (specifically,
+a programmable top-of-rack switch) to serialize remote memory accesses
+and resolve any write conflicts in-flight.  Our prototype is able to
+completely avoid write contention in the recently published Clover
+disaggregated key/value store, delivering a performance boost of
+almost 50\% on our testbed under a mixed read/write workload.
 
 \input{intro}
 \input{body}
