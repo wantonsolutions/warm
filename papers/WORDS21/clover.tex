@@ -1,45 +1,60 @@
-\section{Clover}
+\section{Clover-based prototype}
 
-%%
+While our insight and approach is general, in order to demonstrate its
+practicality we prototype it in the context of Clover~\cite{clover}, a
+disaggregated key/value store.  Hence, we begin with a brief overview
+of the relevant aspects of Clover's design for the uninitiated.
 
-Clover is designed empirically to maximize read performance to passive
-remote memory. It separates key value metadata from the datapath, and
-from clients. Clients issue lockless reads to passive memory servers,
-and opportunistic writes using RDMA compare and swap (CNS) to keep
-remote writes consistent. When writes succeed clients update metadata
-severs lazily. If reads or writes fail because clients have stale
-metadata they concurrently requests fresh metadata, and traverse
-remote memory to obtain the freshest information (a processes known as
-pointer chasing). They found this approach to obtain extremely high
-throughput with read heavy workloads as updates are rare and clients
-enjoy unfettered access to remote memory. In contrast they found that
-placing a metadata coordinator in the datapath became a bottleneck at
-only a fraction of their achievable throughput.
+Clover maximizes read performance by separating key/value metadata
+from the datapath, which is implemented as a linked list of value
+updates that the authors term a \emph{chain}. Clients issue lock-less
+value reads at the end of the chain directly to passive remote memory
+servers and issue opportunistic writes guarded by an RDMA
+compare-and-swap (c\&s) operation to ensure consistency.  When writes
+(i.e., c\&s operations) succeed clients update metadata severs lazily
+with the new location of the end of the chain (as any concurrent
+writes to the same location will fail the comparison). If reads or
+writes fail because clients did not access the current end of the
+chain they concurrently request fresh metadata and traverse the
+chain in remote memory to find the new end (a processes
+known as \emph{chain walking}). The authors show this approach obtains
+extremely high throughput with read-heavy workloads as updates are
+rare and clients enjoy unfettered access to remote memory. In contrast
+they find that placing a metadata coordinator in the datapath becomes
+a bottleneck at only a fraction of their achievable throughput.
 
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/write_conflicts.pdf}
+    \caption{Clover write conflicts grow with the number of clients
+    (50\% write Zipf 0.99 distribution)\todo{redo with 64 cores and
+    writes only}}
+    \label{fig:conflicts}
+    \vskip -0.5em
+\end{figure}
 
-In the presence of writes however clovers operation throughput
-decreases due to contention. When concurrent writes contest the same
-data a race occurs in which the fastest writer wins. Write operations
-require two messages, a data update (RDMA WRITE) and (RDMA CNS) which
-updates old data to point to the new version. During this two RTT
+In the presence of writes, however, Clover's throughput decreases due
+to contention. When concurrent writes update the same key a race
+occurs to write at the end of the chain. Write operations require two
+messages, a data update (i.e., RDMA WRITE) and guard (RDMA c\&s) which
+updates the chain to point to the new value. During this two-RTT
 operation any concurrent write to the same key will cause a conflict.
-The slower writers will fail, and must retry their write after
-searching through remote memory or by getting an update from the
-metadata server.  On write heavy workloads these race conditions
+The slower writers will fail the guard, and must retry their write after
+walking the chain through remote memory or by getting an update from the
+metadata server.  On write-heavy workloads these race conditions
 happen frequently as illustrated in Figure~\ref{fig:conflicts}, which
 leads to a sharp decrease in throughput.
 
 We propose a middle ground between Clover and a centralized approach.
-Our insight is that by using data structure specific knowledge, and
-caching write locations in network conflicting writes can be resolved
-resolved at line rate in the data path.  Using Clover as a platform to
-prove our concept we design a middle box algorithm which intercepts
-clovers RDMA read and write request, caches a small amount (64 byte
-per key) of structural meta data and resolves write conflicts by
-adjusting the destination RDMA virtual address of the writes. Our
-algorithm is implemented in DPDK, but is designed to have low memory
-and computational overhead making it ideal for network devices such as
-programmable switches and NICs.
+Our insight is that by using data-structure-specific knowledge and
+caching write locations in the network, conflicting writes can be
+resolved at line rate on the data path.  Using Clover as a platform to
+prove our concept we design a middle-box algorithm which intercepts
+Clover's RDMA read and write/c\&s requests, caches a small amount (64 bytes
+per key) of structural metadata, and resolves write conflicts by
+adjusting the destination RDMA virtual address of the writes and c\&s
+guards. Our algorithm is implemented using DPDK, but is designed to
+have low memory and computational overhead making it ideal for network
+devices such as programmable switches.
 
 
 %% The high level pitch about remote memory.
