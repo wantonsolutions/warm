@@ -1,0 +1,54 @@
+\section{Clover}
+
+%%
+
+Clover is designed empirically to maximize read performance to passive
+remote memory. It separates key value metadata from the datapath, and
+from clients. Clients issue lockless reads to passive memory servers,
+and opportunistic writes using RDMA compare and swap (CNS) to keep
+remote writes consistent. When writes succeed clients update metadata
+severs lazily. If reads or writes fail because clients have stale
+metadata they concurrently requests fresh metadata, and traverse
+remote memory to obtain the freshest information (a processes known as
+pointer chasing). They found this approach to obtain extremely high
+throughput with read heavy workloads as updates are rare and clients
+enjoy unfettered access to remote memory. In contrast they found that
+placing a metadata coordinator in the datapath became a bottleneck at
+only a fraction of their achievable throughput.
+
+
+In the presence of writes however clovers operation throughput
+decreases due to contention. When concurrent writes contest the same
+data a race occurs in which the fastest writer wins. Write operations
+require two messages, a data update (RDMA WRITE) and (RDMA CNS) which
+updates old data to point to the new version. During this two RTT
+operation any concurrent write to the same key will cause a conflict.
+The slower writers will fail, and must retry their write after
+searching through remote memory or by getting an update from the
+metadata server.  On write heavy workloads these race conditions
+happen frequently as illustrated in Figure~\ref{fig:conflicts}, which
+leads to a sharp decrease in throughput.
+
+We propose a middle ground between Clover and a centralized approach.
+Our insight is that by using data structure specific knowledge, and
+caching write locations in network conflicting writes can be resolved
+resolved at line rate in the data path.  Using Clover as a platform to
+prove our concept we design a middle box algorithm which intercepts
+clovers RDMA read and write request, caches a small amount (64 byte
+per key) of structural meta data and resolves write conflicts by
+adjusting the destination RDMA virtual address of the writes. Our
+algorithm is implemented in DPDK, but is designed to have low memory
+and computational overhead making it ideal for network devices such as
+programmable switches and NICs.
+
+
+%% The high level pitch about remote memory.
+%Far memory projects typically have a remote CPU which is used to
+%coordinate access to remote resources (cite all object systems). In a
+%disaggregated system there is no remote CPU, therefore the coordination
+%of reads and writes to remote locations must be done locally. For
+%performance local caches of remote resources can be used to organize
+%access to remote resources. For data structures which require
+%consistency this creates a problem as stale caches can lead to data
+%structure corruption.
+
