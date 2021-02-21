@@ -258,34 +258,38 @@ is 128 Bytes, which results in 1.3x throughput improvement.
 
 \section{Future Work}
 
-\textbf{Design bottlenecks}: Prior work notes that c\&s operations
-bottleneck quickly when locking is applies across
-QP~\cite{design-guidelines}. This limites the potential gains from
-just resolving write conflits. Two potenial aproaches for reducing NIC
-lock contention would be to remap rdma QPs in network on a per key
-basis so all requests on the same key arrive on the same destination
-QP on the NIC, thus removing the need for cross QP locking.
-Alternativly for keys which are cached by our algorithm, c\&s is not
-strictly required as all writes are ordered. An alternative is to swap
-c\&s requests with regular writes (which requires only a change of
-RDMA header) thereby removing locking on the desitation NIC all
-together.
+\textbf{Design bottlenecks}: 
+%%
+C\&s operations bottleneck quickly when locking is applies across
+QP~\cite{design-guidelines}, limiting the maximum performance of
+systems which rely on it as a guard.  We submit two potential
+approaches for reducing NIC lock contention.  \textbf{1)}remap keys to
+QPs in flight. Cross QP locking can be avoided if all requests to a
+shared memory address arrive on the same destination QP. \textbf{2)}
+c\&s is not required for requests handled by our algorithm as they are
+serialized. C\&s can be converted to writes by replacing a few RDMA
+header fields. This approach would allow full operation throughput with
+zero locking.
 
-\textbf{More data strctures}: We demonstrate our approach on a single
-datastructure with a single associative operation. We hope to
-demonstrate the generality of our technqiue on more complex data
-strcutures in the future. For our caching algorithm to resolve
-metadata conflicts in network, it must be able to correctly enforce
-remote data structure integrety invariants with it's limited scope of
-cached data. Invariants such as strict ordering, or maintaining a
-balanced tree require more care to enforce than appending to the tail
-of a list. We plan to invistigate datastructures which have the ideal
-property of requiring a small amount of metadata (ideally O(log n), or
-O(log log n) to correctly enfornce their structural invariants while
-supporing more operations, such as range queries.
+\textbf{More data structures}:
+%%
+Our approach is not limited to a single
+data structure with associative operations. More complex structures
+can be supported, however the choice of structure must be made with
+care.  For our caching algorithm to resolve metadata conflicts in
+network, it requires enough information to enforce remote data
+structure integrity invariants. Invariants such as ordering, or
+maintaining a balance in a tree require more metadata an computation to
+enforce than appending to the tail of a list. We plan to investigate
+data structures which have the ideal property of requiring a small
+amount of metadata (ideally O(log n), or O(log log n) to maintain
+their structural invariants while also supporting more operations, such
+as range queries.
 
-\textbf{Resolution Interface}: Designing and running custom code on
+\textbf{Resolution Interface}:
+%%
+Designing and running custom code on
 programmable switches is hard, while understanding how to resolve
-write conflicts is relativly easy. We would like to design a generic
+write conflicts is relatively easy. We would like to design a generic
 interface for developers to resolve write conflicts, and orchestrate
-inflight RDMA.
+in flight RDMA.
