@@ -19,7 +19,11 @@ We test the performance gains of resolving write conflicts using our
 caching TOR. Clover clients are configured to run a YCSB-A benchmark,
 50\% read, 50\% write for 1 million requests. Requests for keys are
 based on a Zipf distribution generated with an \textit{s} value of
-0.75.\todo{show exactly what this means}. In each experiment the
+0.75.
+%%
+%%\todo{show exactly what this means}. 
+%%
+In each experiment the
 number of client threads is increased which in turn increases the load
 on the system. Clover requests are blocking; thus, the throughput is a
 factor of both the request latency and the number of client
@@ -36,8 +40,12 @@ implementation provides a $1.42\times$ throughput improvement at 64
 client threads.
 
 Throughput is limited by the scale of our experimental setup, i.e more
-client machines can produce higher throughputs.  \todo{This is the
-  speculation part we should cut}.  The number of in-flight conflicts
+client machines can produce higher throughputs.  
+%
+%\todo{This is the
+%  speculation part we should cut}
+%
+  The number of in-flight conflicts
 is also effected by the Zipf distribution. We use a Zipf of 0.75,
 however a Zipf of 1.0 would result in a distribution skewed towards
 fewer keys, which in turn results in more conflicts. Moreover, we find
