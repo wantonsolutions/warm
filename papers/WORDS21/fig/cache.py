@@ -47,7 +47,7 @@ ax.set_ylabel('KOPS/s')
 #ax.set_title('Cached Keys vs Throughput')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
-ax.set_xlabel("Cached Keys (top n)");
+ax.set_xlabel("Cached Keys (top-N)");
 #ax.set_yscale('log')
 ax.legend()
 
