@@ -29,7 +29,7 @@ on the system. Clover requests are blocking; thus, the throughput is a
 factor of both the request latency and the number of client
 threads. Figure~\ref{fig:throughput} compares the performance of
 native Clover (plotted in red) against our in-network conflict
-resolution (hatched blue).
+resolution (blue).
 
 As the number of clients increases so too does the probability that
 two client threads will make concurrent writes to the same key. The
@@ -56,13 +56,14 @@ memory region across different queue pairs
 increases~\cite{design-guidelines}. As our design eliminates the need
 for compare-and-swap operations on cached keys, future work will seek
 to reduce or eliminate c\&s operations by replacing them at the TOR
-with low overhead RDMA writes.
+with RDMA writes.
 
 \begin{figure}
     \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
     \caption{Default Clover throughput vs. Clover with write conflict
     detection and correction turned on.}
     \label{fig:throughput}
+    \vskip -1em
 \end{figure}
 
 \subsection{Memory consumption}
@@ -95,6 +96,7 @@ memory on a Barefoot Tofino programmable switch (22~MB).
     \includegraphics[width=0.45\textwidth]{fig/memory.pdf}
     \caption{Cost of caching metadata in-network vs. keyspace size}
     \label{fig:memory}
+    \vskip -1em
 \end{figure}
 \begin{figure}
     \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
