@@ -30,7 +30,7 @@ path.  Using Clover as a platform to prove our concept we design a
 middle-box algorithm which intercepts Clover's RDMA read,
 write, and c\&s requests, caches a small amount (64 bytes per key) of
 structural metadata, and resolves write conflicts by adjusting the
-destination RDMA virtual address of the writes and c\&s guards.
+destination RDMA virtual address of c\&s guards.
 
 %Our system caches metadata for remote data structure on centralized
 %networking devices. Our prototype is implemented in DPDK, however our
@@ -106,13 +106,13 @@ address of the current (or soon-to-be) end of the chain.
 
 In the particular case of Clover, we cache the current end of the
 chain for each key in Clover's key/value store. This requires $O(n)$
-state where $n$ is the number of keys. For a key/value
-store consisting of ten-thousand keys we need to store a key mapping
-and value for each (both 64 bits) resulting in a total in-network
-storage of 80~KB.  Note that this represents only a small portion of
-the metadata Clover maintains at its metadata servers which contains
-all versions on the chain.  Only the end of the chain is required to
-resolve write conflicts, however.
+state where $n$ is the number of keys. For a key/value store
+consisting of ten-thousand keys we need to store a key mapping and
+value for each (both 64 bits) resulting in a total in-network storage
+of 80~KB.  Note that this represents only a small portion of the
+metadata Clover maintains at its metadata servers which contains all
+versions on the chain. Only the end of the chain is required to
+resolve write conflicts.
 
 
 \subsection{Modifying RDMA in flight}
@@ -133,15 +133,15 @@ protocol.
 
 In our approach, the TOR records the virtual addresses used in any
 RDMA writes made by Clover clients. These writes are marked as
-\textit{outstanding}; i.e., they been issued to remote memory, but
-have not yet been made visible in Clover because they are not yet
+\textit{outstanding}; i.e., they have been issued to remote memory,
+but have not yet been made visible in Clover because they are not yet
 connected to Clover's per-key chain.  As described above, following
 the completion of an outstanding write, clients issue an RDMA c\&s to
-the end of the chain to make their update visible atomically in Clover,
-and we also track the last c\&s issued for each key.  In a successful
-update, the c\&s operation will adjust the next-update pointer to the
-location of the most recent (outstanding) write, thereby committing the
-write.
+the end of the chain to make their update visible atomically in
+Clover, and we also track the last c\&s issued for each key.  In a
+successful update, the c\&s operation will adjust the next-update
+pointer to the location of the most recent (outstanding) write,
+thereby committing the write.
 
   Our algorithm detects the existence of a conflict by noticing when
   there are multiple outstanding writes for a given key. The current

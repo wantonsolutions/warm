@@ -25,10 +25,10 @@ guard.  We are exploring two potential approaches for reducing
 NIC-based lock contention: 1) Remap keys to QPs in flight. Cross-QP
 locking can be avoided if all requests to a shared remote memory
 address arrive on the same destination QP. 2) Compare-and-swap is not
-required for requests handled by our algorithm as they are
-serialized. C\&s operations can be converted to writes by replacing a
-few RDMA header fields. This approach would allow full-speed operation
-throughput with zero locking.
+required for requests handled by our algorithm as they are serialized.
+These guarded write operations can be converted to regular writes by
+replacing a few RDMA header fields. This approach would allow
+full-speed operation throughput with zero locking.
 
 
 \emph{Resolution interface.}
