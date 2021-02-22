@@ -31,8 +31,8 @@ width = .85  # the width of the bars
 
 fig, ax = plt.subplots()
 
-ax.axhline(y=22*1024*1024, color='tab:blue', linestyle='--',
-label='Barefoot Tofino (22MB)')
+ax.axhline(y=64*1024*1024, color='tab:blue', linestyle='--',
+label='Barefoot Tofino 2 (64MB)')
 
 rects = ax.bar(x, memory_per_key, width, label='Key Caching Memory',
         color='tab:red')
