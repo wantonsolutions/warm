@@ -7,16 +7,28 @@ of the relevant aspects of Clover's design for the uninitiated.
 
 \subsection{Append-only updates}
 
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/overview_2.png}
+%%
+    \caption{ System overview, Metadata, client, and Remote Memory
+    servers are Clover components. Our remote memory coordinator is
+    located on a centralized TOR interconecting the clover components.
+    }
+%%
+    \label{fig:overview} 
+\end{figure}
+
 Clover maximizes read performance by separating key/value metadata
 from the datapath, which is implemented as a linked list of value
 updates that the authors term a \emph{chain} that supports an atomic
-append-to-tail operation.  Each value update contains a pointer to the
-next update in the version chain, and metadata servers keep pointers
-to the current tail of the chain for each key allowing clients to
-issue lock-free RDMA reads directly to passive remote memory servers
-using the address they believe to be the current end of the chain.
-Clients can independently confirm their reads are fresh by ensuring the
-value returned has a ``null'' next-update pointer.
+append-to-tail operation illustrated in Figure~\ref{fig:overview}.
+Each value update contains a pointer to the next update in the version
+chain, and metadata servers keep pointers to the current tail of the
+chain for each key allowing clients to issue lock-free RDMA reads
+directly to passive remote memory servers using the address they
+believe to be the current end of the chain.  Clients can independently
+confirm their reads are fresh by ensuring the value returned has a
+``null'' next-update pointer.
 
 Write (i.e., append-to-tail) operations, on the other hand, require
 multiple steps.  First a writer issues a lock-free RDMA write to store
