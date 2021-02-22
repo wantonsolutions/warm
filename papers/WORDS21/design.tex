@@ -149,17 +149,17 @@ update, the c\&s operation will adjust the next-update pointer to the
 location of the most recent (outstanding) write, thereby committing the
 write.
 
-\textbf{XXX: Do you keep a chain of updates, or just the most recent?
-  If the latter, how can you resolve when there are more than two
-  outstanding updates?}  Our algorithm detects the existence of a
-conflict by noticing when there are multiple outstanding writes for a
-given key. When a c\&s operation arrives, we inspect the virtual
-address it is trying to update.  If points to an old tail, it's
-virtual address is modified in flight (without the knowledge of the
-issuing client) to point to the true tail of the list. The cached
-latest version of the key is then updated to point to the address the
-c\&s was directed to.  Clover clients learn the updated locations
-using their default read algorithm.
+  Our algorithm detects the existence of a conflict by noticing when
+  there are multiple outstanding writes for a given key. The current
+  write for each client is tracked, when two clients have outstanding
+  writes to the same key a confict has occurd. When a c\&s operation
+  arrives, we inspect the virtual address it is trying to update.  If
+  points to an old tail, it's virtual address is modified in flight
+  (without the knowledge of the issuing client) to point to the true
+  tail of the list. The cached latest version of the key is then
+  updated to point to the address the c\&s was directed to.  Clover
+  clients learn the updated locations using their default read
+  algorithm.
 
 \subsection{Prototype}
 
