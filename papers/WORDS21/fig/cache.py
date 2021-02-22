@@ -39,12 +39,12 @@ rects = ax.bar(x, memory_per_key, width,
         color='tab:red')
 
 ax.axhline(y=918, color='tab:blue', linestyle='--',
-label='Defult Throughput')
+label='Default Throughput')
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('KOPS/s')
-ax.set_title('Cached Keys vs Throughput')
+#ax.set_title('Cached Keys vs Throughput')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Cached Keys (top n)");

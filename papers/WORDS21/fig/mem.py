@@ -32,7 +32,7 @@ width = .85  # the width of the bars
 fig, ax = plt.subplots()
 
 ax.axhline(y=22*1024*1024, color='tab:blue', linestyle='--',
-label='barefoot tophino (22MB)')
+label='Barefoot Tofino (22MB)')
 
 rects = ax.bar(x, memory_per_key, width, label='Key Caching Memory',
         color='tab:red')
@@ -40,7 +40,7 @@ rects = ax.bar(x, memory_per_key, width, label='Key Caching Memory',
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('Bytes')
-ax.set_title('Memory Overhead per Key')
+#ax.set_title('Memory Overhead per Key')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Key Space");
