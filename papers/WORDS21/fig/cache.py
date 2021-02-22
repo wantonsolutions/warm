@@ -43,7 +43,7 @@ label='Default Throughput')
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('KOPS/s')
+ax.set_ylabel('KOP/s')
 #ax.set_title('Cached Keys vs Throughput')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
