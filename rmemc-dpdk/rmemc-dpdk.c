@@ -42,7 +42,10 @@
 #define RDMA_STRING_NAME_LEN 256
 #define PACKET_SIZES 256
 
-#define KEYSPACE 1000
+#define KEYSPACE 1024
+//#define KEYSPACE 500
+#define CACHE_KEYSPACE 1
+
 #define RDMA_CALL_SIZE 8192
 
 uint8_t test_ack_pkt[] = {
@@ -144,6 +147,7 @@ uint32_t get_id(uint32_t qp) {
 	if (ret < 0) {
 		uint32_t id = qp_id_counter;
 		log_printf(DEBUG,"no such id exists yet adding qp id pq: %d id: %d\n",qp, id);
+		printf("no such id exists yet adding qp id pq: %d id: %d\n",qp, id);
 		qp_id_counter++;
 		set_id(qp,id);
 		return id;
@@ -406,18 +410,16 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 
-	/*
+
 	if (opcode == RC_ACK) {
+		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
+		printf("ACK ok %d\n",ack->ack_extended.opcode);
 		//This is purely here for testing CRC
-		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+		//uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		//crc_check =csum_pkt(pkt); //This need to be added before we can validate packets
 		//printf("Finished Checksumming as single ack, time to exit (TEST)\n");
 		//exit(0);
-	} else {
-		//TODO REMOVE THIS RETURN IS JUST FOR TESTING
-		return;
-	}
-	*/
+	} 
 
 	/*
 	if (size == 60 && opcode == RC_READ_REQUEST) {
@@ -438,6 +440,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	uint32_t r_qp= roce_hdr->dest_qp;
 
+	printf("(qp) dqp %d seq %d\n",r_qp,ntohl(roce_hdr->packet_sequence_number));
 	//Write Request
 			//Dangerous section
 			//print_packet(pkt);
@@ -466,6 +469,10 @@ void true_classify(struct rte_mbuf * pkt) {
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
 			//init write packet size
+
+
+
+
 			if (unlikely(write_value_packet_size == 0)) {
 				printf("Write Packet size %d\n",size);
 				printf("RDMA DMA size %d\n",rdma_size);
@@ -490,6 +497,20 @@ void true_classify(struct rte_mbuf * pkt) {
 				printf("ERROR in write packet block, but packet size not correct Established runtime size %d, Found size %d\n",write_value_packet_size,size);
 				exit(0);
 			}
+
+			//FOR ADJUSTING THE CACHED KEYS ONLY, todo remove post experiments Feb 20 2021
+			if (*key > CACHE_KEYSPACE) {
+				//This key is out of the range that we are caching
+				//it still counts as a write but we have to let if through
+				latest_key[id] = *key;
+				log_printf(DEBUG,"not tracking key %d\n",*key);
+				rte_smp_mb();
+				rte_rwlock_write_unlock(&next_lock);
+				return;
+			}
+
+			printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
+
 
 			if(first_write[*key] != 0 && first_cns[*key] != 0) {
 				log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
@@ -561,9 +582,11 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (original != 0) {
 			nacked_cns++;
 			printf("nacked cns %d\n",nacked_cns);
-			printf("EXITING!!!");
-			print_packet(pkt);
-			exit(0);
+			printf("SHOULD BE EXITING (if you see this check cache!!!\n");
+			//print_packet(pkt);
+			//exit(0);
+		} else {
+			printf("regular cns ack seq %d -- dest qp %d\n",ntohl(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
 		/*
 		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
@@ -599,6 +622,16 @@ void true_classify(struct rte_mbuf * pkt) {
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
 
+		if(latest_key[id] > CACHE_KEYSPACE) {
+			//this key is not being tracked, return
+			log_printf(INFO,"(cns) Returning key not tracked no need to adjust %"PRIu64"\n",latest_key[id]);
+			rte_smp_mb();
+			rte_rwlock_write_unlock(&next_lock);
+			return;
+		}
+
+
+
 		if (first_cns[latest_key[id]] == 0) {
 			log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
 			first_cns[latest_key[id]] = swap;
@@ -613,8 +646,8 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			//Return and forward the packet if this is the first cns
-			rte_rwlock_write_unlock(&next_lock);
 			rte_smp_mb();
+			rte_rwlock_write_unlock(&next_lock);
 			return;
 		}
 
@@ -625,6 +658,9 @@ void true_classify(struct rte_mbuf * pkt) {
 		predict = predict + be64toh(first_cns[key]);
 		predict = htobe64( 0x00000000FFFFFF & predict);
 		//predict = htobe64( 0x00000000FFFFFFFF & predict);
+
+		printf("(cns) KEY %d qp_id %d seq %d \n",key,r_qp,ntohl(roce_hdr->packet_sequence_number));
+
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
 		if (next_vaddr[latest_key[id]] == cs->atomic_req.vaddr) {
@@ -697,16 +733,21 @@ void true_classify(struct rte_mbuf * pkt) {
 		rte_rwlock_write_unlock(&next_lock);
 
 		//qp remapping
-		/*
-		if (qp_id_counter == 32) {
-			printf("old qp %d\n",roce_hdr->dest_qp);
-			roce_hdr->dest_qp = key_to_qp(latest_key[id]);
-			printf("new qp %d\n",roce_hdr->dest_qp);
-			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-			memcpy(current_checksum,&crc_check,4);
+		if (qp_id_counter == 2) {
+			//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
+			printf("old qp dst %d seq %d \n",roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number));
+			uint32_t n_qp = key_to_qp(latest_key[id]);
+			uint32_t n_seq = 666666;
+			printf("new qp %d new seq %d\n",n_qp, n_seq);
+			if (n_qp != roce_hdr->dest_qp) {
+				roce_hdr->dest_qp = n_qp;
+				roce_hdr->packet_sequence_number = n_seq;
+				printf("RECALCULATING\n");
+				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+				memcpy(current_checksum,&crc_check,4);
+			}
 		}
-		*/
 	}
 
 
