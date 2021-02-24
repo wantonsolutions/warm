@@ -113,6 +113,8 @@ static uint32_t qp_id_counter=0;
 uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
 
+struct Connection_State Connection_States[TOTAL_ENTRY];
+
 #define HASH_RETURN_IF_ERROR(handle, cond, str, ...) do {                \
     if (cond) {                         \
         printf("ERROR line %d: " str "\n", __LINE__, ##__VA_ARGS__); \
@@ -154,6 +156,83 @@ uint32_t get_id(uint32_t qp) {
 	} else {
 		return *return_value;
 	}
+}
+
+void print_connection_state(struct Connection_State* cs) {
+	printf("ID: %d ",cs->id);
+	printf("cts qp: %d stc qp: %d ",cs->ctsqp, cs->stcqp);
+	printf("seq %d\n",cs->seq_current);
+}
+
+void init_connection_state(uint32_t cts_dest_qp, uint32_t seq) {
+	struct Connection_State cs;
+	cs.seq_current = seq;
+	cs.ctsqp = cts_dest_qp;
+	cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
+	cs.id = get_id(cs.ctsqp);
+	Connection_States[cs.id] = cs;
+}
+
+//TODO put this in the write and CNS path
+void init_cs_wrapper(struct roce_v2_header *roce_hdr) {
+	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS) {
+		printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
+		exit(0);
+	}
+	init_connection_state(roce_hdr->dest_qp, htonl(roce_hdr->packet_sequence_number));
+}
+
+
+void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq) {
+	struct Connection_State cs;
+	for (int i=0;i<TOTAL_ENTRY;i++){
+		cs = Connection_States[i];
+		//Should be the state when the id is not set
+		if (cs.id == 0) {
+			continue;
+		}
+		if (cs.seq_current == seq) {
+			cs.stcqp = stc_dest_qp;
+			Connection_States[cs.id] = cs;
+			printf("Connection State Established\n");
+			print_connection_state(&cs);
+			//exit(0);
+			return;
+		}
+	}
+	printf("Unable to find and set QP for for stc_dest %d and seq %d (probably another connection)\n",stc_dest_qp,seq);
+}
+
+//TODO put this in the ACK path
+void find_and_set_stc_qp_wrapper(struct roce_v2_header *roce_hdr) {
+	if (roce_hdr->opcode != RC_ACK && roce_hdr->opcode != RC_ATOMIC_ACK) {
+		printf("Only find and set stc on ACKS");
+		return;
+	}
+	find_and_set_stc_qp(roce_hdr->dest_qp,htonl(roce_hdr->packet_sequence_number));
+}
+
+void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq) {
+	uint32_t id = get_id(stc_dest_qp);
+	struct Connection_State * cs =&Connection_States[id];
+	if (cs->ctsqp == 0) {
+		printf("Attempting to set sequence number for non existant connection (exiting)");
+		exit(0);
+	}
+	cs->seq_current = seq;
+}
+
+void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
+	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS) {
+		printf("only update connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
+		exit(0);
+	}
+	update_cs_seq(roce_hdr->dest_qp,htonl(roce_hdr->packet_sequence_number));
+}
+
+void cts_track_connection_state(struct roce_v2_header * roce_hdr) {
+	init_cs_wrapper(roce_hdr);
+	update_cs_seq_wrapper(roce_hdr);
 }
 
 void count_values(uint64_t *index, uint32_t *count, uint32_t size, uint64_t value) {
@@ -414,6 +493,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	if (opcode == RC_ACK) {
 		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
 		printf("ACK ok %d\n",ack->ack_extended.opcode);
+		find_and_set_stc_qp_wrapper(roce_hdr);
 		//This is purely here for testing CRC
 		//uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		//crc_check =csum_pkt(pkt); //This need to be added before we can validate packets
@@ -456,6 +536,8 @@ void true_classify(struct rte_mbuf * pkt) {
 			//exit(0);
 			rte_rwlock_write_lock(&next_lock);
 			rte_smp_mb();
+
+			cts_track_connection_state(roce_hdr);
 
 
 			struct write_request * wr = (struct write_request*) clover_header;
@@ -588,6 +670,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		} else {
 			printf("regular cns ack seq %d -- dest qp %d\n",ntohl(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
+
+		find_and_set_stc_qp_wrapper(roce_hdr);
 		/*
 		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
 		print_bytes(&csr->atomc_ack_extended.original_remote_data,8);
@@ -609,6 +693,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		//printf("\n");
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
+		cts_track_connection_state(roce_hdr);
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));

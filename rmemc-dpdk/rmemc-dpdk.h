@@ -25,6 +25,14 @@
 
 //checksum
 
+
+struct Connection_State {
+  uint32_t id;
+  uint32_t ctsqp;
+  uint32_t stcqp;
+  uint32_t seq_current;
+} Connection_State;
+
 uint32_t check_sums(const char* method, void* known, void* test, int try);
 uint32_t check_sums_wrap(const char* method, void* know, void* test);
 uint32_t csum_pkt_fast(struct rte_mbuf* pkt);
