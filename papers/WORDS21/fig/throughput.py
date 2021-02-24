@@ -39,7 +39,7 @@ rects1 = ax.bar(x + width/2, write_control_means, width, label='Write Redirectio
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('KOP/s')
-ax.set_title('Clover YCSB-A (50% write)')
+#ax.set_title('Clover YCSB-A (50% write)')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Threads");

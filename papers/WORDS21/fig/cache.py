@@ -7,7 +7,8 @@ import numpy as np
 #labels = ['1', '2', '4', '8', '16', '24','32']
 
 
-labels =  [ '1', '8', '64', '512', '4K', '32K', '256K' ]
+
+labels = [ '0', '1', '2', '4', '8', '16', '32', '64', '128', '256', '512', '1028']
 
 def div_thousand (list):
     return [val /1000.0 for val in list]
@@ -20,7 +21,10 @@ def div_thousand (list):
 #default_means =       [77381.898438,136436.796875,220190.312500,315904.593750,389877.093750,373037.000000,366878.687500 ]
 
 
-memory_per_key = [16, 128, 1024, 8192, 65536, 524288, 4194304]
+
+memory_per_key = [918515,1085906,1165264,1193130,1224045,1237129,1256852,1276991,1297062,1318849,1339986,1365151]
+memory_per_key = div_thousand(memory_per_key)
+
 
 
 
@@ -31,20 +35,20 @@ width = .85  # the width of the bars
 
 fig, ax = plt.subplots()
 
-ax.axhline(y=64*1024*1024, color='tab:blue', linestyle='--',
-label='Barefoot Tofino 2 (64MB)')
-
-rects = ax.bar(x, memory_per_key, width, label='Key Caching Memory',
+rects = ax.bar(x, memory_per_key, width,
         color='tab:red')
+
+ax.axhline(y=918, color='tab:blue', linestyle='--',
+label='Default Throughput')
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('Bytes')
-#ax.set_title('Memory Overhead per Key')
+ax.set_ylabel('KOP/s')
+#ax.set_title('Cached Keys vs Throughput')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
-ax.set_xlabel("Key Space");
-ax.set_yscale('log')
+ax.set_xlabel("Cached Keys (top-N)");
+#ax.set_yscale('log')
 ax.legend()
 
 
@@ -63,5 +67,5 @@ def autolabel(rects):
 #autolabel(rects2)
 
 fig.tight_layout()
-plt.savefig("memory.pdf")
+plt.savefig("cache.pdf")
 plt.show()
