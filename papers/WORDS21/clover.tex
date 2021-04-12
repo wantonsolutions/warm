@@ -18,17 +18,17 @@ of the relevant aspects of Clover's design for the uninitiated.
     \label{fig:overview} 
 \end{figure}
 
-Clover maximizes read performance by separating key/value metadata
-from the datapath, which is implemented as a linked list of value
-updates that the authors term a \emph{chain} that supports an atomic
-append-to-tail operation illustrated in Figure~\ref{fig:overview}.
-Each value update contains a pointer to the next update in the version
-chain, and metadata servers keep pointers to the current tail of the
-chain for each key allowing clients to issue lock-free RDMA reads
-directly to passive remote memory servers using the address they
-believe to be the current end of the chain.  Clients can independently
-confirm their reads are fresh by ensuring the value returned has a
-``null'' next-update pointer.
+Clover maximizes performance by storing data in a versioned list, dubbed a
+\emph{chain} by the authors, which allows for fully asynchronous non-blocking
+reads and $O(1)$ writes which succeed opportunistically. Writes are issued by
+clients as atomic append operations to the end of the chain, the structure of
+which is illustrated in Figure~\ref{fig:overview}. Each entry in the chain
+contains a pointer to the next entry with the pointer at the tail of the
+chain set to NULL. Clients keep cached pointers to the current tail of the
+chain for each key allowing them to issue lock-free RDMA reads directly to
+passive remote memory servers using the address they believe to be the
+current tail. Clients can independently confirm their reads are
+fresh by ensuring the value returned has a ``null'' next-update pointer.
 
 Write (i.e., append-to-tail) operations, on the other hand, require
 multiple steps.  First a writer issues a lock-free RDMA write to store

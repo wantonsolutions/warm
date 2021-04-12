@@ -30,19 +30,16 @@ Alternatively, others have designed high-performance, special-purpose
 distributed data structures run over
 RDMA~\cite{farm,erpc,herd,fasst,pilaf,cell,sonuma,storm}. These
 non-transparent systems trade generality for performance; handling millions
-of operations per second.
-They all require a
-CPU be co-resident with remote memory to act as a RDMA coordinator. This
-design paradigm of CPU/remote memory collocation is at odds with the goals of
-disaggregation; demanding new approaches for remote resource coordination.
-Researchers have
-considered a variety of trade-offs along this
-spectrum~\cite{aguilera2019designing,  disandapp,
-amanda-hotnets,beyond,requirements}.  Ideally, systems could leverage what is
-sometimes called passive remote~\cite{clover} or
+of operations per second. They all require a CPU be co-resident with remote
+memory to act as a RDMA coordinator. This design paradigm of CPU/remote
+memory collocation is at odds with the goals of disaggregation; demanding new
+approaches for remote resource coordination. Researchers have considered a
+variety of trade-offs along this spectrum~\cite{aguilera2019designing,
+disandapp, amanda-hotnets,beyond,requirements}. Ideally, systems could
+leverage what is sometimes called passive remote~\cite{clover} or
 far~\cite{aguilera2019designing} memory, which does not have local
-computation attached.  Rather, all accesses are remote, using hardware
-primitives like one-sided RDMA.  
+computation attached. Rather, all accesses are remote, using hardware
+primitives like one-sided RDMA.
 
 Relatively few systems have been proposed to leverage passive remote
 memory, and those that have~\cite{reigons,clover} are designed to
