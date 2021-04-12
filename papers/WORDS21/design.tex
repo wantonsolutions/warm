@@ -22,15 +22,14 @@
 
 \section{In-network conflict resolution}
 
-We propose a middle ground between a fully distributed and a
-centralized approach.  Our insight is that by using
-data-structure-specific knowledge and caching chain information in the
-network, conflicting writes can be resolved at line rate on the data
-path.  Using Clover as a platform to prove our concept we design a
-middle-box algorithm which intercepts Clover's RDMA read,
-write, and c\&s requests, caches a small amount (64 bytes per key) of
-structural metadata, and resolves write conflicts by adjusting the
-destination RDMA virtual address of c\&s guards.
+We propose a middle ground between a fully distributed and a centralized
+approach. Our insight is that by using data-structure-specific knowledge and
+caching chain information in the network, conflicting writes can be resolved
+at line rate on the data path using only a small amount of state. We use
+Clover as a platform to prove our concept and design a middle-box algorithm
+which intercepts Clover's RDMA read, write, and c\&s requests, caches a small
+amount (64 bytes per key) of structural metadata, and resolves write
+conflicts by adjusting the destination RDMA virtual address of c\&s guards.
 
 %Our system caches metadata for remote data structure on centralized
 %networking devices. Our prototype is implemented in DPDK, however our
@@ -125,7 +124,7 @@ middlebox can then order, rewrite, and relay RDMA requests from
 clients to the appropriate chain locations. This solution is
 impractical for a TOR-based solution both because existing switches
 lacks the ability to establish RDMA connections, and, more
-importantly, because the authors of Clover demonstrated to be a
+importantly, because the authors of Clover demonstrated it to be a
 performance bottleneck.  We avoid both shortcomings by transparently
 intercepting RDMA connections established directly between the clients
 and remote memory servers without explicitly participating in the RDMA
@@ -143,17 +142,15 @@ successful update, the c\&s operation will adjust the next-update
 pointer to the location of the most recent (outstanding) write,
 thereby committing the write.
 
-  Our algorithm detects the existence of a conflict by noticing when
-  there are multiple outstanding writes for a given key. The current
-  write for each client is tracked, when two clients have outstanding
-  writes to the same key a confict has occurd. When a c\&s operation
-  arrives, we inspect the virtual address it is trying to update.  If
-  points to an old tail, it's virtual address is modified in flight
-  (without the knowledge of the issuing client) to point to the true
-  tail of the list. The cached latest version of the key is then
-  updated to point to the address the c\&s was directed to.  Clover
-  clients learn the updated locations using their default read
-  algorithm.
+  Our algorithm detects the existence of a conflict by noticing when there
+  are multiple outstanding writes for a given key. The current write for each
+  client is tracked, when two clients have outstanding writes to the same key
+  a confict has occurd. When a c\&s operation arrives, we inspect the virtual
+  address it is trying to update. If it points to an old tail, it's virtual
+  address is modified in flight (without the knowledge of the issuing client)
+  to point to the true tail of the list. The cached latest version of the key
+  is then updated to point to the address the c\&s was directed to. Clover
+  clients learn the updated locations using their default read algorithm.
 
 \subsection{Prototype}
 
