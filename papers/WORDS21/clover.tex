@@ -30,18 +30,16 @@ passive remote memory servers using the address they believe to be the
 current tail. Clients can independently confirm their reads are
 fresh by ensuring the value returned has a ``null'' next-update pointer.
 
-Write (i.e., append-to-tail) operations, on the other hand, require
-multiple steps.  First a writer issues a lock-free RDMA write to store
-the new value update in an uncontended portion of remote
-memory. After the RDMA operation completes a second operation
-optimistically attempts to atomically add the new update to the end of
-the chain.  Specifically, the writer issues an RDMA compare-and-swap
-(c\&s) operation to the old tail to replace its (presumably still
-``null'') next-update pointer with the address of the new value.  If
-successful the client lazily updates the metadata sever with the
-new end-of-chain address.
-%(as any concurrent writes to the
-%same location will fail the comparison).
+Write (i.e., append-to-tail) operations, on the other hand, require two steps
+in the common case. First a writer issues a lock-free RDMA write to store the
+new value update in a private uncontended portion of remote memory. The
+second operation optimistically attempts to make the update globally visible
+by atomically committing it to the end of the chain. Specifically, the writer
+issues an RDMA compare-and-swap (c\&s) operation to the old tail to replace
+its (presumably still ``null'') next-update pointer with the address of the
+new value. If successful the client lazily updates the metadata sever with
+the new end-of-chain address.
+%(as any concurrent writes to the same location will fail the comparison).
 
 %% This operation ensures that the next
 %% write to the data structure writes to the tail of the linked list.
