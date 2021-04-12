@@ -1,0 +1,30 @@
+\section{discussion}
+
+\textbf{What happens if a CNS fails after it is accepted by the switch?}
+%%
+The order of updates occurs first on the switch when the write passes
+through, all packets after the write will see the update in that serialized
+order. We assume that no reordering occurs between the switch and memory
+which requires that requests to the same memory location not be recorded by
+the NIC or by PCIe. Were a request to fail a C&S we fall back to the
+traditional clover protocol and flush the soft state on the switch. All
+concurrent requests after the failed C&S will also fail, but will be repaired
+by the defaut end to end approach. Our cache can be repopulated with a single
+request to the end of the tail for any failed key.
+
+\textbf{Why are writes directed by the switch and not reads?}
+%%
+Our current implementation only concentrates of fixing write contention,
+however there is no limitation which prevents us from gaining a performance
+boost on writes. In future work the same RDMA cache can be used to steer
+writes not aimed at Clovers read tail to the tail.
+
+\textbf{Switch Memory}
+\begin{itemize}
+    \item{How much memory can be used for KV (netchain/netkv ect)}
+    \item{What is the switch throughput overhead}
+\end{itemize}
+
+
+\textbf{Scalability Implications}
+%%
