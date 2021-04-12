@@ -6,10 +6,10 @@ The order of updates occurs first on the switch when the write passes
 through, all packets after the write will see the update in that serialized
 order. We assume that no reordering occurs between the switch and memory
 which requires that requests to the same memory location not be recorded by
-the NIC or by PCIe. Were a request to fail a C&S we fall back to the
+the NIC or by PCIe. Were a request to fail a c\&s we fall back to the
 traditional clover protocol and flush the soft state on the switch. All
-concurrent requests after the failed C&S will also fail, but will be repaired
-by the defaut end to end approach. Our cache can be repopulated with a single
+concurrent requests after the failed c\&s will also fail, but will be repaired
+by the default end to end approach. Our cache can be repopulated with a single
 request to the end of the tail for any failed key.
 
 \textbf{Why are writes directed by the switch and not reads?}
@@ -28,3 +28,77 @@ writes not aimed at Clovers read tail to the tail.
 
 \textbf{Scalability Implications}
 %%
+Does this limit the scalability of the
+algorithm to a single rack? The advantage of using a TOR is that access to
+all of the remote memory servers in a rack can be treaded as a single unit.
+All writes to any of the servers are ordered as switch serializes all of the
+request. However in many cases this is not required. We can place our logic
+for resolving conflicts on a smartnic as well as on the switch. If the write
+conflict detection is placed on a smartnic there can be many concurrent
+clients, but the server will still have ordered writes. In this way we can
+scale out our approach arbitrarily, but we only get serialization at the scope
+of a single endhost.
+
+\textbf{Alternative Datastructures}
+%%
+We are exploring the potential set of future data structures currently. One
+example of a data structure with more complex invariants is a B-Tree. In this
+case ordering must be persevered at each level of the tree, and also some
+operations require that many locks up the tree be obtained. We speculate that
+algorithms used in Clover such as writing to a local scratch space and then
+atomically updating a shared vairable could be used in more complicated
+scenarios as well, such as this.
+
+The true crux in developing data structures using our technique is the
+complexity of the data invariants which must be maintained. In the case of a
+list the invariant is simple, all writes are appended to the end of the list.
+In order to check this invariant we require only the last element of the list
+to perform the update. The switch must maintain all the meta data necessary
+to check the data structures invariant prior to issuing a write, so that it
+can ensure that the properties of the structure are maintained.
+
+Consider a more complicated structure such as an ordered list with multiple
+concurrent writers. If a list needs to maintain ordering clients could issues
+writes which performed both an operation which wrote a new node to a position
+into a list, a pointer to the next item in the list, and finally an atomic
+operation could update the item in the list which is ordered before the item
+being inserted. The client could issue the writes itself, however when the
+insert occurs it would need to traverse part of the list to ensure that the
+result had been inserted correctly. From a switches centralized perspective
+it would need to know the entire list so that the invariant of ordering could
+be maintained. Here the invariant of \textit{order} is harder to check than
+just ensuring that an append is performed to a tail. Thus the constraint of
+any data structure being maintained on a switch is that the switch must be
+able to check the invariants associated with the operation prior to
+performing the operations. This leaves some room for innovation. Prior data
+structures do not typically consider the complexity of the invariants that
+their data structures maintain as a design decision. We imagine that a class
+of data structures which may be space inefficient overall, but have a small
+amount of state required to check their structural invariants may be highly
+useful for our applications. Further some data structures which amortize the
+cost of operations which require complex invariants. For instance, rather
+than storing an ordered list, using a partially ordered list with fast
+accesses which can be periodically transformed with expensive operations to
+be consistent.
+
+\textbf{zipfan 0.75} 
+%%
+We chose this because it shows scaling isues before we
+start to hit the hardware issues. There is no good answer to this question.
+
+\textbf{Why does the switch have to store the last key written per client}
+%%
+The last write is not stored. Client writes occur in two parts, a private
+write to their own scratch space, and a commiting atomic c\&s. The write
+which is stored is the outstanding writes, i.e writes which have been placed
+in the local storage, but not yet connected via a commiting operation.
+
+
+
+
+
+
+
+
+
+
