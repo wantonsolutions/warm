@@ -45,59 +45,58 @@ the new end-of-chain address.
 %% write to the data structure writes to the tail of the linked list.
 %% This operation requires two steps.
 
-The authors show their opportunistic approach obtains extremely high
-throughput with read-heavy workloads as updates are rare and clients
-enjoy unfettered access to remote memory. In contrast they find that
-placing a metadata coordinator on the datapath becomes a bottleneck at
-only a fraction of their achievable throughput.  In the presence of
-writes, however, Clover's throughput decreases due to contention.
+The authors compare their opportunistic approach with a variety of different
+system architectures including one which centralizes metadata on the datapath
+(pDPM-central). They find that their opportunistic approach (Clover) achieves
+extremely high throughput on read-heavy workloads, performing similarly to
+raw RDMA reads, in contrast pDPM-central bottlenecks at far lower throughput.
+In the presence of writes Clover's throughput decreases due to contention
+while the pDPM-central remains the same as it resolves all write concurrent
+write conflicts in the data path.
+
+
 
 \subsection{Conflict handling}
 
-If multiple clients attempt to update the value concurrently, each
-will succeed in writing their new value to remote memory but then
-issue conflicting RDMA c\&s operations to the end of the chain.  The
-race is resolved at the remote memory location of the previous update
-in the chain: only the first c\&s operation will succeed; all
-subsequent operations will fail because rather than finding a value
-with a ``null'' next-update pointer, they find the now (at best)
-penultimate value in the chain which points to the update issued by
-the client that won the race.
-%When
-%concurrent writes update the same key a race occurs to write at the
-%end of the chain. Write operations require two separate RDMA
-%transactions that must each complete to ensure atomicity.
-During this
-two-RTT operation any concurrent write to the same key will cause a
-conflict.
+If multiple clients attempt to update the value concurrently, each will
+succeed in their first write to their private region of remote memory but
+then issue conflicting RDMA c\&s operations to the end of the shared chain.
+The race is resolved at the remote memory location of the previous update in
+the chain: only the first c\&s operation will succeed; all subsequent
+operations will fail because rather than finding a value with a ``null''
+next-update pointer, they find the now (at best) penultimate value in the
+chain which points to the update issued by the client that won the race.
+%When concurrent writes update the same key a race occurs to write at the end
+%of the chain. Write operations require two separate RDMA transactions that
+%must each complete to ensure atomicity.
+During this two-RTT operation any concurrent write to the same key will cause
+a conflict.
 
 %% The process which lost the race now needs to engage in \textit{Pointer
 %% chasing} to find the new tail. It must iterative issue reads of the
 %% linked list, step by step until it finds the location of the new tail.
 
 
-If a client's write---or read---fails because it did not succeed in
-accessing the current end of the chain they concurrently request the
-new address from the metadata server and traverse the chain themselves
-through remote memory to find the current end in a processes known as
-\emph{chain walking}.  (It is insufficient to just consult the
-metadata server because they are updated lazily.)  Failed writers must
-then issue a new c\&s operation at the updated end of the chain to append
-their pending update.  Of course, the reissued c\&s is subject to the
-same race condition as many writers may be executing
-concurrently. This pointer-chasing reconciliation algorithm must be
-run independently each time a conflict occurs.
-%The slower writers will fail the guard, and must retry
-%their c\&s operation after walking the chain through remote memory or
-%by getting an update from the metadata server.
-While concurrent read operations will not prevent a write from
-succeeding, a reader that loses the race with a c\&s operation will
-need to issue another RDMA read to the new address to obtain the
-updated value.  On write-heavy workloads these race conditions happen
-frequently
-%as illustrated in Figure~\ref{fig:conflicts},
-%, which leads to a sharp decrease in throughput.  For highly
-%contested structures, the number of retries can grow quickly,
+If a client's write---or read---fails because it used a stale tail pointer
+the client concurrently requests the new tail address from the metadata
+server and iteratively traverses the chain themselves to find the current end
+in a processes known as \emph{chain walking}. (It is insufficient to just
+consult the metadata server because they are updated lazily.) Failed writers
+must then issue a new c\&s operation at the updated end of the chain to
+append their pending update. Of course, the reissued c\&s is subject to the
+same race condition as many writers may be executing concurrently. This
+pointer-chasing reconciliation algorithm must be run independently each time
+a conflict occurs.
+%The slower writers will fail the guard, and must retry their c\&s operation
+%after walking the chain through remote memory or by getting an update from
+%the metadata server.
+While concurrent read operations will not prevent a write from succeeding, a
+reader that loses the race with a c\&s operation will need to issue another
+RDMA read to the new address to obtain the updated value. On write-heavy
+workloads these race conditions happen frequently
+%as illustrated in Figure~\ref{fig:conflicts}, , which leads to a sharp
+%decrease in throughput. For highly contested structures, the number of
+%retries can grow quickly,
 leading to large and unpredictable tail latencies~\cite[Table 2]{clover}.
 
 
