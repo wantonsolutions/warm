@@ -116,19 +116,17 @@ resolve write conflicts.
 
 \subsection{Modifying RDMA in flight}
 
-Interposing on the RDMA protocol, however, is non-trivial. One
-approach (evaluated in as Clover pDPM-central~\cite{clover}) employs
-an RDMA-enabled middlebox that sets up connections between itself and
-clients and another set of connections to the memory servers.  The
-middlebox can then order, rewrite, and relay RDMA requests from
-clients to the appropriate chain locations. This solution is
-impractical for a TOR-based solution both because existing switches
-lacks the ability to establish RDMA connections, and, more
+Interposing on the RDMA protocol, however, is non-trivial. One approach
+(evaluated in Clover as pDPM-central~\cite{clover}) employs an RDMA-enabled
+middlebox that sets up connections between itself and clients and another set
+of connections to the memory servers. The middlebox can then order, rewrite,
+and relay RDMA requests from clients to the appropriate chain locations. This
+solution is impractical for a TOR-based solution both because existing
+switches lacks the ability to establish RDMA connections, and, more
 importantly, because the authors of Clover demonstrated it to be a
-performance bottleneck.  We avoid both shortcomings by transparently
-intercepting RDMA connections established directly between the clients
-and remote memory servers without explicitly participating in the RDMA
-protocol.
+performance bottleneck. We avoid both shortcomings by transparently
+intercepting RDMA connections established directly between the clients and
+remote memory servers without explicitly participating in the RDMA protocol.
 
 In our approach, the TOR records the virtual addresses used in any
 RDMA writes made by Clover clients. These writes are marked as
@@ -145,7 +143,7 @@ thereby committing the write.
   Our algorithm detects the existence of a conflict by noticing when there
   are multiple outstanding writes for a given key. The current write for each
   client is tracked, when two clients have outstanding writes to the same key
-  a confict has occurd. When a c\&s operation arrives, we inspect the virtual
+  a confict has occurred. When a c\&s operation arrives, we inspect the virtual
   address it is trying to update. If it points to an old tail, it's virtual
   address is modified in flight (without the knowledge of the issuing client)
   to point to the true tail of the list. The cached latest version of the key
