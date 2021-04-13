@@ -9,8 +9,7 @@ bottlenecks~\cite{requirements}. Disaggregating primary storage (i.e,
 byte-addressable main memory) remains an unsolved challenge given the
 dramatic (e.g., $20\times$) increase in access latency when moving from
 on-die cache ($\approx 50$ ns) to network-attached options (often on the
-order of 1 us). As a result, many previous systems use application
-transparent remote memory only as a form of backing store for infrequently
+order of 1 us). As a result, many previous systems use application-transparent remote memory only as a form of backing store for infrequently
 accessed data~\cite{job_throughput,infiniswap,leap,legoos}.
 
 %% %%State of the world
@@ -27,13 +26,13 @@ accessed data~\cite{job_throughput,infiniswap,leap,legoos}.
 %% for frequent reads and writes to shared remote memory.
 
 Alternatively, others have designed high-performance, special-purpose
-distributed data structures run over
+distributed data structures for use over
 RDMA~\cite{farm,erpc,herd,fasst,pilaf,cell,sonuma,storm}. These
 non-transparent systems trade generality for performance; handling millions
 of operations per second. They all require a CPU be co-resident with remote
-memory to act as a RDMA coordinator. This design paradigm of CPU/remote
-memory collocation is at odds with the goals of disaggregation; demanding new
-approaches for remote resource coordination. Researchers have considered a
+memory to act as an RDMA coordinator. This design paradigm of CPU/remote
+memory collocation is at odds with the goals of disaggregation, demanding new
+approaches for remote-resource coordination. Researchers have considered a
 variety of trade-offs along this spectrum~\cite{aguilera2019designing,
 disandapp, amanda-hotnets,beyond,requirements}. Ideally, systems could
 leverage what is sometimes called passive remote~\cite{clover} or
@@ -43,7 +42,7 @@ primitives like one-sided RDMA.
 
 Relatively few systems have been proposed to leverage passive remote
 memory, and those that have~\cite{reigons,clover} are designed to
-support read-heavy workloads on any shared resources.  Their reason
+support read-heavy workloads on shared resources.  Their reason
 for avoiding writes is fundamental: ensuring consistency in the face
 of concurrent writes is expensive. Lock acquisition and revocation
 requires multiple round trips which would devastate throughput.
@@ -89,17 +88,17 @@ workload~\cite[Fig. 7]{clover}.
 %% \end{figure}
 %
 The key issue with designs like Clover is the requirement that
-individual clients resolve any conflicts themselves, resulting in
+individual clients resolve conflicts themselves, resulting in
 extremely expensive operations in the worst case.  The authors report
 that Clover requires five round trips to remote memory in the
 99th-percentile case with just a 5\%-write workload~\cite[Table 2]{clover}.
 
 The obvious alternative to completely distributed contention
 resolution is to have a central coordinator that manages remote memory
-accesses.  Prior work has suggested the potential benefits of a
+accesses.  Prior work has suggested the potential benefits of such a
 distributed memory controller~\cite{disandapp}, but to our knowledge
 none have yet been built or proposed with existing hardware.  The
-authors of Clover evaluate using a commodity server in such a role
+authors of Clover evaluate a commodity server in such a role
 (which they refer to as pDPM-central) and discard it as a scalability
 bottleneck that also increases the number of network hops between a
 node and its remote memory~\cite{clover}.  While an end host is indeed
@@ -126,17 +125,17 @@ effectively recovering from optimistic write failures ``for free.''
 Finally, if clients retain the ability to resolve conflicts
 themselves (albeit at a significant cost to performance) the TOR can
 serve simply as a form of soft-state performance-enhancing proxy;
-conflicts that it fails to avoid will result in
+conflicts that it fails to avoid result in
 decreased performance as opposed to incorrect semantics.
 
-As a proof of concept we design a prototype software-based TOR that
+As a proof of concept we implement a prototype software-based TOR that
 interposes on the Clover protocol and resolves write conflicts in
 flight. Our conflict-detection algorithm uses knowledge of Clover's
 metadata structures to detect write conflicts using a small amount of
 cached state (only a few bytes per key/value pair). Conflict
 resolution is performed directly on the in-flight RDMA packets by
 steering their destination virtual addresses to the most up-to-date
-read and write locations in Clover's key/value store. This technique
+location in Clover's key/value store. This technique
 is complete and safe: it resolves all read and write conflicts for
 keys that it caches, and reverts to native Clover performance for
 those it does not. As in-network SRAM is expensive we show that our
@@ -144,5 +143,5 @@ technique can trade completeness for memory savings while still
 achieving performance gains. Our preliminary evaluation with a 50/50
 read/write workload shows throughput gains of $1.42\times$ when
 caching all keys, and gains of $1.34\times$ when using only 128 bytes
-of in-network memory to correct conflicts for the 8 most-popular keys
+of in-network memory to correct conflicts for the 8-most-popular keys
 in a Zipf request distribution.
