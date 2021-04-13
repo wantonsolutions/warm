@@ -12,7 +12,7 @@ of the relevant aspects of Clover's design for the uninitiated.
 %%
     \caption{ System overview, Metadata, client, and Remote Memory
     servers are Clover components. Our remote memory coordinator is
-    located on a centralized TOR interconecting the clover components.
+    located on a centralized TOR interconnecting the clover components.
     }
 %%
     \label{fig:overview} 
@@ -24,20 +24,20 @@ reads and $O(1)$ writes which succeed opportunistically. Writes are issued by
 clients as atomic append operations to the end of the chain, the structure of
 which is illustrated in Figure~\ref{fig:overview}. Each entry in the chain
 contains a pointer to the next entry with the pointer at the tail of the
-chain set to NULL. Clients keep cached pointers to the current tail of the
+chain set to \texttt{NULL}. Clients keep cached pointers to the current tail of the
 chain for each key allowing them to issue lock-free RDMA reads directly to
 passive remote memory servers using the address they believe to be the
 current tail. Clients can independently confirm their reads are
-fresh by ensuring the value returned has a ``null'' next-update pointer.
+fresh by ensuring the value returned has a \texttt{NULL} next-update pointer.
 
 Write (i.e., append-to-tail) operations, on the other hand, require two steps
 in the common case. First a writer issues a lock-free RDMA write to store the
-new value update in a private uncontended portion of remote memory. The
+new value update to an uncontended portion of remote memory. The
 second operation optimistically attempts to make the update globally visible
 by atomically committing it to the end of the chain. Specifically, the writer
-issues an RDMA compare-and-swap (c\&s) operation to the old tail to replace
-its (presumably still ``null'') next-update pointer with the address of the
-new value. If successful the client lazily updates the metadata sever with
+issues an RDMA compare-and-swap (\texttt{c\&s}) operation to the old tail to replace
+its (presumably still \texttt{NULL}) next-update pointer with the address of the
+new value. If successful, it then updates the metadata sever with
 the new end-of-chain address.
 %(as any concurrent writes to the same location will fail the comparison).
 
@@ -45,14 +45,15 @@ the new end-of-chain address.
 %% write to the data structure writes to the tail of the linked list.
 %% This operation requires two steps.
 
-The authors compare their opportunistic approach with a variety of different
-system architectures including one which centralizes metadata on the datapath
-(pDPM-central). They find that their opportunistic approach (Clover) achieves
-extremely high throughput on read-heavy workloads, performing similarly to
-raw RDMA reads, in contrast pDPM-central bottlenecks at far lower throughput.
-In the presence of writes Clover's throughput decreases due to contention
-while the pDPM-central remains the same as it resolves all write concurrent
-write conflicts in the data path.
+The Clover authors compare their opportunistic approach with a variety
+of different system architectures including one which centralizes
+metadata on the datapath (pDPM-central). They find that their
+opportunistic approach achieves extremely high throughput on
+read-heavy workloads, performing similarly to raw RDMA reads.  In
+contrast pDPM-central bottlenecks at far lower throughput.  In the
+presence of writes Clover's throughput decreases due to contention
+while the performance of pDPM-central remains the same as it resolves all
+concurrent write conflicts in the data path.
 
 
 
@@ -60,10 +61,10 @@ write conflicts in the data path.
 
 If multiple clients attempt to update the value concurrently, each will
 succeed in their first write to their private region of remote memory but
-then issue conflicting RDMA c\&s operations to the end of the shared chain.
+then issue conflicting RDMA \texttt{c\&s} operations to the end of the shared chain.
 The race is resolved at the remote memory location of the previous update in
-the chain: only the first c\&s operation will succeed; all subsequent
-operations will fail because rather than finding a value with a ``null''
+the chain: only the first \texttt{c\&s} operation will succeed; all subsequent
+operations will fail because rather than finding a value with a \texttt{NULL}
 next-update pointer, they find the now (at best) penultimate value in the
 chain which points to the update issued by the client that won the race.
 %When concurrent writes update the same key a race occurs to write at the end
@@ -81,9 +82,9 @@ If a client's write---or read---fails because it used a stale tail pointer
 the client concurrently requests the new tail address from the metadata
 server and iteratively traverses the chain themselves to find the current end
 in a processes known as \emph{chain walking}. (It is insufficient to just
-consult the metadata server because they are updated lazily.) Failed writers
-must then issue a new c\&s operation at the updated end of the chain to
-append their pending update. Of course, the reissued c\&s is subject to the
+consult the metadata server because it is updated lazily.) Failed writers
+must then issue a new \texttt{c\&s} operation at the updated end of the chain to
+append their pending update. Of course, the reissued \texttt{c\&s} is subject to the
 same race condition as many writers may be executing concurrently. This
 pointer-chasing reconciliation algorithm must be run independently each time
 a conflict occurs.
@@ -91,7 +92,7 @@ a conflict occurs.
 %after walking the chain through remote memory or by getting an update from
 %the metadata server.
 While concurrent read operations will not prevent a write from succeeding, a
-reader that loses the race with a c\&s operation will need to issue another
+reader that loses the race with a \texttt{c\&s} operation will need to issue another
 RDMA read to the new address to obtain the updated value. On write-heavy
 workloads these race conditions happen frequently
 %as illustrated in Figure~\ref{fig:conflicts}, , which leads to a sharp
