@@ -1,7 +1,53 @@
 \section{Discussion and future work}
 \label{sec:future}
 
+\textbf{}
+%%
+In our approach the switch updates its memory prior to the RDMA packet
+landing in remote memory. This operation is safe under the assumption
+that no packets are reordered after egress from the switch and that
+all operations are successful. If a \texttt{c\&s} packet updates
+switch memory, and then is rejected by the NIC or end host a
+reconciliation of memory must take place. The indication to the switch
+that a failure has occurred is an RDMA \texttt{c\&s} NACK. When this
+occurs the switch can dump all of its soft state and reset. This will
+cause the Clover protocol to revert to its default chain walk to
+learn new values. Our approach requires only a single successful
+\texttt{c\&s} operation per key to rebuild its cache.
+
 %\textbf{More data structures}:
+%%
+\textbf{Additional performance.}
+Despite our significant performance gain, there are several more optimizations that could be made in a Clover-specific design.
+As observed during our evaluation,
+%%
+compare-and-swap operations bottleneck quickly on existing hardware
+when locking is applied across queue pairs~\cite{design-guidelines},
+limiting the maximum performance of systems that rely on it as a
+guard.  We are exploring two potential approaches for reducing
+NIC-based lock contention: 1) Remap keys to QPs in flight. Cross-QP
+locking can be avoided if all requests to a shared remote memory
+address arrive on the same destination QP. 2) Compare-and-swap is not
+required for requests handled by our algorithm as they are serialized.
+These guarded write operations can be converted to regular writes by
+replacing a few RDMA header fields. This approach would allow
+full-speed operation throughput with zero locking.
+
+%\textbf{Read acceleration:}
+%%
+Moreover, our current implementation concentrates of fixing write contention,
+however there is no limitation which prevents us from gaining a performance
+boost on reads. The same RDMA cache could be used to steer
+reads which are issued by clients with stale information.
+
+
+
+%\section{discussion}
+
+%In this sections we discuss the limitations, generality, and
+%scalability of our approach.
+
+\textbf{Alternative datastructures.}
 %%
 While our initial exploration has focused explicitly on Clover and its
 append-only key/value chain structure, our approach is not limited to
@@ -17,99 +63,37 @@ a small amount of metadata (ideally $O(\log n)$, or $O(\log\log n)$) to
 maintain their structural invariants while also supporting more
 operations, such as range queries.
 
-\emph{Design bottlenecks.} As observed during our evaluation,
-%%
-compare-and-swap operations bottleneck quickly on existing hardware
-when locking is applied across queue pairs~\cite{design-guidelines},
-limiting the maximum performance of systems that rely on it as a
-guard.  We are exploring two potential approaches for reducing
-NIC-based lock contention: 1) Remap keys to QPs in flight. Cross-QP
-locking can be avoided if all requests to a shared remote memory
-address arrive on the same destination QP. 2) Compare-and-swap is not
-required for requests handled by our algorithm as they are serialized.
-These guarded write operations can be converted to regular writes by
-replacing a few RDMA header fields. This approach would allow
-full-speed operation throughput with zero locking.
+%As noted in Section~\ref{sec:future} the crux of applying our approach to other
+%structures is the complexity of the data structures invariants. For Clover
+%the invariant is simple, all writes must append to the end of the list. To
+%enforce this invariant the last element of the list must be cached to ensure
+%that the tail location is known.
 
+The more complicated the structural invariants are to maintain, the
+greater the information which must be cached; for example an
+\textit{ordered} list.  To illustrate the additional complexity of
+maintaining order consider how clients could perform inserts. First,
+like Clover, clients could write their entry to a private memory
+region. Second, two pointers must be written, one which points to the
+next item, and another from the prior item to the newly written
+one. The client could issue the writes itself, however when the insert
+occurs it would need to traverse part of the list to ensure that the
+result had been inserted to the correct location and collect a lock on
+both the prior and successor items. Naively enforcing the ordering
+invariant requires that the switch cache the entire list.
 
-\emph{Resolution interface.}
-%%
-Designing and running custom code on programmable switches is hard,
-while understanding how to resolve write conflicts is relatively
-easy. We would like to design a generic interface for developers to
-resolve write conflicts, and orchestrate in-flight RDMA operations in
-an application-independent fashion, perhaps as part of a larger
-disaggregated computing framework or operating system~\cite{legoos}.
+%Ordering is more complex in terms of space to maintain compared to only
+%appending to a lists tail. The complexity of generalizing our technique to
+%any data structure being is that the switch must cache all necessary metadata
+%to maintain a data structures invariants.
 
-%\section{discussion}
-
-%In this sections we discuss the limitations, generality, and
-%scalability of our approach.
-
-
-
-\textbf{RDMA Failures:}
-%%
-In our approach the switch updates its memory prior to the RDMA packet
-landing in remote memory. This operation is safe under the assumption that no
-packets are reordered after egress from the switch and that all operations
-are successful. If a \texttt{c\&s} packet updates switch memory, and then is rejected
-by the NIC or endhost a reconciliation of memory must take place. The
-signifier to the switch that a failure has occurred is an RDMA c\&s NACK. When
-this occurs the switch can dump all of it's soft state and reset. This will
-cause the clover protocol to revert to it's default chain walk to learn new
-values. Our approach requires only a single successful c\&s operation per key
-to rebuild its cache.
-
-\textbf{Read acceleration:}
-%%
-Our current implementation concentrates of fixing write contention,
-however there is no limitation which prevents us from gaining a performance
-boost on reads. In future work the same RDMA cache can be used to steer
-reads which are issued by clients with stale information.
-
-
-\textbf{Scalability Implications:}
-%%
-The advantage of using a TOR is that all operations within a rack can be
-serialized. However in many cases this degree of total ordering is not
-required. For instance access to a single memory server can be serialized by
-performing ordering on a SmartNIC connected to the endhost. Our techniques
-could be built into smartnics which would allow for them to scale arbitrarily
-under the assumption that writes do not span multiple remote memory machines.
-
-
-\textbf{Alternative Datastructures}
-%%
-As noted in Section~\ref{sec:future} the crux of applying our approach to other
-structures is the complexity of the data structures invariants. For Clover
-the invariant is simple, all writes must append to the end of the list. To
-enforce this invariant the last element of the list must be cached to ensure
-that the tail location is known.
-
-The more complicated the structural invariants are to maintain, the greater
-the information which must be cached; for example an \textit{ordered} list.
-To illustrate the additional complexity of maintaining order consider how
-clients could perform inserts. First, like clover, clients could write their
-entry to a private memory region. Second two pointers must be written, one
-which points to the next item, and another from the prior item to the newly
-written one. The client could issue the writes itself, however when the
-insert occurs it would need to traverse part of the list to ensure that the
-result had been inserted to the correct location and collect a lock on both
-the prior and successor items. Enforcing the ordering invariant requires that
-the switch cache the entire list.
-
-Ordering is more complex in terms of space to maintain compared to only
-appending to a lists tail. The complexity of generalizing our technique to
-any data structure being is that the switch must cache all necessary metadata
-to maintain a data structures invariants.
-
-We've considered exploring the class of data structures which have either
-weak structural invariants, or those which only cost $O(1)$ to check. Additionally some
-data structures amortize the cost of operations which require complex
-invariants. For instance, rather than storing an ordered list, using a
-partially ordered list with fast accesses which can be periodically
-transformed with expensive operations to be consistent.
+We are exploring the class of data structures which have
+either weak structural invariants, or those which only cost $O(1)$ to
+check. Additionally some data structures amortize the cost of
+operations which require complex invariants. For instance, rather than
+storing an ordered list, using a partially ordered list with fast
+accesses which can be periodically transformed with expensive
+operations to be consistent.
 
 %We are exploring the potential set of future data structures currently. One
 %example of a data structure with more complex invariants is a B-Tree. In this
@@ -131,7 +115,25 @@ transformed with expensive operations to be consistent.
 %which is stored is the outstanding writes, i.e writes which have been placed
 %in the local storage, but not yet connected via a commiting operation.
 
+\textbf{Deployability.}
+%%
+Designing and running custom code on programmable switches is hard,
+while understanding how to resolve write conflicts is relatively
+easy. We would like to design a generic interface for developers to
+resolve write conflicts, and orchestrate in-flight RDMA operations in
+an application-independent fashion, perhaps as part of a larger
+disaggregated computing framework or operating system~\cite{legoos}.
 
+%\textbf{Scalability Implications:}
+%%
+Indeed, such a system might further consider \emph{where} to deploy
+conflict-resolution logic.  The advantage of using a TOR is that all
+operations within a rack can be serialized. However in many cases this
+degree of total ordering is not required. For instance access to a
+single memory server can be serialized by performing ordering on a NIC
+connected to the end host. Our techniques could be built into
+SmartNICs which would allow for them to scale arbitrarily under the
+assumption that writes do not span multiple remote memory machines.
 
 
 
