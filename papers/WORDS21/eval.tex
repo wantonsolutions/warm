@@ -11,9 +11,17 @@ in a 16x PCIe slot interconnected via a 100-Gbps Mellanox Onyx Switch.
 All Clover servers are configured with default routing settings:
 clients send directly to the metadata and data server.  We install
 OpenFlow rules on the Onyx switch to redirect the Clover RDMA traffic
-to the DPDK server.
+to the DPDK ``TOR''.
 
 \subsection{Conflict resolution}
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
+    \caption{Default Clover throughput vs. Clover with write conflict
+    detection and correction turned on}
+    \label{fig:throughput}
+    \vskip -1em
+\end{figure}
 
 We test the performance gains of resolving write conflicts using our
 caching TOR. Clover clients are configured to run a YCSB-A benchmark,
@@ -29,7 +37,7 @@ on the system. Clover requests are blocking; thus, the throughput is a
 factor of both the request latency and the number of client
 threads. Figure~\ref{fig:throughput} compares the performance of
 native Clover (plotted in red) against our in-network conflict
-resolution (blue).
+resolution (hatched blue).
 
 As the number of clients increases so too does the probability that
 two client threads will make concurrent writes to the same key. The
@@ -46,31 +54,23 @@ client machines can produce higher throughputs.
 %  speculation part we should cut}
 %
   The number of in-flight conflicts
-is also effected by the Zipf distribution. We use a Zipf of 0.75,
+is also impacted by the Zipf distribution. We use a Zipf of 0.75,
 however a Zipf of 1.0 would result in a distribution skewed towards
 fewer keys, which in turn results in more conflicts. Moreover, we find
 that Clover's current design leads to hardware contention on the
 servers themselves.  In particular, ConnectX-5 NIC performance
-degrades as the number of RDMA compare-and-swap operations to the same
+degrades as the number of RDMA \texttt{c\&s} operations to the same
 memory region across different queue pairs
 increases~\cite{design-guidelines}. As our design eliminates the need
-for compare-and-swap operations on cached keys, future work will seek
-to reduce or eliminate c\&s operations by replacing them at the TOR
+for \texttt{c\&s} operations on cached keys, future work will seek
+to reduce or eliminate \texttt{c\&s} operations by replacing them at the TOR
 with RDMA writes.
-
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
-    \caption{Default Clover throughput vs. Clover with write conflict
-    detection and correction turned on.}
-    \label{fig:throughput}
-    \vskip -1em
-\end{figure}
 
 \subsection{Memory consumption}
 
-Resources on networking hardware are scarce. High end SoC SmartNIC's
+Resources on networking hardware are scarce. High-end SoC SmartNICs
 have just a few gigabytes of RAM, and programmable switches have only
-megabtyes of SRAM. Moreover the use of this memory is not free: using
+megabytes of SRAM. Moreover the use of this memory is not free: using
 memory for any purpose other than buffering packets has a direct
 performance cost.
 %as the number of packets which can be successfully
@@ -85,16 +85,16 @@ cache the virtual address of the last write per key,
 as well as the last key written per client. Clients are not
 explicitly known to our middlebox and are identified at runtime by
 their QP. Tracking clients in this way is necessary to detect write
-conflicts in clover. This overhead could be eliminated by explicitly
-adding key information to c\&s requests.
+conflicts in Clover. This overhead could be eliminated by explicitly
+adding key information to \texttt{c\&s} requests.
 %
-Figure~\ref{fig:memory} Shows the memory overhead as a function of
-keys. Note that 100~K keys can be supported using 2.5\% of the available
-memory on a Barefoot Tofino 2 programmable switch (64~MB)~\cite{tofino2}.
+Figure~\ref{fig:memory} shows the memory overhead as a function of
+keys. Note that 100K keys can be supported using 2.5\% of the available
+memory (64~MB) on a Barefoot Tofino 2 programmable switch~\cite{tofino2}.
 
 \begin{figure}
     \includegraphics[width=0.45\textwidth]{fig/memory.pdf}
-    \caption{Cost of caching metadata in-network vs. keyspace size}
+    \caption{Cost of caching metadata in-network vs. key space size}
     \label{fig:memory}
     \vskip -1em
 \end{figure}
@@ -109,7 +109,7 @@ memory on a Barefoot Tofino 2 programmable switch (64~MB)~\cite{tofino2}.
 %\subsection{Caching top \textit{N} keys} 
 %%
 Hot keys are the most likely to
-contribute to conflict.
+contribute to conflicts.
 %Caching only hot keys results in relatively
 %large performance gains while requiring only a small portion of the
 %memory required to cache the entire keyspace.
@@ -119,9 +119,8 @@ resolve conflicts on only the top-\textit{N} keys. In this experiment
 RDMA requests for keys which are not cached pass through our DPDK TOR
 without modification; conflicts are resolved using Clover's existing
 reconciliation protocol. Figure~\ref{fig:cache} shows
-the throughput for 64 client threads when caching the top-N keys out of a total keyspace size of 1024 keys. The request
+the throughput for 64 client threads when caching a varying number of keys out of a total key space size of 1024 keys. The request
 distribution is Zipf(0.75), therefore the vast majority of conflicts
-occur on the top-eight keys. The in-network memory requirement for eight keys
-is 128 bytes, which results in $1.3\times$ throughput improvement.
+occur on the top-eight keys. The in-network memory requirement is 128 bytes, which results in $1.3\times$ throughput improvement.
 
 

@@ -23,14 +23,15 @@
 \section{In-network conflict resolution}
 
 We propose a middle ground between a fully distributed and a
-centralized approach.  Our insight is that by using
-data-structure-specific knowledge and caching chain information in the
-network, conflicting writes can be resolved at line rate on the data
-path.  Using Clover as a platform to prove our concept we design a
-middle-box algorithm which intercepts Clover's RDMA read,
-write, and c\&s requests, caches a small amount (64 bytes per key) of
-structural metadata, and resolves write conflicts by adjusting the
-destination RDMA virtual address of c\&s guards.
+centralized approach. Our insight is that by using
+data-structure-specific knowledge and caching metadata in the network,
+conflicting writes can be resolved at line rate on the data path using
+only a small amount of state. We use Clover as a platform to prove our
+concept and design a middlebox algorithm which intercepts Clover's
+RDMA read, write, and \texttt{c\&s} requests, caches a small amount
+(64 bytes per key) of structural metadata, and resolves write
+conflicts by adjusting the virtual destination address of contending
+\texttt{c\&s} guards.
 
 %Our system caches metadata for remote data structure on centralized
 %networking devices. Our prototype is implemented in DPDK, however our
@@ -87,10 +88,10 @@ switch is in charge of ordering packets destined to each of its output
 ports.  (We leave the engineering details involved in addressing
 multi-homed servers, corrupt packets, node failures, and the like to
 future work.)  Given an ordered stream of RDMA operations, it is
-straightforward for an in-network device to detect stale c\&s
+straightforward for an in-network device to detect stale \texttt{c\&s}
 operations.  What's more, if the TOR maintains just a modest amount of
 state, it can resolve conflicts in flight.  Specifically, it suffices
-to redirect any c\&s operations that ``lost their races'' to the
+to redirect any \texttt{c\&s} operations that ``lost their races'' to the
 address of the current (or soon-to-be) end of the chain.
 %%
 
@@ -117,43 +118,41 @@ resolve write conflicts.
 
 \subsection{Modifying RDMA in flight}
 
-Interposing on the RDMA protocol, however, is non-trivial. One
-approach (evaluated in as Clover pDPM-central~\cite{clover}) employs
-an RDMA-enabled middlebox that sets up connections between itself and
-clients and another set of connections to the memory servers.  The
-middlebox can then order, rewrite, and relay RDMA requests from
-clients to the appropriate chain locations. This solution is
-impractical for a TOR-based solution both because existing switches
-lacks the ability to establish RDMA connections, and, more
-importantly, because the authors of Clover demonstrated to be a
-performance bottleneck.  We avoid both shortcomings by transparently
-intercepting RDMA connections established directly between the clients
-and remote memory servers without explicitly participating in the RDMA
-protocol.
+Interposing on the RDMA protocol, however, is non-trivial. One approach
+(evaluated in Clover as pDPM-central~\cite{clover}) employs an RDMA-enabled
+middlebox that sets up connections between itself and clients and another set
+of connections to the memory servers. The middlebox can then reorder, rewrite,
+and relay RDMA requests from clients to the appropriate chain locations. This
+solution is impractical for a TOR-based solution both because existing
+switches lack the ability to establish RDMA connections, and, more
+importantly, because the authors of Clover demonstrate it to be a
+performance bottleneck. We avoid both shortcomings by transparently
+intercepting RDMA connections established directly between the clients and
+remote memory servers without explicitly participating in the RDMA protocol.
 
 In our approach, the TOR records the virtual addresses used in any
 RDMA writes made by Clover clients. These writes are marked as
 \textit{outstanding}; i.e., they have been issued to remote memory,
 but have not yet been made visible in Clover because they are not yet
 connected to Clover's per-key chain.  As described above, following
-the completion of an outstanding write, clients issue an RDMA c\&s to
+the completion of an outstanding write, clients issue an RDMA \texttt{c\&s} to
 the end of the chain to make their update visible atomically in
-Clover, and we also track the last c\&s issued for each key.  In a
-successful update, the c\&s operation will adjust the next-update
+Clover, and we also track the last \texttt{c\&s} issued for each key.  In a
+successful update, the \texttt{c\&s} operation will adjust the next-update
 pointer to the location of the most recent (outstanding) write,
 thereby committing the write.
 
-  Our algorithm detects the existence of a conflict by noticing when
-  there are multiple outstanding writes for a given key. The current
-  write for each client is tracked, when two clients have outstanding
-  writes to the same key a confict has occurd. When a c\&s operation
-  arrives, we inspect the virtual address it is trying to update.  If
-  points to an old tail, it's virtual address is modified in flight
-  (without the knowledge of the issuing client) to point to the true
-  tail of the list. The cached latest version of the key is then
-  updated to point to the address the c\&s was directed to.  Clover
-  clients learn the updated locations using their default read
-  algorithm.
+Our algorithm detects the existence of a conflict by noticing when
+there are multiple outstanding writes for a given key. The current
+write for each client is tracked, when two clients have outstanding
+writes to the same key a conflict has occurred. When a \texttt{c\&s}
+operation arrives, we inspect the virtual address it is trying to
+update. If it points to an old tail, its virtual address is modified
+by the TOR (without the knowledge of the issuing client) to point to
+the true tail of the list. The cached latest version of the key is
+then updated to point to the address to which the \texttt{c\&s} was
+directed. Clover clients learn the updated locations using their
+default read algorithm.
 
 \subsection{Prototype}
 
@@ -163,7 +162,7 @@ for network devices such as programmable switches.  RDMA packets are
 not intended to be modified in flight, and care must be taken not to
 corrupt them. RDMA invariant CRCs (ICRC) are calculated at the time of
 sending and are designed to ensure the integrity of the payload. When
-we modify c\&s packets their ICRC must be recalculated or the packet
+we modify \texttt{c\&s} packets their ICRC must be recalculated or the packet
 will be rejected by the receiving NIC. FPGA implementations of RDMA
 ICRC have been built in the past~\cite{Mansour_2019}; the required CRC
 calculation is identical to Ethernet CRC, with some additional header

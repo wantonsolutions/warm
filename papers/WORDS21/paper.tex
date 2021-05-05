@@ -82,8 +82,8 @@
 \begin{document}
 
 \title{In-network Contention Resolution for Disaggregated Memory}
-\author{WORDS '21 Submission \#3}
-%\author{Stewart Grant \\ University of Califonia San Diego}
+%\author{WORDS '21 Submission \#3}
+\author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
 \date{}
 
 \maketitle
@@ -92,14 +92,14 @@
 
 Passive remote memory remains the holy grail of disaggregation.  Most
 existing systems for disaggregated memory either use remote memory
-simply as a backing store, or design special-purposes data structures
+simply as a backing store, or design special-purpose data structures
 that require some amount of processing co-resident with the remote
 memory to manage and apply updates.  The few proposals for truly
 passive remote memory perform well only with read-mostly workloads,
 rapidly deteriorating in the face of even low levels of write
 contention.  We propose to leverage in-network devices (specifically,
 a programmable top-of-rack switch) to serialize remote memory accesses
-and resolve any write conflicts in-flight.  Our prototype is able to
+and resolve any write conflicts in flight.  Our prototype is able to
 completely avoid write contention in the recently published Clover
 disaggregated key/value store, delivering a performance boost of
 almost 50\% on our testbed under a mixed read/write workload.
@@ -108,8 +108,19 @@ almost 50\% on our testbed under a mixed read/write workload.
 \input{clover}
 \input{design}
 \input{eval}
-\input{body}
+%\input{body}
+\input{discussion}
 
+\section*{Acknowledgments}
+
+This work is supported in part by the Advanced Research Projects
+Agency-Energy (ARPA-E) and the National Science Foundation (NSF)
+through grant CNS-1911104.  The authors thank Alex Forencich and Cindy
+Moore for assistance with our testbed, and Yiying Zhang and the
+anonymous reviewers for helpful suggestions and feedback.  Additional
+thanks to Yizhou Shan for his guidance in setting up our own instance
+of Clover, and special thanks to Steve and Don Grant of Halftime
+Holdings Ltd. for providing workstations, Internet and coffee.
 
 \balance
 \vspace{-0.3cm}
