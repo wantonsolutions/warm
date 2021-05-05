@@ -44,7 +44,7 @@
 
 #define KEYSPACE 1024
 //#define KEYSPACE 500
-#define CACHE_KEYSPACE 1
+#define CACHE_KEYSPACE 1024
 
 #define RDMA_CALL_SIZE 8192
 
@@ -79,7 +79,8 @@ uint8_t test_ack_pkt[] = {
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
 
 static int rdma_counter = 0;
-uint8_t rdma_calls[RDMA_CALL_SIZE];
+static int has_mapped_qp = 0;
+//rdma calls counts the number of calls for each RDMA op code
 uint32_t rdma_call_count[RDMA_COUNTER_SIZE];
 
 
@@ -99,7 +100,6 @@ uint32_t core_pkt_counters[MAX_CORES];
 uint64_t vaddr_swaps = 0;
 
 
-#define TOTAL_ENTRY 128
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
     .entries = TOTAL_ENTRY,
@@ -159,27 +159,41 @@ uint32_t get_id(uint32_t qp) {
 }
 
 void print_connection_state(struct Connection_State* cs) {
-	printf("ID: %d ",cs->id);
-	printf("cts qp: %d stc qp: %d ",cs->ctsqp, cs->stcqp);
-	printf("seq %d\n",cs->seq_current);
+	printf("ID: %d port %d \n",cs->id, cs->udp_src_port);
+	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
+	printf("seqt %d seq %d\n",(cs->seq_current/256),cs->seq_current);
 }
 
-void init_connection_state(uint32_t cts_dest_qp, uint32_t seq) {
+void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey) {
+
+	//Find the connection state if it exists
 	struct Connection_State cs;
+	int id = get_id(cts_dest_qp);
+	cs = Connection_States[id];
+
+	if (cs.udp_src_port != 0) {
+		printf("Connection State allready initialized %d\n",cts_dest_qp);
+		return;
+	}
+
+	cs.id = id;
 	cs.seq_current = seq;
+	cs.udp_src_port = udp_src_port;
 	cs.ctsqp = cts_dest_qp;
-	cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
-	cs.id = get_id(cs.ctsqp);
+	//TODO printf("ADD RKEYS TO THE CONNECTION STATE (FEB 23 2021)\n");
+	cs.rkey = rkey;
+	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
 	Connection_States[cs.id] = cs;
 }
 
 //TODO put this in the write and CNS path
-void init_cs_wrapper(struct roce_v2_header *roce_hdr) {
+void init_cs_wrapper(struct rte_udp_hdr *udp_hdr, struct roce_v2_header *roce_hdr) {
+
 	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS) {
 		printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
 		exit(0);
 	}
-	init_connection_state(roce_hdr->dest_qp, htonl(roce_hdr->packet_sequence_number));
+	init_connection_state(udp_hdr->src_port, roce_hdr->dest_qp, htonl(roce_hdr->packet_sequence_number),0);
 }
 
 
@@ -188,19 +202,19 @@ void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq) {
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
 		//Should be the state when the id is not set
-		if (cs.id == 0) {
+		if (cs.seq_current == 0) {
 			continue;
 		}
 		if (cs.seq_current == seq) {
 			cs.stcqp = stc_dest_qp;
 			Connection_States[cs.id] = cs;
-			printf("Connection State Established\n");
+			//printf("Connection State Established\n");
 			print_connection_state(&cs);
 			//exit(0);
 			return;
 		}
 	}
-	printf("Unable to find and set QP for for stc_dest %d and seq %d (probably another connection)\n",stc_dest_qp,seq);
+	//printf("Unable to find and set QP for for stc_dest %d and seq %d (probably another connection)\n",stc_dest_qp,seq);
 }
 
 //TODO put this in the ACK path
@@ -220,6 +234,8 @@ void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq) {
 		exit(0);
 	}
 	cs->seq_current = seq;
+	printf("Updated CS based on sequence number\n");
+	print_connection_state(cs);
 }
 
 void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
@@ -230,8 +246,13 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
 	update_cs_seq(roce_hdr->dest_qp,htonl(roce_hdr->packet_sequence_number));
 }
 
-void cts_track_connection_state(struct roce_v2_header * roce_hdr) {
-	init_cs_wrapper(roce_hdr);
+void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
+	init_cs_wrapper(udp_hdr,roce_hdr);
+
+	if (has_mapped_qp == 1) {
+		printf("TODO remote has_mapped_qp in track connection\n");
+		return;
+	}
 	update_cs_seq_wrapper(roce_hdr);
 }
 
@@ -293,7 +314,7 @@ void print_bytes(const uint8_t * buf, uint32_t len) {
 void print_binary_bytes(const uint8_t * buf, uint32_t len) {
 	for (uint32_t i=0;i<len;i++)  {
 		printf(BYTE_TO_BINARY_PATTERN" ", BYTE_TO_BINARY(buf[i]));
-	}
+	} 
 }
 
 void print_address(uint64_t *address) {
@@ -477,6 +498,166 @@ static uint32_t nacked_cns =0;
 rte_rwlock_t next_lock;
 
 
+void print_first_mapping(void){
+	for (int i=0;i<15;i++) {
+		printf("FIRST MAPPING OF QP GET READY BOIIS\n\n");
+	}
+}
+
+
+void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	
+	
+	uint32_t r_qp= roce_hdr->dest_qp;
+	uint32_t id = get_id(r_qp);
+
+	if (has_mapped_qp == 0) {
+		print_packet(pkt);
+		print_first_mapping();
+		has_mapped_qp = 1;
+	}
+	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
+	printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
+	uint32_t n_qp = key_to_qp(key);
+	uint32_t n_seq = 666666;
+	uint16_t n_port = 666;
+
+	//find the current sequence number of that qp
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		struct Connection_State *destination_connection;
+		destination_connection=&Connection_States[i];
+		if (destination_connection->ctsqp == n_qp) {
+			printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
+			printf("request is being mapped to this connection\n");
+			print_connection_state(destination_connection);
+
+
+			//If the stcqp has not been found just wait untill it has.
+			if (destination_connection->stcqp == 0) {
+				printf("stcqp for this connection unknown, returning without mapping\n");
+				return;
+			}
+			//Our middle box needs to keep track of the sequence number
+			//that should be tracked for the destination. This should
+			//always be an increment of 1 from it's previous number.
+
+			//Here we increment the sequence number
+			//TODO figure out when to add a sequnce number to the connection state
+			//destination_connection->seq_current += 256; //There is bit shifting here.
+
+			//The next step is to save the data from the current packet
+			//to a list of outstanding requests. As clover is blocking
+			//we can use the id to track which sequence number belongs
+			//to which request. These values will be used to map
+			//responses back.
+			printf("saving request state\n");
+			destination_connection->Outstanding_Requests[id].id=id;
+			destination_connection->Outstanding_Requests[id].original_sequence=roce_hdr->packet_sequence_number;
+			//Save the unique ID, we are going to use this to search for this later
+			destination_connection->Outstanding_Requests[id].mapped_sequence=destination_connection->seq_current;
+			//Store the server to client to qp that this we will need to make the swap
+			destination_connection->Outstanding_Requests[id].server_to_client_qp=Connection_States[id].stcqp;
+
+
+			//TODO modify the packet with the new sequence number
+			roce_hdr->dest_qp = destination_connection->ctsqp;
+			roce_hdr->packet_sequence_number = destination_connection->seq_current;
+			udp_hdr->src_port = destination_connection->udp_src_port;
+
+			//TODO recalculate the checksum
+			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+			memcpy(current_checksum,&crc_check,4);
+
+
+		}
+	}
+}
+
+
+//Mappping qp backwards is the demultiplexing operation.  The first step is to
+//identify the kind of packet and figure out if it has been placed on the
+//multiplexing list
+void map_qp_backwards(struct rte_mbuf *pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	if (has_mapped_qp == 0) {
+		printf("We have not started multiplexing yet. Returning with no packet modifictions.\n");
+		return;
+	}
+
+	printf("MAPPING BACKWARDS\n");
+	printf("MAPPING BACKWARDS\n");
+	printf("MAPPING BACKWARDS\n");
+	printf("MAPPING BACKWARDS\n");
+
+
+
+	//We have very little information on the demultiplex side. We need to search
+	//through the entire list in order to determine if this sequence number was
+	//cached. We don't know the key, or the original sender so we can't do the
+	//reverse lookup. In this case we have to pass over the whole list of
+	//connections, then we have to look through each entry in each connection to
+	//determine if there is an outstanding request.
+	//TODO hash the id of the outstanding reqest to map the qp back. This can be done O(1)
+
+	uint32_t search_sequence_number = ntohl(roce_hdr->packet_sequence_number);
+	//TODO this loop can be removed by being able to do a get id on a server size qp
+	for (int i=0;i<3;i++) {
+	//for (int i=0;i<TOTAL_ENTRY;i++) {
+		struct Connection_State *source_connection;
+		source_connection=&Connection_States[i];
+
+		printf("currently searching for entry backwards %d\n",i);
+
+		//for (int j=0;j<TOTAL_ENTRY;j++) {
+		for (int j=0;j<3;j++) {
+			struct Request_Map * mapped_request;
+			mapped_request = &(source_connection->Outstanding_Requests[j]);
+
+			printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+
+			if (mapped_request->mapped_sequence == search_sequence_number) {
+				printf("we have found our entry!");
+				printf("original sequence number %d\n",mapped_request->original_sequence);
+
+				//Now we need to map back
+				//TODO modify the packet directly
+				roce_hdr->dest_qp = mapped_request->server_to_client_qp;
+				roce_hdr->packet_sequence_number = mapped_request->original_sequence;
+				//TODO PORT/IP/OTHER THINGS?
+
+				//TODO recalculate the checksum
+				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+				memcpy(current_checksum,&crc_check,4);
+
+				//Remove the entry
+				mapped_request->id=0;
+				mapped_request->original_sequence=0;
+				mapped_request->server_to_client_qp=0;
+				mapped_request->mapped_sequence=0;
+
+				return;
+
+			} else {
+				continue;
+			}
+
+		}
+	}
+}
+
+
 
 void true_classify(struct rte_mbuf * pkt) {
 //void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
@@ -488,11 +669,11 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
-
+;
 
 	if (opcode == RC_ACK) {
 		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		printf("ACK ok %d\n",ack->ack_extended.opcode);
+		//printf("ACK ok %d\n",ack->ack_extended.opcode);
 		find_and_set_stc_qp_wrapper(roce_hdr);
 		//This is purely here for testing CRC
 		//uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -520,8 +701,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	uint32_t r_qp= roce_hdr->dest_qp;
 
-	printf("(qp) dqp %d seq %d\n",r_qp,ntohl(roce_hdr->packet_sequence_number));
-	//Write Request
+	//Write Requestdest_qp
 			//Dangerous section
 			//print_packet(pkt);
 
@@ -532,25 +712,25 @@ void true_classify(struct rte_mbuf * pkt) {
 		} else if (size == 68) {
 			log_printf(DEBUG,"write (2) size %d\n",size);
 		} else {
-			//printf("Else\n");
-			//exit(0);
+			//Obtain the wite lock
 			rte_rwlock_write_lock(&next_lock);
 			rte_smp_mb();
-
-			cts_track_connection_state(roce_hdr);
-
-
+			//
 			struct write_request * wr = (struct write_request*) clover_header;
 			//print_packet(pkt);
 			uint64_t *key = (uint64_t*)&(wr->data);
 			uint32_t id = get_id(r_qp);
-			log_printf(DEBUG,"ID: %d KEY: %"PRIu64"\n",id,*key);
-			log_printf(DEBUG,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
-			log_printf(DEBUG,"KEY: %"PRIu64"\n", *key);
+			log_printf(INFO,"ID: %d KEY: %"PRIu64"\n",id,*key);
+			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
+			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
 			//print_packet(pkt);
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
 			//init write packet size
+
+			//When performing qp muxing track the connection state
+			cts_track_connection_state(udp_hdr,roce_hdr);
+
 
 
 
@@ -608,7 +788,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				if (first_write[*key] == 0) {
 					//These are dummy values for testing because I think I got the algorithm wrong
 					first_write[*key] = 1;
-					//next_vaddr[*key] = 1;
+					//next_vaddr[*kdest_qpey] = 1;
 					log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
 				} else if (first_write[*key] == 1) {
 					//Lets leave this for now, but it can likely change once the cns is solved
@@ -628,6 +808,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			latest_key[id] = *key;
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
+
 
 			/*
 			#ifdef PACKET_DEBUG_PRINTOUT
@@ -671,7 +852,8 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("regular cns ack seq %d -- dest qp %d\n",ntohl(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
 
-		find_and_set_stc_qp_wrapper(roce_hdr);
+		map_qp_backwards(pkt);
+
 		/*
 		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
 		print_bytes(&csr->atomc_ack_extended.original_remote_data,8);
@@ -682,7 +864,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		print_ip_header(ipv4_hdr);
 		printf("\n");
 		*/
-		//print_packet(pkt);
+		print_packet(pkt);
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
@@ -693,7 +875,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		//printf("\n");
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
-		cts_track_connection_state(roce_hdr);
+		cts_track_connection_state(udp_hdr,roce_hdr);
+		printf("cns- (qp) dqp %d seq %d\n",r_qp,ntohl(roce_hdr->packet_sequence_number));
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
@@ -819,19 +1002,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//qp remapping
 		if (qp_id_counter == 2) {
-			//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
-			printf("old qp dst %d seq %d \n",roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number));
-			uint32_t n_qp = key_to_qp(latest_key[id]);
-			uint32_t n_seq = 666666;
-			printf("new qp %d new seq %d\n",n_qp, n_seq);
-			if (n_qp != roce_hdr->dest_qp) {
-				roce_hdr->dest_qp = n_qp;
-				roce_hdr->packet_sequence_number = n_seq;
-				printf("RECALCULATING\n");
-				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-				memcpy(current_checksum,&crc_check,4);
-			}
+			map_qp_forward(pkt,latest_key[id]);
 		}
 	}
 
@@ -868,37 +1039,6 @@ void print_rdma_call_count(void) {
 	}
 	return;
 }
-
-//TODO remove this function, it's rather useless
-void rdma_print_pattern(roce_v2_header * rdma) {
-	if (likely(rdma_counter < RDMA_CALL_SIZE)) {
-		rdma_calls[rdma_counter]=rdma->opcode;
-	} else {
-		#define LINE_LEN 10
-		uint32_t t=0;
-		for (int i=0;i<RDMA_CALL_SIZE;i+=LINE_LEN) {
-			for (int j=0;j<LINE_LEN && t < RDMA_CALL_SIZE;j++) {
-				switch(rdma_calls[t]){
-					case RC_SEND: 
-						printf("m");
-						break;
-					case RC_WRITE_ONLY: 
-						printf("W");
-						break;
-					case RC_ACK: break;
-						break;
-					default:
-						break;
-				}
-				t++;
-			}
-			printf("\n");
-		}
-		exit(0);
-	}
-	return;
-}
-
 
 
 //ib_print[RC_ACK] = "RC_ACK\0";
@@ -1314,7 +1454,7 @@ void print_packet(struct rte_mbuf * buf) {
 	print_ip_hdr(ipv4_hdr);
 	print_udp_hdr(udp_hdr);
 	print_roce_v2_hdr(roce_hdr);
-	print_clover_hdr(clover_header);
+	//print_clover_hdr(clover_header);
 
 }
 
@@ -1428,7 +1568,10 @@ lcore_main(void)
 				#endif
 
 				//rte_rwlock_write_lock(&next_lock);
+				printf("Packet Start\n");
 				true_classify(rx_pkts[i]);
+				//print_packet(rx_pkts[i]);
+				printf("Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
 
 				/*
@@ -1492,13 +1635,13 @@ void debug_icrc(struct rte_mempool *mbuf_pool) {
 }
 
 
-int coretest() {
+int coretest(void) {
 	printf("I'm actually running on core %d\n",rte_lcore_id());
 	lcore_main();
 	return 1;
 }
 
-void fork_lcores() {
+void fork_lcores(void) {
 	printf("Running on #%d cores\n",rte_lcore_count());
 	int lcore;
 	RTE_LCORE_FOREACH_SLAVE(lcore) {
@@ -1567,9 +1710,12 @@ main(int argc, char *argv[])
 		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
+
+		bzero(Connection_States,TOTAL_ENTRY * sizeof(Connection_State));
 		init_hash();
 		write_value_packet_size=0;
 		predict_shift_value=0;
+		has_mapped_qp=0;
 		init = 1;
 	}
 	rte_rwlock_init(&next_lock);

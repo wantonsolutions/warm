@@ -10,7 +10,7 @@
 #define NONE 0
 
 //#define LOG_LEVEL DEBUG
-#define LOG_LEVEL NONE
+#define LOG_LEVEL INFO
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
@@ -20,18 +20,30 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+#define TOTAL_ENTRY 128
+
 #define DONT_SWAP_VADDR
 
 
 //checksum
 
+struct Request_Map {
+  uint32_t id;
+  uint32_t original_sequence;
+  uint32_t mapped_sequence;
+  uint32_t server_to_client_qp;
+} Request_Map;
 
 struct Connection_State {
   uint32_t id;
+  uint16_t udp_src_port;
+  uint32_t rkey;
   uint32_t ctsqp;
   uint32_t stcqp;
   uint32_t seq_current;
+  struct Request_Map Outstanding_Requests[TOTAL_ENTRY];
 } Connection_State;
+
 
 uint32_t check_sums(const char* method, void* known, void* test, int try);
 uint32_t check_sums_wrap(const char* method, void* know, void* test);
@@ -63,7 +75,6 @@ void print_read_response(struct read_response *rr, uint32_t size);
 void print_write_request(struct write_request* wr);
 void true_classify(struct rte_mbuf * pkt);
 void print_classify_packet_size(void);
-void rdma_count_calls(roce_v2_header *rdma);
 void print_rdma_call_count(void);
 void rdma_print_pattern(roce_v2_header * rdma);
 void init_ib_words(void);
@@ -74,6 +85,21 @@ void print_udp_hdr(struct rte_udp_hdr * udp_hdr);
 void print_roce_v2_hdr(roce_v2_header * rh);
 void print_clover_hdr(struct clover_hdr * clover_header);
 void print_packet(struct rte_mbuf * buf);
+
+void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey);
+
+
+//qp tracking
+uint32_t key_to_qp(uint64_t key);
+void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq);
+void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr);
+void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq);
+void find_and_set_stc_qp_wrapper(struct roce_v2_header *roce_hdr);
+void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
+int coretest(void);
+void fork_lcores(void);
+void print_connection_state(struct Connection_State* cs);
+void init_cs_wrapper(struct rte_udp_hdr *udp_hdr, struct roce_v2_header *roce_hdr);
 
 
 
