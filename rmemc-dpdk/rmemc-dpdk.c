@@ -30,6 +30,7 @@
 //#include <linux/crc32.h>
 #include <zlib.h>
 
+
 #define RC_SEND 0x04
 #define RC_WRITE_ONLY 0x0A
 #define RC_READ_REQUEST 0x0C
@@ -77,6 +78,10 @@ uint8_t test_ack_pkt[] = {
 #define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
 
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
+
+int MAP_QP = 1;
+
+
 
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
@@ -516,6 +521,64 @@ uint32_t readable_seq(uint32_t seq) {
 	return ntohl(seq) / 256;
 }
 
+void map_qp(struct rte_mbuf * pkt) {
+	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
+	if (MAP_QP == 0) {
+		return;
+	}
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint8_t opcode = roce_hdr->opcode;
+
+
+	if (opcode == RC_ACK) {
+		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
+		printf("ACK ok %d\n",ack->ack_extended.opcode);
+		find_and_set_stc_qp_wrapper(roce_hdr);
+		map_qp_backwards(pkt);
+
+	} else if (opcode == RC_READ_REQUEST) {
+		printf("READ REQUEST\n");
+		//TODO start here tomorrow.
+		//TODO I don't have a key in the read request... I need one to route
+		//uint64_t *key = (uint64_t*)&(rr->rdma_extended_header.);
+		uint64_t stub_zero_key = 1;
+		uint64_t *key = &stub_zero_key;
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
+		} else {
+			map_qp_forward(pkt,*key);
+		}
+	} else if (opcode == RC_READ_RESPONSE) {
+		map_qp_backwards(pkt);
+
+	} else if (opcode == RC_WRITE_ONLY) {
+		struct write_request * wr = (struct write_request*) clover_header;
+		uint64_t *key = (uint64_t*)&(wr->data);
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
+		} else {
+			map_qp_forward(pkt,*key);
+		}
+	} else if (opcode == RC_ATOMIC_ACK) {
+		map_qp_backwards(pkt);
+	} else if (opcode == RC_CNS) {
+		if (qp_id_counter == 2) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			map_qp_forward(pkt,latest_key[id]);
+		}
+	}
+
+
+
+
+}
+
 
 void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -709,11 +772,11 @@ void true_classify(struct rte_mbuf * pkt) {
 ;
 
 	if (opcode == RC_ACK) {
-		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		printf("ACK ok %d\n",ack->ack_extended.opcode);
-		find_and_set_stc_qp_wrapper(roce_hdr);
-
-		map_qp_backwards(pkt);
+		map_qp(pkt);
+		//struct rdma_ack * ack = (struct rdma_ack*) clover_header;
+		//printf("ACK ok %d\n",ack->ack_extended.opcode);
+		//find_and_set_stc_qp_wrapper(roce_hdr);
+		//map_qp_backwards(pkt);
 		//This is purely here for testing CRC
 		//uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		//crc_check =csum_pkt(pkt); //This need to be added before we can validate packets
@@ -722,25 +785,14 @@ void true_classify(struct rte_mbuf * pkt) {
 	} 
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
-		printf("READ REQUEST\n");
-		struct read_request * rr = (struct read_request *)clover_header;
-		//uint64_t *key = (uint64_t*)&(rr->rdma_extended_header.);
-		//TODO start here tomorrow.
-		//TODO I don't have a key in the read request... I need one to route
-		uint64_t stub_zero_key = 1;
-		uint64_t *key = &stub_zero_key;
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
-		} else {
-			map_qp_forward(pkt,*key);
-		}
+		map_qp(pkt);
+		//struct read_request * rr = (struct read_request *)clover_header;
 		//print_read_request(rr);
 		//count_read_req_addr(rr);
 	}
 
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
-		printf("Read RESPONSE\n");
-		map_qp_backwards(pkt);
+		map_qp(pkt);
 		//struct read_response * rr = (struct read_response*) clover_header;
 		//print_packet(pkt);
 		//print_read_response(rr, size);
@@ -776,20 +828,10 @@ void true_classify(struct rte_mbuf * pkt) {
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
 			//init write packet size
-
 			//When performing qp muxing track the connection state
-
 			//Keep the state updated untill it's time to actually do the forwarding
 			//TODO this needs to be done on a per key basis
-			if (has_mapped_qp == 0) {
-				cts_track_connection_state(udp_hdr,roce_hdr);
-			} else {
-				map_qp_forward(pkt,*key);
-			}
-
-
-
-
+			map_qp(pkt);
 
 			if (unlikely(write_value_packet_size == 0)) {
 				printf("Write Packet size %d\n",size);
@@ -828,8 +870,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			}
 
 			printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
-
-
 			if(first_write[*key] != 0 && first_cns[*key] != 0) {
 				log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
 				//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
@@ -909,7 +949,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("regular cns ack seq %d -- dest qp %d\n",ntohl(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
 
-		map_qp_backwards(pkt);
+		map_qp(pkt);
 
 		/*
 		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
@@ -926,10 +966,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	if (size == 72 && opcode == RC_CNS) {
 
 		printf("CNS\n");
-		//print_packet(pkt);
-		//printf("csn\n");
-		//print_ip_header(ipv4_hdr);
-		//printf("\n");
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
 		cts_track_connection_state(udp_hdr,roce_hdr);
@@ -1054,10 +1090,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			exit(0);
 		}
 
-		//qp remapping
-		if (qp_id_counter == 2) {
-			map_qp_forward(pkt,latest_key[id]);
-		}
+		map_qp(pkt);
 
 
 		rte_smp_mb();
