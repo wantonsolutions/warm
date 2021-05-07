@@ -184,7 +184,7 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	cs = Connection_States[id];
 
 	if (cs.udp_src_port != 0) {
-		printf("Connection State allready initialized DEST QP(%d)\n",cts_dest_qp);
+		log_printf(DEBUG,"Connection State allready initialized DEST QP(%d)\n",cts_dest_qp);
 		return;
 	}
 
@@ -261,9 +261,7 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
 
 void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
 	init_cs_wrapper(udp_hdr,roce_hdr);
-
 	if (has_mapped_qp == 1) {
-		printf("TODO remote has_mapped_qp in track connection\n");
 		return;
 	}
 	update_cs_seq_wrapper(roce_hdr);
@@ -552,15 +550,12 @@ void map_qp(struct rte_mbuf * pkt) {
 
 	if (opcode == RC_ACK) {
 		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		printf("ACK ok %d\n",ack->ack_extended.opcode);
 		find_and_set_stc_qp_wrapper(roce_hdr);
 		map_qp_backwards(pkt);
 
 	} else if (opcode == RC_READ_REQUEST) {
-		printf("READ REQUEST\n");
 		//TODO start here tomorrow.
 		//TODO I don't have a key in the read request... I need one to route
-		//uint64_t *key = (uint64_t*)&(rr->rdma_extended_header.);
 		uint64_t stub_zero_key = 1;
 		uint64_t *key = &stub_zero_key;
 		if (has_mapped_qp == 0) {
@@ -617,7 +612,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
 	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
-	printf("MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
+	log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = key_to_qp(key);
 	uint32_t n_seq = 666666;
 	uint16_t n_port = 666;
@@ -639,7 +634,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 				return;
 			}
 
-			printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
+			log_printf(DEBUG,"Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
 
 
 			//TODO store concurrent ops efficiently 
@@ -727,7 +722,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	//TODO hash the id of the outstanding reqest to map the qp back. This can be done O(1)
 
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	printf("MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
+	log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
 	//TODO this loop can be removed by being able to do a get id on a server size qp
 	for (int i=0;i<3;i++) {
 	//for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -740,10 +735,12 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			struct Request_Map * mapped_request;
 			mapped_request = &(source_connection->Outstanding_Requests[j]);
 
-			printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+			log_printf(DEBUG,"looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
 			if (mapped_request->mapped_sequence == search_sequence_number) {
-				printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+				log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+				//printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
 				//Now we need to map back
 				//TODO modify the packet directly
@@ -822,7 +819,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			//print_packet(pkt);
 
 	if (opcode == RC_WRITE_ONLY) {
-		printf("WRITE\n");
 		if (size == 252) {
 			//TODO determine what these writes are doing
 			//log_printf(DEBUG,"type1 size %d\n",size);
@@ -885,7 +881,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				return;
 			}
 
-			printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
+			//printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
 			if(first_write[*key] != 0 && first_cns[*key] != 0) {
 				log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
 				//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
@@ -949,7 +945,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	}
 
     if (opcode == RC_ATOMIC_ACK) {
-		printf("ATOMIC ACK\n");
+		log_printf(DEBUG,"ATOMIC ACK\n");
 		//printf("atomic ack\n");
 		struct cs_response * csr = (struct cs_response*) clover_header;
 		//printf("original contents A%"PRIu64"\n",be64toh(csr->atomc_ack_extended.original_remote_data));
@@ -981,7 +977,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	if (size == 72 && opcode == RC_CNS) {
 
-		printf("CNS\n");
+		log_printf(DEBUG,"CNS\n");
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
 		cts_track_connection_state(udp_hdr,roce_hdr);
@@ -1676,10 +1672,10 @@ lcore_main(void)
 				#endif
 
 				//rte_rwlock_write_lock(&next_lock);
-				printf("Packet Start\n");
+				log_printf(DEBUG,"Packet Start\n");
 				true_classify(rx_pkts[i]);
 				//print_packet(rx_pkts[i]);
-				printf("Packet End\n\n");
+				log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
 
 				/*

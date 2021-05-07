@@ -10,7 +10,7 @@
 #define NONE 0
 
 //#define LOG_LEVEL DEBUG
-#define LOG_LEVEL INFO
+#define LOG_LEVEL NONE
 
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
