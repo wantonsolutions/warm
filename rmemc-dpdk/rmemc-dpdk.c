@@ -521,6 +521,20 @@ uint32_t readable_seq(uint32_t seq) {
 	return ntohl(seq) / 256;
 }
 
+void init_connection_states(void) {
+	bzero(Connection_States,TOTAL_ENTRY * sizeof(Connection_State));
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		struct Connection_State *source_connection;
+		source_connection=&Connection_States[i];
+		for (int j=0;j<TOTAL_ENTRY;j++) {
+			struct Request_Map * mapped_request;
+			mapped_request = &(source_connection->Outstanding_Requests[j]);
+			mapped_request->open = 1;
+		}
+	}
+
+}
+
 void map_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
 	if (MAP_QP == 0) {
@@ -641,8 +655,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			uint32_t invalid_empty_index = TOTAL_ENTRY+1;
 			uint32_t empty_index = invalid_empty_index;
 			for (int j=0;j<TOTAL_ENTRY;j++) {
-				if (destination_connection->Outstanding_Requests[j].original_sequence == 0) {
-					printf("TODO this is going to cause problems don't use zero\n");
+				if (destination_connection->Outstanding_Requests[j].open == 1) {
 					empty_index = j;
 					break;
 				}
@@ -657,6 +670,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//we can use the id to track which sequence number belongs
 			//to which request. These values will be used to map
 			//responses back.
+
+			destination_connection->Outstanding_Requests[empty_index].open=0;
 			destination_connection->Outstanding_Requests[empty_index].id=id;
 			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
 			//Save the unique ID, we are going to use this to search for this later
@@ -742,6 +757,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				memcpy(current_checksum,&crc_check,4);
 
 				//Remove the entry
+				mapped_request->open=1;
 				mapped_request->id=0;
 				mapped_request->original_sequence=0;
 				mapped_request->server_to_client_qp=0;
@@ -1803,7 +1819,7 @@ main(int argc, char *argv[])
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
 
-		bzero(Connection_States,TOTAL_ENTRY * sizeof(Connection_State));
+		init_connection_states();
 		init_hash();
 		write_value_packet_size=0;
 		predict_shift_value=0;

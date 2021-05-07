@@ -28,6 +28,7 @@
 //checksum
 
 struct Request_Map {
+  uint32_t open;
   uint32_t id;
   uint32_t original_sequence;
   uint32_t mapped_sequence;
