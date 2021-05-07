@@ -512,6 +512,10 @@ void print_first_mapping(void){
 	}
 }
 
+uint32_t readable_seq(uint32_t seq) {
+	return ntohl(seq) / 256;
+}
+
 
 void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -535,7 +539,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 
 	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
-	printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
+	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
+	printf("MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = key_to_qp(key);
 	uint32_t n_seq = 666666;
 	uint16_t n_port = 666;
@@ -545,10 +550,10 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 		struct Connection_State *destination_connection;
 		destination_connection=&Connection_States[i];
 		if (destination_connection->ctsqp == n_qp) {
-			printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
-			printf("request is being mapped to this connection\n");
-			printf("printf qpid counter (should be == max (2)) == %d\n",qp_id_counter);
-			print_connection_state(destination_connection);
+			//printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
+			//printf("request is being mapped to this connection\n");
+			//printf("printf qpid counter (should be == max (2)) == %d\n",qp_id_counter);
+			//print_connection_state(destination_connection);
 
 
 			//If the stcqp has not been found just wait untill it has.
@@ -557,23 +562,44 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 				return;
 			}
 
-			printf("Sequence number update %d -> %d\n",roce_hdr->packet_sequence_number, destination_connection->seq_current);
+			printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
 
-			//Here we increment the sequence number
-			//TODO figure out when to add a sequnce number to the connection state
+
+			//TODO store concurrent ops efficiently 
+			
+			//Multiple reads occur at once. We don't want them to overwrite
+			//eachother. Initally I used Oustanding_Requests[id] to hold
+			//requests. But this only ever used the one index. On parallel reads
+			//the sequence number over write the old one because they collied.
+			//To save time, I'm using the old extra space TOTAL_ENTRIES in the
+			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
+			//
+			//Search for an open slot
+			uint32_t invalid_empty_index = TOTAL_ENTRY+1;
+			uint32_t empty_index = invalid_empty_index;
+			for (int j=0;j<TOTAL_ENTRY;j++) {
+				if (destination_connection->Outstanding_Requests[j].original_sequence == 0) {
+					printf("TODO this is going to cause problems don't use zero\n");
+					empty_index = j;
+					break;
+				}
+			}
+			if (empty_index == invalid_empty_index) {
+				printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
+				exit(0);
+			}
 
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
 			//we can use the id to track which sequence number belongs
 			//to which request. These values will be used to map
 			//responses back.
-			printf("saving request state\n");
-			destination_connection->Outstanding_Requests[id].id=id;
-			destination_connection->Outstanding_Requests[id].original_sequence=roce_hdr->packet_sequence_number;
+			destination_connection->Outstanding_Requests[empty_index].id=id;
+			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
 			//Save the unique ID, we are going to use this to search for this later
-			destination_connection->Outstanding_Requests[id].mapped_sequence=destination_connection->seq_current;
+			destination_connection->Outstanding_Requests[empty_index].mapped_sequence=destination_connection->seq_current;
 			//Store the server to client to qp that this we will need to make the swap
-			destination_connection->Outstanding_Requests[id].server_to_client_qp=Connection_States[id].stcqp;
+			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 
 
 			//TODO modify the packet with the new sequence number
@@ -590,6 +616,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Our middle box needs to keep track of the sequence number
 			//that should be tracked for the destination. This should
 			//always be an increment of 1 from it's previous number.
+			//Here we increment the sequence number
 			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + 256); //There is bit shifting here.
 
 
@@ -613,13 +640,6 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		return;
 	}
 
-	printf("MAPPING BACKWARDS\n");
-	printf("MAPPING BACKWARDS\n");
-	printf("MAPPING BACKWARDS\n");
-	printf("MAPPING BACKWARDS\n");
-
-
-
 	//We have very little information on the demultiplex side. We need to search
 	//through the entire list in order to determine if this sequence number was
 	//cached. We don't know the key, or the original sender so we can't do the
@@ -629,13 +649,13 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	//TODO hash the id of the outstanding reqest to map the qp back. This can be done O(1)
 
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
+	printf("MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
 	//TODO this loop can be removed by being able to do a get id on a server size qp
 	for (int i=0;i<3;i++) {
 	//for (int i=0;i<TOTAL_ENTRY;i++) {
 		struct Connection_State *source_connection;
 		source_connection=&Connection_States[i];
 
-		printf("currently searching for entry backwards %d\n",i);
 
 		//for (int j=0;j<TOTAL_ENTRY;j++) {
 		for (int j=0;j<3;j++) {
@@ -645,8 +665,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
 			if (mapped_request->mapped_sequence == search_sequence_number) {
-				printf("we have found our entry!");
-				printf("original sequence number %d\n",mapped_request->original_sequence);
+				printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
 				//Now we need to map back
 				//TODO modify the packet directly
@@ -708,7 +727,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		//uint64_t *key = (uint64_t*)&(rr->rdma_extended_header.);
 		//TODO start here tomorrow.
 		//TODO I don't have a key in the read request... I need one to route
-		uint64_t stub_zero_key = 0;
+		uint64_t stub_zero_key = 1;
 		uint64_t *key = &stub_zero_key;
 		if (has_mapped_qp == 0) {
 			cts_track_connection_state(udp_hdr,roce_hdr);
@@ -902,7 +921,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		print_ip_header(ipv4_hdr);
 		printf("\n");
 		*/
-		print_packet(pkt);
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
