@@ -33,11 +33,13 @@ struct Request_Map {
   uint32_t original_sequence;
   uint32_t mapped_sequence;
   uint32_t server_to_client_qp;
+  uint16_t server_to_client_udp_port;
 } Request_Map;
 
 struct Connection_State {
   uint32_t id;
-  uint16_t udp_src_port;
+  uint16_t udp_src_port_client;
+  uint16_t udp_src_port_server;
   uint32_t rkey;
   uint32_t ctsqp;
   uint32_t stcqp;
@@ -72,7 +74,7 @@ void classify_packet_size(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce);
 void print_bytes(const uint8_t * buf, uint32_t len);
 void print_ib_mr(struct ib_mr_attr * mr);
 void print_read_request(struct read_request* rr);
-void print_read_response(struct read_response *rr, uint32_t size);
+void print_read_response(struct read_response *rr);
 void print_write_request(struct write_request* wr);
 void true_classify(struct rte_mbuf * pkt);
 void print_classify_packet_size(void);
