@@ -49,6 +49,8 @@
 
 #define RDMA_CALL_SIZE 8192
 
+#define SEQUENCE_NUMBER_SHIFT 256
+
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
 0x00,0x30,0x2A,0x2B,0x40,0x00,0x40,0x11,0x8D,0x26,0xC0,0xA8,0x01,0x0C,0xC0,0xA8,
@@ -353,11 +355,19 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 			continue;
 		}
 		if (cs.seq_current == roce_hdr->packet_sequence_number) {
-			cs.stcqp = roce_hdr->dest_qp;
-			cs.udp_src_port_server = udp_hdr->src_port;
-			cs.mseq_current = get_msn(roce_hdr);
-			Connection_States[cs.id] = cs;
-			print_connection_state(&cs);
+
+			//Make sure that we only set this once;
+			//TODO add a seperate bool that marks both states of initialization
+			if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
+				cs.stcqp = roce_hdr->dest_qp;
+				cs.udp_src_port_server = udp_hdr->src_port;
+				printf("SETTING MSN RAW FROM PACKET");
+				cs.mseq_current = get_msn(roce_hdr);
+				Connection_States[cs.id] = cs;
+				print_connection_state(&cs);
+			} else {
+				printf("stc allready set\n");
+			}
 			//exit(0);
 			return;
 		}
@@ -866,7 +876,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//that should be tracked for the destination. This should
 			//always be an increment of 1 from it's previous number.
 			//Here we increment the sequence number
-			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + 256); //There is bit shifting here.
+			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
 
 		}
@@ -930,7 +940,16 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				udp_hdr->src_port = mapped_request->server_to_client_udp_port;
 
 				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
-				msn = htonl(ntohl(msn) + 256);
+				uint32_t packet_msn = get_msn(roce_hdr);
+				//The 256 here is the shifted msn, not sure why it's 256
+
+				printf("MSN for ID %d\n",mapped_request->id);
+
+				printf("Packet MSN = %d Stored MSN = %d\n",readable_seq(packet_msn),readable_seq(msn));
+				msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
+
+				printf("msn after addition %d\n",readable_seq(msn));
+				
 				set_msn(roce_hdr,msn);
 				Connection_States[mapped_request->id].mseq_current = msn;
 
