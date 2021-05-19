@@ -104,6 +104,8 @@ uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
+uint32_t debug_start_printing_every_packet = 0;
+
 
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
@@ -119,6 +121,33 @@ uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
+
+
+void red () {
+  printf("\033[1;31m");
+}
+
+void yellow () {
+  printf("\033[1;33m");
+}
+
+void reset () {
+  printf("\033[0m");
+}
+
+void id_colorize(uint32_t id) {
+	switch(id){
+		case 0:
+			red();
+			break;
+		case 1:
+			yellow();
+			break;
+		default:
+			reset();
+			break;
+	}
+}
 
 #define HASH_RETURN_IF_ERROR(handle, cond, str, ...) do {                \
     if (cond) {                         \
@@ -158,17 +187,20 @@ int set_id(uint32_t qp, uint32_t id) {
 
 uint32_t get_id(uint32_t qp) {
 	uint32_t* return_value;
+	uint32_t id;
 	int ret = rte_hash_lookup_data(qp2id_table,&qp,(void **)&return_value);
 	if (ret < 0) {
-		uint32_t id = qp_id_counter;
+		id = qp_id_counter;
 		log_printf(DEBUG,"no such id exists yet adding qp id pq: %d id: %d\n",qp, id);
 		printf("no such id exists yet adding qp id pq: %d id: %d\n",qp, id);
 		set_id(qp,id);
 		qp_id_counter++;
-		return id;
 	} else {
-		return *return_value;
+		id = *return_value;
 	}
+	//Turn this on and off for debugging
+	id_colorize(id);
+	return id;
 }
 
 
@@ -179,7 +211,7 @@ uint32_t readable_seq(uint32_t seq) {
 void print_connection_state(struct Connection_State* cs) {
 	printf("ID: %d port-cts %d port-stc %d\n",cs->id, cs->udp_src_port_client, cs->udp_src_port_server);
 	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
-	printf("seqt %d seq %d\n",readable_seq(cs->seq_current),cs->seq_current);
+	printf("seqt %d seq %d mseqt %d mseq\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
 
 void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey) {
@@ -202,18 +234,113 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	cs.rkey = rkey;
 	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
 	//cs.udp_src_port_server = 0;
+	//cs.mseq_current = 0;
 	Connection_States[cs.id] = cs;
 }
 
-//TODO put this in the write and CNS path
+void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct write_request *wr = (struct write_request*) clover_header;
+	struct read_request * read_req = (struct read_request *)clover_header;
+	struct cs_request * cs_req = (struct cs_request *)clover_header;
+
+	switch(roce_hdr->opcode) {
+		case RC_WRITE_ONLY:
+			wr->rdma_extended_header.rkey = rkey;
+			return;
+		case RC_READ_REQUEST:
+			read_req->rdma_extended_header.rkey = rkey;
+			return;
+		case RC_CNS:
+			cs_req->atomic_req.rkey = rkey;
+			return;
+		default:
+    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
+			printf("rh-opcode unknown while setting rkey. Exiting\n");
+			exit(0);
+	}
+	return;
+}
+
+uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct write_request *wr = (struct write_request*) clover_header;
+	struct read_request * read_req = (struct read_request *)clover_header;
+	struct cs_request * cs_req = (struct cs_request *)clover_header;
+
+	switch(roce_hdr->opcode) {
+		case RC_WRITE_ONLY:
+			return wr->rdma_extended_header.rkey;
+		case RC_READ_REQUEST:
+			return read_req->rdma_extended_header.rkey;
+		case RC_CNS:
+			return cs_req->atomic_req.rkey;
+		default:
+			printf("rh-opcode unknown while getting rkey. Exiting\n");
+			exit(0);
+	}
+	return -1;
+}
+
 void init_cs_wrapper(struct rte_udp_hdr *udp_hdr, struct roce_v2_header *roce_hdr) {
 
-	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS && roce_hdr->opcode != RC_READ_REQUEST) {
+	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_READ_REQUEST && roce_hdr->opcode != RC_CNS ) {
 		printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
 		exit(0);
 	}
-	//init_connection_state(udp_hdr->src_port, roce_hdr->dest_qp, htonl(roce_hdr->packet_sequence_number),0);
-	init_connection_state(udp_hdr->src_port, roce_hdr->dest_qp, roce_hdr->packet_sequence_number,0);
+
+	uint32_t rkey = get_rkey_rdma_packet(roce_hdr);
+
+	init_connection_state(udp_hdr->src_port, roce_hdr->dest_qp, roce_hdr->packet_sequence_number,rkey);
+	
+}
+
+void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct read_response * read_resp = (struct read_response*) clover_header;
+	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
+	struct cs_response * cs_resp = (struct cs_response *)clover_header;
+	uint32_t* msn;
+	switch(roce_hdr->opcode) {
+		case RC_READ_RESPONSE:;
+			read_resp->ack_extended.sequence_number = new_msn;
+			return;
+		case RC_ACK:;
+			ack->ack_extended.sequence_number = new_msn;
+			return;
+		case RC_ATOMIC_ACK:;
+			cs_resp->ack_extended.sequence_number = new_msn;
+			return;
+		default:
+			printf("WRONG HEADER MSN NOT FOUND\n");
+			exit(0);
+			return;
+	}
+	return;
+}
+
+uint32_t get_msn(struct roce_v2_header *roce_hdr) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct read_response * read_resp = (struct read_response*) clover_header;
+	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
+	struct cs_response * cs_resp = (struct cs_response *)clover_header;
+	uint32_t* msn;
+	switch(roce_hdr->opcode) {
+		case RC_READ_RESPONSE:;
+			msn = read_resp->ack_extended.sequence_number;
+			break;
+		case RC_ACK:;
+			msn = ack->ack_extended.sequence_number;
+			break;
+		case RC_ATOMIC_ACK:;
+			msn=cs_resp->ack_extended.sequence_number;
+			break;
+		default:
+			printf("WRONG HEADER MSN NOT FOUND\n");
+			exit(0);
+			break;
+	}
+	return msn;
 }
 
 
@@ -228,8 +355,8 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		if (cs.seq_current == roce_hdr->packet_sequence_number) {
 			cs.stcqp = roce_hdr->dest_qp;
 			cs.udp_src_port_server = udp_hdr->src_port;
+			cs.mseq_current = get_msn(roce_hdr);
 			Connection_States[cs.id] = cs;
-			//printf("Connection State Established\n");
 			print_connection_state(&cs);
 			//exit(0);
 			return;
@@ -323,7 +450,6 @@ void classify_packet_size(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce) 
 	}
 	count_values(packet_size_index[opcode],packet_size_calls[opcode], PACKET_SIZES, size);
 }
-
 
 
 void print_bytes(const uint8_t * buf, uint32_t len) {
@@ -664,7 +790,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 				return;
 			}
 
-			log_printf(DEBUG,"Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
+			//log_printf(DEBUG,"Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
+			printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
 
 
 			//TODO store concurrent ops efficiently 
@@ -690,10 +817,10 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 				exit(0);
 			}
 
-			printf("dest connection\n");
-			print_connection_state(destination_connection);
-			printf("src connection\n");
-			print_connection_state(&Connection_States[id]);
+			//printf("dest connection\n");
+			//print_connection_state(destination_connection);
+			//printf("src connection\n");
+			//print_connection_state(&Connection_States[id]);
 
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
@@ -710,13 +837,26 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
 
-
-			//TODO modify the packet with the new sequence number
+			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
 			roce_hdr->packet_sequence_number = destination_connection->seq_current;
 			udp_hdr->src_port = destination_connection->udp_src_port_client;
 
-			//TODO recalculate the checksum
+			/*
+			uint32_t old_key = ntohl(get_rkey_rdma_packet(roce_hdr));
+			uint32_t new_key = ntohl(destination_connection->rkey);CK
+    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
+			printf("Old RKEY - %d\n",old_key);
+			printf("New RKEY - %d\n",new_key);
+			if (new_key != old_key) {
+				//printf("new != old, don't replace just watch for now");
+				debug_start_printing_every_packet = 1;
+				set_rkey_rdma_packet(roce_hdr,destination_connection->rkey);
+			} else {
+				set_rkey_rdma_packet(roce_hdr,destination_connection->rkey);
+			}
+			*/
+
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
@@ -775,8 +915,12 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
 			if (mapped_request->mapped_sequence == search_sequence_number) {
-				log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-				//printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+				//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+
+				//I think that j has to be the id number here
+				id_colorize(mapped_request->id);
+
+				printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
 
 				//Now we need to map back
@@ -784,6 +928,38 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 				roce_hdr->packet_sequence_number = mapped_request->original_sequence;
 				udp_hdr->src_port = mapped_request->server_to_client_udp_port;
+
+				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
+				msn = htonl(ntohl(msn) + 256);
+				set_msn(roce_hdr,msn);
+				Connection_States[mapped_request->id].mseq_current = msn;
+
+
+				if (roce_hdr->packet_sequence_number != msn && msn != 0) {
+					printf("PSN NOT EQUAL FUCK upper %d, lower %d\n",readable_seq(roce_hdr->packet_sequence_number),readable_seq(msn));
+					/*
+					switch(roce_hdr->opcode) {
+						case RC_READ_RESPONSE:;
+							read_resp->ack_extended.sequence_number = psn;
+							break;
+						case RC_ACK:;
+							ack->ack_extended.sequence_number = psn;
+							break;
+						case RC_ATOMIC_ACK:;
+							cs_resp->ack_extended.sequence_number = psn;
+							break;
+						default:
+							printf("DEFAULT RDMA NOT HANEDLED\n");
+							break;
+					}
+					*/
+
+				} else {
+					printf("PSN EQUAL ===== upper %d, lower %d\n",readable_seq(roce_hdr->packet_sequence_number),readable_seq(msn));
+				}
+
+
+
 
 				//TODO recalculate the checksum
 				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -820,12 +996,12 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
-;
+	uint32_t r_qp= roce_hdr->dest_qp;
+
 
 	if (opcode == RC_ACK) {
 		map_qp(pkt);
-		//struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		//printf("ACK ok %d\n",ack->ack_extended.opcode);
+
 		//find_and_set_stc_qp_wrapper(roce_hdr);
 		//map_qp_backwards(pkt);
 		//This is purely here for testing CRC
@@ -850,13 +1026,13 @@ void true_classify(struct rte_mbuf * pkt) {
 		//count_read_resp_addr(rr);
 	}
 
-	uint32_t r_qp= roce_hdr->dest_qp;
 
 	//Write Requestdest_qp
 			//Dangerous section
 			//print_packet(pkt);
 
 	if (opcode == RC_WRITE_ONLY) {
+		printf("----------WRITE--------");
 		if (size == 252) {
 			//TODO determine what these writes are doing
 			//log_printf(DEBUG,"type1 size %d\n",size);
@@ -930,7 +1106,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				//okay so this happens twice becasuse the order is 
 				//Write 1;
 				//Write 2;
-				//CNS 1 (write 1 - > write 2)
+				//Cn wNS 1 (write 1 - > write 2)
 				if (first_write[*key] == 0) {
 					//These are dummy values for testing because I think I got the algorithm wrong
 					first_write[*key] = 1;
@@ -996,7 +1172,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			//print_packet(pkt);
 			//exit(0);
 		} else {
-			printf("regular cns ack seq %d -- dest qp %d\n",ntohl(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
+			printf("CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
 
 		map_qp(pkt);
@@ -1066,10 +1242,10 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint64_t predict = outstanding_write_predicts[id][key];
 		//printf("Raw predict %d\n",predict);
 		predict = predict + be64toh(first_cns[key]);
-		predict = htobe64( 0x00000000FFFFFF & predict);
+		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 		//predict = htobe64( 0x00000000FFFFFFFF & predict);
 
-		printf("(cns) KEY %d qp_id %d seq %d \n",key,r_qp,ntohl(roce_hdr->packet_sequence_number));
+		printf("(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
 
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
@@ -1116,6 +1292,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			//printf("the next tail of the list for key %"PRIu64" has been found to be id: %d vaddr: %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
 		} else {
 			//Fatal, unable to find the next key
+			printf("Crasing on (CNS PREDICT) ID: %d psn %d\n",id,readable_seq(roce_hdr->packet_sequence_number));
 			printf("predicted: %"PRIu64"\n",be64toh(predict));
 			printf("actual:    %"PRIu64"\n",be64toh(swap));
 			print_address(&predict);
@@ -1538,6 +1715,7 @@ void print_roce_v2_hdr(struct roce_v2_header * rh) {
 			printf("read_request\n");
 			struct read_request * read_req = (struct read_request *)clover_header;
 			print_read_request(read_req);
+			break;
 		case RC_READ_RESPONSE:
 			printf("roce read\n");
 			struct read_response * read_resp = (struct read_response*) clover_header;
@@ -1547,31 +1725,19 @@ void print_roce_v2_hdr(struct roce_v2_header * rh) {
 			printf("roce ack\n");
 			break;
 		case RC_ATOMIC_ACK:
-			printf("atomic_ack\n");
-			struct cs_request * cs_req = (struct cs_request *)clover_header;
-			print_cs_request(cs_req);
-			break;
-		case RC_CNS:
 			printf("atomic_req\n");
 			struct cs_response * cs_resp = (struct cs_response *)clover_header;
 			print_cs_response(cs_resp);
 			break;
+		case RC_CNS:
+			printf("atomic_ack\n");
+			struct cs_request * cs_req = (struct cs_request *)clover_header;
+			print_cs_request(cs_req);
+			break;
 		default:
 			printf("DEFAULT RDMA NOT HANEDLED\n");
-		break;
-
-
-void print_ack_extended_header(struct AETH *aeth);
-}
-
-void print_rdma_extended_header(struct RTEH *rteh);
-
-    printf("Raw Roce\n");
-    printf("Roce Size %lu\n", sizeof(struct roce_v2_header));
-    for (uint i=0;i<sizeof(struct roce_v2_header);i++) {
-        printf("%02X ",((uint8_t*)(rh))[i]);
-    }
-    printf("\n");
+			break;
+	}
 }
 
 struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
@@ -1755,7 +1921,9 @@ lcore_main(void)
 
 				//rte_rwlock_write_lock(&next_lock);
 				log_printf(DEBUG,"Packet Start\n");
-				//print_packet(rx_pkts[i]);
+				if (debug_start_printing_every_packet != 0) {
+					print_packet(rx_pkts[i]);
+				}
 				true_classify(rx_pkts[i]);
 				log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);

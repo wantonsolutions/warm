@@ -73,11 +73,6 @@ struct send_only {
   uint8_t * data;
 } send_only;
 
-
-
-
-
-
 typedef struct ib_mr_attr ptr_attr;
 
 struct mitsume_msg_header {
