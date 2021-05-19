@@ -232,8 +232,8 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	cs.seq_current = seq;
 	cs.udp_src_port_client = udp_src_port;
 	cs.ctsqp = cts_dest_qp;
-	//TODO printf("ADD RKEYS TO THE CONNECTION STATE (FEB 23 2021)\n");
 	cs.rkey = rkey;
+	//These fields do not need to be set. They are for the second half of the algorithm
 	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
 	//cs.udp_src_port_server = 0;
 	//cs.mseq_current = 0;
@@ -351,24 +351,25 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
 		//Should be the state when the id is not set
+		//TODO set a bool to check if the connection state is in the first part of it's init
 		if (cs.seq_current == 0) {
 			continue;
 		}
-		if (cs.seq_current == roce_hdr->packet_sequence_number) {
 
+		if (cs.seq_current == roce_hdr->packet_sequence_number) {
 			//Make sure that we only set this once;
 			//TODO add a seperate bool that marks both states of initialization
-			if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
+			//if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
+            if (has_mapped_qp == 0) {
+				printf("First (or more) mapping of msn,stcqp\n");
 				cs.stcqp = roce_hdr->dest_qp;
 				cs.udp_src_port_server = udp_hdr->src_port;
-				printf("SETTING MSN RAW FROM PACKET");
 				cs.mseq_current = get_msn(roce_hdr);
 				Connection_States[cs.id] = cs;
 				print_connection_state(&cs);
 			} else {
-				printf("stc allready set\n");
+				log_printf(DEBUG,"stc allready set\n");
 			}
-			//exit(0);
 			return;
 		}
 	}
@@ -780,8 +781,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
 	log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = key_to_qp(key);
-	uint32_t n_seq = 666666;
-	uint16_t n_port = 666;
 
 	//find the current sequence number of that qp
 	for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -925,11 +924,10 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
 			if (mapped_request->mapped_sequence == search_sequence_number) {
-				//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
 				//I think that j has to be the id number here
 				id_colorize(mapped_request->id);
-
+	            //log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 				printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
 
@@ -942,50 +940,23 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
 				uint32_t packet_msn = get_msn(roce_hdr);
 				//The 256 here is the shifted msn, not sure why it's 256
-
 				printf("MSN for ID %d\n",mapped_request->id);
-
 				printf("Packet MSN = %d Stored MSN = %d\n",readable_seq(packet_msn),readable_seq(msn));
-				msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
 
-				printf("msn after addition %d\n",readable_seq(msn));
-				
+				//Update the tracked msn this requires adding to it, and then storing back to the connection states
+				msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
 				set_msn(roce_hdr,msn);
 				Connection_States[mapped_request->id].mseq_current = msn;
+				printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				if (roce_hdr->packet_sequence_number != msn && msn != 0) {
-					printf("PSN NOT EQUAL FUCK upper %d, lower %d\n",readable_seq(roce_hdr->packet_sequence_number),readable_seq(msn));
-					/*
-					switch(roce_hdr->opcode) {
-						case RC_READ_RESPONSE:;
-							read_resp->ack_extended.sequence_number = psn;
-							break;
-						case RC_ACK:;
-							ack->ack_extended.sequence_number = psn;
-							break;
-						case RC_ATOMIC_ACK:;
-							cs_resp->ack_extended.sequence_number = psn;
-							break;
-						default:
-							printf("DEFAULT RDMA NOT HANEDLED\n");
-							break;
-					}
-					*/
-
-				} else {
-					printf("PSN EQUAL ===== upper %d, lower %d\n",readable_seq(roce_hdr->packet_sequence_number),readable_seq(msn));
-				}
-
-
-
-
-				//TODO recalculate the checksum
+				//r ecalculate the checksum
 				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 				memcpy(current_checksum,&crc_check,4);
 
 				//Remove the entry
+				//TODO put this in its own function
 				mapped_request->open=1;
 				mapped_request->id=0;
 				mapped_request->original_sequence=0;
@@ -1051,7 +1022,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			//print_packet(pkt);
 
 	if (opcode == RC_WRITE_ONLY) {
-		printf("----------WRITE--------");
 		if (size == 252) {
 			//TODO determine what these writes are doing
 			//log_printf(DEBUG,"type1 size %d\n",size);
@@ -1186,12 +1156,12 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
 		if (original != 0) {
 			nacked_cns++;
-			printf("nacked cns %d\n",nacked_cns);
-			printf("SHOULD BE EXITING (if you see this check cache!!!\n");
+			//printf("nacked cns %d\n",nacked_cns);
+			//printf("SHOULD BE EXITING (if you see this check cache!!!\n");
 			//print_packet(pkt);
 			//exit(0);
 		} else {
-			printf("CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
+			log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		}
 
 		map_qp(pkt);
@@ -1214,7 +1184,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
 		cts_track_connection_state(udp_hdr,roce_hdr);
-		printf("cns- (qp) dqp %d seq %d\n",r_qp,ntohl(roce_hdr->packet_sequence_number));
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
@@ -1264,7 +1233,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 		//predict = htobe64( 0x00000000FFFFFFFF & predict);
 
-		printf("(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
+		log_printf(DEBUG,"(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
 
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
