@@ -159,6 +159,7 @@ void id_colorize(uint32_t id) {
     }                               \
 } while(0)
 
+
 uint32_t key_to_qp(uint64_t key) {
 
 	//Keys start at 1, so I'm subtracting 1 to make the first key equal to index
@@ -767,6 +768,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 	uint32_t id = get_id(r_qp);
 
+	printf("TODO start here, we are going to create a FULLY initalized state for qp mapping\n");
 	if (has_mapped_qp == 0) {
 		print_packet(pkt);
 		print_first_mapping();
@@ -780,7 +782,13 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
 	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
 	//log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
-	uint32_t n_qp = key_to_qp(key);
+	uint32_t n_qp = 0;
+	if (roce_hdr->opcode==RC_READ_REQUEST) {
+		printf("No QP redirect on reads\n");
+		n_qp = roce_hdr->dest_qp;
+	} else {
+		n_qp = key_to_qp(key);
+	}
 
 	//find the current sequence number of that qp
 	for (int i=0;i<TOTAL_ENTRY;i++) {
