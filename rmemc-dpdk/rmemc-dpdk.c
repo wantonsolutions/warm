@@ -720,9 +720,9 @@ void map_qp(struct rte_mbuf * pkt) {
 		map_qp_backwards(pkt);
 
 	} else if (opcode == RC_READ_REQUEST) {
-		//TODO start here tomorrow.
+		//TODO start here tomorrow MAY 20 2021.
 		//TODO I don't have a key in the read request... I need one to route
-		uint64_t stub_zero_key = 1;
+		uint64_t stub_zero_key = 0;
 		uint64_t *key = &stub_zero_key;
 		if (has_mapped_qp == 0) {
 			cts_track_connection_state(udp_hdr,roce_hdr);
@@ -779,7 +779,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
 	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
-	log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
+	//log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = key_to_qp(key);
 
 	//find the current sequence number of that qp
@@ -800,7 +800,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			}
 
 			//log_printf(DEBUG,"Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
-			printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
+			//printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
 
 
 			//TODO store concurrent ops efficiently 
@@ -831,6 +831,12 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//printf("src connection\n");
 			//print_connection_state(&Connection_States[id]);
 
+			//Update the tracked msn this requires adding to it, and then storing back to the connection states
+			uint32_t msn = Connection_States[id].mseq_current;
+			msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
+			Connection_States[id].mseq_current = msn;
+			//printf("MAP FRWD(key %d) :: (%d -> %d) (%d)\n",key, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
+
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
 			//we can use the id to track which sequence number belongs
@@ -845,6 +851,13 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+
+
+
+			//update the msn stored on the outstanding request
+			
+			//printf("Returned MSN %d\n", readable_seq(msn));
+
 
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
@@ -909,14 +922,14 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
 	//TODO this loop can be removed by being able to do a get id on a server size qp
-	for (int i=0;i<3;i++) {
-	//for (int i=0;i<TOTAL_ENTRY;i++) {
+	//for (int i=0;i<3;i++) {
+	for (int i=0;i<TOTAL_ENTRY;i++) {
 		struct Connection_State *source_connection;
 		source_connection=&Connection_States[i];
 
 
-		//for (int j=0;j<TOTAL_ENTRY;j++) {
-		for (int j=0;j<3;j++) {
+		for (int j=0;j<TOTAL_ENTRY;j++) {
+		//for (int j=0;j<5;j++) {
 			struct Request_Map * mapped_request;
 			mapped_request = &(source_connection->Outstanding_Requests[j]);
 
@@ -928,7 +941,8 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//I think that j has to be the id number here
 				id_colorize(mapped_request->id);
 	            //log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-				printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+				
+				
 
 
 				//Now we need to map back
@@ -939,18 +953,23 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
 				uint32_t packet_msn = get_msn(roce_hdr);
+
 				//The 256 here is the shifted msn, not sure why it's 256
-				printf("MSN for ID %d\n",mapped_request->id);
-				printf("Packet MSN = %d Stored MSN = %d\n",readable_seq(packet_msn),readable_seq(msn));
-
+				//printf("MSN for ID %d\n",mapped_request->id);
+				//printf("Packet MSN = %d Stored MSN = %d\n",readable_seq(packet_msn),readable_seq(msn));
+				/*
 				//Update the tracked msn this requires adding to it, and then storing back to the connection states
-				msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
+				//msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
+				//Connection_States[mapped_request->id].mseq_current = msn;
+				*/
 				set_msn(roce_hdr,msn);
-				Connection_States[mapped_request->id].mseq_current = msn;
-				printf("Returned MSN %d\n", readable_seq(msn));
+				//printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				//r ecalculate the checksum
+				//printf("\t\tMAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
+
+
+				//re ecalculate the checksum
 				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 				memcpy(current_checksum,&crc_check,4);
