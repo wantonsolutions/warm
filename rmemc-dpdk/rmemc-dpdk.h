@@ -45,6 +45,8 @@ struct Connection_State {
   uint32_t stcqp;
   uint32_t seq_current; // Packet sequence number
   uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
+  uint32_t sender_init;
+  uint32_t receiver_init;
   struct Request_Map Outstanding_Requests[TOTAL_ENTRY];
 } Connection_State;
 

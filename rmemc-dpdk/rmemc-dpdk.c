@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdarg.h>
+#include <signal.h>
 #include <inttypes.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -51,6 +52,10 @@
 
 #define SEQUENCE_NUMBER_SHIFT 256
 
+#define TOTAL_PACKET_LATENCIES 10000
+
+#define TOTAL_CLIENTS 2
+
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
 0x00,0x30,0x2A,0x2B,0x40,0x00,0x40,0x11,0x8D,0x26,0xC0,0xA8,0x01,0x0C,0xC0,0xA8,
@@ -88,6 +93,36 @@ int MAP_QP = 1;
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
 //rdma calls counts the number of calls for each RDMA op code
+uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
+uint64_t packet_latency_count = 0;
+
+
+void append_packet_latency(uint64_t clock_cycles) {
+	if (packet_latency_count < TOTAL_PACKET_LATENCIES) {
+		packet_latencies[packet_latency_count] = clock_cycles;
+		packet_latency_count++;
+	}
+}
+
+void write_packet_latencies_to_known_file() {
+	char* filename="/tmp/latency-latest.dat";
+	printf("test\n");
+	printf("Writing a total of %"PRIu64" packet latencies to %s\n",packet_latency_count,filename);
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+
+	for (int i=0;i<packet_latency_count;i++) {
+		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
+	}
+	fclose(fp);
+
+
+}
+
 uint32_t rdma_call_count[RDMA_COUNTER_SIZE];
 
 
@@ -167,9 +202,11 @@ uint32_t key_to_qp(uint64_t key) {
 	//here we are just taking all of the keys and wrapping them around so the
 	//first key goes to the first qp, and the qp_id_counter + 1  key goes to the
 	//first qp
-
-	return id_qp[(key-1)%qp_id_counter];
+	uint32_t index = (key-1)%qp_id_counter;
+	printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
+	return id_qp[index];
 }
+
 
 
 int init_hash(void) {
@@ -217,6 +254,16 @@ void print_connection_state(struct Connection_State* cs) {
 	printf("seqt %d seq %d mseqt %d mseq\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
 
+int fully_qp_init() {
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		struct Connection_State cs = Connection_States[i];
+		if (!cs.sender_init || !cs.receiver_init) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey) {
 
 	//Find the connection state if it exists
@@ -234,6 +281,7 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	cs.udp_src_port_client = udp_src_port;
 	cs.ctsqp = cts_dest_qp;
 	cs.rkey = rkey;
+	cs.sender_init=1;
 	//These fields do not need to be set. They are for the second half of the algorithm
 	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
 	//cs.udp_src_port_server = 0;
@@ -353,7 +401,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		cs = Connection_States[i];
 		//Should be the state when the id is not set
 		//TODO set a bool to check if the connection state is in the first part of it's init
-		if (cs.seq_current == 0) {
+		if (cs.sender_init == 0) {
 			continue;
 		}
 
@@ -366,6 +414,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 				cs.stcqp = roce_hdr->dest_qp;
 				cs.udp_src_port_server = udp_hdr->src_port;
 				cs.mseq_current = get_msn(roce_hdr);
+				cs.receiver_init=1;
 				Connection_States[cs.id] = cs;
 				print_connection_state(&cs);
 			} else {
@@ -745,7 +794,7 @@ void map_qp(struct rte_mbuf * pkt) {
 	} else if (opcode == RC_ATOMIC_ACK) {
 		map_qp_backwards(pkt);
 	} else if (opcode == RC_CNS) {
-		if (qp_id_counter == 2) {
+		if (fully_qp_init()) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
 			map_qp_forward(pkt,latest_key[id]);
 		}
@@ -768,7 +817,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 	uint32_t id = get_id(r_qp);
 
-	printf("TODO start here, we are going to create a FULLY initalized state for qp mapping\n");
 	if (has_mapped_qp == 0) {
 		print_packet(pkt);
 		print_first_mapping();
@@ -843,7 +891,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			uint32_t msn = Connection_States[id].mseq_current;
 			msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
 			Connection_States[id].mseq_current = msn;
-			//printf("MAP FRWD(key %d) :: (%d -> %d) (%d)\n",key, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
+			printf("MAP FRWD(key %d) :: (%d -> %d) (%d)\n",key, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
 
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
@@ -974,7 +1022,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				//printf("\t\tMAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
+				printf("\t\tMAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
 
 
 				//re ecalculate the checksum
@@ -1220,6 +1268,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint32_t id = get_id(r_qp);
 		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
 
+		map_qp(pkt);
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -1332,7 +1381,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			exit(0);
 		}
 
-		map_qp(pkt);
 
 
 		rte_smp_mb();
@@ -1825,6 +1873,25 @@ void print_packet(struct rte_mbuf * buf) {
 
 }
 
+static __inline__ int64_t rdtsc_s(void)
+{
+  unsigned a, d; 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  asm volatile("rdtsc" : "=a" (a), "=d" (d)); 
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
+
+static __inline__ int64_t rdtsc_e(void)
+{
+  unsigned a, d; 
+  asm volatile("rdtscp" : "=a" (a), "=d" (d)); 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
+
+
+
+
 /*
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
@@ -1934,12 +2001,19 @@ lcore_main(void)
 				}
 				#endif
 
+
 				//rte_rwlock_write_lock(&next_lock);
 				log_printf(DEBUG,"Packet Start\n");
 				if (debug_start_printing_every_packet != 0) {
 					print_packet(rx_pkts[i]);
 				}
+				int64_t clocks_before = rdtsc_s ();
 				true_classify(rx_pkts[i]);
+				int64_t clocks_after = rdtsc_e ();
+				int64_t clocks_per_packet = clocks_after - clocks_before;
+				append_packet_latency(clocks_per_packet);
+				
+				//printf("cpp %"PRIu64"\n",clocks_per_packet);
 				log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
 
@@ -2019,6 +2093,15 @@ void fork_lcores(void) {
 	} 	
 }
 
+volatile sig_atomic_t flag = 0;
+void kill_signal_handler(int sig){
+	printf("Captured Signal (%d)\n",sig);
+	write_packet_latencies_to_known_file();
+	exit(0);
+}
+
+
+
 
 /*
  * The main function, which does initialization and calls the per-lcore
@@ -2069,6 +2152,9 @@ main(int argc, char *argv[])
 	
 
 	if (init == 0) {
+
+		signal(SIGINT, kill_signal_handler);
+
 		bzero(first_write,KEYSPACE*sizeof(uint64_t));
 		bzero(second_write,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(first_cns,KEYSPACE*sizeof(uint64_t));
@@ -2079,6 +2165,8 @@ main(int argc, char *argv[])
 		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
+
+		bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
 
 		init_connection_states();
 		init_hash();
