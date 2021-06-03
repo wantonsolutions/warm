@@ -54,7 +54,7 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 2
+#define TOTAL_CLIENTS 4
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -205,7 +205,7 @@ uint32_t key_to_qp(uint64_t key) {
 	//first qp
 	//uint32_t index = (key-1)%qp_id_counter;
 	uint32_t index = (key)%qp_id_counter;
-	printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
+	//printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
 	return id_qp[index];
 }
 
@@ -779,28 +779,35 @@ void map_qp(struct rte_mbuf * pkt) {
 		uint64_t stub_zero_key = 0;
 		uint64_t *key = &stub_zero_key;
 		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
+			return;
+			//cts_track_connection_state(udp_hdr,roce_hdr);
 		} else {
 			map_qp_forward(pkt,*key);
 		}
 	} else if (opcode == RC_READ_RESPONSE) {
-		find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+		//!don't find and map here either, consider this the strictest operation
+		//find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		map_qp_backwards(pkt);
 
 	} else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
 		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
+			return;
+			//cts_track_connection_state(udp_hdr,roce_hdr);
 		} else {
 			map_qp_forward(pkt,*key);
 		}
 	} else if (opcode == RC_ATOMIC_ACK) {
+		find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		map_qp_backwards(pkt);
 	} else if (opcode == RC_CNS) {
 		if (fully_qp_init()) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
 			map_qp_forward(pkt,latest_key[id]);
+		}
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
 		}
 	}
 
@@ -836,7 +843,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = 0;
 	if (roce_hdr->opcode==RC_READ_REQUEST) {
-		printf("No QP redirect on reads\n");
+		//printf("No QP redirect on reads\n");
 		n_qp = roce_hdr->dest_qp;
 	} else {
 		n_qp = key_to_qp(key);
@@ -895,7 +902,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			uint32_t msn = Connection_States[id].mseq_current;
 			msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
 			Connection_States[id].mseq_current = msn;
-			printf("MAP FRWD(key %d) (id %d) :: (%d -> %d) (%d)\n",key, id, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
+			//printf("MAP FRWD(key %d) (id %d) :: (%d -> %d) (%d)\n",key, id, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
 
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
@@ -1026,7 +1033,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				printf("        MAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
+				//printf("        MAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
 
 
 				//re ecalculate the checksum
