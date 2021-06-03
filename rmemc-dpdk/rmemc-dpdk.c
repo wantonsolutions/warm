@@ -173,6 +173,7 @@ void reset () {
 }
 
 void id_colorize(uint32_t id) {
+	return;
 	switch(id){
 		case 0:
 			red();
@@ -202,7 +203,8 @@ uint32_t key_to_qp(uint64_t key) {
 	//here we are just taking all of the keys and wrapping them around so the
 	//first key goes to the first qp, and the qp_id_counter + 1  key goes to the
 	//first qp
-	uint32_t index = (key-1)%qp_id_counter;
+	//uint32_t index = (key-1)%qp_id_counter;
+	uint32_t index = (key)%qp_id_counter;
 	printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
 	return id_qp[index];
 }
@@ -271,7 +273,7 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	int id = get_id(cts_dest_qp);
 	cs = Connection_States[id];
 
-	if (cs.udp_src_port_client != 0) {
+	if (cs.sender_init != 0) {
 		log_printf(DEBUG,"Connection State allready initialized DEST QP(%d)\n",cts_dest_qp);
 		return;
 	}
@@ -439,7 +441,7 @@ void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hd
 void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq) {
 	uint32_t id = get_id(stc_dest_qp);
 	struct Connection_State * cs =&Connection_States[id];
-	if (cs->ctsqp == 0) {
+	if (cs->sender_init == 0) {
 		printf("Attempting to set sequence number for non existant connection (exiting)");
 		exit(0);
 	}
@@ -766,7 +768,9 @@ void map_qp(struct rte_mbuf * pkt) {
 
 	if (opcode == RC_ACK) {
 		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+		//! Don't do find and set on ACK's this will only get you in trouble.
+		//! acks can be associated with all kinds of stuff
+		//find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		map_qp_backwards(pkt);
 
 	} else if (opcode == RC_READ_REQUEST) {
@@ -891,7 +895,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			uint32_t msn = Connection_States[id].mseq_current;
 			msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
 			Connection_States[id].mseq_current = msn;
-			printf("MAP FRWD(key %d) :: (%d -> %d) (%d)\n",key, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
+			printf("MAP FRWD(key %d) (id %d) :: (%d -> %d) (%d)\n",key, id, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
 
 			//The next step is to save the data from the current packet
 			//to a list of outstanding requests. As clover is blocking
@@ -1022,7 +1026,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				printf("\t\tMAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
+				printf("        MAP BACK :: (%d <- %d) (%d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn));
 
 
 				//re ecalculate the checksum
