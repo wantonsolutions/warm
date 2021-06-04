@@ -929,14 +929,9 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	} else {
 		n_qp = key_to_qp(key);
 	}
-	//printf("Overwriting qp 0\n");
-	//n_qp = key_to_qp(key);
 
-	//!! TODO Speed this up
-
-	
+	struct Connection_State *destination_connection;
 	for (int i=0;i<TOTAL_ENTRY;i++) {
-		struct Connection_State *destination_connection;
 		destination_connection=&Connection_States[i];
 		if (destination_connection->ctsqp == n_qp) {
 			//printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
@@ -961,7 +956,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 					break;
 				}
 			}
-			if (empty_index == invalid_empty_index) {
+			if (unlikely(empty_index == invalid_empty_index)) {
 				printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
 				exit(0);
 			}
@@ -988,6 +983,19 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//we can use the id to track which sequence number belongs
 			//to which request. These values will be used to map
 			//responses back.
+			struct Request_Map map;
+			map.open=0;
+			map.id=id;
+			//Save a unique id of sequence number and the qp that this response will arrive back on
+			map.mapped_sequence=destination_connection->seq_current;
+			map.mapped_destination_server_to_client_qp=destination_connection->stcqp;
+			map.original_sequence=roce_hdr->packet_sequence_number;
+			//Store the server to client to qp that this we will need to make the swap
+			map.server_to_client_qp=Connection_States[id].stcqp;
+			map.server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+
+			destination_connection->Outstanding_Requests[empty_index] = map;
+			/*
 			destination_connection->Outstanding_Requests[empty_index].open=0;
 			destination_connection->Outstanding_Requests[empty_index].id=id;
 			//Save a unique id of sequence number and the qp that this response will arrive back on
@@ -997,6 +1005,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Store the server to client to qp that this we will need to make the swap
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+			*/
 			
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
