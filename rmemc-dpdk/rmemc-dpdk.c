@@ -462,43 +462,40 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 
 	//Safty to prevent colisions when the sequence numbers align
 	if (total_matches > 1) {
-		printf("find and set STC collision, wait another round\n");
+		//printf("find and set STC collision, wait another round\n");
 		return;
 	}
 	//Return if nothing is found
 	if (total_matches != 1) {
-		printf("not able to find a running connection to update\n");
+		//printf("not able to find a running connection to update\n");
 		return;
 	}
 
-	cs = Connection_States[matching_id];
-	id_colorize(matching_id);
-	//Make sure that we only set this once;
-	//TODO add a seperate bool that marks both states of initialization
-	//if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
 
+    #ifdef DATA_PATH_PRINT
+	id_colorize(matching_id);
 	printf("First (or more) mapping of msn,stcqp\n");
 	printf("Current Connection state entry (id %d)\n", matching_id);
 	print_connection_state(&cs);
+	#endif
+
+	cs = Connection_States[matching_id];
 	cs.stcqp = roce_hdr->dest_qp;
 	cs.udp_src_port_server = udp_hdr->src_port;
 
 	//quick check that the MSN's make sense
 	uint32_t msn = get_msn(roce_hdr);
 	if (cs.receiver_init == 1) {
-		if (readable_seq(msn) <= readable_seq(cs.mseq_current)) {
+		if (unlikely(readable_seq(msn) < readable_seq(cs.mseq_current))) {
 			printf(">>>>>>>>     Issues with MSN, should be monotonic packet msn %d local msn %d\n",readable_seq(msn),readable_seq(cs.mseq_current));
-			//exit(0);
+			exit(0);
 		}
 	}
 
 	cs.mseq_current = msn;
 	cs.receiver_init=1;
-	printf("Exit connection state \n");
-	print_connection_state(&cs);
 	Connection_States[matching_id] = cs;
 	return;
-	//printf("Unable to find and set QP for for stc_dest %d and seq %d (probably another connection)\n",stc_dest_qp,seq);
 }
 
 //TODO put this in the ACK path
@@ -930,6 +927,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 		n_qp = key_to_qp(key);
 	}
 
+
+	//uint32_t dest_id = get_id(n_qp);
 	struct Connection_State *destination_connection;
 	for (int i=0;i<TOTAL_ENTRY;i++) {
 		destination_connection=&Connection_States[i];
@@ -983,19 +982,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//we can use the id to track which sequence number belongs
 			//to which request. These values will be used to map
 			//responses back.
-			struct Request_Map map;
-			map.open=0;
-			map.id=id;
-			//Save a unique id of sequence number and the qp that this response will arrive back on
-			map.mapped_sequence=destination_connection->seq_current;
-			map.mapped_destination_server_to_client_qp=destination_connection->stcqp;
-			map.original_sequence=roce_hdr->packet_sequence_number;
-			//Store the server to client to qp that this we will need to make the swap
-			map.server_to_client_qp=Connection_States[id].stcqp;
-			map.server_to_client_udp_port=Connection_States[id].udp_src_port_server;
 
-			destination_connection->Outstanding_Requests[empty_index] = map;
-			/*
+
 			destination_connection->Outstanding_Requests[empty_index].open=0;
 			destination_connection->Outstanding_Requests[empty_index].id=id;
 			//Save a unique id of sequence number and the qp that this response will arrive back on
@@ -1005,7 +993,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Store the server to client to qp that this we will need to make the swap
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
-			*/
 			
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
@@ -1032,7 +1019,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 
-	if (has_mapped_qp == 0) {
+	if (unlikely(has_mapped_qp ==  0 )) {
 		printf("We have not started multiplexing yet. Returning with no packet modifictions.\n");
 		return;
 	}
@@ -1047,41 +1034,35 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	//log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
+	struct Connection_State *source_connection;
+	struct Request_Map * mapped_request;
+
 	//TODO this loop can be removed by being able to do a get id on a server size qp
-	//for (int i=0;i<3;i++) {
 	for (int i=0;i<TOTAL_ENTRY;i++) {
-		struct Connection_State *source_connection;
+		//This optimization is safe because we should not ever have more than qp enteries in the Connection State list
+		if (unlikely(i > qp_id_counter)) {
+			return;
+		}
 		source_connection=&Connection_States[i];
 
-
 		for (int j=0;j<TOTAL_ENTRY;j++) {
-		//for (int j=0;j<5;j++) {
-			struct Request_Map * mapped_request;
+
 			mapped_request = &(source_connection->Outstanding_Requests[j]);
-
-			//log_printf(DEBUG,"looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
-
 			//First search to find if the sequence numbers match
 			if (mapped_request->mapped_sequence == search_sequence_number) {
 
 
-				struct Connection_State *test_connection;
-				test_connection=&Connection_States[mapped_request->id];
 				if (mapped_request->mapped_destination_server_to_client_qp != roce_hdr->dest_qp) {
 					//printf("DANGER I THINK THIS IS THE POINT THAT DESERVES A CONTINUE (test stqp %d hdr_stqp %d \n",test_connection->stcqp,roce_hdr->dest_qp);
 					continue;
 				}
 
 				//I think that j has to be the id number here
-				id_colorize(mapped_request->id);
 	            //log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-	            //printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",readable_seq(mapped_request->mapped_sequence), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-
 				//printf("QP mapping ( %d <-- %d )\n", mapped_request->server_to_client_qp, roce_hdr->dest_qp);
 
 				//Now we need to map back
-				//TODO modify the packet directly
 				roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 				roce_hdr->packet_sequence_number = mapped_request->original_sequence;
 				udp_hdr->src_port = mapped_request->server_to_client_udp_port;
@@ -1094,20 +1075,12 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 
 				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
-				uint32_t packet_msn = get_msn(roce_hdr);
-
-				//The 256 here is the shifted msn, not sure why it's 256
-				//printf("MSN for ID %d\n",mapped_request->id);
-				//printf("Packet MSN = %d Stored MSN = %d\n",readable_seq(packet_msn),readable_seq(msn));
-				/*
-				//Update the tracked msn this requires adding to it, and then storing back to the connection states
-				//msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
-				//Connection_States[mapped_request->id].mseq_current = msn;
-				*/
 				set_msn(roce_hdr,msn);
 				//printf("Returned MSN %d\n", readable_seq(msn));
 
 				#ifdef MAP_PRINT
+				uint32_t packet_msn = get_msn(roce_hdr);
+				id_colorize(mapped_request->id);
 				printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 				#endif
 
@@ -1120,17 +1093,9 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//Remove the entry
 				//TODO put this in its own function
 				mapped_request->open=1;
-				mapped_request->id=0;
-				mapped_request->original_sequence=0;
-				mapped_request->server_to_client_qp=0;
-				mapped_request->server_to_client_udp_port=0;
-				mapped_request->mapped_sequence=0;
-
 				return;
 
-			} else {
-				continue;
-			}
+			} 
 
 		}
 	}
@@ -2088,7 +2053,7 @@ lcore_main(void)
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
 
-				if (roce_hdr->opcode == RC_READ_REQUEST) {
+				if (roce_hdr->opcode == RC_ACK) {
 					append_packet_latency(clocks_per_packet);
 				}
 				
