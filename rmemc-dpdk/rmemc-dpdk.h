@@ -33,6 +33,7 @@ struct Request_Map {
   uint32_t original_sequence;
   uint32_t mapped_sequence;
   uint32_t server_to_client_qp;
+  uint32_t mapped_destination_server_to_client_qp;
   uint16_t server_to_client_udp_port;
 } Request_Map;
 

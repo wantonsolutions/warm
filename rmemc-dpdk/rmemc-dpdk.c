@@ -431,6 +431,15 @@ uint32_t get_msn(struct roce_v2_header *roce_hdr) {
 
 void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	struct Connection_State cs;
+	int32_t matching_id = -1;
+	uint32_t total_matches = 0;
+
+	//Everything has been initlaized, return
+	if (likely(has_mapped_qp != 0)) {
+		return;
+	}
+		
+	//Find the coonection
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
 		//Should be the state when the id is not set
@@ -441,40 +450,50 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 
 		//if (cs.seq_current == roce_hdr->packet_sequence_number) {
 		if (cs.seq_current == roce_hdr->packet_sequence_number) {
-			id_colorize(i);
-			//Make sure that we only set this once;
-			//TODO add a seperate bool that marks both states of initialization
-			//if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
-            if (has_mapped_qp == 0) {
+			matching_id = i;
+			total_matches++;
 
-				printf("First (or more) mapping of msn,stcqp\n");
-
-				printf("Current Connection state entry (id %d)\n", i);
-				print_connection_state(&cs);
-				cs.stcqp = roce_hdr->dest_qp;
-				cs.udp_src_port_server = udp_hdr->src_port;
-
-				//quick check that the MSN's make sense
-				uint32_t msn = get_msn(roce_hdr);
-				if (cs.receiver_init == 1) {
-					if (readable_seq(msn) <= readable_seq(cs.mseq_current)) {
-						printf(">>>>>>>>     Issues with MSN, should be monotonic packet msn %d local msn %d\n",readable_seq(msn),readable_seq(cs.mseq_current));
-						//exit(0);
-					}
-				}
-
-				cs.mseq_current = msn;
-				cs.receiver_init=1;
-				printf("Exit connection state \n");
-				print_connection_state(&cs);
-				Connection_States[i] = cs;
-				return;
-			} else {
-				log_printf(DEBUG,"stc allready set\n");
-			}
-			return;
 		}
 	}
+
+	//Safty to prevent colisions when the sequence numbers align
+	if (total_matches > 1) {
+		printf("find and set STC collision, wait another round\n");
+		return;
+	}
+	//Return if nothing is found
+	if (total_matches != 1) {
+		printf("not able to find a running connection to update\n");
+		return;
+	}
+
+	cs = Connection_States[matching_id];
+	id_colorize(matching_id);
+	//Make sure that we only set this once;
+	//TODO add a seperate bool that marks both states of initialization
+	//if (cs.stcqp == 0 && cs.udp_src_port_server == 0 && cs.mseq_current ==0) {
+
+	printf("First (or more) mapping of msn,stcqp\n");
+	printf("Current Connection state entry (id %d)\n", matching_id);
+	print_connection_state(&cs);
+	cs.stcqp = roce_hdr->dest_qp;
+	cs.udp_src_port_server = udp_hdr->src_port;
+
+	//quick check that the MSN's make sense
+	uint32_t msn = get_msn(roce_hdr);
+	if (cs.receiver_init == 1) {
+		if (readable_seq(msn) <= readable_seq(cs.mseq_current)) {
+			printf(">>>>>>>>     Issues with MSN, should be monotonic packet msn %d local msn %d\n",readable_seq(msn),readable_seq(cs.mseq_current));
+			//exit(0);
+		}
+	}
+
+	cs.mseq_current = msn;
+	cs.receiver_init=1;
+	printf("Exit connection state \n");
+	print_connection_state(&cs);
+	Connection_States[matching_id] = cs;
+	return;
 	//printf("Unable to find and set QP for for stc_dest %d and seq %d (probably another connection)\n",stc_dest_qp,seq);
 }
 
@@ -880,6 +899,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	
 	
 	uint32_t r_qp= roce_hdr->dest_qp;
+	//id is the senders id
 	uint32_t id = get_id(r_qp);
 
 	if (has_mapped_qp == 0) {
@@ -953,11 +973,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//print_connection_state(destination_connection);
 			//printf("src connection\n");
 			//print_connection_state(&Connection_States[id]);
-
-			//Update the tracked msn this requires adding to it, and then storing back to the connection states
 			uint32_t msn = Connection_States[id].mseq_current;
-			msn = htonl(ntohl(msn) + SEQUENCE_NUMBER_SHIFT);
-			Connection_States[id].mseq_current = msn;
 
 			//Our middle box needs to keep track of the sequence number
 			//that should be tracked for the destination. This should
@@ -981,7 +997,12 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Store the server to client to qp that this we will need to make the swap
 			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
+			destination_connection->Outstanding_Requests[empty_index].mapped_destination_server_to_client_qp=destination_connection->stcqp;
+
+
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+
+
 
 
 
@@ -1058,7 +1079,17 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			log_printf(DEBUG,"looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
+
+			//!! IF THIS IS THE BUG KILL YOURSELF
 			if (mapped_request->mapped_sequence == search_sequence_number) {
+
+
+				struct Connection_State *test_connection;
+				test_connection=&Connection_States[mapped_request->id];
+				if (mapped_request->mapped_destination_server_to_client_qp != roce_hdr->dest_qp) {
+					printf("DANGER I THINK THIS IS THE POINT THAT DESERVES A CONTINUE (test stqp %d hdr_stqp %d \n",test_connection->stcqp,roce_hdr->dest_qp);
+					continue;
+				}
 
 				//I think that j has to be the id number here
 				id_colorize(mapped_request->id);
@@ -1072,6 +1103,13 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 				roce_hdr->packet_sequence_number = mapped_request->original_sequence;
 				udp_hdr->src_port = mapped_request->server_to_client_udp_port;
+
+				//Update the tracked msn this requires adding to it, and then storing back to the connection states
+				//TODO put this in it's own function
+				uint32_t msn_update = Connection_States[mapped_request->id].mseq_current;
+				msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
+				Connection_States[mapped_request->id].mseq_current = msn_update;
+
 
 				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
 				uint32_t packet_msn = get_msn(roce_hdr);
