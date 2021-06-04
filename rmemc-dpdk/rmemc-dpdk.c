@@ -54,7 +54,9 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 4
+#define TOTAL_CLIENTS 8
+
+//#define DATA_PATH_PRINT
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -250,8 +252,10 @@ int init_hash(void) {
 }
 
 int set_id(uint32_t qp, uint32_t id) {
+	#ifdef DATA_PATH_PRINT
 	log_printf(DEBUG,"adding (%d,%d) to hash table\n",qp,id);
 	printf("adding (%d,%d) to hash table\n",qp,id);
+	#endif
 	qp_values[id]=id;
 	id_qp[id]=qp;
 	int ret = rte_hash_add_key_data(qp2id_table,&qp,&qp_values[id]);
@@ -509,15 +513,16 @@ void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hd
 
 void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq) {
 	uint32_t id = get_id(stc_dest_qp);
-	id_colorize(id);
 	struct Connection_State * cs =&Connection_States[id];
 	if (cs->sender_init == 0) {
 		printf("Attempting to set sequence number for non existant connection (exiting)");
 		exit(0);
 	}
 	cs->seq_current = seq;
+	#ifdef DATA_PATH_PRINT
 	printf("Updated connection state based on sequence number\n");
 	print_connection_state(cs);
+	#endif
 }
 
 void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
@@ -530,10 +535,10 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
 }
 
 void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
-	init_cs_wrapper(udp_hdr,roce_hdr);
 	if (has_mapped_qp == 1) {
 		return;
 	}
+	init_cs_wrapper(udp_hdr,roce_hdr);
 	update_cs_seq_wrapper(roce_hdr);
 }
 
@@ -902,9 +907,11 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//id is the senders id
 	uint32_t id = get_id(r_qp);
 
-	if (has_mapped_qp == 0) {
+	if (unlikely(has_mapped_qp == 0)) {
+		#ifdef DATA_PATH_PRINT
 		print_packet(pkt);
 		print_first_mapping();
+		#endif 
 		has_mapped_qp = 1;
 	}
 
@@ -925,7 +932,9 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//printf("Overwriting qp 0\n");
 	//n_qp = key_to_qp(key);
 
-	//find the current sequence number of that qp
+	//!! TODO Speed this up
+
+	
 	for (int i=0;i<TOTAL_ENTRY;i++) {
 		struct Connection_State *destination_connection;
 		destination_connection=&Connection_States[i];
@@ -936,25 +945,13 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//print_connection_state(destination_connection);
 
 
-			//If the stcqp has not been found just wait untill it has.
-			if (destination_connection->stcqp == 0) {
-				printf("stcqp for this connection unknown, returning without mapping\n");
-				return;
-			}
-
-			//log_printf(DEBUG,"Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
-			//printf("Sequence number update raw (%d -> %d) readable (%d -> %d) \n",roce_hdr->packet_sequence_number, destination_connection->seq_current, readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current));
-
-
-			//TODO store concurrent ops efficiently 
-			
 			//Multiple reads occur at once. We don't want them to overwrite
 			//eachother. Initally I used Oustanding_Requests[id] to hold
 			//requests. But this only ever used the one index. On parallel reads
 			//the sequence number over write the old one because they collied.
 			//To save time, I'm using the old extra space TOTAL_ENTRIES in the
 			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
-			//
+			
 			//Search for an open slot
 			uint32_t invalid_empty_index = TOTAL_ENTRY+1;
 			uint32_t empty_index = invalid_empty_index;
@@ -991,51 +988,26 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//we can use the id to track which sequence number belongs
 			//to which request. These values will be used to map
 			//responses back.
-
 			destination_connection->Outstanding_Requests[empty_index].open=0;
 			destination_connection->Outstanding_Requests[empty_index].id=id;
-			//Save the unique ID, we are going to use this to search for this later
+			//Save a unique id of sequence number and the qp that this response will arrive back on
 			destination_connection->Outstanding_Requests[empty_index].mapped_sequence=destination_connection->seq_current;
-			//Store the server to client to qp that this we will need to make the swap
-			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
-			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].mapped_destination_server_to_client_qp=destination_connection->stcqp;
-
-
+			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
+			//Store the server to client to qp that this we will need to make the swap
+			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
 			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
-
-
-
-
-
-			//update the msn stored on the outstanding request
 			
-			//printf("Returned MSN %d\n", readable_seq(msn));
-
-
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
 			roce_hdr->packet_sequence_number = destination_connection->seq_current;
 			udp_hdr->src_port = destination_connection->udp_src_port_client;
 
-			/*
-			uint32_t old_key = ntohl(get_rkey_rdma_packet(roce_hdr));
-			uint32_t new_key = ntohl(destination_connection->rkey);CK
-    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
-			printf("Old RKEY - %d\n",old_key);
-			printf("New RKEY - %d\n",new_key);
-			if (new_key != old_key) {
-				//printf("new != old, don't replace just watch for now");
-				debug_start_printing_every_packet = 1;
-				set_rkey_rdma_packet(roce_hdr,destination_connection->rkey);
-			} else {
-				set_rkey_rdma_packet(roce_hdr,destination_connection->rkey);
-			}
-			*/
+			//csum the modified packet
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
-
+			return;
 		}
 	}
 }
@@ -1065,7 +1037,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	//TODO hash the id of the outstanding reqest to map the qp back. This can be done O(1)
 
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
+	//log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
 	//TODO this loop can be removed by being able to do a get id on a server size qp
 	//for (int i=0;i<3;i++) {
 	for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -1078,18 +1050,17 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			struct Request_Map * mapped_request;
 			mapped_request = &(source_connection->Outstanding_Requests[j]);
 
-			log_printf(DEBUG,"looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+			//log_printf(DEBUG,"looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 
-
-			//!! IF THIS IS THE BUG KILL YOURSELF
+			//First search to find if the sequence numbers match
 			if (mapped_request->mapped_sequence == search_sequence_number) {
 
 
 				struct Connection_State *test_connection;
 				test_connection=&Connection_States[mapped_request->id];
 				if (mapped_request->mapped_destination_server_to_client_qp != roce_hdr->dest_qp) {
-					printf("DANGER I THINK THIS IS THE POINT THAT DESERVES A CONTINUE (test stqp %d hdr_stqp %d \n",test_connection->stcqp,roce_hdr->dest_qp);
+					//printf("DANGER I THINK THIS IS THE POINT THAT DESERVES A CONTINUE (test stqp %d hdr_stqp %d \n",test_connection->stcqp,roce_hdr->dest_qp);
 					continue;
 				}
 
@@ -1218,9 +1189,11 @@ void true_classify(struct rte_mbuf * pkt) {
 			//print_packet(pkt);
 			uint64_t *key = (uint64_t*)&(wr->data);
 			uint32_t id = get_id(r_qp);
+			#ifdef DATA_PATH_PRINT
 			log_printf(INFO,"ID: %d KEY: %"PRIu64"\n",id,*key);
 			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
 			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
+			#endif
 			//print_packet(pkt);
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
@@ -1330,7 +1303,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	}
 
     if (opcode == RC_ATOMIC_ACK) {
-		log_printf(DEBUG,"ATOMIC ACK\n");
 		//printf("atomic ack\n");
 		struct cs_response * csr = (struct cs_response*) clover_header;
 		//printf("original contents A%"PRIu64"\n",be64toh(csr->atomc_ack_extended.original_remote_data));
@@ -1342,27 +1314,15 @@ void true_classify(struct rte_mbuf * pkt) {
 			//printf("SHOULD BE EXITING (if you see this check cache!!!\n");
 			//print_packet(pkt);
 			//exit(0);
-		} else {
-			log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
-		}
-
+		} 
+		#ifdef DATA_PATH_PRINT
+		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
+		#endif
 		map_qp(pkt);
-
-		/*
-		printf("original contents %d -- \n",htonl(csr->atomc_ack_extended.original_remote_data));
-		print_bytes(&csr->atomc_ack_extended.original_remote_data,8);
-		printf("\n");
-		printf("opcode %d\n",csr->ack_extended.opcode);
-		printf("credit %d\n",csr->ack_extended.credit_count);
-		printf("res %d\n",csr->ack_extended.reserved);
-		print_ip_header(ipv4_hdr);
-		printf("\n");
-		*/
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
 
-		log_printf(DEBUG,"CNS\n");
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
 		//cts_track_connection_state(udp_hdr,roce_hdr);
@@ -1390,14 +1350,14 @@ void true_classify(struct rte_mbuf * pkt) {
 
 
 		if (first_cns[latest_key[id]] == 0) {
-			log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
+			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
 			first_cns[latest_key[id]] = swap;
 			first_write[latest_key[id]] = outstanding_write_vaddrs[id][latest_key[id]];
 			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][latest_key[id]];
 
 			for (uint i=0;i<qp_id_counter;i++) {
 				if (outstanding_write_predicts[i][latest_key[id]] == 1) {
-					log_printf(INFO,"(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
+					//log_printf(INFO,"(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
 					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][latest_key[id]]) - be64toh(first_write[latest_key[id]])) >> 10);
 					outstanding_write_predicts[i][latest_key[id]] = predict;
 				}
@@ -1416,12 +1376,16 @@ void true_classify(struct rte_mbuf * pkt) {
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 		//predict = htobe64( 0x00000000FFFFFFFF & predict);
 
+		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
+		#endif
 
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
 		if (next_vaddr[latest_key[id]] == cs->atomic_req.vaddr) {
+			#ifdef DATA_PATH_PRINT
 			log_printf(DEBUG,"this is good, it seems we made the correct prediction, this is the common case Key %d ID %d\n",latest_key[id],id);
+			#endif
 			
 		} else {
 			/*
@@ -1455,13 +1419,14 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//given that a cns has been determined move the next address for this 
 		//key, to the outstanding write of the cns that was just made
-		if (predict == swap) {
+		if (likely(predict == swap)) {
 			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][key];
 			//erase the old entries
 			outstanding_write_predicts[id][latest_key[id]] = 0;
 			outstanding_write_vaddrs[id][latest_key[id]] = 0;
 			//printf("the next tail of the list for key %"PRIu64" has been found to be id: %d vaddr: %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
 		} else {
+			//This is the crash condtion
 			//Fatal, unable to find the next key
 			printf("Crasing on (CNS PREDICT) ID: %d psn %d\n",id,readable_seq(roce_hdr->packet_sequence_number));
 			printf("predicted: %"PRIu64"\n",be64toh(predict));
@@ -1487,15 +1452,10 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("unable to find the next oustanding write, how can this be? SWAP: %"PRIu64" latest_key[id = %d]=%"PRIu64", first cns[key = %"PRIu64"]=%"PRIu64"\n",swap,id,latest_key[id],latest_key[id],first_cns[latest_key[id]]);
 			exit(0);
 		}
-
-
-
 		rte_smp_mb();
 		rte_rwlock_write_unlock(&next_lock);
 
 	}
-
-
 	return;
 }
 
@@ -2085,7 +2045,6 @@ lcore_main(void)
 					rte_pktmbuf_free(rx_pkts[i]);
 					continue;
 				}
-				/*
 
 				roce_hdr = roce_hdr_process(udp_hdr);
 				if (unlikely(roce_hdr == NULL)) {
@@ -2094,6 +2053,7 @@ lcore_main(void)
 					continue;
 				}
 
+				/*
 				clover_header = mitsume_msg_process(roce_hdr);
 				if (unlikely(clover_header == NULL)) {
 					log_printf(DEBUG, "clover msg not parsable for some reason\n");
@@ -2118,7 +2078,10 @@ lcore_main(void)
 				true_classify(rx_pkts[i]);
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
-				append_packet_latency(clocks_per_packet);
+
+				if (roce_hdr->opcode == RC_READ_REQUEST) {
+					append_packet_latency(clocks_per_packet);
+				}
 				
 				//printf("cpp %"PRIu64"\n",clocks_per_packet);
 				log_printf(DEBUG,"Packet End\n\n");
