@@ -902,8 +902,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	} else {
 		n_qp = key_to_qp(key);
 	}
-		printf("Overwriting qp 0\n");
-		n_qp = key_to_qp(key);
+	//printf("Overwriting qp 0\n");
+	//n_qp = key_to_qp(key);
 
 	//find the current sequence number of that qp
 	for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -965,7 +965,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Here we increment the sequence number
 			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
-			printf("MAP FRWD(key %d) (id %d) (op: %s) :: (%d -> %d) (%d)\n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn));
+			printf("MAP FRWD(key %d) (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 
 
 			//The next step is to save the data from the current packet
@@ -1009,15 +1009,9 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 				set_rkey_rdma_packet(roce_hdr,destination_connection->rkey);
 			}
 			*/
-
-
-
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
-			
-			
-
 
 		}
 	}
@@ -1069,9 +1063,9 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//I think that j has to be the id number here
 				id_colorize(mapped_request->id);
 	            //log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-				
-				
+	            //printf("Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",readable_seq(mapped_request->mapped_sequence), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
 
+				printf("QP mapping ( %d <-- %d )\n", mapped_request->server_to_client_qp, roce_hdr->dest_qp);
 
 				//Now we need to map back
 				//TODO modify the packet directly
@@ -1094,7 +1088,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 				//printf("Returned MSN %d\n", readable_seq(msn));
 
 
-				printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode]);
+				printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 
 
 				//re ecalculate the checksum
