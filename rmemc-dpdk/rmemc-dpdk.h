@@ -20,7 +20,7 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
-#define TOTAL_ENTRY 256
+#define TOTAL_ENTRY 128
 
 #define DONT_SWAP_VADDR
 

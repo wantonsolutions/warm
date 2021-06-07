@@ -54,9 +54,10 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 8
+#define TOTAL_CLIENTS 2
 
 //#define DATA_PATH_PRINT
+#define MAP_PRINT
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -284,6 +285,20 @@ uint32_t get_id(uint32_t qp) {
 
 uint32_t readable_seq(uint32_t seq) {
 	return ntohl(seq) / 256;
+}
+
+
+void print_request_map(struct Request_Map *rm) {
+	if (rm->open == 1) 
+		printf("open\n");
+	else {
+		printf("closed");
+	}
+
+	printf("ID: %d\n");
+	printf("Original Seq %d, mapped seq %d\n",readable_seq(rm->original_sequence), readable_seq(rm->mapped_sequence));
+	printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
+	printf("stcqp port %d\n", rm->server_to_client_udp_port);
 }
 
 void print_connection_state(struct Connection_State* cs) {
@@ -957,6 +972,10 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			}
 			if (unlikely(empty_index == invalid_empty_index)) {
 				printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
+				for (int j=0;j<TOTAL_ENTRY;j++) {
+					printf("INDEX %d\n",j);
+					print_request_map(&destination_connection->Outstanding_Requests[j]);
+				}
 				exit(0);
 			}
 
@@ -1060,7 +1079,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		mapped_request = &(source_connection->Outstanding_Requests[j]);
 		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 		//First search to find if the sequence numbers match
-		if (mapped_request->mapped_sequence == search_sequence_number) {
+		if (mapped_request->open == 0 && mapped_request->mapped_sequence == search_sequence_number) {
 
 			//I think that j has to be the id number here
 			//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
@@ -1288,10 +1307,10 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
 		if (original != 0) {
 			nacked_cns++;
-			//printf("nacked cns %d\n",nacked_cns);
-			//printf("SHOULD BE EXITING (if you see this check cache!!!\n");
-			//print_packet(pkt);
-			//exit(0);
+			printf("nacked cns %d\n",nacked_cns);
+			printf("SHOULD BE EXITING (if you see this check cache!!!\n");
+			print_packet(pkt);
+			exit(0);
 		} 
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
@@ -1428,6 +1447,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			print_binary_address(&fcns);
 
 			printf("unable to find the next oustanding write, how can this be? SWAP: %"PRIu64" latest_key[id = %d]=%"PRIu64", first cns[key = %"PRIu64"]=%"PRIu64"\n",swap,id,latest_key[id],latest_key[id],first_cns[latest_key[id]]);
+			printf("we should stop here and fail, but for now lets keep going\n");
 			exit(0);
 		}
 		rte_smp_mb();
