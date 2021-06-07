@@ -21,7 +21,7 @@ data = np.loadtxt('/tmp/latency-latest.dat',delimiter=',', unpack=True)
 
 x, y = cdf(data)
 
-plt.xlim(0, 1000)
+plt.xlim(0, 10000)
 plt.plot(x,y, label="latency cycles")
 plt.savefig("latency.pdf")
 
