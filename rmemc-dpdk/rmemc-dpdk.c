@@ -1044,61 +1044,65 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			return;
 		}
 		source_connection=&Connection_States[i];
-
-		for (int j=0;j<TOTAL_ENTRY;j++) {
-
-			mapped_request = &(source_connection->Outstanding_Requests[j]);
-			//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
-			//First search to find if the sequence numbers match
-			if (mapped_request->mapped_sequence == search_sequence_number) {
-
-
-				if (mapped_request->mapped_destination_server_to_client_qp != roce_hdr->dest_qp) {
-					//printf("DANGER I THINK THIS IS THE POINT THAT DESERVES A CONTINUE (test stqp %d hdr_stqp %d \n",test_connection->stcqp,roce_hdr->dest_qp);
-					continue;
-				}
-
-				//I think that j has to be the id number here
-	            //log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-				//printf("QP mapping ( %d <-- %d )\n", mapped_request->server_to_client_qp, roce_hdr->dest_qp);
-
-				//Now we need to map back
-				roce_hdr->dest_qp = mapped_request->server_to_client_qp;
-				roce_hdr->packet_sequence_number = mapped_request->original_sequence;
-				udp_hdr->src_port = mapped_request->server_to_client_udp_port;
-
-				//Update the tracked msn this requires adding to it, and then storing back to the connection states
-				//TODO put this in it's own function
-				uint32_t msn_update = Connection_States[mapped_request->id].mseq_current;
-				msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
-				Connection_States[mapped_request->id].mseq_current = msn_update;
-
-
-				uint32_t msn = Connection_States[mapped_request->id].mseq_current;
-				set_msn(roce_hdr,msn);
-				//printf("Returned MSN %d\n", readable_seq(msn));
-
-				#ifdef MAP_PRINT
-				uint32_t packet_msn = get_msn(roce_hdr);
-				id_colorize(mapped_request->id);
-				printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
-				#endif
-
-
-				//re ecalculate the checksum
-				uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-				void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-				memcpy(current_checksum,&crc_check,4);
-
-				//Remove the entry
-				//TODO put this in its own function
-				mapped_request->open=1;
-				return;
-
-			} 
-
+		if (source_connection->stcqp == roce_hdr->dest_qp) {
+			break;
 		}
+		source_connection=NULL;
 	}
+
+	if (source_connection == NULL) {
+		printf("Unalbe to find matching connection\n");
+		return;
+	}
+
+	for (int j=0;j<TOTAL_ENTRY;j++) {
+
+		mapped_request = &(source_connection->Outstanding_Requests[j]);
+		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+		//First search to find if the sequence numbers match
+		if (mapped_request->mapped_sequence == search_sequence_number) {
+
+			//I think that j has to be the id number here
+			//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
+			//printf("QP mapping ( %d <-- %d )\n", mapped_request->server_to_client_qp, roce_hdr->dest_qp);
+
+			//Now we need to map back
+			roce_hdr->dest_qp = mapped_request->server_to_client_qp;
+			roce_hdr->packet_sequence_number = mapped_request->original_sequence;
+			udp_hdr->src_port = mapped_request->server_to_client_udp_port;
+
+			//Update the tracked msn this requires adding to it, and then storing back to the connection states
+			//TODO put this in it's own function
+			uint32_t msn_update = Connection_States[mapped_request->id].mseq_current;
+			msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
+			Connection_States[mapped_request->id].mseq_current = msn_update;
+
+
+			uint32_t msn = Connection_States[mapped_request->id].mseq_current;
+			set_msn(roce_hdr,msn);
+			//printf("Returned MSN %d\n", readable_seq(msn));
+
+			#ifdef MAP_PRINT
+			uint32_t packet_msn = get_msn(roce_hdr);
+			id_colorize(mapped_request->id);
+			printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+			#endif
+
+
+			//re ecalculate the checksum
+			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+			memcpy(current_checksum,&crc_check,4);
+
+			//Remove the entry
+			//TODO put this in its own function
+			mapped_request->open=1;
+			return;
+
+		} 
+
+	}
+
 }
 
 
