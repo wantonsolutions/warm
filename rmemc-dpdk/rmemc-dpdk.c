@@ -56,8 +56,8 @@
 
 #define TOTAL_CLIENTS 4
 
-#define DATA_PATH_PRINT
-#define MAP_PRINT
+//#define DATA_PATH_PRINT
+//#define MAP_PRINT
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -278,7 +278,10 @@ uint32_t get_id(uint32_t qp) {
 		id = *return_value;
 	}
 	//Turn this on and off for debugging
+	#ifdef DATA_PATH_PRINT
 	id_colorize(id);
+	#endif
+
 	return id;
 }
 
