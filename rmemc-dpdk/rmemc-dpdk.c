@@ -54,9 +54,9 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 2
+#define TOTAL_CLIENTS 4
 
-//#define DATA_PATH_PRINT
+#define DATA_PATH_PRINT
 #define MAP_PRINT
 
 uint8_t test_ack_pkt[] = {
@@ -461,8 +461,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	//Find the coonection
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
-		//Should be the state when the id is not set
-		//TODO set a bool to check if the connection state is in the first part of it's init
+		//sender_init, should not be set if the connection state has not been completely inited
 		if (cs.sender_init == 0) {
 			continue;
 		}
@@ -471,7 +470,6 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		if (cs.seq_current == roce_hdr->packet_sequence_number) {
 			matching_id = i;
 			total_matches++;
-
 		}
 	}
 
@@ -486,17 +484,16 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		return;
 	}
 
+	cs = Connection_States[matching_id];
+	cs.stcqp = roce_hdr->dest_qp;
+	cs.udp_src_port_server = udp_hdr->src_port;
 
     #ifdef DATA_PATH_PRINT
 	id_colorize(matching_id);
 	printf("First (or more) mapping of msn,stcqp\n");
 	printf("Current Connection state entry (id %d)\n", matching_id);
 	print_connection_state(&cs);
-	#endif
-
-	cs = Connection_States[matching_id];
-	cs.stcqp = roce_hdr->dest_qp;
-	cs.udp_src_port_server = udp_hdr->src_port;
+    #endif
 
 	//quick check that the MSN's make sense
 	uint32_t msn = get_msn(roce_hdr);
@@ -513,7 +510,6 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	return;
 }
 
-//TODO put this in the ACK path
 void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	if (roce_hdr->opcode != RC_ACK && roce_hdr->opcode != RC_ATOMIC_ACK && roce_hdr->opcode != RC_READ_RESPONSE) {
 		printf("Only find and set stc on ACKS, and responses");
@@ -880,11 +876,40 @@ void map_qp(struct rte_mbuf * pkt) {
 	} else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
-		if (has_mapped_qp == 1) {
+
+
+		if (fully_qp_init()) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			//!TODO TODO figure out what is actually going on here
+			/*
+			When I perform writes across keys but aslo mux QP on the writes
+			there is an issue where writes with size of 68 get through and
+			do not cause a jump in the sequnce number. The weird thing is
+			that when I wrote the inital interposition this worked fine. By
+			inital I mean single key many id reader and writer. I'm not sure
+			how adding a new key lead to writes of size 68 showing up, and
+			why they did not before hand. The bottom line is that 1) I'm not
+			sure I can get the key from these packets. so it relies on the
+			fact that the prior CNS or write for this key is going to the
+			same qp as the 68 byte write. I'm using the last key, so that
+			there is not reordering on the recipt of the packets because
+			that causes faulting.
+
+			Jun 15 2021 - Stewart Grant
+			*/
+
+			if (size == 68) {
+				//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
+				//map_qp_forward(pkt,latest_key[id]);
+				*key = latest_key[id];
+			}
 			map_qp_forward(pkt,*key);
-		} else {
+		}
+		if (has_mapped_qp == 0) {
 			cts_track_connection_state(udp_hdr,roce_hdr);
 		}
+
+
 	} else if (opcode == RC_ATOMIC_ACK) {
 		if (has_mapped_qp == 1) {
 			map_qp_backwards(pkt);
@@ -892,7 +917,7 @@ void map_qp(struct rte_mbuf * pkt) {
 			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		}
 	} else if (opcode == RC_CNS) {
-		if (fully_qp_init()) {
+		if (has_mapped_qp == 1) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
 			map_qp_forward(pkt,latest_key[id]);
 		}
@@ -900,10 +925,98 @@ void map_qp(struct rte_mbuf * pkt) {
 			cts_track_connection_state(udp_hdr,roce_hdr);
 		}
 	}
+}
+
+uint32_t slot_is_open(struct Request_Map *rm) {
+	if (rm->open == 1) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+void close_slot(struct Request_Map* rm) {
+	rm->open=0;
+}
+
+void open_slot(struct Request_Map* rm) {
+	rm->open=1;
+}
+
+uint32_t garbage_collect_slots(struct Connection_State* cs) {
+	//Find the highest sequence number used in this connection
+	uint32_t max_sequence_number=0;
+	for (int j=0;j<TOTAL_ENTRY;j++) {
+		struct Request_Map* slot = &cs->Outstanding_Requests[j];
+		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) > max_sequence_number) {
+			max_sequence_number = readable_seq(cs->Outstanding_Requests[j].mapped_sequence);
+			printf("new max sequence %d\n",max_sequence_number);
+		}
+	}
+
+	//The idea behind the stale water mark, is that entries which have sequence
+	//numbers lower than it have not been accounted for or have disapeared
+	//somewhere in the messaging. This is likely due to bugs, but it's hard to
+	//tell. The point is that we can keep running by just removing these entries
+	//probably. I think it's very important to learn why this is happening but
+	//for now garbage collection might be a path forward.  The value here should
+	//be TOTAL_ENYTRY, but I'm starting with TOTAL_ENTRY * constant_multiper so
+	//that I'm "extra" safe.
+	//!TODO figure out what's actually going on here.
+	uint32_t constant_multiplier = 32;
+	uint32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
+	printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
+	uint32_t garbage_collected = 0;
+
+	for (int j=0;j<TOTAL_ENTRY;j++) {
+		struct Request_Map* slot = &cs->Outstanding_Requests[j];
+		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) < stale_water_mark) {
+			open_slot(slot);
+			garbage_collected++;
+		}
+	}
+
+	return garbage_collected;
+}
+
+struct Request_Map * find_empty_slot(struct Connection_State* cs) {
+	for (int j=0;j<TOTAL_ENTRY;j++) {
+		if (slot_is_open(&cs->Outstanding_Requests[j])) {
+			return &cs->Outstanding_Requests[j];
+		}
+	}
+	return NULL;
+}
 
 
+struct Request_Map * get_empty_slot(struct Connection_State* cs) {
+	//Search
+	struct Request_Map * slot = find_empty_slot(cs);
+	if (likely(slot)) {
+		return slot;
+	}
 
+	printf(" Unable to find empty slot GARBAGE COLLECTING\n");
+	uint32_t collected = garbage_collect_slots(cs);
+	printf("Collected %d garbage slots\n",collected);
 
+	//Second Try
+	slot = find_empty_slot(cs);
+	if (likely(slot)) {
+		return slot;
+	} else {
+		printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
+		for (int j=0;j<TOTAL_ENTRY;j++) {
+			printf("INDEX %d\n",j);
+			print_request_map(&cs->Outstanding_Requests[j]);
+		}
+		//Something has gone very wrong
+		exit(0);
+	}
+
+	//error we did not find anything good
+	exit(0);
+	return NULL;
 }
 
 
@@ -942,6 +1055,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 		n_qp = key_to_qp(key);
 	}
 
+	//printf("KEY %"PRIu64" QP %d\n",key,n_qp);
+
 
 	//uint32_t dest_id = get_id(n_qp);
 	struct Connection_State *destination_connection;
@@ -962,22 +1077,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
 			
 			//Search for an open slot
-			uint32_t invalid_empty_index = TOTAL_ENTRY+1;
-			uint32_t empty_index = invalid_empty_index;
-			for (int j=0;j<TOTAL_ENTRY;j++) {
-				if (destination_connection->Outstanding_Requests[j].open == 1) {
-					empty_index = j;
-					break;
-				}
-			}
-			if (unlikely(empty_index == invalid_empty_index)) {
-				printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
-				for (int j=0;j<TOTAL_ENTRY;j++) {
-					printf("INDEX %d\n",j);
-					print_request_map(&destination_connection->Outstanding_Requests[j]);
-				}
-				exit(0);
-			}
+			struct Request_Map* slot = get_empty_slot(destination_connection);
 
 			//printf("dest connection\n");
 			//print_connection_state(destination_connection);
@@ -1003,15 +1103,15 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//responses back.
 
 
-			destination_connection->Outstanding_Requests[empty_index].open=0;
-			destination_connection->Outstanding_Requests[empty_index].id=id;
+			close_slot(slot);
+			slot->id=id;
 			//Save a unique id of sequence number and the qp that this response will arrive back on
-			destination_connection->Outstanding_Requests[empty_index].mapped_sequence=destination_connection->seq_current;
-			destination_connection->Outstanding_Requests[empty_index].mapped_destination_server_to_client_qp=destination_connection->stcqp;
-			destination_connection->Outstanding_Requests[empty_index].original_sequence=roce_hdr->packet_sequence_number;
+			slot->mapped_sequence=destination_connection->seq_current;
+			slot->mapped_destination_server_to_client_qp=destination_connection->stcqp;
+			slot->original_sequence=roce_hdr->packet_sequence_number;
 			//Store the server to client to qp that this we will need to make the swap
-			destination_connection->Outstanding_Requests[empty_index].server_to_client_qp=Connection_States[id].stcqp;
-			destination_connection->Outstanding_Requests[empty_index].server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+			slot->server_to_client_qp=Connection_States[id].stcqp;
+			slot->server_to_client_udp_port=Connection_States[id].udp_src_port_server;
 			
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
@@ -1049,7 +1149,6 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	//reverse lookup. In this case we have to pass over the whole list of
 	//connections, then we have to look through each entry in each connection to
 	//determine if there is an outstanding request.
-	//TODO hash the id of the outstanding reqest to map the qp back. This can be done O(1)
 
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	//log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
@@ -1070,7 +1169,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 	}
 
 	if (source_connection == NULL) {
-		printf("Unalbe to find matching connection\n");
+		printf("Unable to find matching connection\n");
 		return;
 	}
 
@@ -1079,7 +1178,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		mapped_request = &(source_connection->Outstanding_Requests[j]);
 		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 		//First search to find if the sequence numbers match
-		if (mapped_request->open == 0 && mapped_request->mapped_sequence == search_sequence_number) {
+		if (!slot_is_open(mapped_request) && mapped_request->mapped_sequence == search_sequence_number) {
 
 			//I think that j has to be the id number here
 			//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
@@ -1098,14 +1197,15 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 
 			uint32_t msn = Connection_States[mapped_request->id].mseq_current;
-			set_msn(roce_hdr,msn);
-			//printf("Returned MSN %d\n", readable_seq(msn));
 
 			#ifdef MAP_PRINT
 			uint32_t packet_msn = get_msn(roce_hdr);
 			id_colorize(mapped_request->id);
-			printf("        MAP BACK :: (%d <- %d) (%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+			printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 			#endif
+
+			set_msn(roce_hdr,msn);
+			//printf("Returned MSN %d\n", readable_seq(msn));
 
 
 			//re ecalculate the checksum
@@ -1115,7 +1215,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 			//Remove the entry
 			//TODO put this in its own function
-			mapped_request->open=1;
+			open_slot(mapped_request);
 			return;
 
 		} 
@@ -1177,6 +1277,9 @@ void true_classify(struct rte_mbuf * pkt) {
 			//log_printf(DEBUG,"type1 size %d\n",size);
 		} else if (size == 68) {
 			log_printf(DEBUG,"write (2) size %d\n",size);
+			//print_packet(pkt);
+			//uint32_t id = get_id(r_qp);
+			map_qp(pkt);
 		} else {
 			//Obtain the wite lock
 			rte_rwlock_write_lock(&next_lock);
@@ -1198,7 +1301,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			//When performing qp muxing track the connection state
 			//Keep the state updated untill it's time to actually do the forwarding
 			//TODO this needs to be done on a per key basis
-			map_qp(pkt);
 
 			if (unlikely(write_value_packet_size == 0)) {
 				printf("Write Packet size %d\n",size);
@@ -1269,6 +1371,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			latest_key[id] = *key;
+			map_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 
@@ -1332,7 +1435,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint32_t id = get_id(r_qp);
 		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
 
-		map_qp(pkt);
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -1340,6 +1442,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		if(latest_key[id] > CACHE_KEYSPACE) {
 			//this key is not being tracked, return
 			log_printf(INFO,"(cns) Returning key not tracked no need to adjust %"PRIu64"\n",latest_key[id]);
+
+			map_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -1360,6 +1464,8 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			//Return and forward the packet if this is the first cns
+
+			map_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -1450,10 +1556,12 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("we should stop here and fail, but for now lets keep going\n");
 			exit(0);
 		}
+		map_qp(pkt);
 		rte_smp_mb();
 		rte_rwlock_write_unlock(&next_lock);
 
 	}
+
 	return;
 }
 
@@ -1923,6 +2031,21 @@ struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
 	return clover_header;
 }
 
+void print_packet_lite(struct rte_mbuf * buf) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+
+	char * op = ib_print[roce_hdr->opcode];
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint32_t dest_qp = roce_hdr->dest_qp;
+	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+
+	printf("[op:%s][size: %d][dst: %d][seq %d]\n",op,size,dest_qp,seq);
+
+}
+
 void print_packet(struct rte_mbuf * buf) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2069,9 +2192,6 @@ lcore_main(void)
 
 				//rte_rwlock_write_lock(&next_lock);
 				log_printf(DEBUG,"Packet Start\n");
-				if (debug_start_printing_every_packet != 0) {
-					print_packet(rx_pkts[i]);
-				}
 				int64_t clocks_before = rdtsc_s ();
 				true_classify(rx_pkts[i]);
 				int64_t clocks_after = rdtsc_e ();
@@ -2081,6 +2201,10 @@ lcore_main(void)
 					append_packet_latency(clocks_per_packet);
 				}
 				
+				if (debug_start_printing_every_packet != 0) {
+					//print_packet(rx_pkts[i]);
+					print_packet_lite(rx_pkts[i]);
+				}
 				//printf("cpp %"PRIu64"\n",clocks_per_packet);
 				log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
