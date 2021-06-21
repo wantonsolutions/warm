@@ -54,10 +54,11 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 4
+#define TOTAL_CLIENTS 2
 
-//#define DATA_PATH_PRINT
-//#define MAP_PRINT
+#define DATA_PATH_PRINT
+#define MAP_PRINT
+//#define COLLECT_GARBAGE
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -144,7 +145,7 @@ uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
-uint32_t debug_start_printing_every_packet = 0;
+uint32_t debug_start_printing_every_packet = 1;
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -240,7 +241,7 @@ uint32_t key_to_qp(uint64_t key) {
 	//first qp
 	//uint32_t index = (key-1)%qp_id_counter;
 	uint32_t index = (key)%qp_id_counter;
-	//printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
+	printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
 	return id_qp[index];
 }
 
@@ -278,7 +279,7 @@ uint32_t get_id(uint32_t qp) {
 		id = *return_value;
 	}
 	//Turn this on and off for debugging
-	#ifdef DATA_PATH_PRINT
+	#ifdef MAP_PRINT
 	id_colorize(id);
 	#endif
 
@@ -879,6 +880,7 @@ void map_qp(struct rte_mbuf * pkt) {
 	} else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
+		//printf("(write) Key %"PRIu64"\n",*key);
 
 
 		if (fully_qp_init()) {
@@ -971,6 +973,11 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
 	uint32_t garbage_collected = 0;
 
+	if (stale_water_mark < 0) {
+		return garbage_collected;
+	}
+
+	//Perform garbage collection
 	for (int j=0;j<TOTAL_ENTRY;j++) {
 		struct Request_Map* slot = &cs->Outstanding_Requests[j];
 		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) < stale_water_mark) {
@@ -993,8 +1000,12 @@ struct Request_Map * find_empty_slot(struct Connection_State* cs) {
 
 
 struct Request_Map * get_empty_slot(struct Connection_State* cs) {
+	
+	
 	//Search
-	struct Request_Map * slot = find_empty_slot(cs);
+	struct Request_Map * slot;
+	#ifdef GARBAGE_COLLECT
+	slot = find_empty_slot(cs);
 	if (likely(slot)) {
 		return slot;
 	}
@@ -1002,6 +1013,7 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 	printf(" Unable to find empty slot GARBAGE COLLECTING\n");
 	uint32_t collected = garbage_collect_slots(cs);
 	printf("Collected %d garbage slots\n",collected);
+	#endif
 
 	//Second Try
 	slot = find_empty_slot(cs);
@@ -1242,6 +1254,15 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 
 
+	if (has_mapped_qp == 1) {
+		for(int i=0;i<qp_id_counter;i++){
+			if (id_qp[i]==r_qp) {
+				printf("we should map this packet\n");
+				map_qp(pkt);
+			}
+		}
+	}
+
 	if (opcode == RC_ACK) {
 		map_qp(pkt);
 
@@ -1282,7 +1303,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			log_printf(DEBUG,"write (2) size %d\n",size);
 			//print_packet(pkt);
 			//uint32_t id = get_id(r_qp);
-			map_qp(pkt);
+			//map_qp(pkt);
 		} else {
 			//Obtain the wite lock
 			rte_rwlock_write_lock(&next_lock);
@@ -1297,6 +1318,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
 			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
 			#endif
+			printf("ID: %d KEY: %"PRIu64"\n",id,*key);
 			//print_packet(pkt);
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
@@ -2045,7 +2067,15 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
 
-	printf("[op:%s][size: %d][dst: %d][seq %d]\n",op,size,dest_qp,seq);
+	printf("[op:%s (%d)][size: %d][dst: %d][seq %d]\n",op,roce_hdr->opcode,size,dest_qp,seq);
+
+	if (roce_hdr->opcode == 129) {
+		print_packet(buf);
+		uint8_t ecn = ipv4_hdr->type_of_service;
+		printf("\n\n\n");
+		printf("ECN TOS %X ntoh(%X)\n",ecn,ntohs(ecn));
+		printf("\n\n\n");
+	}
 
 }
 
