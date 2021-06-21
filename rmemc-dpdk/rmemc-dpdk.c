@@ -54,11 +54,11 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 2
+#define TOTAL_CLIENTS 4
 
-#define DATA_PATH_PRINT
-#define MAP_PRINT
-//#define COLLECT_GARBAGE
+//#define DATA_PATH_PRINT
+//#define MAP_PRINT
+#define COLLECT_GARBAGE
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -145,7 +145,7 @@ uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
-uint32_t debug_start_printing_every_packet = 1;
+uint32_t debug_start_printing_every_packet = 0;
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -241,7 +241,7 @@ uint32_t key_to_qp(uint64_t key) {
 	//first qp
 	//uint32_t index = (key-1)%qp_id_counter;
 	uint32_t index = (key)%qp_id_counter;
-	printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
+	//printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
 	return id_qp[index];
 }
 
@@ -838,100 +838,6 @@ void init_connection_states(void) {
 
 }
 
-void map_qp(struct rte_mbuf * pkt) {
-	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
-	if (MAP_QP == 0) {
-		return;
-	}
-
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	uint32_t size = ntohs(ipv4_hdr->total_length);
-	uint8_t opcode = roce_hdr->opcode;
-
-
-
-	if (opcode == RC_ACK) {
-		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		if (has_mapped_qp == 1) {
-			map_qp_backwards(pkt);
-		} else {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-
-	} else if (opcode == RC_READ_REQUEST) {
-		uint64_t stub_zero_key = 0;
-		uint64_t *key = &stub_zero_key;
-		if (has_mapped_qp == 1) {
-			map_qp_forward(pkt,*key);
-		} else {
-			cts_track_connection_state(udp_hdr,roce_hdr);
-		}
-	} else if (opcode == RC_READ_RESPONSE) {
-		if (has_mapped_qp == 1) {
-			map_qp_backwards(pkt);
-		} else {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-
-	} else if (opcode == RC_WRITE_ONLY) {
-		struct write_request * wr = (struct write_request*) clover_header;
-		uint64_t *key = (uint64_t*)&(wr->data);
-		//printf("(write) Key %"PRIu64"\n",*key);
-
-
-		if (fully_qp_init()) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
-			//!TODO TODO figure out what is actually going on here
-			/*
-			When I perform writes across keys but aslo mux QP on the writes
-			there is an issue where writes with size of 68 get through and
-			do not cause a jump in the sequnce number. The weird thing is
-			that when I wrote the inital interposition this worked fine. By
-			inital I mean single key many id reader and writer. I'm not sure
-			how adding a new key lead to writes of size 68 showing up, and
-			why they did not before hand. The bottom line is that 1) I'm not
-			sure I can get the key from these packets. so it relies on the
-			fact that the prior CNS or write for this key is going to the
-			same qp as the 68 byte write. I'm using the last key, so that
-			there is not reordering on the recipt of the packets because
-			that causes faulting.
-
-			Jun 15 2021 - Stewart Grant
-			*/
-
-			if (size == 68) {
-				//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
-				//map_qp_forward(pkt,latest_key[id]);
-				*key = latest_key[id];
-			}
-			map_qp_forward(pkt,*key);
-		}
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
-		}
-
-
-	} else if (opcode == RC_ATOMIC_ACK) {
-		if (has_mapped_qp == 1) {
-			map_qp_backwards(pkt);
-		} else {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-	} else if (opcode == RC_CNS) {
-		if (has_mapped_qp == 1) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
-			map_qp_forward(pkt,latest_key[id]);
-		}
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
-		}
-	}
-}
-
 uint32_t slot_is_open(struct Request_Map *rm) {
 	if (rm->open == 1) {
 		return 1;
@@ -968,8 +874,8 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	//be TOTAL_ENYTRY, but I'm starting with TOTAL_ENTRY * constant_multiper so
 	//that I'm "extra" safe.
 	//!TODO figure out what's actually going on here.
-	uint32_t constant_multiplier = 32;
-	uint32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
+	uint32_t constant_multiplier = 4;
+	int32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
 	printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
 	uint32_t garbage_collected = 0;
 
@@ -1004,7 +910,7 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 	
 	//Search
 	struct Request_Map * slot;
-	#ifdef GARBAGE_COLLECT
+	#ifdef COLLECT_GARBAGE
 	slot = find_empty_slot(cs);
 	if (likely(slot)) {
 		return slot;
@@ -1034,6 +940,15 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 	return NULL;
 }
 
+uint32_t qp_is_mapped(uint32_t qp) {
+	uint32_t is_mapped = 0;
+	for(int i=0;i<qp_id_counter;i++){
+		if (id_qp[i]==qp) {
+			return 1;
+		}
+	}
+	return 0;
+}
 
 void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1187,6 +1102,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		printf("Unable to find matching connection\n");
 		return;
 	}
+	
 
 	for (int j=0;j<TOTAL_ENTRY;j++) {
 
@@ -1232,12 +1148,143 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//TODO put this in its own function
 			open_slot(mapped_request);
 			return;
-
 		} 
-
 	}
 
+	printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
+	printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
+	find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 }
+
+
+void map_qp(struct rte_mbuf * pkt) {
+	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
+	if (MAP_QP == 0) {
+		return;
+	}
+
+	//Not mapping yet
+	if (has_mapped_qp == 0) {
+		return;
+	}
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint8_t opcode = roce_hdr->opcode;
+	uint32_t r_qp= roce_hdr->dest_qp;
+
+	//backward path requires little checking
+	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE) {
+		map_qp_backwards(pkt);
+	}
+
+
+	if (qp_is_mapped(r_qp) == 0) {
+		//This is not a packet we should map forward
+		return;
+	}
+
+
+	if (opcode == RC_READ_REQUEST) {
+		uint64_t stub_zero_key = 0;
+		uint64_t *key = &stub_zero_key;
+		map_qp_forward(pkt,*key);
+	}  else if (opcode == RC_WRITE_ONLY) {
+		struct write_request * wr = (struct write_request*) clover_header;
+		uint64_t *key = (uint64_t*)&(wr->data);
+		uint32_t id = get_id(roce_hdr->dest_qp);
+		//!TODO TODO figure out what is actually going on here
+		/*
+		When I perform writes across keys but aslo mux QP on the writes
+		there is an issue where writes with size of 68 get through and
+		do not cause a jump in the sequnce number. The weird thing is
+		that when I wrote the inital interposition this worked fine. By
+		inital I mean single key many id reader and writer. I'm not sure
+		how adding a new key lead to writes of size 68 showing up, and
+		why they did not before hand. The bottom line is that 1) I'm not
+		sure I can get the key from these packets. so it relies on the
+		fact that the prior CNS or write for this key is going to the
+		same qp as the 68 byte write. I'm using the last key, so that
+		there is not reordering on the recipt of the packets because
+		that causes faulting.
+
+		Jun 15 2021 - Stewart Grant
+		*/
+
+		if (size == 68) {
+			//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
+			//map_qp_forward(pkt,latest_key[id]);
+			*key = latest_key[id];
+		}
+		map_qp_forward(pkt,*key);
+	} else if (opcode == RC_CNS) {
+		uint32_t id = get_id(roce_hdr->dest_qp);
+		map_qp_forward(pkt,latest_key[id]);
+	}
+}
+
+void track_qp(struct rte_mbuf * pkt) {
+	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
+	if (MAP_QP == 0) {
+		return;
+	}
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint8_t opcode = roce_hdr->opcode;
+
+
+
+	if (opcode == RC_ACK) {
+		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
+		if (has_mapped_qp == 0) {
+			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+		}
+
+	} else if (opcode == RC_READ_REQUEST) {
+		uint64_t stub_zero_key = 0;
+		uint64_t *key = &stub_zero_key;
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
+		}
+	} else if (opcode == RC_READ_RESPONSE) {
+		if (has_mapped_qp == 0) {
+			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+		}
+
+	} else if (opcode == RC_WRITE_ONLY) {
+		struct write_request * wr = (struct write_request*) clover_header;
+		uint64_t *key = (uint64_t*)&(wr->data);
+		//flip the switch
+		//!TODO pull this out and make it it's own thing at the beginning.
+		if (fully_qp_init() && has_mapped_qp == 0) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			map_qp_forward(pkt,*key);
+		}
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
+		}
+
+
+	} else if (opcode == RC_ATOMIC_ACK) {
+		if (has_mapped_qp == 0) {
+			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+		}
+	} else if (opcode == RC_CNS) {
+		if (has_mapped_qp == 0) {
+			cts_track_connection_state(udp_hdr,roce_hdr);
+		}
+	}
+}
+
 
 
 
@@ -1254,17 +1301,10 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 
 
-	if (has_mapped_qp == 1) {
-		for(int i=0;i<qp_id_counter;i++){
-			if (id_qp[i]==r_qp) {
-				printf("we should map this packet\n");
-				map_qp(pkt);
-			}
-		}
-	}
+	map_qp(pkt);
 
 	if (opcode == RC_ACK) {
-		map_qp(pkt);
+		track_qp(pkt);
 
 		//find_and_set_stc_qp_wrapper(roce_hdr);
 		//map_qp_backwards(pkt);
@@ -1276,14 +1316,14 @@ void true_classify(struct rte_mbuf * pkt) {
 	} 
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
-		map_qp(pkt);
+		track_qp(pkt);
 		//struct read_request * rr = (struct read_request *)clover_header;
 		//print_read_request(rr);
 		//count_read_req_addr(rr);
 	}
 
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
-		map_qp(pkt);
+		track_qp(pkt);
 		//struct read_response * rr = (struct read_response*) clover_header;
 		//print_packet(pkt);
 		//print_read_response(rr, size);
@@ -1318,7 +1358,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
 			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
 			#endif
-			printf("ID: %d KEY: %"PRIu64"\n",id,*key);
 			//print_packet(pkt);
 			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 			//we should only reach this block if these are write packets	
@@ -1396,7 +1435,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			latest_key[id] = *key;
-			map_qp(pkt);
+			track_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 
@@ -1443,7 +1482,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		#endif
-		map_qp(pkt);
+		track_qp(pkt);
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
@@ -1468,7 +1507,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			//this key is not being tracked, return
 			log_printf(INFO,"(cns) Returning key not tracked no need to adjust %"PRIu64"\n",latest_key[id]);
 
-			map_qp(pkt);
+			track_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -1490,7 +1529,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			}
 			//Return and forward the packet if this is the first cns
 
-			map_qp(pkt);
+			track_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -1581,7 +1620,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("we should stop here and fail, but for now lets keep going\n");
 			exit(0);
 		}
-		map_qp(pkt);
+		track_qp(pkt);
 		rte_smp_mb();
 		rte_rwlock_write_unlock(&next_lock);
 
