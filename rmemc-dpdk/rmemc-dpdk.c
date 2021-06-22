@@ -451,6 +451,39 @@ uint32_t get_msn(struct roce_v2_header *roce_hdr) {
 	return msn;
 }
 
+void increment_msn(struct Connection_State *cs) {
+	uint32_t msn_update = cs->mseq_current;
+	msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
+	cs->mseq_current = msn_update;
+}
+
+uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
+	struct Connection_State *cs;
+
+	uint32_t found = 0;
+
+	//check to see if this value has allready been set
+	//Find the coonection
+	for (int i=0;i<TOTAL_ENTRY;i++){
+		cs = &Connection_States[i];
+		//if (cs.seq_current == roce_hdr->packet_sequence_number) {
+		if (cs->stcqp == roce_hdr->dest_qp && cs->receiver_init == 1) {
+			found = 1;
+			break;
+		}
+	}
+
+	if (found == 0) {
+		return 0;
+	}
+
+	//at this point we have the correct cs
+	increment_msn(cs);
+	//this should be it
+
+	return 1;
+}
+
 
 void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	struct Connection_State cs;
@@ -461,7 +494,14 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	if (likely(has_mapped_qp != 0)) {
 		return;
 	}
-		
+
+	//Try to perform a basic update
+	if (find_and_update_stc(roce_hdr,udp_hdr) == 1) {
+		printf("msn update successful\n");
+		return;
+	}
+
+	//If we are here then the connection should not be initlaized yet	
 	//Find the coonection
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
@@ -488,9 +528,18 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		return;
 	}
 
-	cs = Connection_States[matching_id];
-	cs.stcqp = roce_hdr->dest_qp;
-	cs.udp_src_port_server = udp_hdr->src_port;
+	//initalize the first time
+	if (cs.receiver_init==0) {
+		printf("MSN init on receiver side");
+		cs = Connection_States[matching_id];
+		cs.stcqp = roce_hdr->dest_qp;
+		cs.udp_src_port_server = udp_hdr->src_port;
+		cs.mseq_current = get_msn(roce_hdr);
+		cs.receiver_init = 1;
+		Connection_States[matching_id] = cs;
+		return;
+	}
+
 
     #ifdef DATA_PATH_PRINT
 	id_colorize(matching_id);
@@ -498,6 +547,9 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	printf("Current Connection state entry (id %d)\n", matching_id);
 	print_connection_state(&cs);
     #endif
+
+
+	//All of this is garbage ( but keep it for now)
 
 	//quick check that the MSN's make sense
 	uint32_t msn = get_msn(roce_hdr);
@@ -508,9 +560,8 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		}
 	}
 
-	cs.mseq_current = msn;
-	cs.receiver_init=1;
-	Connection_States[matching_id] = cs;
+	printf("ERRROR we should not be reaching here, either update the msn or init it.");
+	exit(0);
 	return;
 }
 
@@ -1122,12 +1173,8 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 			//Update the tracked msn this requires adding to it, and then storing back to the connection states
 			//TODO put this in it's own function
-			uint32_t msn_update = Connection_States[mapped_request->id].mseq_current;
-			msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
-			Connection_States[mapped_request->id].mseq_current = msn_update;
-
-
-			uint32_t msn = Connection_States[mapped_request->id].mseq_current;
+			struct Connection_State * destination_cs = &Connection_States[mapped_request->id];
+			increment_msn(destination_cs);
 
 			#ifdef MAP_PRINT
 			uint32_t packet_msn = get_msn(roce_hdr);
@@ -1135,7 +1182,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 			#endif
 
-			set_msn(roce_hdr,msn);
+			set_msn(roce_hdr,destination_cs->mseq_current);
 			//printf("Returned MSN %d\n", readable_seq(msn));
 
 
@@ -1153,7 +1200,9 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 	printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
 	printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
-	find_and_set_stc_wrapper(roce_hdr,udp_hdr);
+	if (find_and_update_stc(roce_hdr,udp_hdr) == 1) {
+		printf("found and updated msn (hopefully this is the right thing to do)");
+	}
 }
 
 
