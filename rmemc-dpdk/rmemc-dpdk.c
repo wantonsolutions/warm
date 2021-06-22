@@ -457,6 +457,15 @@ void increment_msn(struct Connection_State *cs) {
 	cs->mseq_current = msn_update;
 }
 
+uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connection_State *cs) {
+	//new way of doing it
+	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
+	if (ntohl(msn) > ntohl(cs->mseq_current)) {
+		cs->mseq_current = msn;
+	}
+	return msn;
+}
+
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	struct Connection_State *cs;
 
@@ -478,10 +487,10 @@ uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr
 	}
 
 	//at this point we have the correct cs
-	increment_msn(cs);
+	uint32_t msn = produce_and_update_msn(roce_hdr,cs);
 	//this should be it
 
-	return 1;
+	return msn;
 }
 
 
@@ -496,7 +505,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	}
 
 	//Try to perform a basic update
-	if (find_and_update_stc(roce_hdr,udp_hdr) == 1) {
+	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
 		printf("msn update successful\n");
 		return;
 	}
@@ -535,29 +544,11 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
 		cs.mseq_current = get_msn(roce_hdr);
+		cs.mseq_offset = htonl(ntohl(cs.seq_current) - ntohl(cs.mseq_current)); //still shifted by 256 but not in network order
+		printf("cs.mseq_offset = %d\n",readable_seq(cs.mseq_offset));
 		cs.receiver_init = 1;
 		Connection_States[matching_id] = cs;
 		return;
-	}
-
-
-    #ifdef DATA_PATH_PRINT
-	id_colorize(matching_id);
-	printf("First (or more) mapping of msn,stcqp\n");
-	printf("Current Connection state entry (id %d)\n", matching_id);
-	print_connection_state(&cs);
-    #endif
-
-
-	//All of this is garbage ( but keep it for now)
-
-	//quick check that the MSN's make sense
-	uint32_t msn = get_msn(roce_hdr);
-	if (cs.receiver_init == 1) {
-		if (unlikely(readable_seq(msn) < readable_seq(cs.mseq_current))) {
-			printf(">>>>>>>>     Issues with MSN, should be monotonic packet msn %d local msn %d\n",readable_seq(msn),readable_seq(cs.mseq_current));
-			exit(0);
-		}
 	}
 
 	printf("ERRROR we should not be reaching here, either update the msn or init it.");
@@ -925,7 +916,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	//be TOTAL_ENYTRY, but I'm starting with TOTAL_ENTRY * constant_multiper so
 	//that I'm "extra" safe.
 	//!TODO figure out what's actually going on here.
-	uint32_t constant_multiplier = 4;
+	uint32_t constant_multiplier = 1;
 	int32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
 	printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
 	uint32_t garbage_collected = 0;
@@ -1109,6 +1100,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 }
 
 
+
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 //multiplexing list
@@ -1174,15 +1166,25 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//Update the tracked msn this requires adding to it, and then storing back to the connection states
 			//TODO put this in it's own function
 			struct Connection_State * destination_cs = &Connection_States[mapped_request->id];
-			increment_msn(destination_cs);
 
+			//destination_cs.mseq_current = 
+			//increment_msn(destination_cs);
+
+
+
+			//new way of doing it
+			uint32_t msn = produce_and_update_msn(roce_hdr,destination_cs);
 			#ifdef MAP_PRINT
 			uint32_t packet_msn = get_msn(roce_hdr);
 			id_colorize(mapped_request->id);
 			printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 			#endif
+			
+			set_msn(roce_hdr,msn);
 
-			set_msn(roce_hdr,destination_cs->mseq_current);
+
+			//old
+			//set_msn(roce_hdr,destination_cs->mseq_current);
 			//printf("Returned MSN %d\n", readable_seq(msn));
 
 
@@ -1200,8 +1202,15 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 	printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
 	printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
-	if (find_and_update_stc(roce_hdr,udp_hdr) == 1) {
-		printf("found and updated msn (hopefully this is the right thing to do)");
+	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
+		printf("found and updated msn (hopefully this is the right thing to do)\n");
+		uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
+		set_msn(roce_hdr,msn);
+		print_packet(pkt);
+		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+		memcpy(current_checksum,&crc_check,4);
+
 	}
 }
 
