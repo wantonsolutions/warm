@@ -54,10 +54,10 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 4
+#define TOTAL_CLIENTS 16
 
 //#define DATA_PATH_PRINT
-#define MAP_PRINT
+//#define MAP_PRINT
 #define COLLECT_GARBAGE
 
 uint8_t test_ack_pkt[] = {
@@ -145,7 +145,7 @@ uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
-uint32_t debug_start_printing_every_packet = 1;
+uint32_t debug_start_printing_every_packet = 0;
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -539,7 +539,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 
 	//initalize the first time
 	if (cs.receiver_init==0) {
-		printf("MSN init on receiver side");
+		printf("MSN init on receiver side for matching id %d\n",matching_id);
 		cs = Connection_States[matching_id];
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
@@ -895,7 +895,6 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 		struct Request_Map* slot = &cs->Outstanding_Requests[j];
 		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) > max_sequence_number) {
 			max_sequence_number = readable_seq(cs->Outstanding_Requests[j].mapped_sequence);
-			printf("new max sequence %d\n",max_sequence_number);
 		}
 	}
 
@@ -1494,7 +1493,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			}
 			latest_key[id] = *key;
 			if (size == 1084) {
-				printf("TODO remove this size == 1084 buisness it's probably wrong");
+				//printf("TODO remove this size == 1084 buisness it's probably wrong");
 				track_qp(pkt);
 			}
 			rte_smp_mb();
