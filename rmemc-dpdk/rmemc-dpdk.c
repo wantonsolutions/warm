@@ -57,7 +57,7 @@
 #define TOTAL_CLIENTS 4
 
 //#define DATA_PATH_PRINT
-//#define MAP_PRINT
+#define MAP_PRINT
 #define COLLECT_GARBAGE
 
 uint8_t test_ack_pkt[] = {
@@ -145,7 +145,7 @@ uint32_t core_pkt_counters[MAX_CORES];
 
 uint64_t vaddr_swaps = 0;
 
-uint32_t debug_start_printing_every_packet = 0;
+uint32_t debug_start_printing_every_packet = 1;
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -676,15 +676,7 @@ void print_ack_extended_header(struct AETH *aeth) {
 	printf("Sequence Number %u\n", ntohl(aeth->sequence_number));
 }
 
-void print_rdma_extended_header(struct RTEH *rteh) {
-	printf("virtual address: ");
-	print_bytes((uint8_t *)&(rteh->vaddr),sizeof(uint64_t));
-	printf("\n");
-
-	printf("rkey: %u \traw:   ", ntohl(rteh->rkey));
-	print_bytes((uint8_t *)&(rteh->rkey),sizeof(uint32_t));
-	printf("\n");
-
+void print_rdma_extended_header(struct RTEH * rteh) {
 	printf("dma len %u \traw: ", ntohl(rteh->dma_length));
 	print_bytes((uint8_t *)&(rteh->dma_length),sizeof(uint32_t));
 } 
@@ -1402,6 +1394,13 @@ void true_classify(struct rte_mbuf * pkt) {
 			//print_packet(pkt);
 			//uint32_t id = get_id(r_qp);
 			//map_qp(pkt);
+
+			//TODO Check if the packet is one of the live QP
+			//track if the qp is live
+			if (qp_is_mapped(r_qp) == 1) {
+				track_qp(pkt);
+			}
+
 		} else {
 			//Obtain the wite lock
 			rte_rwlock_write_lock(&next_lock);
@@ -1455,6 +1454,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				//it still counts as a write but we have to let if through
 				latest_key[id] = *key;
 				log_printf(DEBUG,"not tracking key %d\n",*key);
+				track_qp(pkt);
 				rte_smp_mb();
 				rte_rwlock_write_unlock(&next_lock);
 				return;
@@ -1493,34 +1493,13 @@ void true_classify(struct rte_mbuf * pkt) {
 				}
 			}
 			latest_key[id] = *key;
-			track_qp(pkt);
+			if (size == 1084) {
+				printf("TODO remove this size == 1084 buisness it's probably wrong");
+				track_qp(pkt);
+			}
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 
-
-			/*
-			#ifdef PACKET_DEBUG_PRINTOUT
-			//Count the big writes, this is mostly for testing
-			if (size >= 1084) {
-				//printf("key %02X %02X %02X %02X \n",key[0], key[1], key[2], key[3]);
-				//Update current write kv location
-				key_address[*key] = wr->rdma_extended_header.vaddr;
-				//Update the most recent version of the kv store
-				key_versions[*key][key_count[*key]%KEY_VERSION_RING_SIZE]=wr->rdma_extended_header.vaddr;
-				//update the keys write count
-				key_count[*key]++;
-			} else {
-				printf("size too small to print extra data\n");
-			}
-
-			//Periodically print the sate of a particular key.
-			if (*key == 1 && key_count[*key]==KEY_VERSION_RING_SIZE) {
-				for (int i=0;i<KEY_VERSION_RING_SIZE;i++){
-					printf("key: %"PRIu64" address:%"PRIu64" index: %d\n",*key,key_versions[*key][i], i+(key_count[*key]-KEY_VERSION_RING_SIZE));
-				}
-			}
-			#endif
-			*/
 		} 
 	}
 
@@ -2052,10 +2031,11 @@ void print_roce_v2_hdr(struct roce_v2_header * rh) {
     printf("fecn                %01X\n",rh->fecn);
     printf("becn                %01X\n",rh->bcen);
     printf("reserved            %01X\n",rh->reserverd);
-    printf("dest qp             %02X\n",rh->dest_qp);
+    printf("dest qp        (hex)%02X\t  (dec)%d\n",rh->dest_qp, rh->dest_qp);
     printf("ack                 %01X\n",rh->ack);
     printf("reserved            %01X\n",rh->reserved);
-    printf("packet sequence #   %02X HEX %d DEC\n",rh->packet_sequence_number, rh->packet_sequence_number);
+    //printf("packet sequence #   %02X HEX %d DEC\n",rh->packet_sequence_number, rh->packet_sequence_number);
+    printf("packet sequence #   %02X HEX %d DEC\n",readable_seq(rh->packet_sequence_number), readable_seq(rh->packet_sequence_number));
 
 
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)rh + sizeof(roce_v2_header));
