@@ -98,9 +98,26 @@ function setup_switch {
     "
 }
 
+function set_ecn {
+    off=0
+    on=1
+    state=$on
+
+    dir="/sys/class/net/$iface/ecn/roce_np/enable"
+    for i in $(seq 0 7); do
+        echo $state > $dir/$i
+    done
+
+    dir="/sys/class/net/$iface/ecn/roce_rp/enable"
+    for i in $(seq 0 7); do
+        echo $state > $dir/$i
+    done
+}
+
 set_server_params
 setup_nic
 setup_hugepages
+set_ecn
 
 if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then
     #turn off roce
