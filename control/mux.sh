@@ -7,10 +7,19 @@ byobu send-keys "ssh b09-27" C-m
 byobu send-keys "clear" C-m
 byobu send-keys "./go.sh" C-m
 
+#spawn yeti 5 on the right when we have two clients
+#byobu split-window -h
+#byobu send-keys "ssh yeti5" C-m
+#byobu send-keys "clear" C-m
+#byobu send-keys "./go.sh" C-m
+
+#spawn the middle box on the right
 byobu split-window -h
-byobu send-keys "ssh yeti5" C-m
+byobu send-keys "ssh yak2" C-m
 byobu send-keys "clear" C-m
-byobu send-keys "./go.sh" C-m
+byobu send-keys "./run.sh" C-m
+
+sleep 0.5
 
 byobu select-pane -t 0
 byobu split-window -v

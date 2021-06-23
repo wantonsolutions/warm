@@ -12,6 +12,10 @@ ssh yak1 'echo iwicbV15 | sudo -S killall init'
 ssh yak2 'echo iwicbV15 | sudo -S killall basicfwd'
 
 
+#example usage
+#./throughput_bench.sh 16 1024 MITSUME_YCSB_MODE_A 1000
+
+
 #build the project
 export LCLOVER_THREADS=$1
 export LCLOVER_KEY_RANGE=$2
@@ -55,9 +59,9 @@ clientSource=`cat client_server_1.sh`
 ssh yak0 $clientSource &
 sleep 1
 
-clientSource=`cat client_server_2.sh`
-ssh yeti5 $clientSource &
-sleep 1
+#clientSource=`cat client_server_2.sh`
+#ssh yeti5 $clientSource &
+#sleep 1
 
 echo "FINSHED ALL THE LAUNCHING SCRIPTS WAITING"
 
@@ -66,13 +70,13 @@ wait
 echo "DONE RUNNING"
 
 scp yak0:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
-scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
+#scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
 
 tail -1 clean_1.dat >> results.dat
-tail -1 clean_2.dat >> results.dat
+#tail -1 clean_2.dat >> results.dat
 
 tail -1 clean_1.dat >> latest.dat
-tail -1 clean_2.dat >> latest.dat
+#tail -1 clean_2.dat >> latest.dat
 
 sleep 5
 
