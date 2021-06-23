@@ -54,7 +54,7 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 16
+#define TOTAL_CLIENTS 64
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
