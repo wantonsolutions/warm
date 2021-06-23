@@ -13,4 +13,10 @@ pushd build
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 2
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
 echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
+popd
+
+echo "completed running the switch"
+pushd plot
+python3 latency.py
+popd
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12 -n 7

@@ -20,18 +20,39 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+#define TOTAL_ENTRY 128
+
 #define DONT_SWAP_VADDR
 
 
 //checksum
 
+struct Request_Map {
+  uint32_t open;
+  uint32_t id;
+  uint32_t original_sequence;
+  uint32_t mapped_sequence;
+  uint32_t server_to_client_qp;
+  uint32_t mapped_destination_server_to_client_qp;
+  uint16_t server_to_client_udp_port;
+} Request_Map;
 
 struct Connection_State {
   uint32_t id;
+  uint16_t udp_src_port_client;
+  uint16_t udp_src_port_server;
+  uint32_t rkey;
   uint32_t ctsqp;
   uint32_t stcqp;
-  uint32_t seq_current;
+  uint32_t seq_current; // Packet sequence number
+  uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
+  uint32_t sender_init;
+  uint32_t receiver_init;
+  //init test variables
+  int32_t mseq_offset;
+  struct Request_Map Outstanding_Requests[TOTAL_ENTRY];
 } Connection_State;
+
 
 uint32_t check_sums(const char* method, void* known, void* test, int try);
 uint32_t check_sums_wrap(const char* method, void* know, void* test);
@@ -59,11 +80,10 @@ void classify_packet_size(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce);
 void print_bytes(const uint8_t * buf, uint32_t len);
 void print_ib_mr(struct ib_mr_attr * mr);
 void print_read_request(struct read_request* rr);
-void print_read_response(struct read_response *rr, uint32_t size);
+void print_read_response(struct read_response *rr);
 void print_write_request(struct write_request* wr);
 void true_classify(struct rte_mbuf * pkt);
 void print_classify_packet_size(void);
-void rdma_count_calls(roce_v2_header *rdma);
 void print_rdma_call_count(void);
 void rdma_print_pattern(roce_v2_header * rdma);
 void init_ib_words(void);
@@ -74,6 +94,21 @@ void print_udp_hdr(struct rte_udp_hdr * udp_hdr);
 void print_roce_v2_hdr(roce_v2_header * rh);
 void print_clover_hdr(struct clover_hdr * clover_header);
 void print_packet(struct rte_mbuf * buf);
+
+void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey);
+
+
+//qp tracking
+uint32_t key_to_qp(uint64_t key);
+void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq);
+void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr);
+void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq);
+void find_and_set_stc_qp_wrapper(struct roce_v2_header *roce_hdr);
+void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
+int coretest(void);
+void fork_lcores(void);
+void print_connection_state(struct Connection_State* cs);
+void init_cs_wrapper(struct rte_udp_hdr *udp_hdr, struct roce_v2_header *roce_hdr);
 
 
 
