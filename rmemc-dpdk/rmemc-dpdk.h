@@ -1,6 +1,10 @@
 #ifndef RMEMC_DPDK_H
 #define BASIC_FWD_H
 
+//macro magic
+#define DO_EXPAND(VAL)  VAL ## 1
+#define EXPAND(VAL)     DO_EXPAND(VAL)
+
 #include "packets.h"
 //#define PACKET_DEBUG_PRINTOUT
 //#define TURN_PACKET_AROUND
@@ -24,6 +28,13 @@
 
 #define DONT_SWAP_VADDR
 
+#define MITSUME_BENCHMARK_THREAD_DEFAULT 16
+#if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
+    //Only here if MYVARIABLE is not defined
+    //OR MYVARIABLE is the empty string
+    #undef MITSUME_BENCHMARK_THREAD_NUM
+    #define MITSUME_BENCHMARK_THREAD_NUM MITSUME_BENCHMARK_THREAD_DEFAULT
+#endif
 
 //checksum
 

@@ -54,7 +54,8 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 
-#define TOTAL_CLIENTS 16
+#define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
+
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
@@ -506,7 +507,6 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 
 	//Try to perform a basic update
 	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
-		printf("msn update successful\n");
 		return;
 	}
 
@@ -539,13 +539,13 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 
 	//initalize the first time
 	if (cs.receiver_init==0) {
-		printf("MSN init on receiver side for matching id %d\n",matching_id);
+		//printf("MSN init on receiver side for matching id %d\n",matching_id);
 		cs = Connection_States[matching_id];
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
 		cs.mseq_current = get_msn(roce_hdr);
 		cs.mseq_offset = htonl(ntohl(cs.seq_current) - ntohl(cs.mseq_current)); //still shifted by 256 but not in network order
-		printf("cs.mseq_offset = %d\n",readable_seq(cs.mseq_offset));
+		//printf("cs.mseq_offset = %d\n",readable_seq(cs.mseq_offset));
 		cs.receiver_init = 1;
 		Connection_States[matching_id] = cs;
 		return;
@@ -909,7 +909,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	//!TODO figure out what's actually going on here.
 	uint32_t constant_multiplier = 1;
 	int32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
-	printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
+	//printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
 	uint32_t garbage_collected = 0;
 
 	if (stale_water_mark < 0) {
@@ -949,9 +949,9 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 		return slot;
 	}
 
-	printf(" Unable to find empty slot GARBAGE COLLECTING\n");
+	//printf(" Unable to find empty slot GARBAGE COLLECTING\n");
 	uint32_t collected = garbage_collect_slots(cs);
-	printf("Collected %d garbage slots\n",collected);
+	//printf("Collected %d garbage slots\n",collected);
 	#endif
 
 	//Second Try
@@ -1191,13 +1191,13 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		} 
 	}
 
-	printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
-	printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
+	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
+	//printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
 	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
-		printf("found and updated msn (hopefully this is the right thing to do)\n");
+		//printf("found and updated msn (hopefully this is the right thing to do)\n");
 		uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
 		set_msn(roce_hdr,msn);
-		print_packet(pkt);
+		//print_packet(pkt);
 		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 		memcpy(current_checksum,&crc_check,4);
