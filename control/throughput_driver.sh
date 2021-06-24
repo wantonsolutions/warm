@@ -4,9 +4,9 @@ rm latest.dat
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("1" "2" "4" "8")
-#threads=("1" "2" "4" "8" "16" "32")
+threads=("1" "2" "4" "8" "16")
 #threads=("8" "16")
-threads=("32")
+#threads=("32")
 #threads=("20" "24" "28" "32")
 #threads=("16")
 #threads=()
@@ -43,4 +43,4 @@ done
 echo "<<<<<<<<< ($date)" >> results.dat
 
 
-python sum.py latest.dat > latest_clean.dat
+python3 sum.py latest.dat > latest_clean.dat
