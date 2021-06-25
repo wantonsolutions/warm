@@ -56,6 +56,8 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
+int MAP_QP = 0;
+
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
@@ -91,7 +93,6 @@ uint8_t test_ack_pkt[] = {
 
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
 
-int MAP_QP = 1;
 
 
 
