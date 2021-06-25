@@ -29,10 +29,12 @@ echo "export CLOVER_YCSB_OP_MODE=$LCLOVER_YCSB_OP_MODE;" >> lenv.sh
 echo "export CLOVER_PAYLOAD_SIZE=$LCLOVER_PAYLOAD_SIZE;" >> lenv.sh
 lenv=`cat lenv.sh`
 
+echo "Start builing"
 buildSource=`cat build.sh`
 fullBuild=$lenv$buildSource
 echo $fullBuild
 ssh yak1 $fullBuild
+echo "Building complete"
 
 
 

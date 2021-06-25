@@ -42,11 +42,11 @@ for row in rows:
         i=0
         for col in row: 
             if i==0:
-                print(str(sum_val)+","),
+                print(str(sum_val)+",", end = '')
             elif i==1:
-                print(str(sum_thread)+","),
+                print(str(sum_thread)+",", end = '')
             else:
-                print("%s,"%col),
+                print("%s,"%col, end = '')
             i=i+1
         sum_val=0
         thread_val=int(row[1])
@@ -61,10 +61,10 @@ row = rows[-1]
 i=0
 for col in row: 
     if i==0:
-        print(str(sum_val)+","),
+        print(str(sum_val)+",", end = '')
     elif i==1:
-        print(str(sum_thread)+","),
+        print(str(sum_thread)+",", end = '')
     else:
-        print("%s,"%col),
+        print("%s,"%col, end = '')
     i=i+1
 print()
