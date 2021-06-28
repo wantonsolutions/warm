@@ -56,7 +56,7 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-int MAP_QP = 0;
+int MAP_QP = 1;
 
 
 //#define DATA_PATH_PRINT
@@ -312,7 +312,7 @@ void print_connection_state(struct Connection_State* cs) {
 	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
 	printf("seqt %d seq %d mseqt %d mseq\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
-
+;
 int fully_qp_init() {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State cs = Connection_States[i];
@@ -2484,8 +2484,6 @@ main(int argc, char *argv[])
 	//debug_icrc(mbuf_pool);
 
 	fork_lcores();
-
-
 	lcore_main();
 
 	return 0;
