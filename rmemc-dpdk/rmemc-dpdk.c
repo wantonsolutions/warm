@@ -56,6 +56,8 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
+int MAP_QP = 1;
+
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
@@ -91,7 +93,6 @@ uint8_t test_ack_pkt[] = {
 
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
 
-int MAP_QP = 1;
 
 
 
@@ -143,10 +144,14 @@ uint32_t read_resp_addr_count[KEYSPACE];
 
 #define MAX_CORES 24
 uint32_t core_pkt_counters[MAX_CORES];
-
 uint64_t vaddr_swaps = 0;
-
 uint32_t debug_start_printing_every_packet = 0;
+
+
+#define WRITE_VADDR_CACHE_SIZE 2
+
+uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
+uint32_t writes_per_key[KEYSPACE];
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -311,7 +316,7 @@ void print_connection_state(struct Connection_State* cs) {
 	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
 	printf("seqt %d seq %d mseqt %d mseq\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
-
+;
 int fully_qp_init() {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State cs = Connection_States[i];
@@ -1276,6 +1281,59 @@ void map_qp(struct rte_mbuf * pkt) {
 	}
 }
 
+void update_write_vaddr_cache(uint64_t key, uint64_t vaddr) {
+	uint32_t cache_index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
+	//printf("updating write for key %"PRIu64", vaddr %"PRIu64" slot %d\n",key,vaddr,cache_index);
+	cached_write_vaddrs[key][cache_index] = vaddr;
+	writes_per_key[key]++;
+}
+
+int does_read_have_cached_write(uint64_t vaddr) {
+	for (int key=0;key<KEYSPACE;key++) {
+
+		if(writes_per_key[key]==0) {
+			continue;
+		}
+		//!TODO start at the last written index
+		int index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
+		for (uint32_t counter=0;counter<WRITE_VADDR_CACHE_SIZE;counter++) {
+			//printf("INDEX %d counter %d\n",index, counter);
+			if (cached_write_vaddrs[key][index] == vaddr) {
+				//printf("found key %d add stored %"PRIu64" incomming %"PRIu64"\n",key,cached_write_vaddrs[key][index],vaddr);
+				return key;
+			}
+			//TODO decrement to optimize
+			index = (index + 1)%WRITE_VADDR_CACHE_SIZE;
+		}
+	}
+	return 0;
+}
+
+void steer_read(struct rte_mbuf *pkt, uint32_t key) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct read_request * rr = (struct read_request*) clover_header;
+
+
+	if (unlikely(writes_per_key[key] == 0)) {
+		printf("Should not be rewriting something that has not been touched\n");
+		return;
+	}
+	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
+	uint64_t vaddr = cached_write_vaddrs[key][cache_index];
+
+	//Set the current address to the cached address of the latest write
+	rr->rdma_extended_header.vaddr = vaddr;
+	//printf("Re routing key %d for cached index %d\n",key,cache_index);
+	//With the vaddr updated redo the checksum
+	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+	memcpy(current_checksum,&crc_check,4);
+}
+
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
 	if (MAP_QP == 0) {
@@ -1366,6 +1424,12 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
 		track_qp(pkt);
+		struct read_request * rr = (struct read_request*) clover_header;
+		uint32_t key = does_read_have_cached_write(rr->rdma_extended_header.vaddr);
+		if (key) {
+			steer_read(pkt,key);
+		}
+		
 		//struct read_request * rr = (struct read_request *)clover_header;
 		//print_read_request(rr);
 		//count_read_req_addr(rr);
@@ -1623,6 +1687,10 @@ void true_classify(struct rte_mbuf * pkt) {
 		//given that a cns has been determined move the next address for this 
 		//key, to the outstanding write of the cns that was just made
 		if (likely(predict == swap)) {
+
+			//This is where the write (for all intents and purposes has been commited)
+			update_write_vaddr_cache(latest_key[id],next_vaddr[latest_key[id]]);
+
 			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][key];
 			//erase the old entries
 			outstanding_write_predicts[id][latest_key[id]] = 0;
@@ -2469,6 +2537,10 @@ main(int argc, char *argv[])
 
 		bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
 
+
+		bzero(cached_write_vaddrs,KEYSPACE * WRITE_VADDR_CACHE_SIZE * sizeof(uint64_t));
+		bzero(writes_per_key, KEYSPACE * sizeof(uint32_t));
+
 		init_connection_states();
 		init_hash();
 		write_value_packet_size=0;
@@ -2483,8 +2555,6 @@ main(int argc, char *argv[])
 	//debug_icrc(mbuf_pool);
 
 	fork_lcores();
-
-
 	lcore_main();
 
 	return 0;
