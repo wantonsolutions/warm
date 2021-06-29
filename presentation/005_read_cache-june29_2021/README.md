@@ -61,7 +61,7 @@ cached keys where all that I vary is the size of the cache.
 
 ![exp1](experiment_1.png "Read Cache Mechanism On and Off 8 keys")
 
-## Results
+### Results
 
 Here the results are almost identical. I think that there is a delicate mix
 between the overhead of running the read caching, and the fact that most of the
@@ -80,14 +80,61 @@ redirects this is a tricky number to actually reason about.
  - 16 threads
  - cache size 8 (keys cached read and write)
  - vary the depth of read cache
+ - zipf 0.70
+ - YCSB-A
 
 
 ![exp2](experiment_2.png "Read Cache Depth 1 - 32")
 
-## Results
+### Results
 
 It appears that by adding depth to the cache the performance improves. However
-it also adds variance to the execution.
+it also adds variance to the execution. The performance grows but not
+substantially. The mean difference between the baseline and caching 16 deep is
+only around 10k requests per second. This is somewhere around a 3% boost. While
+not admissable it is not the same degree of improvement that we saw with the
+write redirections. After 16 deep the performance starts to decrease. I think
+that this is all due to the search.
+
+### Takeaways
+To understand what the potential for savings are in the absence of performance I
+want to check how many opportunities for read redirections there actually are.
+In order to do so I'll vary the number of clients while keeping the depth of the cache as deep as it can be and the number of keys at its max.
+
+Considering that the performance is decreased due to the search, but clearly
+increased due to the caching, it would make sense that I should improve the
+access to the data structure. While I know that hashing the vadders will be
+slow, it might also allow for a fast search where the current approach is
+random.
+
+## Experiment 3 - Number of Read Redirections as a function of clients
+
+To understand what the potential for savings are in the absence of performance I
+want to check how many opportunities for read redirections there actually are.
+In order to do so I'll vary the number of clients while keeping the depth of the
+cache as deep as it can be and the number of keys at its max. 
+
+This experiment is going to be run ad-hoc with numbers being taken directly from
+a print on the switch. It's important that I only count packets which require an
+actual redirection to take place.
+
+
+ - Cached Keys 1024
+ - Cache Depth 16
+ - Clients 1 - 32
+
+![exp2](experiment_3.png "Read Redirections")
+
+### Results
+
+There is a more than linear increase in the number of redirected writes as the
+threads are increased. This strongly suggests that we can have significant
+savings as the number of threads increases. Upwards of 32 threads we will likely
+result in a significant number of retries. What is not captured by this graph is
+the number of reads which fail more than once. Here the 7 percent are all first
+try redirects.
+
+
 
 
 
