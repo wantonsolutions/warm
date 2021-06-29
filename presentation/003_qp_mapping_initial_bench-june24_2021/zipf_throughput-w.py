@@ -52,5 +52,6 @@ def autolabel(rects):
                     ha='center', va='bottom')
 
 fig.tight_layout()
-plt.savefig("zipf_mapping-c.pdf")
+plt.savefig("zipf_mapping-w.pdf")
+plt.savefig("zipf_mapping-w.png")
 plt.show()

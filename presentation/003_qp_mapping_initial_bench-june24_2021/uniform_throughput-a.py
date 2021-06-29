@@ -51,4 +51,5 @@ def autolabel(rects):
 
 fig.tight_layout()
 plt.savefig("uniform_mapping-a.pdf")
+plt.savefig("uniform_mapping-a.png")
 plt.show()

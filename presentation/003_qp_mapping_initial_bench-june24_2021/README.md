@@ -77,3 +77,32 @@ mapping, but not by a large margin. In fact it has me worried that some of the
 experiments may have gone awry despite the fact that I've double checked that
 the code paths are running. It requires a bit more investigation on my part,
 perhaps the true values will present themselves at higher throughput.
+
+### Uniform A
+![](uniform_mapping-a.png)
+### Uniform B
+![](uniform_mapping-b.png)
+### Uniform C
+![](uniform_mapping-c.png)
+### Zipf A
+![](zipf_mapping-a.png)
+### Zipf B
+![](zipf_mapping-b.png)
+### Zipf C
+![](zipf_mapping-c.png)
+
+## Results
+
+The results with the exception of uniform A are entirely unsurprising. In each
+case there does not seem to be enough pressure on the QP's to actually see
+serious performance problems. In the case of Uniform A it seems that at 32
+threads there is a lot of work in terms of lookup to determine how to perform
+the mapping.
+
+## Considerations
+
+In the future, I should consider putting more pressure on the queue pairs. This
+basic mapping and current throughput is clearly not enough to stress the NIC. I
+think that finding a more efficient algorithm might also help to show the
+results more clearly.
+
