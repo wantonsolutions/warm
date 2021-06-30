@@ -29,14 +29,19 @@ echo "export CLOVER_YCSB_OP_MODE=$LCLOVER_YCSB_OP_MODE;" >> lenv.sh
 echo "export CLOVER_PAYLOAD_SIZE=$LCLOVER_PAYLOAD_SIZE;" >> lenv.sh
 lenv=`cat lenv.sh`
 
-echo "Start builing"
-buildSource=`cat build.sh`
+echo "Start builing clover"
+buildSource=`cat build_clover.sh`
 fullBuild=$lenv$buildSource
 echo $fullBuild
 ssh yak1 $fullBuild
-echo "Building complete"
+echo "Building clover complete"
 
-
+echo "Start builing switch"
+buildSource=`cat build_switch.sh`
+fullBuild=$lenv$buildSource
+echo $fullBuild
+ssh yak2 $fullBuild
+echo "Building switch complete"
 
 #start the middlebox
 echo "sshing yak2"
@@ -72,13 +77,15 @@ wait
 echo "DONE RUNNING"
 
 scp yak0:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
+scp yak2:/tmp/switch_statistics.dat switch_statistics.dat
 #scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
 
 tail -1 clean_1.dat >> results.dat
 #tail -1 clean_2.dat >> results.dat
-
 tail -1 clean_1.dat >> latest.dat
 #tail -1 clean_2.dat >> latest.dat
+
+cat switch_statistics.dat >> agg_switch_statistics.dat
 
 sleep 5
 
