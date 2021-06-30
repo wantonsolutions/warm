@@ -123,7 +123,7 @@ actual redirection to take place.
  - Cache Depth 16
  - Clients 1 - 32
 
-![exp2](experiment_3.png "Read Redirections")
+![exp3](experiment_3.png "Read Redirections")
 
 ### Results
 
@@ -133,6 +133,43 @@ savings as the number of threads increases. Upwards of 32 threads we will likely
 result in a significant number of retries. What is not captured by this graph is
 the number of reads which fail more than once. Here the 7 percent are all first
 try redirects.
+
+## Experiment 4 - Key Cache Size
+
+One main goal is that we do not need to use a lot of space on the switch, as
+such we should always be able to operate on a smaller number of keys than the
+protocol is working on. In this experiment I vary the number of keys that we
+handle on the switch. 0 is the baseline, and 32 is the max. 
+
+This is the exact same experiment I ran during the WORDS evaluation, with the
+difference being that now reads are being redirected as well. The cache depth on
+the switch is set to 16 statically throughput this experiment. 
+
+Each of these experiments was taken only once for ease of measurement. There
+results are clear none the less.
+
+ - Cached Keys 0 - 64
+ - Cache Depth 16
+ - Client threads 32
+ - QP muxing OFF
+ - YCSB-A
+
+
+
+### Results
+![exp4](experiment_4.png "Cache Size")
+
+The initial results of this experiment are promising. They show that again by
+only caching a few keys there is a serious gain of performance to be had.
+However in this case the cost of the caching is huge. Past 8 keys finding what
+the cached read is is very expensive. The performance begins to droop down
+towards an unused cache and continues to drop past 16 cached keys.
+
+### Takeaways 
+
+These results would clearly benefit from a better algorithm which searches for
+virtual addresses on the middle box. It's clear that there is a lot of
+performance to be gained, although it might be tricky to achieve in practice.
 
 
 

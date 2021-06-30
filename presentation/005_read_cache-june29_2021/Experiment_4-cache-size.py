@@ -8,32 +8,29 @@ from statistics import stdev
 #labels = ['1', '2', '4', '8', '16', '24','32']
 
 
-labels =  ['1', '2', '4', '8', '16', '32']
+labels =  ['0', '1', '2', '4', '8', '16', '32', '64']
 
 def div_thousand (list):
     return [val /1000.0 for val in list]
 
-reads = [260248,415079,583561,745291,888848,1173081]
-read_redirections= [0,240,1398,6481,25857,87606]
+throughput = [285210,385989,437217,457021,471494,464344,427846,368955]
+throughput = div_thousand(throughput)
 
-percent_redirections=[a/b * 100 for a,b in zip(read_redirections,reads)]
-
-
-figure_name='experiment_3'
-treatment_label="read_redirections"
+figure_name='experiment_4'
+treatment_label="throughput"
 
 x = np.arange(len(labels))  # the label locations
-width = 0.75  # the width of the bars.0
+width = 0.85  # the width of the bars.0
 
 fig, ax = plt.subplots()
-rects1 = ax.bar(x,percent_redirections, width, color='tab:blue')
+rects1 = ax.bar(x,throughput, width, color='tab:red')
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('% Read Redirections')
+ax.set_ylabel('KOP/S')
 #ax.set_title('Clover YCSB-A (50% write)')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
-ax.set_xlabel("Threads");
+ax.set_xlabel("Cached Keys")
 
 
 fig.tight_layout()

@@ -63,7 +63,6 @@ ax.set_ylim(250,350)
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Read Cache Depth");
-ax.legend()
 
 
 fig.tight_layout()
