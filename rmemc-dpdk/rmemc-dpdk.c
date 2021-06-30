@@ -46,7 +46,7 @@
 
 #define KEYSPACE 1024
 //#define KEYSPACE 500
-#define CACHE_KEYSPACE 1024
+#define CACHE_KEYSPACE 64
 
 #define RDMA_CALL_SIZE 8192
 
@@ -56,12 +56,26 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-int MAP_QP = 1;
+int MAP_QP = 0;
 
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
 #define COLLECT_GARBAGE
+
+#define READ_STEER
+#define WRITE_VADDR_CACHE_SIZE 16
+uint64_t read_redirections = 0;
+uint64_t reads = 0;
+uint64_t read_misses = 0;
+
+uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
+uint32_t writes_per_key[KEYSPACE];
+
+#define HASHSPACE (1 << 22)
+uint64_t cached_write_vaddr_mod[HASHSPACE];
+uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
+uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
@@ -125,6 +139,22 @@ void write_packet_latencies_to_known_file() {
 		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
 	}
 	fclose(fp);
+}
+
+void print_statistics_file() {
+	char* filename="/tmp/switch_statistics.dat";
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+
+	fprintf(fp,"READS %"PRIu64"\n",reads);
+	fprintf(fp,"READ REDIRECTIONS %"PRIu64"\n",read_redirections);
+	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
+	fprintf(fp,"READ HITS %"PRIu64"\n",reads - read_misses);
+	fclose(fp);
 
 
 }
@@ -148,10 +178,6 @@ uint64_t vaddr_swaps = 0;
 uint32_t debug_start_printing_every_packet = 0;
 
 
-#define WRITE_VADDR_CACHE_SIZE 2
-
-uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
-uint32_t writes_per_key[KEYSPACE];
 
 
 static struct rte_hash_parameters qp2id_params = {
@@ -1281,15 +1307,46 @@ void map_qp(struct rte_mbuf * pkt) {
 	}
 }
 
-void update_write_vaddr_cache(uint64_t key, uint64_t vaddr) {
+uint32_t mod_hash(uint64_t vaddr) {
+	//uint32_t index = crc32(0xFFFFFFFF, &vaddr, 8) % HASHSPACE;
+	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
+	uint32_t index = (ntohl(vaddr >> 32) % HASHSPACE);
+	//printf("%"PRIx64" %d\n",vaddr, index);
+	return index;
+}
+
+void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr) {
+	uint32_t index = mod_hash(vaddr);
+	cached_write_vaddr_mod[index] = vaddr;
+	cached_write_vaddr_mod_lookup[index] = key;
+	cached_write_vaddr_mod_latest[key] = vaddr;
+}
+
+int does_read_have_cached_write_mod(uint64_t vaddr) {
+	uint32_t index = mod_hash(vaddr);
+	if (cached_write_vaddr_mod[index] == vaddr) {
+		return cached_write_vaddr_mod_lookup[index];
+	}
+	return 0;
+}
+
+uint64_t get_latest_vaddr_mod(uint32_t key) {
+	return cached_write_vaddr_mod_latest[key];
+}
+
+void update_write_vaddr_cache_ring(uint64_t key, uint64_t vaddr) {
 	uint32_t cache_index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
 	//printf("updating write for key %"PRIu64", vaddr %"PRIu64" slot %d\n",key,vaddr,cache_index);
 	cached_write_vaddrs[key][cache_index] = vaddr;
 	writes_per_key[key]++;
 }
 
-int does_read_have_cached_write(uint64_t vaddr) {
-	for (int key=0;key<KEYSPACE;key++) {
+
+
+int does_read_have_cached_write_ring(uint64_t vaddr) {
+	//for (int key=0;key<KEYSPACE;key++) {
+	//TODO this is an error the last key will not be indexed here
+	for (int key=1;key<CACHE_KEYSPACE;key++) {
 
 		if(writes_per_key[key]==0) {
 			continue;
@@ -1303,11 +1360,32 @@ int does_read_have_cached_write(uint64_t vaddr) {
 				return key;
 			}
 			//TODO decrement to optimize
-			index = (index + 1)%WRITE_VADDR_CACHE_SIZE;
+			index = (index-1);
+			if (index < 0) {
+				index = WRITE_VADDR_CACHE_SIZE -1;
+			}
 		}
 	}
 	return 0;
 }
+
+uint64_t get_latest_vaddr_ring(uint32_t key) {
+	if (unlikely(writes_per_key[key] == 0)) {
+		printf("Should not be rewriting something that has not been touched\n");
+		return 0;
+	}
+	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
+	return cached_write_vaddrs[key][cache_index];
+}
+
+
+//int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_ring;
+//void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_ring;
+//uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_ring;
+
+int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
+void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
+uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
 
 void steer_read(struct rte_mbuf *pkt, uint32_t key) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1317,21 +1395,22 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key) {
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 	struct read_request * rr = (struct read_request*) clover_header;
 
+	uint64_t vaddr = get_latest_vaddr(key);
 
-	if (unlikely(writes_per_key[key] == 0)) {
-		printf("Should not be rewriting something that has not been touched\n");
+	if (vaddr == 0) {
 		return;
 	}
-	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
-	uint64_t vaddr = cached_write_vaddrs[key][cache_index];
 
-	//Set the current address to the cached address of the latest write
-	rr->rdma_extended_header.vaddr = vaddr;
-	//printf("Re routing key %d for cached index %d\n",key,cache_index);
-	//With the vaddr updated redo the checksum
-	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-	memcpy(current_checksum,&crc_check,4);
+	//Set the current address to the cached address of the latest write if it is old
+	if (rr->rdma_extended_header.vaddr != vaddr) {
+		rr->rdma_extended_header.vaddr = vaddr;
+		//printf("Re routing key %d for cached index %d\n",key,cache_index);
+		//With the vaddr updated redo the checksum
+		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+		memcpy(current_checksum,&crc_check,4);
+		read_redirections++;
+	}
 }
 
 void track_qp(struct rte_mbuf * pkt) {
@@ -1424,11 +1503,16 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
 		track_qp(pkt);
+		#ifdef READ_STEER
 		struct read_request * rr = (struct read_request*) clover_header;
-		uint32_t key = does_read_have_cached_write(rr->rdma_extended_header.vaddr);
+		uint32_t key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 		if (key) {
 			steer_read(pkt,key);
+		} else {
+			read_misses++;
 		}
+		#endif
+		reads++;
 		
 		//struct read_request * rr = (struct read_request *)clover_header;
 		//print_read_request(rr);
@@ -1574,10 +1658,21 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
 		if (original != 0) {
 			nacked_cns++;
-			printf("nacked cns %d\n",nacked_cns);
-			printf("SHOULD BE EXITING (if you see this check cache!!!\n");
-			print_packet(pkt);
-			exit(0);
+			/*
+				In the case of regular operation where all of the writes are
+				cached, there should be no nacks. However if we set
+				CACHE_KEYSPACE to a value less than all of the keys, then we are
+				going to start to see NACKS. This only is a problem when the
+				writes are allowed to pass through. Reads should be a strict
+				subset of the writes so it's not going to be a problem there. If
+				you are running an experiment to show the effect of varying
+				cache size just comment out the exit below.
+			*/
+
+			//printf("nacked cns %d\n",nacked_cns);
+			//printf("SHOULD BE EXITING (if you see this check cache!!!)\n");
+			//print_packet(pkt);
+			//exit(0);
 		} 
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
@@ -1689,7 +1784,9 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (likely(predict == swap)) {
 
 			//This is where the write (for all intents and purposes has been commited)
+			#ifdef READ_STEER
 			update_write_vaddr_cache(latest_key[id],next_vaddr[latest_key[id]]);
+			#endif
 
 			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][key];
 			//erase the old entries
@@ -2466,6 +2563,7 @@ volatile sig_atomic_t flag = 0;
 void kill_signal_handler(int sig){
 	printf("Captured Signal (%d)\n",sig);
 	write_packet_latencies_to_known_file();
+	print_statistics_file();
 	exit(0);
 }
 
@@ -2537,9 +2635,16 @@ main(int argc, char *argv[])
 
 		bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
 
-
+		#ifdef READ_STEER
 		bzero(cached_write_vaddrs,KEYSPACE * WRITE_VADDR_CACHE_SIZE * sizeof(uint64_t));
 		bzero(writes_per_key, KEYSPACE * sizeof(uint32_t));
+
+
+		bzero(cached_write_vaddr_mod, sizeof(uint64_t) * HASHSPACE);
+		bzero(cached_write_vaddr_mod_lookup, sizeof(uint64_t) * HASHSPACE);
+		bzero(cached_write_vaddr_mod_latest, sizeof(uint64_t) * KEYSPACE);
+
+		#endif
 
 		init_connection_states();
 		init_hash();
