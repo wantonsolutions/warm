@@ -11,6 +11,20 @@ only the RDMA virtual address can be used to identify the location the read is
 going to. To steer a read, the values of many old writes must be cached so that
 the key which out of date reads correlate to can be identified.
 
+I'm using a basic searching algorithm and a lifo cache to keep track of old
+writes. For each key I allocate a cache of size n. When a write occurs I write
+to the location of TOTAL_KEY_WRITES % N into the cache. After N writes occur the
+old writes get written over. If a read passes through the switch and has a read
+address older than N writes ago, it flows through the switch and the default
+algorithm for fixing out of date writes is used.
+
+When a read request arrives at the switch I start by looking at the most recent
+write for key 0, and then search through all writes for key 0 in reverse order.
+I do this for each key. This makes each read lookup take TOTAL_KEYS * N
+individual lookups if it fails. This algorithm is slow, but if the requests are
+zipf it's actually pretty fast in the common case.
+
+
 ## Experiments
 
 There are 3 parameters here which can effect performance. 
