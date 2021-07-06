@@ -46,9 +46,7 @@
 
 #define KEYSPACE 1024
 //#define KEYSPACE 500
-#define CACHE_KEYSPACE 64
-
-#define RDMA_CALL_SIZE 8192
+#define CACHE_KEYSPACE 1024
 
 #define SEQUENCE_NUMBER_SHIFT 256
 
@@ -56,14 +54,14 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-int MAP_QP = 0;
+int MAP_QP = 1;
 
 
 //#define DATA_PATH_PRINT
-//#define MAP_PRINT
+#define MAP_PRINT
 #define COLLECT_GARBAGE
 
-#define READ_STEER
+//#define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
 uint64_t read_redirections = 0;
 uint64_t reads = 0;
@@ -1029,8 +1027,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	if (unlikely(has_mapped_qp == 0)) {
 		#ifdef DATA_PATH_PRINT
 		print_packet(pkt);
-		print_first_mapping();
 		#endif 
+		print_first_mapping();
 		has_mapped_qp = 1;
 	}
 
@@ -1522,8 +1520,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
 		track_qp(pkt);
 		//struct read_response * rr = (struct read_response*) clover_header;
-		//print_packet(pkt);
-		//print_read_response(rr, size);
+		//print_packet(pkt);;;
 		//count_read_resp_addr(rr);
 	}
 
@@ -1692,6 +1689,8 @@ void true_classify(struct rte_mbuf * pkt) {
 
 
 		uint32_t id = get_id(r_qp);
+		//debug print statements
+		//printf("(cns) id %d, ip %d\n",id,ipv4_hdr->src_addr);
 		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
 
 
@@ -2379,6 +2378,8 @@ lcore_main(void)
 			rte_lcore_id());
 
 	printf("Running lcore main\n");
+	printf("Client Threads %d\n",TOTAL_CLIENTS);
+	printf("Keyspace %d\n", KEYSPACE);
 
 	/* Run until the application is quit or killed. */
 	struct rte_ether_hdr* eth_hdr;
