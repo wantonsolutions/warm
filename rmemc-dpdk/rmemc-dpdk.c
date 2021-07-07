@@ -351,7 +351,40 @@ int fully_qp_init() {
 	return 1;
 }
 
-void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t seq, uint32_t rkey) {
+uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct write_request *wr = (struct write_request*) clover_header;
+	struct read_request * read_req = (struct read_request *)clover_header;
+	struct cs_request * cs_req = (struct cs_request *)clover_header;
+
+	switch(roce_hdr->opcode) {
+		case RC_WRITE_ONLY:
+			return wr->rdma_extended_header.rkey;
+		case RC_READ_REQUEST:
+			return read_req->rdma_extended_header.rkey;
+		case RC_CNS:
+			return cs_req->atomic_req.rkey;
+		default:
+			printf("rh-opcode unknown while getting rkey. Exiting\n");
+			exit(0);
+	}
+	return -1;
+}
+
+
+void init_connection_state(struct rte_mbuf *pkt) {
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+
+	uint16_t udp_src_port= udp_hdr->src_port;
+	uint32_t cts_dest_qp=roce_hdr->dest_qp;
+	uint32_t seq=roce_hdr->packet_sequence_number;
+	uint32_t rkey=get_rkey_rdma_packet(roce_hdr);
+	uint32_t server_ip=ipv4_hdr->dst_addr;
+	uint32_t client_ip=ipv4_hdr->src_addr;
 
 	//Find the connection state if it exists
 	struct Connection_State cs;
@@ -368,7 +401,10 @@ void init_connection_state(uint16_t udp_src_port, uint32_t cts_dest_qp, uint32_t
 	cs.udp_src_port_client = udp_src_port;
 	cs.ctsqp = cts_dest_qp;
 	cs.rkey = rkey;
+	cs.ip_addr_client=client_ip;
+	cs.ip_addr_server=server_ip;
 	cs.sender_init=1;
+
 	//These fields do not need to be set. They are for the second half of the algorithm
 	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
 	//cs.udp_src_port_server = 0;
@@ -400,36 +436,19 @@ void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
 	return;
 }
 
-uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct write_request *wr = (struct write_request*) clover_header;
-	struct read_request * read_req = (struct read_request *)clover_header;
-	struct cs_request * cs_req = (struct cs_request *)clover_header;
 
-	switch(roce_hdr->opcode) {
-		case RC_WRITE_ONLY:
-			return wr->rdma_extended_header.rkey;
-		case RC_READ_REQUEST:
-			return read_req->rdma_extended_header.rkey;
-		case RC_CNS:
-			return cs_req->atomic_req.rkey;
-		default:
-			printf("rh-opcode unknown while getting rkey. Exiting\n");
-			exit(0);
-	}
-	return -1;
-}
-
-void init_cs_wrapper(struct rte_udp_hdr *udp_hdr, struct roce_v2_header *roce_hdr) {
+void init_cs_wrapper(struct rte_mbuf* pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 
 	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_READ_REQUEST && roce_hdr->opcode != RC_CNS ) {
 		printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
 		exit(0);
 	}
-
 	uint32_t rkey = get_rkey_rdma_packet(roce_hdr);
-
-	init_connection_state(udp_hdr->src_port, roce_hdr->dest_qp, roce_hdr->packet_sequence_number,rkey);
+	init_connection_state(pkt);
 	
 }
 
@@ -617,11 +636,17 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
 	update_cs_seq(roce_hdr->dest_qp,roce_hdr->packet_sequence_number);
 }
 
-void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
+
+void cts_track_connection_state(struct rte_mbuf * pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	//void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
 	if (has_mapped_qp == 1) {
 		return;
 	}
-	init_cs_wrapper(udp_hdr,roce_hdr);
+	init_cs_wrapper(pkt);
 	update_cs_seq_wrapper(roce_hdr);
 }
 
@@ -1437,7 +1462,7 @@ void track_qp(struct rte_mbuf * pkt) {
 		uint64_t stub_zero_key = 0;
 		uint64_t *key = &stub_zero_key;
 		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
+			cts_track_connection_state(pkt);
 		}
 	} else if (opcode == RC_READ_RESPONSE) {
 		if (has_mapped_qp == 0) {
@@ -1454,7 +1479,7 @@ void track_qp(struct rte_mbuf * pkt) {
 			map_qp_forward(pkt,*key);
 		}
 		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
+			cts_track_connection_state(pkt);
 		}
 
 
@@ -1464,7 +1489,7 @@ void track_qp(struct rte_mbuf * pkt) {
 		}
 	} else if (opcode == RC_CNS) {
 		if (has_mapped_qp == 0) {
-			cts_track_connection_state(udp_hdr,roce_hdr);
+			cts_track_connection_state(pkt);
 		}
 	}
 }
