@@ -40,10 +40,13 @@ struct Request_Map {
   uint32_t open;
   uint32_t id;
   uint32_t original_sequence;
+  uint32_t original_src_ip;
   uint32_t mapped_sequence;
   uint32_t server_to_client_qp;
   uint32_t mapped_destination_server_to_client_qp;
   uint16_t server_to_client_udp_port;
+  uint32_t server_to_client_rkey;
+  uint8_t original_eth_addr[6];
 } Request_Map;
 
 struct Connection_State {
@@ -52,9 +55,12 @@ struct Connection_State {
   uint16_t udp_src_port_server;
   uint32_t ip_addr_client;
   uint32_t ip_addr_server;
-  uint32_t rkey;
+  uint32_t cts_rkey;
+  uint32_t stc_rkey;
   uint32_t ctsqp;
   uint32_t stcqp;
+  uint8_t cts_eth_addr[6];
+  uint8_t stc_eth_addr[6];
   uint32_t seq_current; // Packet sequence number
   uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
   uint32_t sender_init;

@@ -58,7 +58,7 @@ int MAP_QP = 1;
 
 
 //#define DATA_PATH_PRINT
-#define MAP_PRINT
+//#define MAP_PRINT
 #define COLLECT_GARBAGE
 
 //#define READ_STEER
@@ -371,6 +371,37 @@ uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
 	return -1;
 }
 
+void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct write_request *wr = (struct write_request*) clover_header;
+	struct read_request * read_req = (struct read_request *)clover_header;
+	struct cs_request * cs_req = (struct cs_request *)clover_header;
+
+	switch(roce_hdr->opcode) {
+		case RC_WRITE_ONLY:
+			wr->rdma_extended_header.rkey = rkey;
+			return;
+		case RC_READ_REQUEST:
+			read_req->rdma_extended_header.rkey = rkey;
+			return;
+		case RC_CNS:
+			cs_req->atomic_req.rkey = rkey;
+			return;
+		default:
+    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
+			printf("rh-opcode unknown while setting rkey. Exiting\n");
+			exit(0);
+	}
+	return;
+}
+
+
+void copy_eth_addr(uint8_t *src, uint8_t *dst) {
+	for (int i=0;i<6;i++) {
+		dst[i] = src[i];
+	}
+}
+
 
 void init_connection_state(struct rte_mbuf *pkt) {
 
@@ -400,9 +431,20 @@ void init_connection_state(struct rte_mbuf *pkt) {
 	cs.seq_current = seq;
 	cs.udp_src_port_client = udp_src_port;
 	cs.ctsqp = cts_dest_qp;
-	cs.rkey = rkey;
+	cs.cts_rkey = rkey;
 	cs.ip_addr_client=client_ip;
 	cs.ip_addr_server=server_ip;
+
+	copy_eth_addr((uint8_t*)eth_hdr->s_addr.addr_bytes,(uint8_t*)cs.cts_eth_addr);
+	copy_eth_addr((uint8_t*)eth_hdr->d_addr.addr_bytes,(uint8_t*)cs.stc_eth_addr);
+
+	//src_macaddr = eth->s_addr;
+	//dst_macaddr = eth->d_addr;
+	//printf("src_macaddr: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
+	//	" %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
+	//	src_macaddr.addr_bytes[0], src_macaddr.addr_bytes[1],
+	//	src_macaddr.addr_bytes[2], src_macaddr.addr_bytes[3],
+
 	cs.sender_init=1;
 
 	//These fields do not need to be set. They are for the second half of the algorithm
@@ -412,29 +454,6 @@ void init_connection_state(struct rte_mbuf *pkt) {
 	Connection_States[cs.id] = cs;
 }
 
-void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct write_request *wr = (struct write_request*) clover_header;
-	struct read_request * read_req = (struct read_request *)clover_header;
-	struct cs_request * cs_req = (struct cs_request *)clover_header;
-
-	switch(roce_hdr->opcode) {
-		case RC_WRITE_ONLY:
-			wr->rdma_extended_header.rkey = rkey;
-			return;
-		case RC_READ_REQUEST:
-			read_req->rdma_extended_header.rkey = rkey;
-			return;
-		case RC_CNS:
-			cs_req->atomic_req.rkey = rkey;
-			return;
-		default:
-    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
-			printf("rh-opcode unknown while setting rkey. Exiting\n");
-			exit(0);
-	}
-	return;
-}
 
 
 void init_cs_wrapper(struct rte_mbuf* pkt) {
@@ -1109,7 +1128,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
 			#ifdef MAP_PRINT
-			printf("MAP FRWD(key %d) (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
+			printf("MAP FRWD(key %"PRIu64") (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 			#endif
 
 
@@ -1129,11 +1148,28 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Store the server to client to qp that this we will need to make the swap
 			slot->server_to_client_qp=Connection_States[id].stcqp;
 			slot->server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+			slot->original_src_ip=ipv4_hdr->src_addr;
+			slot->server_to_client_rkey=Connection_States[id].stc_rkey;
+
+			//print_eth_header(eth_hdr);
+			copy_eth_addr(eth_hdr->s_addr.addr_bytes, slot->original_eth_addr);
+			//print_eth_header(eth_hdr);
 			
 			//Set the packet with the mapped information to the new qp
 			roce_hdr->dest_qp = destination_connection->ctsqp;
 			roce_hdr->packet_sequence_number = destination_connection->seq_current;
 			udp_hdr->src_port = destination_connection->udp_src_port_client;
+
+			//printf("RKEY %d dest conn\n",destination_connection->cts_rkey);
+			//printf("Rkey client %d\n",get_rkey_rdma_packet(roce_hdr));
+
+			//print_ip_header(ipv4_hdr);
+			ipv4_hdr->src_addr = destination_connection->ip_addr_client;
+			ipv4_hdr->hdr_checksum = 0;
+			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+			//print_ip_header(ipv4_hdr);
+
+
 
 			//csum the modified packet
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -1207,6 +1243,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 			roce_hdr->packet_sequence_number = mapped_request->original_sequence;
 			udp_hdr->src_port = mapped_request->server_to_client_udp_port;
+			//set_rkey_rdma_packet(roce_hdr,mapped_request->server_to_client_rkey);
 
 			//Update the tracked msn this requires adding to it, and then storing back to the connection states
 			//TODO put this in it's own function
@@ -1214,8 +1251,6 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 			//destination_cs.mseq_current = 
 			//increment_msn(destination_cs);
-
-
 
 			//new way of doing it
 			uint32_t msn = produce_and_update_msn(roce_hdr,destination_cs);
@@ -1231,6 +1266,21 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//old
 			//set_msn(roce_hdr,destination_cs->mseq_current);
 			//printf("Returned MSN %d\n", readable_seq(msn));
+
+			//printf("Start Here tommorrow, you were in the process of mapping ip address as part of the queue pair mapping. I thknk that the checksums are a bit broken and might need to be inspected manually.");
+
+			//Ip mapping
+			//print_ip_header(ipv4_hdr);
+			ipv4_hdr->dst_addr = mapped_request->original_src_ip;
+			ipv4_hdr->hdr_checksum = 0;
+			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+			//print_ip_header(ipv4_hdr);
+
+
+			//print_eth_header(eth_hdr);
+			//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
+			copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
+			//print_eth_header(eth_hdr);
 
 
 			//re ecalculate the checksum
@@ -1276,7 +1326,8 @@ void map_qp(struct rte_mbuf * pkt) {
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint32_t size = ntohs(ipv4_hdr->total_length)
+;
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp= roce_hdr->dest_qp;
 
@@ -1295,11 +1346,18 @@ void map_qp(struct rte_mbuf * pkt) {
 	if (opcode == RC_READ_REQUEST) {
 		uint64_t stub_zero_key = 0;
 		uint64_t *key = &stub_zero_key;
-		map_qp_forward(pkt,*key);
+		map_qp_forward(pkt, *key);
 	}  else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
 		uint32_t id = get_id(roce_hdr->dest_qp);
+
+		if (key < 0) {
+			print_packet(pkt);
+			if (size == 1084) {
+				printf("DEBUG packet is strange");
+			}
+		}
 		//!TODO TODO figure out what is actually going on here
 		/*
 		When I perform writes across keys but aslo mux QP on the writes
@@ -2527,7 +2585,7 @@ lcore_main(void)
 				ipv4_hdr->hdr_checksum = 0;
 				ipcsum = rte_ipv4_cksum(ipv4_hdr);
 				if (ipcsum != old_ipcsum) {
-					printf("someting in the packet changed, the csums don't aline (org/new) (%d/%d) \n",ipv4_hdr->hdr_checksum,ipcsum);
+					//printf("something in the packet changed, the csums don't aline (org/new) (%d/%d) \n",ipv4_hdr->hdr_checksum,ipcsum);
 				}
 				//ipv4_hdr->hdr_checksum = old_ipcsum;
 				ipv4_hdr->hdr_checksum = ipcsum;
