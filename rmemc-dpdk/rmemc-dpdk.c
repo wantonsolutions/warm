@@ -39,6 +39,7 @@
 #define RC_ACK 0x11
 #define RC_ATOMIC_ACK 0x12
 #define RC_CNS 0x13
+#define ECN_OPCODE 0x81
 
 #define RDMA_COUNTER_SIZE 256
 #define RDMA_STRING_NAME_LEN 256
@@ -60,8 +61,9 @@ int MAP_QP = 1;
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
 #define COLLECT_GARBAGE
+#define CATCH_ECN
 
-//#define READ_STEER
+#define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
 uint64_t read_redirections = 0;
 uint64_t reads = 0;
@@ -519,18 +521,22 @@ uint32_t get_msn(struct roce_v2_header *roce_hdr) {
 	return msn;
 }
 
-void increment_msn(struct Connection_State *cs) {
-	uint32_t msn_update = cs->mseq_current;
-	msn_update = htonl(ntohl(msn_update) + SEQUENCE_NUMBER_SHIFT);
-	cs->mseq_current = msn_update;
-}
-
 uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connection_State *cs) {
 	//new way of doing it
 	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
 	if (ntohl(msn) > ntohl(cs->mseq_current)) {
+		/*
+		uint32_t difference = readable_seq(msn) - readable_seq(cs->mseq_current);
+		if ( difference > 1 ) {
+			//printf("current msn %d incomming msn %d\n",readable_seq(cs->mseq_current),readable_seq(msn));
+			//printf("gap between packets non monotonic difference = %d\n",difference);
+			//printf("TODO reducing msn to try and reduce conflicts\n",difference);
+			msn = htonl(ntohl(msn) - ((difference - 1) * SEQUENCE_NUMBER_SHIFT));
+		}
+		*/
 		cs->mseq_current = msn;
-	}
+	} 
+	//return cs->mseq_current;
 	return msn;
 }
 
@@ -577,7 +583,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		return;
 	}
 
-	//If we are here then the connection should not be initlaized yet	
+	//If we are here then the connection should not be initlaized yet	/ /
 	//Find the coonection
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		cs = Connection_States[i];
@@ -903,7 +909,6 @@ static uint64_t key_versions[KEYSPACE][KEY_VERSION_RING_SIZE];
 static uint32_t key_count[KEYSPACE];
 #endif
 
-
 static uint64_t first_write[KEYSPACE];
 static uint64_t second_write[TOTAL_ENTRY][KEYSPACE];
 static uint64_t first_cns[KEYSPACE];
@@ -943,6 +948,112 @@ void init_connection_states(void) {
 		}
 	}
 
+}
+
+uint32_t mod_hash(uint64_t vaddr) {
+	//uint32_t index = crc32(0xFFFFFFFF, &vaddr, 8) % HASHSPACE;
+	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
+	uint32_t index = (ntohl(vaddr >> 32) % HASHSPACE);
+	//printf("%"PRIx64" %d\n",vaddr, index);
+	return index;
+}
+
+void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr) {
+	uint32_t index = mod_hash(vaddr);
+	cached_write_vaddr_mod[index] = vaddr;
+	cached_write_vaddr_mod_lookup[index] = key;
+	cached_write_vaddr_mod_latest[key] = vaddr;
+}
+
+int does_read_have_cached_write_mod(uint64_t vaddr) {
+	uint32_t index = mod_hash(vaddr);
+	if (cached_write_vaddr_mod[index] == vaddr) {
+		return cached_write_vaddr_mod_lookup[index];
+	}
+	return 0;
+}
+
+uint64_t get_latest_vaddr_mod(uint32_t key) {
+	return cached_write_vaddr_mod_latest[key];
+}
+
+void update_write_vaddr_cache_ring(uint64_t key, uint64_t vaddr) {
+	uint32_t cache_index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
+	//printf("updating write for key %"PRIu64", vaddr %"PRIu64" slot %d\n",key,vaddr,cache_index);
+	cached_write_vaddrs[key][cache_index] = vaddr;
+	writes_per_key[key]++;
+}
+
+
+
+int does_read_have_cached_write_ring(uint64_t vaddr) {
+	//for (int key=0;key<KEYSPACE;key++) {
+	//TODO this is an error the last key will not be indexed here
+	for (int key=1;key<CACHE_KEYSPACE;key++) {
+
+		if(writes_per_key[key]==0) {
+			continue;
+		}
+		//!TODO start at the last written index
+		int index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
+		for (uint32_t counter=0;counter<WRITE_VADDR_CACHE_SIZE;counter++) {
+			//printf("INDEX %d counter %d\n",index, counter);
+			if (cached_write_vaddrs[key][index] == vaddr) {
+				//printf("found key %d add stored %"PRIu64" incomming %"PRIu64"\n",key,cached_write_vaddrs[key][index],vaddr);
+				return key;
+			}
+			//TODO decrement to optimize
+			index = (index-1);
+			if (index < 0) {
+				index = WRITE_VADDR_CACHE_SIZE -1;
+			}
+		}
+	}
+	return 0;
+}
+
+uint64_t get_latest_vaddr_ring(uint32_t key) {
+	if (unlikely(writes_per_key[key] == 0)) {
+		printf("Should not be rewriting something that has not been touched\n");
+		return 0;
+	}
+	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
+	return cached_write_vaddrs[key][cache_index];
+}
+
+
+//int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_ring;
+//void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_ring;
+//uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_ring;
+
+int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
+void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
+uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
+
+void steer_read(struct rte_mbuf *pkt, uint32_t key) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct read_request * rr = (struct read_request*) clover_header;
+
+	uint64_t vaddr = get_latest_vaddr(key);
+
+	if (vaddr == 0) {
+		return;
+	}
+
+	//Set the current address to the cached address of the latest write if it is old
+	if (rr->rdma_extended_header.vaddr != vaddr) {
+		rr->rdma_extended_header.vaddr = vaddr;
+		//printf("Re routing key %d for cached index %d\n",key,cache_index);
+		//With the vaddr updated redo the checksum
+		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+		memcpy(current_checksum,&crc_check,4);
+		read_redirections++;
+	}
 }
 
 uint32_t slot_is_open(struct Request_Map *rm) {
@@ -997,7 +1108,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 			garbage_collected++;
 		}
 	}
-
+	printf("[garbage %d] %d\n",cs->id,garbage_collected);
 	return garbage_collected;
 }
 
@@ -1084,12 +1195,13 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
 	//log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = 0;
-	if (roce_hdr->opcode==RC_READ_REQUEST) {
-		//printf("No QP redirect on reads\n");
-		n_qp = roce_hdr->dest_qp;
-	} else {
+
+	if (key != 0) {
 		n_qp = key_to_qp(key);
-	}
+	} else {
+		n_qp = roce_hdr->dest_qp;
+	} 
+	
 
 	//printf("KEY %"PRIu64" QP %d\n",key,n_qp);
 
@@ -1216,7 +1328,7 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			return;
 		}
 		source_connection=&Connection_States[i];
-		if (source_connection->stcqp == roce_hdr->dest_qp) {
+		if (source_connection->stcqp == roce_hdr->dest_qp && source_connection->ip_addr_client == ipv4_hdr->dst_addr) {
 			break;
 		}
 		source_connection=NULL;
@@ -1249,8 +1361,6 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//TODO put this in it's own function
 			struct Connection_State * destination_cs = &Connection_States[mapped_request->id];
 
-			//destination_cs.mseq_current = 
-			//increment_msn(destination_cs);
 
 			//new way of doing it
 			uint32_t msn = produce_and_update_msn(roce_hdr,destination_cs);
@@ -1344,9 +1454,21 @@ void map_qp(struct rte_mbuf * pkt) {
 
 
 	if (opcode == RC_READ_REQUEST) {
-		uint64_t stub_zero_key = 0;
-		uint64_t *key = &stub_zero_key;
+		uint32_t stub_key = 0;
+		uint32_t *key = &stub_key;
+
+		#ifdef READ_STEER
+		struct read_request * rr = (struct read_request*) clover_header;
+		stub_key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+		if (*key) {
+			steer_read(pkt,*key);
+		} else {
+			stub_key=0;
+			read_misses++;
+		}
+		#endif
 		map_qp_forward(pkt, *key);
+
 	}  else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
@@ -1380,6 +1502,9 @@ void map_qp(struct rte_mbuf * pkt) {
 			//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
 			//map_qp_forward(pkt,latest_key[id]);
 			*key = latest_key[id];
+			if (*key < 0 || *key > KEYSPACE) {
+				*key = 0;
+			}
 		}
 		map_qp_forward(pkt,*key);
 	} else if (opcode == RC_CNS) {
@@ -1388,111 +1513,7 @@ void map_qp(struct rte_mbuf * pkt) {
 	}
 }
 
-uint32_t mod_hash(uint64_t vaddr) {
-	//uint32_t index = crc32(0xFFFFFFFF, &vaddr, 8) % HASHSPACE;
-	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
-	uint32_t index = (ntohl(vaddr >> 32) % HASHSPACE);
-	//printf("%"PRIx64" %d\n",vaddr, index);
-	return index;
-}
 
-void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr) {
-	uint32_t index = mod_hash(vaddr);
-	cached_write_vaddr_mod[index] = vaddr;
-	cached_write_vaddr_mod_lookup[index] = key;
-	cached_write_vaddr_mod_latest[key] = vaddr;
-}
-
-int does_read_have_cached_write_mod(uint64_t vaddr) {
-	uint32_t index = mod_hash(vaddr);
-	if (cached_write_vaddr_mod[index] == vaddr) {
-		return cached_write_vaddr_mod_lookup[index];
-	}
-	return 0;
-}
-
-uint64_t get_latest_vaddr_mod(uint32_t key) {
-	return cached_write_vaddr_mod_latest[key];
-}
-
-void update_write_vaddr_cache_ring(uint64_t key, uint64_t vaddr) {
-	uint32_t cache_index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
-	//printf("updating write for key %"PRIu64", vaddr %"PRIu64" slot %d\n",key,vaddr,cache_index);
-	cached_write_vaddrs[key][cache_index] = vaddr;
-	writes_per_key[key]++;
-}
-
-
-
-int does_read_have_cached_write_ring(uint64_t vaddr) {
-	//for (int key=0;key<KEYSPACE;key++) {
-	//TODO this is an error the last key will not be indexed here
-	for (int key=1;key<CACHE_KEYSPACE;key++) {
-
-		if(writes_per_key[key]==0) {
-			continue;
-		}
-		//!TODO start at the last written index
-		int index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
-		for (uint32_t counter=0;counter<WRITE_VADDR_CACHE_SIZE;counter++) {
-			//printf("INDEX %d counter %d\n",index, counter);
-			if (cached_write_vaddrs[key][index] == vaddr) {
-				//printf("found key %d add stored %"PRIu64" incomming %"PRIu64"\n",key,cached_write_vaddrs[key][index],vaddr);
-				return key;
-			}
-			//TODO decrement to optimize
-			index = (index-1);
-			if (index < 0) {
-				index = WRITE_VADDR_CACHE_SIZE -1;
-			}
-		}
-	}
-	return 0;
-}
-
-uint64_t get_latest_vaddr_ring(uint32_t key) {
-	if (unlikely(writes_per_key[key] == 0)) {
-		printf("Should not be rewriting something that has not been touched\n");
-		return 0;
-	}
-	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
-	return cached_write_vaddrs[key][cache_index];
-}
-
-
-//int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_ring;
-//void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_ring;
-//uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_ring;
-
-int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
-void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
-uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
-
-void steer_read(struct rte_mbuf *pkt, uint32_t key) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct read_request * rr = (struct read_request*) clover_header;
-
-	uint64_t vaddr = get_latest_vaddr(key);
-
-	if (vaddr == 0) {
-		return;
-	}
-
-	//Set the current address to the cached address of the latest write if it is old
-	if (rr->rdma_extended_header.vaddr != vaddr) {
-		rr->rdma_extended_header.vaddr = vaddr;
-		//printf("Re routing key %d for cached index %d\n",key,cache_index);
-		//With the vaddr updated redo the checksum
-		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-		memcpy(current_checksum,&crc_check,4);
-		read_redirections++;
-	}
-}
 
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
@@ -1570,6 +1591,17 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	map_qp(pkt);
 
+	#ifdef CATCH_ECN
+	if (opcode == ECN_OPCODE) {
+		for (int i=0;i<20;i++) {
+			printf("Packet # %d\n",packet_counter);
+			printf("ECN\n");
+		}
+		print_packet(pkt);
+		debug_start_printing_every_packet = 1;
+	}
+	#endif
+
 	if (opcode == RC_ACK) {
 		track_qp(pkt);
 
@@ -1584,15 +1616,6 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
 		track_qp(pkt);
-		#ifdef READ_STEER
-		struct read_request * rr = (struct read_request*) clover_header;
-		uint32_t key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
-		if (key) {
-			steer_read(pkt,key);
-		} else {
-			read_misses++;
-		}
-		#endif
 		reads++;
 		
 		//struct read_request * rr = (struct read_request *)clover_header;
