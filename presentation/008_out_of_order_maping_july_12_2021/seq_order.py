@@ -68,6 +68,7 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     figure(figsize=(10,4), dpi=160)
     plt.ylim(-0.01, 1.01)
     plt.xlim(-15,15)
+    plt.xlabel("Sequence number difference between sequential packets")
     plt.plot(x,y, label="sequence_steps")
     plt.tight_layout()
     plt.savefig(sequence_output_filename)
@@ -77,6 +78,7 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     figure(figsize=(10,4), dpi=160)
     plt.ylim(.99, 1.001)
     plt.xlim(-15,15)
+    plt.xlabel("Sequence number difference between sequential packets")
     plt.plot(x,y, label="sequence_steps")
     plt.tight_layout()
     plt.savefig("99th_"+sequence_output_filename)
@@ -93,6 +95,7 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
         plt.plot(x,y, label=str(index))
         index=index+1
     plt.xlabel("Seconds")
+    plt.ylabel("Sequence number difference between sequential packets")
     plt.savefig(timeline_output_filename)
 
 plot_charts('sequence_order_no_map.dat','sequence_no_map.pdf','timeline_no_map.pdf')

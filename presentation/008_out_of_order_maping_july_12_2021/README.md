@@ -32,17 +32,20 @@ The results of this experiment are taken from a single run each, however they we
 
 From the timeline charts it's obvious that with QP mapping turned on sequence
 numbers are arriving on a much larger spread than with the mapping turned off.
-Of particular note is that some packets are arriving with sequence number less
-than those that had already arrived when the mapping is turned on. These values
-are negative on the chart. I believe that these are causing issues on the NICs.
-With mapping turned off the range is between 1, where one is a sequential
-sequence number. and 5, which is when the gap between two successive packets is
-5 sequence numbers.
+Here each thread is given a different color, none are distinguished because
+they1 all run the same code. A value of 1 on the y axis represents a sequential
+sequence number. Greater than 1 is the arrival of a packet on the client with a
+gap between it, and the expected sequential sequence number Of particular note
+is that some packets are arriving with sequence number less than those that had
+already arrived when the mapping is turned on. These values are negative on the
+chart. I believe that these are causing issues on the NICs.  With mapping turned
+off the range is between 1, where one is a sequential sequence number. and 5,
+which is when the gap between two successive packets is 5 sequence numbers.
 
-## No QP mapping CDF
+### No QP mapping CDF
 ![no_map_cdf](sequence_no_map.png)
 
-## QP mapping CDF
+### QP mapping CDF
 ![map_cdf](sequence_with_map.png)
 
 The CDF of these two experiments shows the magnitude of the packets that
@@ -55,10 +58,10 @@ The true killer here is that with the QP mapping on the sequence number
 difference goes negative. This is triggering the go-back-n retransmissions which
 is killing the runs.
 
-## No QP mapping CDF
+### No QP mapping CDF (99th upper percentile)
 ![no_map_cdf](99th_sequence_no_map.png)
 
-## QP mapping CDF
+### QP mapping CDF (99th upper percentile)
 ![map_cdf](99th_sequence_with_map.png)
 
 A zoom in of the 99th show how the distribution is separated. It seems that the
