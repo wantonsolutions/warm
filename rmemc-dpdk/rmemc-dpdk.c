@@ -48,14 +48,12 @@
 #define KEYSPACE 1024
 //#define KEYSPACE 500;
 #define CACHE_KEYSPACE 1024
-
 #define SEQUENCE_NUMBER_SHIFT 256
-
 #define TOTAL_PACKET_LATENCIES 10000
-
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
 int MAP_QP = 1;
+int MOD_SLOT = 1;
 
 
 //#define DATA_PATH_PRINT
@@ -106,8 +104,6 @@ uint8_t test_ack_pkt[] = {
 #define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
 
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
-
-
 
 
 static int rdma_counter = 0;
@@ -998,7 +994,7 @@ void init_connection_states(void) {
 	for (int i=0;i<TOTAL_ENTRY;i++) {
 		struct Connection_State *source_connection;
 		source_connection=&Connection_States[i];
-		for (int j=0;j<TOTAL_ENTRY;j++) {
+		for (int j=0;j<CS_SLOTS;j++) {
 			struct Request_Map * mapped_request;
 			mapped_request = &(source_connection->Outstanding_Requests[j]);
 			mapped_request->open = 1;
@@ -1132,7 +1128,7 @@ void open_slot(struct Request_Map* rm) {
 uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	//Find the highest sequence number used in this connection
 	uint32_t max_sequence_number=0;
-	for (int j=0;j<TOTAL_ENTRY;j++) {
+	for (int j=0;j<CS_SLOTS;j++) {
 		struct Request_Map* slot = &cs->Outstanding_Requests[j];
 		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) > max_sequence_number) {
 			max_sequence_number = readable_seq(cs->Outstanding_Requests[j].mapped_sequence);
@@ -1145,11 +1141,11 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	//tell. The point is that we can keep running by just removing these entries
 	//probably. I think it's very important to learn why this is happening but
 	//for now garbage collection might be a path forward.  The value here should
-	//be TOTAL_ENYTRY, but I'm starting with TOTAL_ENTRY * constant_multiper so
+	//be TOTAL_ENYTRY, but I'm starting with CS_SLOTS * constant_multiper so
 	//that I'm "extra" safe.
 	//!TODO figure out what's actually going on here.
 	uint32_t constant_multiplier = 1;
-	int32_t stale_water_mark = max_sequence_number - (TOTAL_ENTRY * constant_multiplier);
+	int32_t stale_water_mark = max_sequence_number - (CS_SLOTS * constant_multiplier);
 	//printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
 	uint32_t garbage_collected = 0;
 
@@ -1158,7 +1154,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 	}
 
 	//Perform garbage collection
-	for (int j=0;j<TOTAL_ENTRY;j++) {
+	for (int j=0;j<CS_SLOTS;j++) {
 		struct Request_Map* slot = &cs->Outstanding_Requests[j];
 		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) < stale_water_mark) {
 			open_slot(slot);
@@ -1171,7 +1167,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 
 struct Request_Map * find_empty_slot(struct Connection_State* cs) {
 
-	for (int j=0;j<TOTAL_ENTRY;j++) {
+	for (int j=0;j<CS_SLOTS;j++) {
 		if (slot_is_open(&cs->Outstanding_Requests[j])) {
 			return &cs->Outstanding_Requests[j];
 		}
@@ -1180,9 +1176,9 @@ struct Request_Map * find_empty_slot(struct Connection_State* cs) {
 }
 
 
+
+
 struct Request_Map * get_empty_slot(struct Connection_State* cs) {
-	
-	
 	//Search
 	struct Request_Map * slot;
 	#ifdef COLLECT_GARBAGE
@@ -1202,7 +1198,7 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 		return slot;
 	} else {
 		printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
-		for (int j=0;j<TOTAL_ENTRY;j++) {
+		for (int j=0;j<CS_SLOTS;j++) {
 			printf("INDEX %d\n",j);
 			print_request_map(&cs->Outstanding_Requests[j]);
 		}
@@ -1216,6 +1212,24 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 	//error we did not find anything good
 	exit(0);
 	return NULL;
+}
+
+uint32_t mod_slot(uint32_t seq) {
+	return readable_seq(seq) % CS_SLOTS; 
+}
+
+struct Request_Map * get_empty_slot_mod(struct Connection_State *cs) {
+	uint32_t slot_num = mod_slot(cs->seq_current);
+	//printf("(%d,%d)\n",cs->id,slot_num);
+	struct Request_Map * slot = &(cs->Outstanding_Requests[slot_num]);
+	if (!slot_is_open(slot)) {
+		//printf("CLOSED SLOT, this is really bad!!\n");
+		//print_request_map(slot);
+		//exit(0);
+	}
+	//open anyways
+	open_slot(slot);
+	return slot;
 }
 
 uint32_t qp_is_mapped(uint32_t qp) {
@@ -1303,9 +1317,13 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
 			
 			//Search for an open slot
-			struct Request_Map* slot = get_empty_slot(destination_connection);
 			//!!!TODO TODO gotta go fast start here after lunch
-			struct Request_Map* slot = get_empty_slot_mod(destination_connection);
+			struct Request_Map* slot;
+			if (MOD_SLOT) {
+				slot = get_empty_slot_mod(destination_connection);
+			} else {
+				slot = get_empty_slot(destination_connection);
+			}
 
 
 			//The next step is to save the data from the current packet
@@ -1345,8 +1363,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 			//print_ip_header(ipv4_hdr);
 
-
-
 			//csum the modified packet
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
@@ -1376,6 +1392,7 @@ struct Connection_State * find_connection(struct rte_mbuf* pkt) {
 		//This optimization is safe because we should not ever have more than qp
 		//enteries in the Connection State list. However it uses knowledge not local to this funtion.
 		if (unlikely(i > qp_id_counter)) {
+			source_connection=NULL;
 			break;
 		}
 		source_connection=&Connection_States[i];
@@ -1398,8 +1415,7 @@ struct Request_Map * find_slot(struct Connection_State * source_connection, stru
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	struct Request_Map * mapped_request;
 
-	for (int j=0;j<TOTAL_ENTRY;j++) {
-
+	for (int j=0;j<CS_SLOTS;j++) {
 		mapped_request = &(source_connection->Outstanding_Requests[j]);
 		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
 		//First search to find if the sequence numbers match
@@ -1409,6 +1425,28 @@ struct Request_Map * find_slot(struct Connection_State * source_connection, stru
 	}
 	return NULL;
 }
+
+struct Request_Map * find_slot_mod(struct Connection_State * source_connection, struct rte_mbuf *pkt) {
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
+	uint32_t slot_num = mod_slot(search_sequence_number);
+	struct Request_Map * mapped_request = &(source_connection->Outstanding_Requests[slot_num]);
+
+	//First search to find if the sequence numbers match
+	if ((!slot_is_open(mapped_request)) && mapped_request->mapped_sequence == search_sequence_number) {
+		return mapped_request;
+	}
+	return NULL;
+}
+
+
+
 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
@@ -1431,7 +1469,13 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		return;
 	}
 
-	struct Request_Map * mapped_request = find_slot(source_connection,pkt);
+	struct Request_Map * mapped_request;
+	if (MOD_SLOT) {
+		mapped_request = find_slot_mod(source_connection,pkt);
+	} else {
+		mapped_request = find_slot(source_connection,pkt);
+	}
+	//struct Request_Map * 
 	if (mapped_request != NULL) {
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
@@ -1483,8 +1527,9 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 		memcpy(current_checksum,&crc_check,4);
-
 	}
+
+	print_packet_lite(pkt);
 }
 
 
@@ -1670,7 +1715,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			printf("ECN\n");
 		}
 		print_packet(pkt);
-		debug_start_printing_every_packet = 1;
+		//debug_start_printing_every_packet = 1;
 	}
 	#endif
 
@@ -2017,6 +2062,8 @@ void true_classify(struct rte_mbuf * pkt) {
 			#ifdef TAKE_MEASUREMENTS
 			write_run_data();
 			#endif
+
+			print_packet(pkt);
 
 			exit(0);
 		}
@@ -2651,7 +2698,7 @@ lcore_main(void)
 
 
 				//rte_rwlock_write_lock(&next_lock);
-				log_printf(DEBUG,"Packet Start\n");
+				//log_printf(DEBUG,"Packet Start\n");
 				int64_t clocks_before = rdtsc_s ();
 				true_classify(rx_pkts[i]);
 				int64_t clocks_after = rdtsc_e ();
@@ -2668,7 +2715,7 @@ lcore_main(void)
 					print_packet_lite(rx_pkts[i]);
 				}
 				//printf("cpp %"PRIu64"\n",clocks_per_packet);
-				log_printf(DEBUG,"Packet End\n\n");
+				//log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
 
 				/*

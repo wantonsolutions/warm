@@ -25,6 +25,7 @@
 #define BURST_SIZE 32
 
 #define TOTAL_ENTRY 128
+#define CS_SLOTS 1024
 
 #define MITSUME_BENCHMARK_THREAD_DEFAULT 8
 #if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
@@ -67,7 +68,7 @@ struct Connection_State {
   uint32_t receiver_init;
   //init test variables
   int32_t mseq_offset;
-  struct Request_Map Outstanding_Requests[TOTAL_ENTRY];
+  struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;
 
 
