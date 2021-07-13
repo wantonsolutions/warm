@@ -1170,6 +1170,7 @@ uint32_t garbage_collect_slots(struct Connection_State* cs) {
 }
 
 struct Request_Map * find_empty_slot(struct Connection_State* cs) {
+
 	for (int j=0;j<TOTAL_ENTRY;j++) {
 		if (slot_is_open(&cs->Outstanding_Requests[j])) {
 			return &cs->Outstanding_Requests[j];
@@ -1277,15 +1278,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			//print_connection_state(destination_connection);
 
 
-			//Multiple reads occur at once. We don't want them to overwrite
-			//eachother. Initally I used Oustanding_Requests[id] to hold
-			//requests. But this only ever used the one index. On parallel reads
-			//the sequence number over write the old one because they collied.
-			//To save time, I'm using the old extra space TOTAL_ENTRIES in the
-			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
-			
-			//Search for an open slot
-			struct Request_Map* slot = get_empty_slot(destination_connection);
 
 			//printf("dest connection\n");
 			//print_connection_state(destination_connection);
@@ -1302,6 +1294,18 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 			#ifdef MAP_PRINT
 			printf("MAP FRWD(key %"PRIu64") (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 			#endif
+
+			//Multiple reads occur at once. We don't want them to overwrite
+			//eachother. Initally I used Oustanding_Requests[id] to hold
+			//requests. But this only ever used the one index. On parallel reads
+			//the sequence number over write the old one because they collied.
+			//To save time, I'm using the old extra space TOTAL_ENTRIES in the
+			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
+			
+			//Search for an open slot
+			struct Request_Map* slot = get_empty_slot(destination_connection);
+			//!!!TODO TODO gotta go fast start here after lunch
+			struct Request_Map* slot = get_empty_slot_mod(destination_connection);
 
 
 			//The next step is to save the data from the current packet
@@ -1353,6 +1357,58 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 }
 
 
+struct Connection_State * find_connection(struct rte_mbuf* pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	//We have very little information on the demultiplex side. We need to search
+	//through the entire list in order to determine if this sequence number was
+	//cached. We don't know the key, or the original sender so we can't do the
+	//reverse lookup. In this case we have to pass over the whole list of
+	//connections, then we have to look through each entry in each connection to
+	//determine if there is an outstanding request.
+
+	struct Connection_State *source_connection = NULL;
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		//This optimization is safe because we should not ever have more than qp
+		//enteries in the Connection State list. However it uses knowledge not local to this funtion.
+		if (unlikely(i > qp_id_counter)) {
+			break;
+		}
+		source_connection=&Connection_States[i];
+		if (source_connection->stcqp == roce_hdr->dest_qp && source_connection->ip_addr_client == ipv4_hdr->dst_addr) {
+			break;
+		}
+		source_connection=NULL;
+	}
+	return source_connection;
+}
+
+struct Request_Map * find_slot(struct Connection_State * source_connection, struct rte_mbuf *pkt) {
+
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
+	struct Request_Map * mapped_request;
+
+	for (int j=0;j<TOTAL_ENTRY;j++) {
+
+		mapped_request = &(source_connection->Outstanding_Requests[j]);
+		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
+		//First search to find if the sequence numbers match
+		if ((!slot_is_open(mapped_request)) && mapped_request->mapped_sequence == search_sequence_number) {
+			return mapped_request;
+		}
+	}
+	return NULL;
+}
 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
@@ -1369,104 +1425,52 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		return;
 	}
 
-	//We have very little information on the demultiplex side. We need to search
-	//through the entire list in order to determine if this sequence number was
-	//cached. We don't know the key, or the original sender so we can't do the
-	//reverse lookup. In this case we have to pass over the whole list of
-	//connections, then we have to look through each entry in each connection to
-	//determine if there is an outstanding request.
-
-	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	//log_printf(DEBUG,"MAPPING BACKWARDS searching for sequence raw (%d) readable (%d) \n",search_sequence_number, readable_seq(search_sequence_number));
-	struct Connection_State *source_connection;
-	struct Request_Map * mapped_request;
-
-	//TODO this loop can be removed by being able to do a get id on a server size qp
-	for (int i=0;i<TOTAL_ENTRY;i++) {
-		//This optimization is safe because we should not ever have more than qp enteries in the Connection State list
-		if (unlikely(i > qp_id_counter)) {
-			return;
-		}
-		source_connection=&Connection_States[i];
-		if (source_connection->stcqp == roce_hdr->dest_qp && source_connection->ip_addr_client == ipv4_hdr->dst_addr) {
-			break;
-		}
-		source_connection=NULL;
-	}
-
+	struct Connection_State *source_connection = find_connection(pkt);
 	if (source_connection == NULL) {
-		printf("Unable to find matching connection\n");
+		//This packet is not part of an activly mapped connection
 		return;
 	}
-	
 
-	for (int j=0;j<TOTAL_ENTRY;j++) {
+	struct Request_Map * mapped_request = find_slot(source_connection,pkt);
+	if (mapped_request != NULL) {
+		//Set the packety headers to that of the mapped request
+		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
+		roce_hdr->packet_sequence_number = mapped_request->original_sequence;
+		udp_hdr->src_port = mapped_request->server_to_client_udp_port;
+		//set_rkey_rdma_packet(roce_hdr,mapped_request->server_to_client_rkey);
 
-		mapped_request = &(source_connection->Outstanding_Requests[j]);
-		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
-		//First search to find if the sequence numbers match
-		if (!slot_is_open(mapped_request) && mapped_request->mapped_sequence == search_sequence_number) {
+		//Update the tracked msn this requires adding to it, and then storing back to the connection states
+		//To do this we need to take a look at what the original connection was so that we can update it accordingly.
+		struct Connection_State * destination_cs = &Connection_States[mapped_request->id];
+		uint32_t msn = produce_and_update_msn(roce_hdr,destination_cs);
+		#ifdef MAP_PRINT
+		uint32_t packet_msn = get_msn(roce_hdr);
+		id_colorize(mapped_request->id);
+		printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+		#endif
+		
+		set_msn(roce_hdr,msn);
 
-			//I think that j has to be the id number here
-			//log_printf(INFO,"Found! Mapping back raw (%d -> %d) readable (%d -> %d ) \n",mapped_request->mapped_sequence, mapped_request->original_sequence, readable_seq(mapped_request->mapped_sequence),readable_seq(mapped_request->original_sequence));
-			//printf("QP mapping ( %d <-- %d )\n", mapped_request->server_to_client_qp, roce_hdr->dest_qp);
+		//Ip mapping recalculate the ip checksum
+		ipv4_hdr->dst_addr = mapped_request->original_src_ip;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
-			//Now we need to map back
-			roce_hdr->dest_qp = mapped_request->server_to_client_qp;
-			roce_hdr->packet_sequence_number = mapped_request->original_sequence;
-			udp_hdr->src_port = mapped_request->server_to_client_udp_port;
-			//set_rkey_rdma_packet(roce_hdr,mapped_request->server_to_client_rkey);
+		//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
+		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
+		
+		#ifdef TAKE_MEASUREMENTS
+		append_sequence_number(mapped_request->id,mapped_request->original_sequence);
+		#endif
 
-			//Update the tracked msn this requires adding to it, and then storing back to the connection states
-			//TODO put this in it's own function
-			struct Connection_State * destination_cs = &Connection_States[mapped_request->id];
+		//re ecalculate the checksum
+		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+		memcpy(current_checksum,&crc_check,4);
 
-
-			//new way of doing it
-			uint32_t msn = produce_and_update_msn(roce_hdr,destination_cs);
-			#ifdef MAP_PRINT
-			uint32_t packet_msn = get_msn(roce_hdr);
-			id_colorize(mapped_request->id);
-			printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
-			#endif
-			
-			set_msn(roce_hdr,msn);
-
-
-			//old
-			//set_msn(roce_hdr,destination_cs->mseq_current);
-			//printf("Returned MSN %d\n", readable_seq(msn));
-
-			//printf("Start Here tommorrow, you were in the process of mapping ip address as part of the queue pair mapping. I thknk that the checksums are a bit broken and might need to be inspected manually.");
-
-			//Ip mapping
-			//print_ip_header(ipv4_hdr);
-			ipv4_hdr->dst_addr = mapped_request->original_src_ip;
-			ipv4_hdr->hdr_checksum = 0;
-			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-			//print_ip_header(ipv4_hdr);
-
-
-			//print_eth_header(eth_hdr);
-			//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
-			copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
-			//print_eth_header(eth_hdr);
-			
-			#ifdef TAKE_MEASUREMENTS
-			append_sequence_number(mapped_request->id,mapped_request->original_sequence);
-			#endif
-
-
-			//re ecalculate the checksum
-			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-			memcpy(current_checksum,&crc_check,4);
-
-			//Remove the entry
-			//TODO put this in its own function
-			open_slot(mapped_request);
-			return;
-		} 
+		//repoen the slot
+		open_slot(mapped_request);
+		return;
 	}
 
 	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
