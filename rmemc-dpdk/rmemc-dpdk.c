@@ -46,7 +46,7 @@
 #define PACKET_SIZES 256
 
 #define KEYSPACE 1024
-//#define KEYSPACE 500
+//#define KEYSPACE 500;
 #define CACHE_KEYSPACE 1024
 
 #define SEQUENCE_NUMBER_SHIFT 256
@@ -112,9 +112,37 @@ char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
 
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
+
+//Measurement for getting end host latencies
 //rdma calls counts the number of calls for each RDMA op code
+#define TAKE_MEASUREMENTS
+#ifdef TAKE_MEASUREMENTS
 uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
 uint64_t packet_latency_count = 0;
+
+//measurement for understanding mapped packet ordering
+#define TOTAL_PACKET_SEQUENCES 100000
+uint32_t sequence_order[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
+uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
+uint32_t request_count_id[TOTAL_ENTRY];
+
+#endif
+
+static __inline__ int64_t rdtsc_s(void)
+{
+  unsigned a, d; 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  asm volatile("rdtsc" : "=a" (a), "=d" (d)); 
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
+
+static __inline__ int64_t rdtsc_e(void)
+{
+  unsigned a, d; 
+  asm volatile("rdtscp" : "=a" (a), "=d" (d)); 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
 
 
 void append_packet_latency(uint64_t clock_cycles) {
@@ -124,9 +152,16 @@ void append_packet_latency(uint64_t clock_cycles) {
 	}
 }
 
+void append_sequence_number(uint32_t id, uint32_t seq) {
+	if (request_count_id[id] < TOTAL_PACKET_SEQUENCES){
+		sequence_order[id][request_count_id[id]]=readable_seq(seq);
+		sequence_order_timestamp[id][request_count_id[id]]=rdtsc_s ();
+		request_count_id[id]++;
+	}
+}
+
 void write_packet_latencies_to_known_file() {
 	char* filename="/tmp/latency-latest.dat";
-	printf("test\n");
 	printf("Writing a total of %"PRIu64" packet latencies to %s\n",packet_latency_count,filename);
 	FILE *fp = fopen(filename, "w");
 	if (fp == NULL) {
@@ -141,7 +176,25 @@ void write_packet_latencies_to_known_file() {
 	fclose(fp);
 }
 
-void print_statistics_file() {
+void write_sequence_order_to_known_file() {
+	char* filename="/tmp/sequence_order.dat";
+	printf("Writing Sequence Order to file %s\n",filename);
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+
+	for (int i=0;i<TOTAL_ENTRY;i++){
+		for (int j=0;j<request_count_id[i];j++) {
+			fprintf(fp,"%d,%d,%"PRIu64"\n",i,sequence_order[i][j],sequence_order_timestamp[i][j]);
+		}
+	}
+	fclose(fp);
+}
+
+void write_general_stats_to_known_file() {
 	char* filename="/tmp/switch_statistics.dat";
 	FILE *fp = fopen(filename, "w");
 	if (fp == NULL) {
@@ -155,8 +208,12 @@ void print_statistics_file() {
 	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
 	fprintf(fp,"READ HITS %"PRIu64"\n",reads - read_misses);
 	fclose(fp);
+}
 
-
+void write_run_data(void) {
+	write_packet_latencies_to_known_file();
+	write_sequence_order_to_known_file();
+	write_general_stats_to_known_file();
 }
 
 uint32_t rdma_call_count[RDMA_COUNTER_SIZE];
@@ -1149,6 +1206,9 @@ struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 			print_request_map(&cs->Outstanding_Requests[j]);
 		}
 		//Something has gone very wrong
+		#ifdef TAKE_MEASUREMENTS
+		write_run_data();
+		#endif
 		exit(0);
 	}
 
@@ -1391,6 +1451,10 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 			//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
 			copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
 			//print_eth_header(eth_hdr);
+			
+			#ifdef TAKE_MEASUREMENTS
+			append_sequence_number(mapped_request->id,mapped_request->original_sequence);
+			#endif
 
 
 			//re ecalculate the checksum
@@ -1459,11 +1523,14 @@ void map_qp(struct rte_mbuf * pkt) {
 
 		#ifdef READ_STEER
 		struct read_request * rr = (struct read_request*) clover_header;
-		stub_key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+		//printf("DMA LEN %d\n", ntohl(dma_len));
+		*key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+		//uint32_t dma_len = ntohl(rr->rdma_extended_header.dma_length);
+		//if (*key && dma_len == 1024) {
 		if (*key) {
 			steer_read(pkt,*key);
 		} else {
-			stub_key=0;
+			*key=0;
 			read_misses++;
 		}
 		#endif
@@ -1474,7 +1541,7 @@ void map_qp(struct rte_mbuf * pkt) {
 		uint64_t *key = (uint64_t*)&(wr->data);
 		uint32_t id = get_id(roce_hdr->dest_qp);
 
-		if (key < 0) {
+		if (*key < 0) {
 			print_packet(pkt);
 			if (size == 1084) {
 				printf("DEBUG packet is strange");
@@ -1503,6 +1570,7 @@ void map_qp(struct rte_mbuf * pkt) {
 			//map_qp_forward(pkt,latest_key[id]);
 			*key = latest_key[id];
 			if (*key < 0 || *key > KEYSPACE) {
+				printf("danger zone\n");
 				*key = 0;
 			}
 		}
@@ -1612,6 +1680,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		//crc_check =csum_pkt(pkt); //This need to be added before we can validate packets
 		//printf("Finished Checksumming as single ack, time to exit (TEST)\n");
 		//exit(0);
+
 	} 
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
@@ -1629,6 +1698,22 @@ void true_classify(struct rte_mbuf * pkt) {
 		//print_packet(pkt);;;
 		//count_read_resp_addr(rr);
 	}
+
+/*
+	#ifdef TAKE_MEASUREMENTS
+		if (    (opcode == RC_ATOMIC_ACK) ||
+				(size == 1072 && opcode == RC_READ_RESPONSE)
+		) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			append_sequence_number(id,roce_hdr->packet_sequence_number);
+		} else if (qp_is_mapped(roce_hdr->dest_qp) && opcode == RC_ACK) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			append_sequence_number(id,roce_hdr->packet_sequence_number);
+		}
+	#endif
+*/
+
+
 
 
 	//Write Requestdest_qp
@@ -1856,7 +1941,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			
 		} else {
 			/*
-			printf("\n\n\n\n\n SWAPPPING OUT THE VADDR!!!!!!!"
+			printf("\n\n\n\n\n SWAPPPING OUT THE VADDR!!!!!!!";
 			"key %"PRIu64" id %d" 
 			"\n\n\n\n\n",latest_key[id],id);
 			printf("Now we need to know how different these addresses are\n");
@@ -1901,7 +1986,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		} else {
 			//This is the crash condtion
 			//Fatal, unable to find the next key
-			printf("Crasing on (CNS PREDICT) ID: %d psn %d\n",id,readable_seq(roce_hdr->packet_sequence_number));
+			printf("Crashing on (CNS PREDICT) ID: %d psn %d\n",id,readable_seq(roce_hdr->packet_sequence_number));
 			printf("predicted: %"PRIu64"\n",be64toh(predict));
 			printf("actual:    %"PRIu64"\n",be64toh(swap));
 			print_address(&predict);
@@ -1924,6 +2009,11 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			printf("unable to find the next oustanding write, how can this be? SWAP: %"PRIu64" latest_key[id = %d]=%"PRIu64", first cns[key = %"PRIu64"]=%"PRIu64"\n",swap,id,latest_key[id],latest_key[id],first_cns[latest_key[id]]);
 			printf("we should stop here and fail, but for now lets keep going\n");
+
+			#ifdef TAKE_MEASUREMENTS
+			write_run_data();
+			#endif
+
 			exit(0);
 		}
 		track_qp(pkt);
@@ -2440,21 +2530,6 @@ void print_packet(struct rte_mbuf * buf) {
 
 }
 
-static __inline__ int64_t rdtsc_s(void)
-{
-  unsigned a, d; 
-  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
-  asm volatile("rdtsc" : "=a" (a), "=d" (d)); 
-  return ((unsigned long)a) | (((unsigned long)d) << 32); 
-}
-
-static __inline__ int64_t rdtsc_e(void)
-{
-  unsigned a, d; 
-  asm volatile("rdtscp" : "=a" (a), "=d" (d)); 
-  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
-  return ((unsigned long)a) | (((unsigned long)d) << 32); 
-}
 
 
 
@@ -2578,9 +2653,11 @@ lcore_main(void)
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
 
+				#ifdef TAKE_MEASUREMENTS
 				if (roce_hdr->opcode == RC_ACK) {
 					append_packet_latency(clocks_per_packet);
 				}
+				#endif
 				
 				if (debug_start_printing_every_packet != 0) {
 					//print_packet(rx_pkts[i]);
@@ -2666,11 +2743,13 @@ void fork_lcores(void) {
 	} 	
 }
 
+
+
 volatile sig_atomic_t flag = 0;
 void kill_signal_handler(int sig){
-	printf("Captured Signal (%d)\n",sig);
-	write_packet_latencies_to_known_file();
-	print_statistics_file();
+	#ifdef TAKE_MEASUREMENTS
+	write_run_data();
+	#endif
 	exit(0);
 }
 
@@ -2740,7 +2819,12 @@ main(int argc, char *argv[])
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
 
+		#ifdef TAKE_MEASUREMENTS
 		bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
+		bzero(sequence_order,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint32_t));
+		bzero(sequence_order_timestamp,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint64_t));
+		bzero(request_count_id, TOTAL_ENTRY * sizeof(uint32_t));
+		#endif
 
 		#ifdef READ_STEER
 		bzero(cached_write_vaddrs,KEYSPACE * WRITE_VADDR_CACHE_SIZE * sizeof(uint64_t));
