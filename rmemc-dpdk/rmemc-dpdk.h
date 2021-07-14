@@ -66,6 +66,7 @@ struct Connection_State {
   uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
   uint32_t sender_init;
   uint32_t receiver_init;
+  uint32_t last_seq;
   //init test variables
   int32_t mseq_offset;
   struct Request_Map Outstanding_Requests[CS_SLOTS];

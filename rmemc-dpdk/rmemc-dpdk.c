@@ -57,7 +57,7 @@ int MOD_SLOT = 1;
 
 
 //#define DATA_PATH_PRINT
-//#define MAP_PRINT
+#define MAP_PRINT
 #define COLLECT_GARBAGE
 #define CATCH_ECN
 
@@ -588,8 +588,7 @@ uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connecti
 		}
 		*/
 		cs->mseq_current = msn;
-	} 
-	//return cs->mseq_current;
+	}
 	return msn;
 }
 
@@ -1223,7 +1222,7 @@ struct Request_Map * get_empty_slot_mod(struct Connection_State *cs) {
 	//printf("(%d,%d)\n",cs->id,slot_num);
 	struct Request_Map * slot = &(cs->Outstanding_Requests[slot_num]);
 	if (!slot_is_open(slot)) {
-		//printf("CLOSED SLOT, this is really bad!!\n");
+		printf("CLOSED SLOT, this is really bad!!\n");
 		//print_request_map(slot);
 		//exit(0);
 	}
@@ -1505,6 +1504,11 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		
 		#ifdef TAKE_MEASUREMENTS
 		append_sequence_number(mapped_request->id,mapped_request->original_sequence);
+
+		if (readable_seq(destination_cs->last_seq) > 10 + readable_seq(roce_hdr->packet_sequence_number)) {
+			print_packet(pkt);
+		}
+		destination_cs->last_seq =roce_hdr->packet_sequence_number;
 		#endif
 
 		//re ecalculate the checksum
@@ -1514,6 +1518,23 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 		//repoen the slot
 		open_slot(mapped_request);
+
+
+		//Experimental packet dropper
+		/*
+		if (roce_hdr->packet_sequence_number > destination_cs->highest_seq) {
+			destination_cs->highest_seq = roce_hdr->packet_sequence_number;
+		}
+
+		if (roce_hdr->packet_sequence_number < destination_cs->highest_seq) {
+			if (roce_hdr->opcode == RC_ACK) {
+				printf("panic at the disco we are going in reverse\n");
+				char buf[6];
+				copy_eth_addr(buf,eth_hdr->d_addr.addr_bytes);
+			}
+		}
+		*/
+
 		return;
 	}
 
