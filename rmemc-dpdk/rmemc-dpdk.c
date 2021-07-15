@@ -53,7 +53,7 @@
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
 int MAP_QP = 1;
-int MOD_SLOT = 1;
+int MOD_SLOT = 0;
 
 
 //#define DATA_PATH_PRINT
@@ -228,7 +228,7 @@ uint32_t read_resp_addr_count[KEYSPACE];
 #define MAX_CORES 24
 uint32_t core_pkt_counters[MAX_CORES];
 uint64_t vaddr_swaps = 0;
-uint32_t debug_start_printing_every_packet = 0;
+uint32_t debug_start_printing_every_packet = 1;
 
 
 
@@ -284,6 +284,23 @@ void green () {
   printf("\033[1;32m");
 }
 
+
+void black() {
+	printf("\033[1;30m");
+}
+
+void magenta() {
+	printf("\033[1;35m");
+}
+
+void cyan() {
+	printf("\033[1;36m");
+}
+
+void white() {
+	printf("\033[1;37m");
+}
+
 void reset () {
   printf("\033[0m");
 }
@@ -301,6 +318,18 @@ void id_colorize(uint32_t id) {
 			break;
 		case 3:
 			green();
+			break;
+		case 4:
+			black();
+			break;
+		case 5:
+			magenta();
+			break;
+		case 6:
+			cyan();
+			break;
+		case 7:
+			white();
 			break;
 		default:
 			reset();
@@ -1611,7 +1640,7 @@ void map_qp(struct rte_mbuf * pkt) {
 		uint64_t *key = (uint64_t*)&(wr->data);
 		uint32_t id = get_id(roce_hdr->dest_qp);
 
-		if (*key < 0) {
+		if (*key < 1 || *key > KEYSPACE) {
 			print_packet(pkt);
 			if (size == 1084) {
 				printf("DEBUG packet is strange");
@@ -1639,7 +1668,7 @@ void map_qp(struct rte_mbuf * pkt) {
 			//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
 			//map_qp_forward(pkt,latest_key[id]);
 			*key = latest_key[id];
-			if (*key < 0 || *key > KEYSPACE) {
+			if (*key < 1 || *key > KEYSPACE) {
 				printf("danger zone\n");
 				*key = 0;
 			}
@@ -2575,7 +2604,18 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
 
-	printf("[op:%s (%d)][size: %d][dst: %d][seq %d]\n",op,roce_hdr->opcode,size,dest_qp,seq);
+	int id = -1;
+	for (int i=0;i<qp_id_counter;i++) {
+		if (Connection_States[i].ctsqp == roce_hdr->dest_qp ||
+			Connection_States[i].stcqp == roce_hdr->dest_qp) {
+				id = Connection_States[i].id;
+				break;
+		}
+	}
+
+	id_colorize(id);
+
+	printf("[id %d][op:%s (%d)][size: %d][dst: %d][seq %d]\n",id, op,roce_hdr->opcode,size,dest_qp,seq);
 
 	if (roce_hdr->opcode == 129) {
 		print_packet(buf);
@@ -2721,6 +2761,10 @@ lcore_main(void)
 				//rte_rwlock_write_lock(&next_lock);
 				//log_printf(DEBUG,"Packet Start\n");
 				int64_t clocks_before = rdtsc_s ();
+				if (debug_start_printing_every_packet != 0) {
+					//print_packet(rx_pkts[i]);
+					print_packet_lite(rx_pkts[i]);
+				}
 				true_classify(rx_pkts[i]);
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
@@ -2731,10 +2775,6 @@ lcore_main(void)
 				}
 				#endif
 				
-				if (debug_start_printing_every_packet != 0) {
-					//print_packet(rx_pkts[i]);
-					print_packet_lite(rx_pkts[i]);
-				}
 				//printf("cpp %"PRIu64"\n",clocks_per_packet);
 				//log_printf(DEBUG,"Packet End\n\n");
 				//rte_rwlock_write_unlock(&next_lock);
