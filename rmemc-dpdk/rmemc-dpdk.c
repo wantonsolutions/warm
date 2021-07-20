@@ -1593,15 +1593,20 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 }
 
 
-void map_qp(struct rte_mbuf * pkt) {
+struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
+
+	struct map_packet_response mpr;
+	mpr.pkts[0] = pkt;
+	mpr.size = 1;
+
 	if (MAP_QP == 0) {
-		return;
+		return mpr;
 	}
 
 	//Not mapping yet
 	if (has_mapped_qp == 0) {
-		return;
+		return mpr;
 	}
 
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1622,7 +1627,7 @@ void map_qp(struct rte_mbuf * pkt) {
 
 	if (qp_is_mapped(r_qp) == 0) {
 		//This is not a packet we should map forward
-		return;
+		return mpr;
 	}
 
 
@@ -1688,6 +1693,7 @@ void map_qp(struct rte_mbuf * pkt) {
 		uint32_t id = get_id(roce_hdr->dest_qp);
 		map_qp_forward(pkt,latest_key[id]);
 	}
+	return mpr;
 }
 
 
@@ -2141,7 +2147,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		rte_rwlock_write_unlock(&next_lock);
 
 	}
-
 	return;
 }
 
@@ -2717,6 +2722,8 @@ lcore_main(void)
 
 			/* Get burst of RX packets, from first and only port */
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
+			uint32_t to_tx = 0;
+			struct rte_mbuf *tx_pkts[BURST_SIZE];
 			//printf("%X bufs\n",&rx_pkts[0]);
 
 			uint32_t queue = rte_lcore_id()/2;
@@ -2791,7 +2798,13 @@ lcore_main(void)
 				}
 
 				true_classify(rx_pkts[i]);
-				map_qp(rx_pkts[i]);
+
+				struct map_packet_response mpr;
+				mpr = map_qp(rx_pkts[i]);
+				for (int i=0;i<mpr.size;i++) {
+					tx_pkts[to_tx] = mpr.pkts[i];
+					to_tx++;
+				}
 
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
@@ -2835,7 +2848,7 @@ lcore_main(void)
 
 			/* Send burst of TX packets, to the same port */
 			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
-			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, rx_pkts, nb_rx);
+			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 

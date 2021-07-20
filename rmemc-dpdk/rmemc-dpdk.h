@@ -27,7 +27,7 @@
 #define TOTAL_ENTRY 128
 #define CS_SLOTS 1024
 
-#define MITSUME_BENCHMARK_THREAD_DEFAULT 64
+#define MITSUME_BENCHMARK_THREAD_DEFAULT 8
 #if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
     //Only here if MYVARIABLE is not defined
     //OR MYVARIABLE is the empty string
@@ -71,6 +71,11 @@ struct Connection_State {
   int32_t mseq_offset;
   struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;
+
+struct map_packet_response {
+  uint32_t size;
+  struct rte_mbuf *pkts[BURST_SIZE];
+} map_packet_response;
 
 
 uint32_t check_sums(const char* method, void* known, void* test, int try);
