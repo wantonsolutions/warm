@@ -55,7 +55,6 @@
 int MAP_QP = 1;
 int MOD_SLOT = 1;
 
-
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
 #define COLLECT_GARBAGE
@@ -1537,7 +1536,6 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 		#ifdef TAKE_MEASUREMENTS
 		append_sequence_number(mapped_request->id,mapped_request->original_sequence);
 
-		/*
 		uint32_t last_seq=readable_seq(destination_cs->last_seq);
 		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
 		int diff = packet_seq - last_seq;
@@ -1549,7 +1547,6 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 		} else if (last_seq == packet_seq) {
 			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 		}
-		*/
 		destination_cs->last_seq =roce_hdr->packet_sequence_number;
 		#endif
 
@@ -1560,7 +1557,6 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 
 		//repoen the slot
 		open_slot(mapped_request);
-
 
 		//Experimental packet dropper
 		/*
