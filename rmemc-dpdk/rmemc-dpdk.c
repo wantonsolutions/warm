@@ -53,13 +53,15 @@
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
 int MAP_QP = 1;
-int MOD_SLOT = 0;
+int MOD_SLOT = 1;
 
 
 //#define DATA_PATH_PRINT
-#define MAP_PRINT
+//#define MAP_PRINT
 #define COLLECT_GARBAGE
 #define CATCH_ECN
+
+uint32_t debug_start_printing_every_packet = 0;
 
 #define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
@@ -203,7 +205,7 @@ void write_general_stats_to_known_file() {
 	fprintf(fp,"READ REDIRECTIONS %"PRIu64"\n",read_redirections);
 	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
 	fprintf(fp,"READ HITS %"PRIu64"\n",reads - read_misses);
-	fclose(fp);
+	fclose(fp); 
 }
 
 void write_run_data(void) {
@@ -228,7 +230,6 @@ uint32_t read_resp_addr_count[KEYSPACE];
 #define MAX_CORES 24
 uint32_t core_pkt_counters[MAX_CORES];
 uint64_t vaddr_swaps = 0;
-uint32_t debug_start_printing_every_packet = 1;
 
 
 
@@ -422,7 +423,7 @@ void print_request_map(struct Request_Map *rm) {
 void print_connection_state(struct Connection_State* cs) {
 	printf("ID: %d port-cts %d port-stc %d\n",cs->id, cs->udp_src_port_client, cs->udp_src_port_server);
 	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
-	printf("seqt %d seq %d mseqt %d mseq\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
+	printf("seqt %d seq %d mseqt %d mseq %d\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
 ;
 int fully_qp_init() {
@@ -579,12 +580,12 @@ void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn) {
 	return;
 }
 
-uint32_t get_msn(struct roce_v2_header *roce_hdr) {
+int get_msn(struct roce_v2_header *roce_hdr) {
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 	struct read_response * read_resp = (struct read_response*) clover_header;
 	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
 	struct cs_response * cs_resp = (struct cs_response *)clover_header;
-	uint32_t* msn;
+	uint32_t msn;
 	switch(roce_hdr->opcode) {
 		case RC_READ_RESPONSE:;
 			msn = read_resp->ack_extended.sequence_number;
@@ -596,8 +597,7 @@ uint32_t get_msn(struct roce_v2_header *roce_hdr) {
 			msn=cs_resp->ack_extended.sequence_number;
 			break;
 		default:
-			printf("WRONG HEADER MSN NOT FOUND\n");
-			exit(0);
+			msn=-1;
 			break;
 	}
 	return msn;
@@ -618,7 +618,8 @@ uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connecti
 		*/
 		cs->mseq_current = msn;
 	}
-	return msn;
+	//return msn;
+	return cs->mseq_current;
 }
 
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
@@ -632,6 +633,7 @@ uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr
 		cs = &Connection_States[i];
 		//if (cs.seq_current == roce_hdr->packet_sequence_number) {
 		if (cs->stcqp == roce_hdr->dest_qp && cs->receiver_init == 1) {
+			id_colorize(cs->id);
 			found = 1;
 			break;
 		}
@@ -643,6 +645,7 @@ uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr
 
 	//at this point we have the correct cs
 	uint32_t msn = produce_and_update_msn(roce_hdr,cs);
+	//printf("msn updated to %d on %d\n",readable_seq(msn),cs->id);
 	//this should be it
 
 	return msn;
@@ -692,9 +695,12 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	}
 
 	//initalize the first time
+	cs = Connection_States[matching_id];
 	if (cs.receiver_init==0) {
-		//printf("MSN init on receiver side for matching id %d\n",matching_id);
-		cs = Connection_States[matching_id];
+		id_colorize(cs.id);
+		//printf("***********MSN init on receiver side for matching id %d**************<<<<<<<<<<<<<<>>>>>>>>>>>>>\n",matching_id);
+		//printf("ID WE ARE USING %d\n",cs.id);
+		
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
 		cs.mseq_current = get_msn(roce_hdr);
@@ -702,6 +708,10 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		//printf("cs.mseq_offset = %d\n",readable_seq(cs.mseq_offset));
 		cs.receiver_init = 1;
 		Connection_States[matching_id] = cs;
+		return;
+	} else {
+		//id_colorize(cs.id);
+		//printf("Connection state %d allready initlaized\n", cs.id);
 		return;
 	}
 
@@ -1282,13 +1292,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//id is the senders id
 	uint32_t id = get_id(r_qp);
 
-	if (unlikely(has_mapped_qp == 0)) {
-		#ifdef DATA_PATH_PRINT
-		print_packet(pkt);
-		#endif 
-		print_first_mapping();
-		has_mapped_qp = 1;
-	}
 
 	//Initalize the packet here.
 	//cts_track_connection_state(udp_hdr, roce_hdr);
@@ -1479,7 +1482,7 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 //multiplexing list
-void map_qp_backwards(struct rte_mbuf *pkt) {
+void map_qp_backwards(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
@@ -1534,9 +1537,19 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 		#ifdef TAKE_MEASUREMENTS
 		append_sequence_number(mapped_request->id,mapped_request->original_sequence);
 
-		if (readable_seq(destination_cs->last_seq) > 10 + readable_seq(roce_hdr->packet_sequence_number)) {
-			print_packet(pkt);
+		/*
+		uint32_t last_seq=readable_seq(destination_cs->last_seq);
+		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
+		int diff = packet_seq - last_seq;
+		if ( last_seq > packet_seq) {
+			printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
+		} else if (packet_seq > last_seq + 1 && (last_seq > 0)) {
+			printf("OOOO[%s][out of order NEW][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
+			//roce_hdr->dest_qp = 0;
+		} else if (last_seq == packet_seq) {
+			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 		}
+		*/
 		destination_cs->last_seq =roce_hdr->packet_sequence_number;
 		#endif
 
@@ -1569,17 +1582,18 @@ void map_qp_backwards(struct rte_mbuf *pkt) {
 
 	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
 	//printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
-	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
-		//printf("found and updated msn (hopefully this is the right thing to do)\n");
-		uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
+	uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
+	if (msn > 0) {
+		uint32_t packet_msn = get_msn(roce_hdr);
+		if (packet_msn == -1 ) {
+			printf("How did we get here?\n");
+		}
+		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 		set_msn(roce_hdr,msn);
-		//print_packet(pkt);
 		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 		memcpy(current_checksum,&crc_check,4);
 	}
-
-	print_packet_lite(pkt);
 }
 
 
@@ -1700,9 +1714,11 @@ void track_qp(struct rte_mbuf * pkt) {
 
 	if (opcode == RC_ACK) {
 		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
+		/*
 		if (has_mapped_qp == 0) {
 			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		}
+		*/
 
 	} else if (opcode == RC_READ_REQUEST) {
 		uint64_t stub_zero_key = 0;
@@ -1711,9 +1727,11 @@ void track_qp(struct rte_mbuf * pkt) {
 			cts_track_connection_state(pkt);
 		}
 	} else if (opcode == RC_READ_RESPONSE) {
+		/*
 		if (has_mapped_qp == 0) {
 			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 		}
+		*/
 
 	} else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
@@ -1722,7 +1740,13 @@ void track_qp(struct rte_mbuf * pkt) {
 		//!TODO pull this out and make it it's own thing at the beginning.
 		if (fully_qp_init() && has_mapped_qp == 0) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
-			map_qp_forward(pkt,*key);
+			if (unlikely(has_mapped_qp == 0)) {
+				#ifdef DATA_PATH_PRINT
+				print_packet(pkt);
+				#endif 
+				print_first_mapping();
+				has_mapped_qp = 1;
+			}
 		}
 		if (has_mapped_qp == 0) {
 			cts_track_connection_state(pkt);
@@ -1756,7 +1780,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 
 
-	map_qp(pkt);
 
 	#ifdef CATCH_ECN
 	if (opcode == ECN_OPCODE) {
@@ -2603,6 +2626,11 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+	uint32_t msn = get_msn(roce_hdr);
+
+	if (msn != -1) {
+		msn = readable_seq(msn);
+	}
 
 	int id = -1;
 	for (int i=0;i<qp_id_counter;i++) {
@@ -2615,7 +2643,7 @@ void print_packet_lite(struct rte_mbuf * buf) {
 
 	id_colorize(id);
 
-	printf("[id %d][op:%s (%d)][size: %d][dst: %d][seq %d]\n",id, op,roce_hdr->opcode,size,dest_qp,seq);
+	printf("[id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
 
 	if (roce_hdr->opcode == 129) {
 		print_packet(buf);
@@ -2765,7 +2793,10 @@ lcore_main(void)
 					//print_packet(rx_pkts[i]);
 					print_packet_lite(rx_pkts[i]);
 				}
+
 				true_classify(rx_pkts[i]);
+				map_qp(rx_pkts[i]);
+
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
 
