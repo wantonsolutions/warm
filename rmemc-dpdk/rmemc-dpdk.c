@@ -52,7 +52,7 @@
 #define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-int MAP_QP = 0;
+int MAP_QP = 1;
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
@@ -1313,93 +1313,101 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 	//uint32_t dest_id = get_id(n_qp);
 	struct Connection_State *destination_connection;
+
+	/*
 	for (int i=0;i<TOTAL_ENTRY;i++) {
 		destination_connection=&Connection_States[i];
 		if (destination_connection->ctsqp == n_qp) {
-			//printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
-			//printf("request is being mapped to this connection\n");
-			//printf("printf qpid counter (should be == max (2)) == %d\n",qp_id_counter);
-			//print_connection_state(destination_connection);
-
-
-
-			//printf("dest connection\n");
-			//print_connection_state(destination_connection);
-			//printf("src connection\n");
-			//print_connection_state(&Connection_States[id]);
-			uint32_t msn = Connection_States[id].mseq_current;
-
-			//Our middle box needs to keep track of the sequence number
-			//that should be tracked for the destination. This should
-			//always be an increment of 1 from it's previous number.
-			//Here we increment the sequence number
-			destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
-
-			#ifdef MAP_PRINT
-			printf("MAP FRWD(key %"PRIu64") (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
-			#endif
-
-			//Multiple reads occur at once. We don't want them to overwrite
-			//eachother. Initally I used Oustanding_Requests[id] to hold
-			//requests. But this only ever used the one index. On parallel reads
-			//the sequence number over write the old one because they collied.
-			//To save time, I'm using the old extra space TOTAL_ENTRIES in the
-			//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
-			
-			//Search for an open slot
-			//!!!TODO TODO gotta go fast start here after lunch
-			struct Request_Map* slot;
-			if (MOD_SLOT) {
-				slot = get_empty_slot_mod(destination_connection);
-			} else {
-				slot = get_empty_slot(destination_connection);
-			}
-
-
-			//The next step is to save the data from the current packet
-			//to a list of outstanding requests. As clover is blocking
-			//we can use the id to track which sequence number belongs
-			//to which request. These values will be used to map
-			//responses back.
-
-
-			close_slot(slot);
-			slot->id=id;
-			//Save a unique id of sequence number and the qp that this response will arrive back on
-			slot->mapped_sequence=destination_connection->seq_current;
-			slot->mapped_destination_server_to_client_qp=destination_connection->stcqp;
-			slot->original_sequence=roce_hdr->packet_sequence_number;
-			//Store the server to client to qp that this we will need to make the swap
-			slot->server_to_client_qp=Connection_States[id].stcqp;
-			slot->server_to_client_udp_port=Connection_States[id].udp_src_port_server;
-			slot->original_src_ip=ipv4_hdr->src_addr;
-			slot->server_to_client_rkey=Connection_States[id].stc_rkey;
-
-			//print_eth_header(eth_hdr);
-			copy_eth_addr(eth_hdr->s_addr.addr_bytes, slot->original_eth_addr);
-			//print_eth_header(eth_hdr);
-			
-			//Set the packet with the mapped information to the new qp
-			roce_hdr->dest_qp = destination_connection->ctsqp;
-			roce_hdr->packet_sequence_number = destination_connection->seq_current;
-			udp_hdr->src_port = destination_connection->udp_src_port_client;
-
-			//printf("RKEY %d dest conn\n",destination_connection->cts_rkey);
-			//printf("Rkey client %d\n",get_rkey_rdma_packet(roce_hdr));
-
-			//print_ip_header(ipv4_hdr);
-			ipv4_hdr->src_addr = destination_connection->ip_addr_client;
-			ipv4_hdr->hdr_checksum = 0;
-			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-			//print_ip_header(ipv4_hdr);
-
-			//csum the modified packet
-			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-			memcpy(current_checksum,&crc_check,4);
-			return;
+			break;
 		}
+		destination_connection = NULL;
 	}
+	*/
+	destination_connection=&Connection_States[get_id(n_qp)];
+
+	if (destination_connection == NULL) {
+		printf("I did not want to end up here\n");
+		return;
+	}
+	//printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
+	//printf("request is being mapped to this connection\n");
+	//printf("printf qpid counter (should be == max (2)) == %d\n",qp_id_counter);
+	//print_connection_state(destination_connection);
+
+
+
+	//printf("dest connection\n");
+	//print_connection_state(destination_connection);
+	//printf("src connection\n");
+	//print_connection_state(&Connection_States[id]);
+	uint32_t msn = Connection_States[id].mseq_current;
+
+	//Our middle box needs to keep track of the sequence number
+	//that should be tracked for the destination. This should
+	//always be an increment of 1 from it's previous number.
+	//Here we increment the sequence number
+	destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
+
+	#ifdef MAP_PRINT
+	printf("MAP FRWD(key %"PRIu64") (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
+	#endif
+
+	//Multiple reads occur at once. We don't want them to overwrite
+	//eachother. Initally I used Oustanding_Requests[id] to hold
+	//requests. But this only ever used the one index. On parallel reads
+	//the sequence number over write the old one because they collied.
+	//To save time, I'm using the old extra space TOTAL_ENTRIES in the
+	//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
+	
+	//Search for an open slot
+	//!!!TODO TODO gotta go fast start here after lunch
+	struct Request_Map* slot;
+	if (MOD_SLOT) {
+		slot = get_empty_slot_mod(destination_connection);
+	} else {
+		slot = get_empty_slot(destination_connection);
+	}
+
+	//The next step is to save the data from the current packet
+	//to a list of outstanding requests. As clover is blocking
+	//we can use the id to track which sequence number belongs
+	//to which request. These values will be used to map
+	//responses back.
+
+	close_slot(slot);
+	slot->id=id;
+	//Save a unique id of sequence number and the qp that this response will arrive back on
+	slot->mapped_sequence=destination_connection->seq_current;
+	slot->mapped_destination_server_to_client_qp=destination_connection->stcqp;
+	slot->original_sequence=roce_hdr->packet_sequence_number;
+	//Store the server to client to qp that this we will need to make the swap
+	slot->server_to_client_qp=Connection_States[id].stcqp;
+	slot->server_to_client_udp_port=Connection_States[id].udp_src_port_server;
+	slot->original_src_ip=ipv4_hdr->src_addr;
+	slot->server_to_client_rkey=Connection_States[id].stc_rkey;
+
+	//print_eth_header(eth_hdr);
+	copy_eth_addr(eth_hdr->s_addr.addr_bytes, slot->original_eth_addr);
+	//print_eth_header(eth_hdr);
+	
+	//Set the packet with the mapped information to the new qp
+	roce_hdr->dest_qp = destination_connection->ctsqp;
+	roce_hdr->packet_sequence_number = destination_connection->seq_current;
+	udp_hdr->src_port = destination_connection->udp_src_port_client;
+
+	//printf("RKEY %d dest conn\n",destination_connection->cts_rkey);
+	//printf("Rkey client %d\n",get_rkey_rdma_packet(roce_hdr));
+
+	//print_ip_header(ipv4_hdr);
+	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
+	ipv4_hdr->hdr_checksum = 0;
+	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+	//print_ip_header(ipv4_hdr);
+
+	//csum the modified packet
+	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+	memcpy(current_checksum,&crc_check,4);
 }
 
 
@@ -1480,7 +1488,15 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
-//multiplexing list
+
+uint32_t get_psn(struct rte_mbuf *pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	return roce_hdr->packet_sequence_number;
+}
 
 struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1539,7 +1555,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
 		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
 		
-		#ifdef TAKE_MEASUREMENTS
 
 		uint32_t last_seq=readable_seq(destination_cs->last_seq);
 		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
@@ -1555,6 +1570,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 				mpr.pkts[1] = destination_cs->read_holder;
 				mpr.size=2;
 				destination_cs->read_holder = NULL;
+				destination_cs->last_seq = get_psn(mpr.pkts[1]);
 			}
 
 		} else if (packet_seq > last_seq + 1 && (last_seq > 0)) {
@@ -1568,17 +1584,18 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 			destination_cs->read_holder = pkt;
 			mpr.size = 0;
 			mpr.pkts[0] = NULL;
+			destination_cs->last_seq =roce_hdr->packet_sequence_number;
 
-		    destination_cs->last_seq =roce_hdr->packet_sequence_number;
 			//roce_hdr->dest_qp = 0;
 		} else if (last_seq == packet_seq) {
 			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 			//mpr.size = 0;
 			//mpr.pkts[0] = NULL;
-		    destination_cs->last_seq =roce_hdr->packet_sequence_number;
 			rte_pktmbuf_free(pkt);
+			destination_cs->last_seq =roce_hdr->packet_sequence_number;
 		}
 
+		#ifdef TAKE_MEASUREMENTS
 		for (int i=0;i< mpr.size;i++) {
 			struct rte_mbuf * pkt2 =  mpr.pkts[i];
 			struct rte_ether_hdr * eth_hdr2 = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1697,14 +1714,17 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 	}  else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
-		uint32_t id = get_id(roce_hdr->dest_qp);
 
+
+		/*
 		if (*key < 1 || *key > KEYSPACE) {
 			print_packet(pkt);
 			if (size == 1084) {
 				printf("DEBUG packet is strange");
 			}
 		}
+		*/
+
 		//!TODO TODO figure out what is actually going on here
 		/*
 		When I perform writes across keys but aslo mux QP on the writes
@@ -1724,8 +1744,7 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 		*/
 
 		if (size == 68) {
-			//printf("TODO REMOVE THIS LINE OF KEY MANIP CODE\n");
-			//map_qp_forward(pkt,latest_key[id]);
+			uint32_t id = get_id(roce_hdr->dest_qp);
 			*key = latest_key[id];
 			if (*key < 1 || *key > KEYSPACE) {
 				printf("danger zone\n");
@@ -2854,7 +2873,7 @@ lcore_main(void)
 				int64_t clocks_per_packet = clocks_after - clocks_before;
 
 				#ifdef TAKE_MEASUREMENTS
-				if (roce_hdr->opcode == RC_ACK) {
+				if (roce_hdr->opcode == RC_WRITE_ONLY) {
 					append_packet_latency(clocks_per_packet);
 				}
 				#endif
