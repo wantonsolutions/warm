@@ -52,7 +52,7 @@
 #define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-int MAP_QP = 1;
+int MAP_QP = 0;
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
@@ -1481,12 +1481,18 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 //multiplexing list
-void map_qp_backwards(struct rte_mbuf* pkt) {
+
+struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+
+	struct map_packet_response mpr;
+	mpr.pkts[0] = pkt;
+	mpr.size = 1;
 
 	if (unlikely(has_mapped_qp ==  0 )) {
 		printf("We have not started multiplexing yet. Returning with no packet modifictions.\n");
@@ -1496,7 +1502,7 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 	struct Connection_State *source_connection = find_connection(pkt);
 	if (source_connection == NULL) {
 		//This packet is not part of an activly mapped connection
-		return;
+		return mpr;
 	}
 
 	struct Request_Map * mapped_request;
@@ -1534,20 +1540,55 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
 		
 		#ifdef TAKE_MEASUREMENTS
-		append_sequence_number(mapped_request->id,mapped_request->original_sequence);
 
 		uint32_t last_seq=readable_seq(destination_cs->last_seq);
 		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
 		int diff = packet_seq - last_seq;
 		if ( last_seq > packet_seq) {
 			printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
+
+			if (destination_cs->read_holder == NULL) {
+				printf("fuck, i was hoping we would get here with a set read\n");
+			} else {
+				printf("throwing the old read back on the send train\n");
+				mpr.pkts[0] = pkt;
+				mpr.pkts[1] = destination_cs->read_holder;
+				mpr.size=2;
+				destination_cs->read_holder = NULL;
+			}
+
 		} else if (packet_seq > last_seq + 1 && (last_seq > 0)) {
 			printf("OOOO[%s][out of order NEW][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
+			
+			if (destination_cs->read_holder != NULL) {
+				printf("I should not be overwriting the read holder is not null\n");
+			}
+
+			printf("Storing packet for later, this read is out of order\n");
+			destination_cs->read_holder = pkt;
+			mpr.size = 0;
+			mpr.pkts[0] = NULL;
+
+		    destination_cs->last_seq =roce_hdr->packet_sequence_number;
 			//roce_hdr->dest_qp = 0;
 		} else if (last_seq == packet_seq) {
 			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
+			//mpr.size = 0;
+			//mpr.pkts[0] = NULL;
+		    destination_cs->last_seq =roce_hdr->packet_sequence_number;
+			rte_pktmbuf_free(pkt);
 		}
-		destination_cs->last_seq =roce_hdr->packet_sequence_number;
+
+		for (int i=0;i< mpr.size;i++) {
+			struct rte_mbuf * pkt2 =  mpr.pkts[i];
+			struct rte_ether_hdr * eth_hdr2 = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+			struct rte_ipv4_hdr* ipv4_hdr2 = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+			struct rte_udp_hdr * udp_hdr2 = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+			struct roce_v2_header * roce_hdr2 = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+			struct clover_hdr * clover_header2 = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+			append_sequence_number(mapped_request->id,roce_hdr2->packet_sequence_number);
+		}
 		#endif
 
 		//re ecalculate the checksum
@@ -1573,7 +1614,7 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 		}
 		*/
 
-		return;
+		return mpr;
 	}
 
 	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
@@ -1590,6 +1631,8 @@ void map_qp_backwards(struct rte_mbuf* pkt) {
 		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 		memcpy(current_checksum,&crc_check,4);
 	}
+
+	return mpr;
 }
 
 
@@ -1621,7 +1664,8 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 
 	//backward path requires little checking
 	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE) {
-		map_qp_backwards(pkt);
+		mpr = map_qp_backwards(pkt);
+		return mpr;
 	}
 
 
@@ -2848,16 +2892,20 @@ lcore_main(void)
 
 			/* Send burst of TX packets, to the same port */
 			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
+			//printf("sending %d after receiving %d\n",to_tx,nb_rx);
+			if (to_tx != nb_rx) {
+				printf("sending %d after receiving %d\n",to_tx,nb_rx);
+			}
 			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 
 			/* Free any unsent packets. */
-			 if (unlikely(nb_tx < nb_rx)) {
-				log_printf(DEBUG, "Freeing packets that were not sent %d",nb_rx - nb_tx);
+			 if (unlikely(nb_tx < to_tx)) {
+				printf("Freeing packets that were not sent %d",nb_tx - to_tx);
 			 	uint16_t buf;
-			 	for (buf = nb_tx; buf < nb_rx; buf++)
-			 		rte_pktmbuf_free(rx_pkts[buf]);
+			 	for (buf = nb_tx; buf < to_tx; buf++)
+			 		rte_pktmbuf_free(tx_pkts[buf]);
 			 }
 		}
 	}

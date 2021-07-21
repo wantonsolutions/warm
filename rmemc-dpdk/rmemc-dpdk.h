@@ -27,7 +27,7 @@
 #define TOTAL_ENTRY 128
 #define CS_SLOTS 1024
 
-#define MITSUME_BENCHMARK_THREAD_DEFAULT 8
+#define MITSUME_BENCHMARK_THREAD_DEFAULT 2
 #if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
     //Only here if MYVARIABLE is not defined
     //OR MYVARIABLE is the empty string
@@ -69,6 +69,10 @@ struct Connection_State {
   uint32_t last_seq;
   //init test variables
   int32_t mseq_offset;
+
+  //experimental
+  struct rte_mbuf * read_holder;
+
   struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;
 
