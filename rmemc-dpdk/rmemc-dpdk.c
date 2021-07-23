@@ -2734,7 +2734,52 @@ void print_packet(struct rte_mbuf * buf) {
 
 }
 
+int accept_packet(struct rte_mbuf * pkt) {
+	struct rte_ether_hdr* eth_hdr;
+	struct rte_ipv4_hdr *ipv4_hdr; 
+	struct rte_udp_hdr* udp_hdr;
+	struct roce_v2_header * roce_hdr;
+	struct clover_hdr * clover_header;
 
+	eth_hdr = eth_hdr_process(pkt);
+	if (unlikely(eth_hdr == NULL)) {
+		log_printf(DEBUG, "ether header not the correct format dropping packet\n");
+		rte_pktmbuf_free(pkt);
+		return 0;
+	}
+
+	ipv4_hdr = ipv4_hdr_process(eth_hdr);
+	if (unlikely(ipv4_hdr == NULL)) {
+		log_printf(DEBUG, "ipv4 header not the correct format dropping packet\n");
+		rte_pktmbuf_free(pkt);
+		return 0;
+	}
+
+	udp_hdr = udp_hdr_process(ipv4_hdr);
+	if (unlikely(udp_hdr == NULL)) {
+		log_printf(DEBUG, "udp header not the correct format dropping packet\n");
+		rte_pktmbuf_free(pkt);
+		return 0;
+	}
+
+	roce_hdr = roce_hdr_process(udp_hdr);
+	if (unlikely(roce_hdr == NULL)) {
+		log_printf(DEBUG, "roceV2 header not correct dropping packet\n");
+		rte_pktmbuf_free(pkt);
+		return 0;
+	}
+
+	/*
+	clover_header = mitsume_msg_process(roce_hdr);
+	if (unlikely(clover_header == NULL)) {
+		log_printf(DEBUG, "clover msg not parsable for some reason\n");
+		rte_pktmbuf_free(rx_pkts[i]);
+		continue;
+	}
+	*/
+	return 1;
+
+}
 
 
 
@@ -2767,11 +2812,6 @@ lcore_main(void)
 	printf("Keyspace %d\n", KEYSPACE);
 
 	/* Run until the application is quit or killed. */
-	struct rte_ether_hdr* eth_hdr;
-	struct rte_ipv4_hdr *ipv4_hdr; 
-	struct rte_udp_hdr* udp_hdr;
-	struct roce_v2_header * roce_hdr;
-	struct clover_hdr * clover_header;
 
 
 	for (;;) {
@@ -2803,51 +2843,21 @@ lcore_main(void)
 			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
 		lock_qp();
 
-
-
 			for (uint16_t i = 0; i < nb_rx; i++){
 				if (likely(i < nb_rx - 1))
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				
+				struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(rx_pkts[i], struct rte_ether_hdr *);
+				struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+				struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+				struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 
 				packet_counter++;
-
-				eth_hdr = eth_hdr_process(rx_pkts[i]);
-				if (unlikely(eth_hdr == NULL)) {
-					log_printf(DEBUG, "ether header not the correct format dropping packet\n");
-					rte_pktmbuf_free(rx_pkts[i]);
+				if (!accept_packet(rx_pkts[i])) {
 					continue;
 				}
 
-				ipv4_hdr = ipv4_hdr_process(eth_hdr);
-				if (unlikely(ipv4_hdr == NULL)) {
-					log_printf(DEBUG, "ipv4 header not the correct format dropping packet\n");
-					rte_pktmbuf_free(rx_pkts[i]);
-					continue;
-				}
-
-				udp_hdr = udp_hdr_process(ipv4_hdr);
-				if (unlikely(udp_hdr == NULL)) {
-					log_printf(DEBUG, "udp header not the correct format dropping packet\n");
-					rte_pktmbuf_free(rx_pkts[i]);
-					continue;
-				}
-
-				roce_hdr = roce_hdr_process(udp_hdr);
-				if (unlikely(roce_hdr == NULL)) {
-					log_printf(DEBUG, "roceV2 header not correct dropping packet\n");
-					rte_pktmbuf_free(rx_pkts[i]);
-					continue;
-				}
-
-				/*
-				clover_header = mitsume_msg_process(roce_hdr);
-				if (unlikely(clover_header == NULL)) {
-					log_printf(DEBUG, "clover msg not parsable for some reason\n");
-					rte_pktmbuf_free(rx_pkts[i]);
-					continue;
-				}
-*/
 				#ifdef PACKET_DEBUG_PRINTOUT
 				classify_packet_size(ipv4_hdr,roce_hdr);
 				if (packet_counter % 1000000 == 0) {
@@ -2883,36 +2893,9 @@ lcore_main(void)
 					append_packet_latency(clocks_per_packet);
 				}
 				#endif
-				
-				//printf("cpp %"PRIu64"\n",clocks_per_packet);
-				//log_printf(DEBUG,"Packet End\n\n");
-				//rte_rwlock_write_unlock(&next_lock);
 
-				/*
-				uint32_t core_id = rte_lcore_id() / 2;
-				core_pkt_counters[core_id]++;
-				if ((core_pkt_counters[core_id] % 10000) == 0) {
-					for(int i=0;i<MAX_CORES;i++) {
-						if (core_pkt_counters[i] != 0) {
-							printf("core_id %d -- pkts %d\n",i,core_pkt_counters[i]);
-						}
-					}
-				}*/
-
-
-				//this must be recomputed if the packet is changed
-				uint16_t ipcsum, old_ipcsum;
-				old_ipcsum = ipv4_hdr->hdr_checksum;
-				ipv4_hdr->hdr_checksum = 0;
-				ipcsum = rte_ipv4_cksum(ipv4_hdr);
-				if (ipcsum != old_ipcsum) {
-					//printf("something in the packet changed, the csums don't aline (org/new) (%d/%d) \n",ipv4_hdr->hdr_checksum,ipcsum);
-				}
-				//ipv4_hdr->hdr_checksum = old_ipcsum;
-				ipv4_hdr->hdr_checksum = ipcsum;
-
-				//rte_pktmbuf_free(rx_pkts[i]);
 			}							
+			unlock_qp();
 
 
 			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
@@ -2928,13 +2911,13 @@ lcore_main(void)
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 
 			/* Free any unsent packets. */
-			 if (unlikely(nb_tx < to_tx)) {
-				printf("Freeing packets that were not sent %d",nb_tx - to_tx);
-			 	uint16_t buf;
-			 	for (buf = nb_tx; buf < to_tx; buf++)
-			 		rte_pktmbuf_free(tx_pkts[buf]);
-			 }
-		unlock_qp();
+			if (unlikely(nb_tx < to_tx)) {
+			printf("Freeing packets that were not sent %d",nb_tx - to_tx);
+			uint16_t buf;
+			for (buf = nb_tx; buf < to_tx; buf++)
+				rte_pktmbuf_free(tx_pkts[buf]);
+			}
+
 		}
 	}
 }
