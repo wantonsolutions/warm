@@ -1017,6 +1017,20 @@ static uint32_t predict_shift_value=0;
 static uint32_t nacked_cns =0;
 
 rte_rwlock_t next_lock;
+rte_rwlock_t qp_lock;
+rte_rwlock_t qp_init_lock;
+
+void lock_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_lock(&qp_lock);
+	rte_smp_mb();
+}
+
+void unlock_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_unlock(&qp_lock);
+	rte_smp_mb();
+}
 
 
 void print_first_mapping(void){
@@ -1586,7 +1600,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 			mpr.pkts[0] = NULL;
 			destination_cs->last_seq =roce_hdr->packet_sequence_number;
 
-			//roce_hdr->dest_qp = 0;
 		} else if (last_seq == packet_seq) {
 			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 			//mpr.size = 0;
@@ -1615,21 +1628,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 		//repoen the slot
 		open_slot(mapped_request);
-
-		//Experimental packet dropper
-		/*
-		if (roce_hdr->packet_sequence_number > destination_cs->highest_seq) {
-			destination_cs->highest_seq = roce_hdr->packet_sequence_number;
-		}
-
-		if (roce_hdr->packet_sequence_number < destination_cs->highest_seq) {
-			if (roce_hdr->opcode == RC_ACK) {
-				printf("panic at the disco we are going in reverse\n");
-				char buf[6];
-				copy_eth_addr(buf,eth_hdr->d_addr.addr_bytes);
-			}
-		}
-		*/
 
 		return mpr;
 	}
@@ -1766,6 +1764,8 @@ void track_qp(struct rte_mbuf * pkt) {
 	if (MAP_QP == 0) {
 		return;
 	}
+
+
 
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2780,6 +2780,7 @@ lcore_main(void)
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
 
+
 		RTE_ETH_FOREACH_DEV(port) {
 			uint16_t ipv4_udp_rx = 0;	
 
@@ -2799,7 +2800,10 @@ lcore_main(void)
 			if (unlikely(nb_rx == 0))
 				continue;
 
-			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);			
+			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
+		lock_qp();
+
+
 
 			for (uint16_t i = 0; i < nb_rx; i++){
 				if (likely(i < nb_rx - 1))
@@ -2862,8 +2866,10 @@ lcore_main(void)
 
 				true_classify(rx_pkts[i]);
 
+
 				struct map_packet_response mpr;
 				mpr = map_qp(rx_pkts[i]);
+
 				for (int i=0;i<mpr.size;i++) {
 					tx_pkts[to_tx] = mpr.pkts[i];
 					to_tx++;
@@ -2907,6 +2913,8 @@ lcore_main(void)
 
 				//rte_pktmbuf_free(rx_pkts[i]);
 			}							
+
+
 			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
 
 			/* Send burst of TX packets, to the same port */
@@ -2926,6 +2934,7 @@ lcore_main(void)
 			 	for (buf = nb_tx; buf < to_tx; buf++)
 			 		rte_pktmbuf_free(tx_pkts[buf]);
 			 }
+		unlock_qp();
 		}
 	}
 }
@@ -3064,6 +3073,8 @@ main(int argc, char *argv[])
 		init = 1;
 	}
 	rte_rwlock_init(&next_lock);
+	rte_rwlock_init(&qp_lock);
+	rte_rwlock_init(&qp_init_lock);
 
 	init_ib_words();
 	/* Call lcore_main on the master core only. */
