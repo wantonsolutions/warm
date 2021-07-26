@@ -82,6 +82,70 @@ uint8_t test_ack_pkt[] = {
 0x01,0x0D,0xCF,0x15,0x12,0xB7,0x00,0x1C,0x00,0x00,0x11,0x40,0xFF,0xFF,0x00,0x00,
 0x6C,0xA9,0x00,0x00,0x0C,0x71,0x0D,0x00,0x00,0x01,0xDC,0x97,0x84,0x42,};
 
+#define PKT_REORDER_BUF 64
+struct rte_mbuf * mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+uint64_t mem_qp_buf_head[TOTAL_ENTRY] = 0;
+uint64_t mem_qp_buf_tail[TOTAL_ENTRY] = 0;
+rte_rwlock_t mem_qp_lock;
+
+void init_reorder_buf(void) {
+	printf("initalizing reorder buffs");
+	bzero(mem_qp_buf_head,TOTAL_ENTRY*sizeof(uint64_t));
+	bzero(mem_qp_buf_tail,TOTAL_ENTRY*sizeof(uint64_t));
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		for (int j=0;i<PKT_REORDER_BUF;j++) {
+			mem_qp_buf[i][j] = NULL;
+		}
+	}
+}
+
+void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	uint32_t id = get_id(roce_hdr->dest_qp);
+	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+	rte_rwlock_write_lock(mem_qp_lock);
+
+	//write packet to location
+	uint32_t entry = seq%PKT_REORDER_BUF;
+	mem_qp_buf[id][entry] = pkt;
+
+	uint32_t *head = &mem_qp_buf_head[id];
+	uint32_t *tail = &mem_qp_buf_tail[id];
+
+	//Move head on the inital call
+	if (unlikely(*head == 0)) {
+		*head = seq;
+		printf("initlaizing head to %d on id %d\n",*head,id);
+	}
+	//Update Tail
+	if (*tail < seq) {
+		*tail = seq;
+		printf("updating tail to %d on id %d\n",*tail,id);
+	}
+
+	//scan
+	for (int i=*head;i<=*tail;i++){
+		if (mem_qp_buf[id][i%PKT_REORDER_BUF] == NULL) {
+			rte_rwlock_write_unlock(mem_qp_lock);
+			printf("Returning due to hole in head(%d) -> tail(%d)\n",*head,*tail)
+			return;
+		}
+	}
+
+	for (int i=*head;i<=*tail;i++){
+		rte_eth_tx_burst(port, queue, &mem_qp_buf[id][i], 1);
+		mem_qp_buf[id][i] = NULL;
+	}
+	*head = *tail + 1;
+	rte_rwlock_write_unlock(mem_qp_lock);
+}
+
+
 
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -1363,7 +1427,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
 	#ifdef MAP_PRINT
-	printf("MAP FRWD(key %"PRIu64") (id %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id, ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
+	printf("MAP FRWD(key %"PRIu64") (id %d) (core %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id,rte_lcore_id(), ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 	#endif
 
 	//Multiple reads occur at once. We don't want them to overwrite
@@ -1556,7 +1620,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		#ifdef MAP_PRINT
 		uint32_t packet_msn = get_msn(roce_hdr);
 		id_colorize(mapped_request->id);
-		printf("        MAP BACK :: seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",rte_lcore_id(),readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 		#endif
 		
 		set_msn(roce_hdr,msn);
@@ -2832,6 +2896,7 @@ lcore_main(void)
 
 			uint32_t queue = rte_lcore_id()/2;
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
+			uint16_t nb_tx = 0;
 			//const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
 			//uint32_t current_ring =  rand() %2;
 			//printf("currently reading from ring %d\n",current_ring);
@@ -2841,11 +2906,15 @@ lcore_main(void)
 				continue;
 
 			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
-		lock_qp();
+			//printf("<<<<<<<<<<<<<<<<<<<<<<<Core %d rec %d packets\n",rte_lcore_id(),nb_rx);
 
 			for (uint16_t i = 0; i < nb_rx; i++){
-				if (likely(i < nb_rx - 1))
+				lock_qp();
+				/*
+				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
+				}
+				*/
 				
 				struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(rx_pkts[i], struct rte_ether_hdr *);
 				struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2854,25 +2923,20 @@ lcore_main(void)
 				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 
 				packet_counter++;
+				/*
 				if (!accept_packet(rx_pkts[i])) {
+					printf("unacceptable packet\n");
 					continue;
 				}
+				*/
 
-				#ifdef PACKET_DEBUG_PRINTOUT
-				classify_packet_size(ipv4_hdr,roce_hdr);
-				if (packet_counter % 1000000 == 0) {
-					print_classify_packet_size();
-				}
-				#endif
-
-
-				//rte_rwlock_write_lock(&next_lock);
-				//log_printf(DEBUG,"Packet Start\n");
+				/*
 				int64_t clocks_before = rdtsc_s ();
 				if (debug_start_printing_every_packet != 0) {
 					//print_packet(rx_pkts[i]);
 					print_packet_lite(rx_pkts[i]);
 				}
+				*/
 
 				true_classify(rx_pkts[i]);
 
@@ -2880,11 +2944,13 @@ lcore_main(void)
 				struct map_packet_response mpr;
 				mpr = map_qp(rx_pkts[i]);
 
+				uint32_t to_send = 0;
 				for (int i=0;i<mpr.size;i++) {
 					tx_pkts[to_tx] = mpr.pkts[i];
 					to_tx++;
+					to_send++;
 				}
-
+				/*
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
 
@@ -2893,9 +2959,11 @@ lcore_main(void)
 					append_packet_latency(clocks_per_packet);
 				}
 				#endif
+				*/
 
+			   nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
+			   unlock_qp();
 			}							
-			unlock_qp();
 
 
 			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
@@ -2903,20 +2971,22 @@ lcore_main(void)
 			/* Send burst of TX packets, to the same port */
 			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
 			//printf("sending %d after receiving %d\n",to_tx,nb_rx);
+
 			if (to_tx != nb_rx) {
 				printf("sending %d after receiving %d\n",to_tx,nb_rx);
 			}
-			const uint16_t nb_tx = rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
+			//printf(">>>>>>>>>>>>>>>>>>>>Core %d sending %d packets\n",rte_lcore_id(),to_tx);
+			if (unlikely(nb_tx < to_tx)) {
+				printf("Freeing packets that were not sent %d",nb_tx - to_tx);
+				printf("TOIDODODODOOD THIS IS A BUG nb_tx might have a hole, this code assumes it's just a linear set of missing packets %d",nb_tx - to_tx);
+				uint16_t buf;
+				for (buf = nb_tx; buf < to_tx; buf++)
+					rte_pktmbuf_free(tx_pkts[buf]);
+			}
+
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
 
-			/* Free any unsent packets. */
-			if (unlikely(nb_tx < to_tx)) {
-			printf("Freeing packets that were not sent %d",nb_tx - to_tx);
-			uint16_t buf;
-			for (buf = nb_tx; buf < to_tx; buf++)
-				rte_pktmbuf_free(tx_pkts[buf]);
-			}
 
 		}
 	}
@@ -3047,6 +3117,8 @@ main(int argc, char *argv[])
 		bzero(cached_write_vaddr_mod_latest, sizeof(uint64_t) * KEYSPACE);
 
 		#endif
+
+		init_reorder_buf();
 
 		init_connection_states();
 		init_hash();
