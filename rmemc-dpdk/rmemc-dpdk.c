@@ -76,74 +76,43 @@ uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 
+
+rte_rwlock_t next_lock;
+rte_rwlock_t qp_lock;
+rte_rwlock_t qp_init_lock;
+rte_rwlock_t mem_qp_lock;
+
+void lock_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_lock(&qp_lock);
+	rte_smp_mb();
+}
+
+void unlock_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_unlock(&qp_lock);
+	rte_smp_mb();
+}
+
+void lock_mem_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_lock(&mem_qp_lock);
+	rte_smp_mb();
+}
+
+void unlock_mem_qp() {
+	rte_smp_mb();
+	rte_rwlock_write_unlock(&mem_qp_lock);
+	rte_smp_mb();
+}
+
+
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
 0x00,0x30,0x2A,0x2B,0x40,0x00,0x40,0x11,0x8D,0x26,0xC0,0xA8,0x01,0x0C,0xC0,0xA8,
 0x01,0x0D,0xCF,0x15,0x12,0xB7,0x00,0x1C,0x00,0x00,0x11,0x40,0xFF,0xFF,0x00,0x00,
 0x6C,0xA9,0x00,0x00,0x0C,0x71,0x0D,0x00,0x00,0x01,0xDC,0x97,0x84,0x42,};
 
-#define PKT_REORDER_BUF 64
-struct rte_mbuf * mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
-uint64_t mem_qp_buf_head[TOTAL_ENTRY] = 0;
-uint64_t mem_qp_buf_tail[TOTAL_ENTRY] = 0;
-rte_rwlock_t mem_qp_lock;
-
-void init_reorder_buf(void) {
-	printf("initalizing reorder buffs");
-	bzero(mem_qp_buf_head,TOTAL_ENTRY*sizeof(uint64_t));
-	bzero(mem_qp_buf_tail,TOTAL_ENTRY*sizeof(uint64_t));
-	for (int i=0;i<TOTAL_ENTRY;i++) {
-		for (int j=0;i<PKT_REORDER_BUF;j++) {
-			mem_qp_buf[i][j] = NULL;
-		}
-	}
-}
-
-void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
-	uint32_t id = get_id(roce_hdr->dest_qp);
-	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
-	rte_rwlock_write_lock(mem_qp_lock);
-
-	//write packet to location
-	uint32_t entry = seq%PKT_REORDER_BUF;
-	mem_qp_buf[id][entry] = pkt;
-
-	uint32_t *head = &mem_qp_buf_head[id];
-	uint32_t *tail = &mem_qp_buf_tail[id];
-
-	//Move head on the inital call
-	if (unlikely(*head == 0)) {
-		*head = seq;
-		printf("initlaizing head to %d on id %d\n",*head,id);
-	}
-	//Update Tail
-	if (*tail < seq) {
-		*tail = seq;
-		printf("updating tail to %d on id %d\n",*tail,id);
-	}
-
-	//scan
-	for (int i=*head;i<=*tail;i++){
-		if (mem_qp_buf[id][i%PKT_REORDER_BUF] == NULL) {
-			rte_rwlock_write_unlock(mem_qp_lock);
-			printf("Returning due to hole in head(%d) -> tail(%d)\n",*head,*tail)
-			return;
-		}
-	}
-
-	for (int i=*head;i<=*tail;i++){
-		rte_eth_tx_burst(port, queue, &mem_qp_buf[id][i], 1);
-		mem_qp_buf[id][i] = NULL;
-	}
-	*head = *tail + 1;
-	rte_rwlock_write_unlock(mem_qp_lock);
-}
 
 
 
@@ -424,6 +393,16 @@ uint32_t key_to_qp(uint64_t key) {
 }
 
 
+uint32_t get_psn(struct rte_mbuf *pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	return roce_hdr->packet_sequence_number;
+}
+
+
 
 int init_hash(void) {
 	qp2id_table = rte_hash_create(&qp2id_params);
@@ -497,6 +476,138 @@ int fully_qp_init() {
 		}
 	}
 	return 1;
+}
+
+#define PKT_REORDER_BUF 64
+struct rte_mbuf * mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+struct rte_mbuf * client_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+uint64_t mem_qp_buf_head[TOTAL_ENTRY];
+uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
+uint64_t client_qp_buf_head[TOTAL_ENTRY];
+uint64_t client_qp_buf_tail[TOTAL_ENTRY];
+
+void init_reorder_buf(void) {
+	printf("initalizing reorder buffs");
+	bzero(mem_qp_buf_head,TOTAL_ENTRY*sizeof(uint64_t));
+	bzero(mem_qp_buf_head,TOTAL_ENTRY*sizeof(uint64_t));
+	bzero(client_qp_buf_tail,TOTAL_ENTRY*sizeof(uint64_t));
+	bzero(client_qp_buf_tail,TOTAL_ENTRY*sizeof(uint64_t));
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		for (int j=0;j<PKT_REORDER_BUF;j++) {
+			mem_qp_buf[i][j] = NULL;
+			client_qp_buf[i][j] = NULL;
+		}
+	}
+}
+
+void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	#define FAKE_ID -1
+	int id = FAKE_ID;
+	uint32_t *head = NULL;
+	uint32_t *tail = NULL;
+	struct rte_mbuf * (*buf_ptr)[TOTAL_ENTRY][PKT_REORDER_BUF];
+
+	//rte_rwlock_write_lock(&mem_qp_lock);
+	lock_mem_qp();
+
+	//Find the ID of the packet We are using generic head and tail pointers here
+	//for both directions of queueing.  The memory direction has a queue and so
+	//does the client.  If the requests are arriving out of order in either
+	//direction they will be queued.
+
+	for (int i=0;i<qp_id_counter;i++) {
+		if (Connection_States[i].ctsqp == roce_hdr->dest_qp) {
+				id = Connection_States[i].id;
+				head = &mem_qp_buf_head[id];
+				tail = &mem_qp_buf_tail[id];
+				buf_ptr = &mem_qp_buf;
+				break;
+		}
+		if (Connection_States[i].receiver_init == 1 && Connection_States[i].stcqp == roce_hdr->dest_qp) {
+				id = Connection_States[i].id;
+				head = &client_qp_buf_head[id];
+				tail = &client_qp_buf_tail[id];
+				buf_ptr = &client_qp_buf;
+				break;
+		}
+	}
+
+	//If the id of the packet was not found, then just send the packet out.
+	if (id == FAKE_ID) {
+		rte_eth_tx_burst(port, queue,&pkt, 1);
+		unlock_mem_qp();
+		return;
+	}
+
+	//Find the location in the circular buffer that hold the current packet
+	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+	uint32_t entry = seq%PKT_REORDER_BUF;
+
+	//Write the packet to the buffer (direction independent)
+	(*buf_ptr)[id][entry] = pkt;
+
+	//On the first call the sequence numbers are going to start somewhere
+	//random. In this case just move the head of the buffer to the current
+	//sequence number
+	if (unlikely(*head == 0)) {
+		*head = seq;
+	}
+
+	//If the tail is the new latest sequence number than slide it forward
+	if (*tail < seq) {
+		*tail = seq;
+	}
+
+	//If the head is currently higher than the tail, this means that it's not
+	//time to send anyhting. We are eitheir going to enqueue (the usual case) or
+	//there is nothing to do.
+	if (*head > *tail) {
+		unlock_mem_qp();
+		return;
+	}
+
+	//I'm not sure why this would happen
+	if (seq < *head) {
+		printf("we have a problem, perhaps the sequence numbers rolled over?\n");
+		exit(0);
+	}
+
+	//make sure that all of the entries from the head to the tail are not equal
+	//to null. If any are then we have non-contigous sequence numbers i.e a gap,
+	//and need to move forward without sending anything.
+	for (int i=*head;i<=*tail;i++){
+		if ((*buf_ptr)[id][i%PKT_REORDER_BUF] == NULL) {
+			unlock_mem_qp();
+			//printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
+			return;
+		}
+	}
+
+	//If we made it here it's time to send
+	uint32_t diff = (*tail+1)-*head;
+	for (int i=*head;i<=*tail;i++){
+		struct rte_mbuf * s_pkt = (*buf_ptr)[id][i%PKT_REORDER_BUF];
+		if (diff > 1) {
+			print_packet_lite(s_pkt);
+		}
+		#ifdef TAKE_MEASUREMENTS
+		if (buf_ptr == &mem_qp_buf) {
+			append_sequence_number(id,get_psn(s_pkt));
+		}
+		#endif
+
+		rte_eth_tx_burst(port, queue, &s_pkt, 1);
+		(*buf_ptr)[id][i%PKT_REORDER_BUF] = NULL;
+	}
+	*head = *tail + 1;
+	//rte_eth_tx_burst(port, queue, &(*buf_ptr)[id][*head%PKT_REORDER_BUF], diff);
+	unlock_mem_qp();
 }
 
 uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
@@ -1080,21 +1191,6 @@ static uint32_t write_value_packet_size = 0;
 static uint32_t predict_shift_value=0;
 static uint32_t nacked_cns =0;
 
-rte_rwlock_t next_lock;
-rte_rwlock_t qp_lock;
-rte_rwlock_t qp_init_lock;
-
-void lock_qp() {
-	rte_smp_mb();
-	rte_rwlock_write_lock(&qp_lock);
-	rte_smp_mb();
-}
-
-void unlock_qp() {
-	rte_smp_mb();
-	rte_rwlock_write_unlock(&qp_lock);
-	rte_smp_mb();
-}
 
 
 void print_first_mapping(void){
@@ -1567,14 +1663,6 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 
-uint32_t get_psn(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	return roce_hdr->packet_sequence_number;
-}
 
 struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1637,41 +1725,46 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		uint32_t last_seq=readable_seq(destination_cs->last_seq);
 		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
 		int diff = packet_seq - last_seq;
+		//printf("diff %d\n",diff);
+		uint32_t new_latest = roce_hdr->packet_sequence_number;
 		if ( last_seq > packet_seq) {
-			printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
+			//printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
 
 			if (destination_cs->read_holder == NULL) {
 				printf("fuck, i was hoping we would get here with a set read\n");
 			} else {
-				printf("throwing the old read back on the send train\n");
+				//printf("throwing the old read back on the send train\n");
 				mpr.pkts[0] = pkt;
 				mpr.pkts[1] = destination_cs->read_holder;
 				mpr.size=2;
 				destination_cs->read_holder = NULL;
-				destination_cs->last_seq = get_psn(mpr.pkts[1]);
+				new_latest = get_psn(mpr.pkts[1]);
 			}
 
 		} else if (packet_seq > last_seq + 1 && (last_seq > 0)) {
-			printf("OOOO[%s][out of order NEW][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
+			//printf("OOOO[%s][out of order NEW][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 			
 			if (destination_cs->read_holder != NULL) {
 				printf("I should not be overwriting the read holder is not null\n");
 			}
 
-			printf("Storing packet for later, this read is out of order\n");
+			//printf("Storing packet for later, this read is out of order\n");
 			destination_cs->read_holder = pkt;
 			mpr.size = 0;
 			mpr.pkts[0] = NULL;
-			destination_cs->last_seq =roce_hdr->packet_sequence_number;
+			new_latest =roce_hdr->packet_sequence_number;
 
 		} else if (last_seq == packet_seq) {
 			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
 			//mpr.size = 0;
 			//mpr.pkts[0] = NULL;
 			rte_pktmbuf_free(pkt);
-			destination_cs->last_seq =roce_hdr->packet_sequence_number;
+			new_latest=roce_hdr->packet_sequence_number;
 		}
 
+		destination_cs->last_seq=new_latest;
+
+		/*
 		#ifdef TAKE_MEASUREMENTS
 		for (int i=0;i< mpr.size;i++) {
 			struct rte_mbuf * pkt2 =  mpr.pkts[i];
@@ -1684,6 +1777,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 			append_sequence_number(mapped_request->id,roce_hdr2->packet_sequence_number);
 		}
 		#endif
+		*/
 
 		//re ecalculate the checksum
 		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -2134,7 +2228,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		//debug print statements
 		//printf("(cns) id %d, ip %d\n",id,ipv4_hdr->src_addr);
 		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
-
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -2744,6 +2837,7 @@ struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
 	return clover_header;
 }
 
+
 void print_packet_lite(struct rte_mbuf * buf) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2771,7 +2865,7 @@ void print_packet_lite(struct rte_mbuf * buf) {
 
 	id_colorize(id);
 
-	printf("[id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
+	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
 
 	if (roce_hdr->opcode == 129) {
 		print_packet(buf);
@@ -2908,8 +3002,8 @@ lcore_main(void)
 			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
 			//printf("<<<<<<<<<<<<<<<<<<<<<<<Core %d rec %d packets\n",rte_lcore_id(),nb_rx);
 
-			for (uint16_t i = 0; i < nb_rx; i++){
 				lock_qp();
+			for (uint16_t i = 0; i < nb_rx; i++){
 				/*
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
@@ -2945,8 +3039,9 @@ lcore_main(void)
 				mpr = map_qp(rx_pkts[i]);
 
 				uint32_t to_send = 0;
-				for (int i=0;i<mpr.size;i++) {
-					tx_pkts[to_tx] = mpr.pkts[i];
+				for (int j=0;j<mpr.size;j++) {
+					tx_pkts[to_tx] = mpr.pkts[j];
+					finish_mem_pkt(tx_pkts[to_tx],port,queue);
 					to_tx++;
 					to_send++;
 				}
@@ -2961,9 +3056,14 @@ lcore_main(void)
 				#endif
 				*/
 
-			   nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
-			   unlock_qp();
-			}							
+			   //nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
+			}
+				unlock_qp();
+			/*
+			for( int i=0;i<to_tx;i++) {
+				finish_mem_pkt(tx_pkts[i],port,queue);
+			}	
+			*/						
 
 
 			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
@@ -2972,6 +3072,7 @@ lcore_main(void)
 			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
 			//printf("sending %d after receiving %d\n",to_tx,nb_rx);
 
+			/*
 			if (to_tx != nb_rx) {
 				printf("sending %d after receiving %d\n",to_tx,nb_rx);
 			}
@@ -2983,6 +3084,7 @@ lcore_main(void)
 				for (buf = nb_tx; buf < to_tx; buf++)
 					rte_pktmbuf_free(tx_pkts[buf]);
 			}
+			*/
 
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
 			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
