@@ -83,27 +83,27 @@ rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
 void lock_qp() {
-	rte_smp_mb();
+	rte_mb();
 	rte_rwlock_write_lock(&qp_lock);
-	rte_smp_mb();
+	rte_mb();
 }
 
 void unlock_qp() {
-	rte_smp_mb();
+	rte_mb();
 	rte_rwlock_write_unlock(&qp_lock);
-	rte_smp_mb();
+	rte_mb();
 }
 
 void lock_mem_qp() {
-	rte_smp_mb();
+	rte_mb();
 	rte_rwlock_write_lock(&mem_qp_lock);
-	rte_smp_mb();
+	rte_mb();
 }
 
 void unlock_mem_qp() {
-	rte_smp_mb();
+	rte_mb();
 	rte_rwlock_write_unlock(&mem_qp_lock);
-	rte_smp_mb();
+	rte_mb();
 }
 
 
@@ -584,7 +584,8 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	for (int i=*head;i<=*tail;i++){
 		if ((*buf_ptr)[id][i%PKT_REORDER_BUF] == NULL) {
 			unlock_mem_qp();
-			//printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
+			printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
+			print_packet_lite(pkt);
 			return;
 		}
 	}
@@ -1731,7 +1732,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 			//printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
 
 			if (destination_cs->read_holder == NULL) {
-				printf("fuck, i was hoping we would get here with a set read\n");
+				if (roce_hdr->opcode == RC_READ_RESPONSE) {
+					printf("fuck, i was hoping we would get here with a set read\n");
+					print_packet_lite(pkt);
+					exit(0);
+				} else {
+					printf("ooo [let the final buffer do it]%s\n",ib_print[roce_hdr->opcode]);
+				}
 			} else {
 				//printf("throwing the old read back on the send train\n");
 				mpr.pkts[0] = pkt;
@@ -1748,7 +1755,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 				printf("I should not be overwriting the read holder is not null\n");
 			}
 
-			//printf("Storing packet for later, this read is out of order\n");
+			printf("Storing packet for later, this read is out of order\n");
 			destination_cs->read_holder = pkt;
 			mpr.size = 0;
 			mpr.pkts[0] = NULL;
@@ -1792,6 +1799,11 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
 	//printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
+
+	printf("Start here tomorrow, I'm in the process of solving this --fuck-- issues that keeps throwing me\n");
+	source_connection->last_seq=roce_hdr->packet_sequence_number;
+
+
 	uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
 	if (msn > 0) {
 		uint32_t packet_msn = get_msn(roce_hdr);
@@ -2945,6 +2957,8 @@ int accept_packet(struct rte_mbuf * pkt) {
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
  */
+
+
 static __attribute__((noreturn)) void
 lcore_main(void)
 {
@@ -2984,8 +2998,8 @@ lcore_main(void)
 
 			/* Get burst of RX packets, from first and only port */
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
-			uint32_t to_tx = 0;
 			struct rte_mbuf *tx_pkts[BURST_SIZE];
+			uint32_t to_tx = 0;
 			//printf("%X bufs\n",&rx_pkts[0]);
 
 			uint32_t queue = rte_lcore_id()/2;
@@ -3002,8 +3016,8 @@ lcore_main(void)
 			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
 			//printf("<<<<<<<<<<<<<<<<<<<<<<<Core %d rec %d packets\n",rte_lcore_id(),nb_rx);
 
-				lock_qp();
 			for (uint16_t i = 0; i < nb_rx; i++){
+				lock_qp();
 				/*
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
@@ -3033,9 +3047,8 @@ lcore_main(void)
 				*/
 
 				true_classify(rx_pkts[i]);
-
-
 				struct map_packet_response mpr;
+
 				mpr = map_qp(rx_pkts[i]);
 
 				uint32_t to_send = 0;
@@ -3057,8 +3070,8 @@ lcore_main(void)
 				*/
 
 			   //nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
+			   unlock_qp();
 			}
-				unlock_qp();
 			/*
 			for( int i=0;i<to_tx;i++) {
 				finish_mem_pkt(tx_pkts[i],port,queue);
@@ -3232,6 +3245,7 @@ main(int argc, char *argv[])
 	rte_rwlock_init(&next_lock);
 	rte_rwlock_init(&qp_lock);
 	rte_rwlock_init(&qp_init_lock);
+	rte_rwlock_init(&mem_qp_lock);
 
 	init_ib_words();
 	/* Call lcore_main on the master core only. */
