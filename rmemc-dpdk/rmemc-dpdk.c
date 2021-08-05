@@ -584,8 +584,8 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	for (int i=*head;i<=*tail;i++){
 		if ((*buf_ptr)[id][i%PKT_REORDER_BUF] == NULL) {
 			unlock_mem_qp();
-			printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
-			print_packet_lite(pkt);
+			//printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
+			//print_packet_lite(pkt);
 			return;
 		}
 	}
@@ -594,9 +594,11 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	uint32_t diff = (*tail+1)-*head;
 	for (int i=*head;i<=*tail;i++){
 		struct rte_mbuf * s_pkt = (*buf_ptr)[id][i%PKT_REORDER_BUF];
+		/*
 		if (diff > 1) {
 			print_packet_lite(s_pkt);
 		}
+		*/
 		#ifdef TAKE_MEASUREMENTS
 		if (buf_ptr == &mem_qp_buf) {
 			append_sequence_number(id,get_psn(s_pkt));
@@ -1722,7 +1724,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
 		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
 		
+		
 
+		/*
 		uint32_t last_seq=readable_seq(destination_cs->last_seq);
 		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
 		int diff = packet_seq - last_seq;
@@ -1735,7 +1739,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 				if (roce_hdr->opcode == RC_READ_RESPONSE) {
 					printf("fuck, i was hoping we would get here with a set read\n");
 					print_packet_lite(pkt);
-					exit(0);
+					//exit(0);
 				} else {
 					printf("ooo [let the final buffer do it]%s\n",ib_print[roce_hdr->opcode]);
 				}
@@ -1770,6 +1774,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		}
 
 		destination_cs->last_seq=new_latest;
+		*/
 
 		/*
 		#ifdef TAKE_MEASUREMENTS
@@ -1800,8 +1805,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
 	//printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
 
-	printf("Start here tomorrow, I'm in the process of solving this --fuck-- issues that keeps throwing me\n");
-	source_connection->last_seq=roce_hdr->packet_sequence_number;
 
 
 	uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
@@ -3017,7 +3020,6 @@ lcore_main(void)
 			//printf("<<<<<<<<<<<<<<<<<<<<<<<Core %d rec %d packets\n",rte_lcore_id(),nb_rx);
 
 			for (uint16_t i = 0; i < nb_rx; i++){
-				lock_qp();
 				/*
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
@@ -3046,6 +3048,7 @@ lcore_main(void)
 				}
 				*/
 
+				lock_qp();
 				true_classify(rx_pkts[i]);
 				struct map_packet_response mpr;
 
@@ -3058,6 +3061,7 @@ lcore_main(void)
 					to_tx++;
 					to_send++;
 				}
+			   	unlock_qp();
 				/*
 				int64_t clocks_after = rdtsc_e ();
 				int64_t clocks_per_packet = clocks_after - clocks_before;
@@ -3070,7 +3074,6 @@ lcore_main(void)
 				*/
 
 			   //nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
-			   unlock_qp();
 			}
 			/*
 			for( int i=0;i<to_tx;i++) {
