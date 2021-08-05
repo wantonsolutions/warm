@@ -83,27 +83,28 @@ rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
 void lock_qp() {
-	rte_mb();
+	//rte_smp_mb();
 	rte_rwlock_write_lock(&qp_lock);
-	rte_mb();
+	rte_smp_mb();
 }
 
 void unlock_qp() {
-	rte_mb();
+	//rte_smp_mb();
 	rte_rwlock_write_unlock(&qp_lock);
-	rte_mb();
+	rte_smp_mb();
 }
 
 void lock_mem_qp() {
-	rte_mb();
+	//rte_smp_mb();
 	rte_rwlock_write_lock(&mem_qp_lock);
-	rte_mb();
+	rte_smp_mb();
 }
 
 void unlock_mem_qp() {
-	rte_mb();
+	//rte_smp_mb();
 	rte_rwlock_write_unlock(&mem_qp_lock);
-	rte_mb();
+	rte_smp_mb();
+	//rte_mb();
 }
 
 
@@ -1950,14 +1951,26 @@ void track_qp(struct rte_mbuf * pkt) {
 
 
 
-	if (opcode == RC_ACK) {
-		struct rdma_ack * ack = (struct rdma_ack*) clover_header;
-		/*
-		if (has_mapped_qp == 0) {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-		*/
+	switch(opcode){
+		case RC_ACK:
+			break;
+		case RC_READ_REQUEST:
+			break;
+		case RC_READ_RESPONSE:
+			break;
+		case RC_WRITE_ONLY:
+			break;
+		case RC_ATOMIC_ACK:
+			break;
+		case RC_CNS:
+			break;
+		default:
+			printf("Should not reach this case statement\n");
+			break;
+	}
 
+	if (opcode == RC_ACK) {
+		//Do nothing
 	} else if (opcode == RC_READ_REQUEST) {
 		uint64_t stub_zero_key = 0;
 		uint64_t *key = &stub_zero_key;
@@ -3048,8 +3061,8 @@ lcore_main(void)
 				}
 				*/
 
-				lock_qp();
 				true_classify(rx_pkts[i]);
+				lock_qp();
 				struct map_packet_response mpr;
 
 				mpr = map_qp(rx_pkts[i]);
