@@ -1891,7 +1891,23 @@ void track_qp(struct rte_mbuf * pkt) {
 }
 
 
-
+uint32_t get_predicted_shift(packet_size) {
+	switch(packet_size){
+		case 1024:
+			return 10;
+		case 512:
+			return 9;
+		case 256:
+			return 8;
+		case 128:
+			return 7;
+		case 64:
+			return 6;
+		default:
+			printf("Unknown packet size (%d) exiting\n",packet_size);
+			exit(0);
+	}
+}
 
 void true_classify(struct rte_mbuf * pkt) {
 //void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
@@ -1935,18 +1951,15 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (size == 252) {
 			//TODO determine what these writes are doing
 		} else if (size == 68) {
-			//log_printf(DEBUG,"write (2) size %d\n",size);
-			//TODO Check if the packet is one of the live QP
 			//track if the qp is live
 			if (qp_is_mapped(r_qp) == 1) {
 				track_qp(pkt);
 			}
 
 		} else {
-			//Obtain the wite lock
 			rte_rwlock_write_lock(&next_lock);
 			rte_smp_mb();
-			//
+
 			struct write_request * wr = (struct write_request*) clover_header;
 			//print_packet(pkt);
 			uint64_t *key = (uint64_t*)&(wr->data);
@@ -1956,32 +1969,13 @@ void true_classify(struct rte_mbuf * pkt) {
 			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
 			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
 			#endif
-			//print_packet(pkt);
-			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
-			//we should only reach this block if these are write packets	
-			//init write packet size
-			//When performing qp muxing track the connection state
-			//Keep the state updated untill it's time to actually do the forwarding
-			//TODO this needs to be done on a per key basis
 
+			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
+
+			//init write packet size
 			if (unlikely(write_value_packet_size == 0)) {
-				printf("Write Packet size %d\n",size);
-				printf("RDMA DMA size %d\n",rdma_size);
 				write_value_packet_size = rdma_size;
-				if (write_value_packet_size == 1024) {
-					predict_shift_value = 10;
-				} else if ( write_value_packet_size == 512 ) {
-					predict_shift_value = 9;
-				} else if ( write_value_packet_size == 256 ) {
-					predict_shift_value = 8;
-				} else if ( write_value_packet_size == 128 ) {
-					predict_shift_value = 7;
-				} else if ( write_value_packet_size == 64 ) {
-					predict_shift_value = 6;
-				} else {
-					printf("Unknown packet size (%d) exiting\n",rdma_size);
-					exit(0);
-				}
+				predict_shift_value = get_predicted_shift(write_value_packet_size);
 			}
 			//Sanity check, we should only reach here if we are dealing with statically sized write packets
 			if (unlikely(write_value_packet_size != rdma_size)) {
@@ -1994,7 +1988,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				//This key is out of the range that we are caching
 				//it still counts as a write but we have to let if through
 				latest_key[id] = *key;
-				log_printf(DEBUG,"not tracking key %d\n",*key);
+				//log_printf(DEBUG,"not tracking key %d\n",*key);
 				track_qp(pkt);
 				rte_smp_mb();
 				rte_rwlock_write_unlock(&next_lock);
@@ -2003,7 +1997,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			//printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
 			if(first_write[*key] != 0 && first_cns[*key] != 0) {
-				log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
+				//log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
 				//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
 				predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
 				outstanding_write_predicts[id][*key] = predict_address[*key];
@@ -2017,27 +2011,28 @@ void true_classify(struct rte_mbuf * pkt) {
 					//These are dummy values for testing because I think I got the algorithm wrong
 					first_write[*key] = 1;
 					//next_vaddr[*kdest_qpey] = 1;
-					log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
+					//log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
 				} else if (first_write[*key] == 1) {
 					//Lets leave this for now, but it can likely change once the cns is solved
 					first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
 					next_vaddr[*key] = wr->rdma_extended_header.vaddr;  //next_vaddr subject to change
-					log_printf(DEBUG,"second write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
+					//log_printf(DEBUG,"second write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
 					outstanding_write_predicts[id][*key] = 1;
 					outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
 				} else {
-					log_printf(INFO,"THIS IS WHERE THE BUGS HAPPEN CONCURRENT INIT (might crash)!!!! ID: %d KEY: %d\n",id,*key);
-					log_printf(INFO,"Trying to save the ship by hoping the prior write makes it through first\n");
+					//log_printf(INFO,"THIS IS WHERE THE BUGS HAPPEN CONCURRENT INIT (might crash)!!!! ID: %d KEY: %d\n",id,*key);
+					//log_printf(INFO,"Trying to save the ship by hoping the prior write makes it through first\n");
 					outstanding_write_predicts[id][*key] = 1;
 					outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-					log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
+					//log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
 				}
 			}
+
 			latest_key[id] = *key;
 			if (size == 1084) {
-				//printf("TODO remove this size == 1084 buisness it's probably wrong");
 				track_qp(pkt);
 			}
+
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 
@@ -2062,11 +2057,6 @@ void true_classify(struct rte_mbuf * pkt) {
 				you are running an experiment to show the effect of varying
 				cache size just comment out the exit below.
 			*/
-
-			//printf("nacked cns %d\n",nacked_cns);
-			//printf("SHOULD BE EXITING (if you see this check cache!!!)\n");
-			//print_packet(pkt);
-			//exit(0);
 		} 
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
@@ -2075,21 +2065,14 @@ void true_classify(struct rte_mbuf * pkt) {
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
-
 		rte_rwlock_write_lock(&next_lock);
 		rte_smp_mb();
-		//cts_track_connection_state(udp_hdr,roce_hdr);
 
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
 		swap = htobe64(swap);
 
-
 		uint32_t id = get_id(r_qp);
-		//debug print statements
-		//printf("(cns) id %d, ip %d\n",id,ipv4_hdr->src_addr);
-		//printf("Latest id KEY: id: %d, key %"PRIu64"\n",id, latest_key[id]);
-
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
 
