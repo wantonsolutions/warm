@@ -1939,79 +1939,38 @@ void track_qp(struct rte_mbuf * pkt) {
 		return;
 	}
 
-
-
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	uint32_t size = ntohs(ipv4_hdr->total_length);
-	uint8_t opcode = roce_hdr->opcode;
 
+	if (has_mapped_qp != 0) {
+		return;
+	}
 
-
-	switch(opcode){
+	switch(roce_hdr->opcode){
 		case RC_ACK:
-			break;
-		case RC_READ_REQUEST:
-			break;
 		case RC_READ_RESPONSE:
 			break;
-		case RC_WRITE_ONLY:
+		case RC_READ_REQUEST:
+		case RC_CNS:
+			cts_track_connection_state(pkt);
 			break;
 		case RC_ATOMIC_ACK:
+			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 			break;
-		case RC_CNS:
+		case RC_WRITE_ONLY:
+			//flip the switch
+			if (unlikely(fully_qp_init())) {
+				print_first_mapping();
+				has_mapped_qp = 1;
+				break;
+			}
+			cts_track_connection_state(pkt);
 			break;
 		default:
 			printf("Should not reach this case statement\n");
 			break;
-	}
-
-	if (opcode == RC_ACK) {
-		//Do nothing
-	} else if (opcode == RC_READ_REQUEST) {
-		uint64_t stub_zero_key = 0;
-		uint64_t *key = &stub_zero_key;
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(pkt);
-		}
-	} else if (opcode == RC_READ_RESPONSE) {
-		/*
-		if (has_mapped_qp == 0) {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-		*/
-
-	} else if (opcode == RC_WRITE_ONLY) {
-		struct write_request * wr = (struct write_request*) clover_header;
-		uint64_t *key = (uint64_t*)&(wr->data);
-		//flip the switch
-		//!TODO pull this out and make it it's own thing at the beginning.
-		if (fully_qp_init() && has_mapped_qp == 0) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
-			if (unlikely(has_mapped_qp == 0)) {
-				#ifdef DATA_PATH_PRINT
-				print_packet(pkt);
-				#endif 
-				print_first_mapping();
-				has_mapped_qp = 1;
-			}
-		}
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(pkt);
-		}
-
-
-	} else if (opcode == RC_ATOMIC_ACK) {
-		if (has_mapped_qp == 0) {
-			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
-		}
-	} else if (opcode == RC_CNS) {
-		if (has_mapped_qp == 0) {
-			cts_track_connection_state(pkt);
-		}
 	}
 }
 
@@ -3061,8 +3020,8 @@ lcore_main(void)
 				}
 				*/
 
-				true_classify(rx_pkts[i]);
 				lock_qp();
+				true_classify(rx_pkts[i]);
 				struct map_packet_response mpr;
 
 				mpr = map_qp(rx_pkts[i]);
