@@ -1724,73 +1724,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 		//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
 		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
-		
-		
-
-		/*
-		uint32_t last_seq=readable_seq(destination_cs->last_seq);
-		uint32_t packet_seq=readable_seq(roce_hdr->packet_sequence_number);
-		int diff = packet_seq - last_seq;
-		//printf("diff %d\n",diff);
-		uint32_t new_latest = roce_hdr->packet_sequence_number;
-		if ( last_seq > packet_seq) {
-			//printf("XXXX[%s][out of order OLD][%d] (last: %d, current:%d)XXXX\n",ib_print[roce_hdr->opcode],diff,last_seq,packet_seq);
-
-			if (destination_cs->read_holder == NULL) {
-				if (roce_hdr->opcode == RC_READ_RESPONSE) {
-					printf("fuck, i was hoping we would get here with a set read\n");
-					print_packet_lite(pkt);
-					//exit(0);
-				} else {
-					printf("ooo [let the final buffer do it]%s\n",ib_print[roce_hdr->opcode]);
-				}
-			} else {
-				//printf("throwing the old read back on the send train\n");
-				mpr.pkts[0] = pkt;
-				mpr.pkts[1] = destination_cs->read_holder;
-				mpr.size=2;
-				destination_cs->read_holder = NULL;
-				new_latest = get_psn(mpr.pkts[1]);
-			}
-
-		} else if (packet_seq > last_seq + 1 && (last_seq > 0)) {
-			//printf("OOOO[%s][out of order NEW][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
-			
-			if (destination_cs->read_holder != NULL) {
-				printf("I should not be overwriting the read holder is not null\n");
-			}
-
-			printf("Storing packet for later, this read is out of order\n");
-			destination_cs->read_holder = pkt;
-			mpr.size = 0;
-			mpr.pkts[0] = NULL;
-			new_latest =roce_hdr->packet_sequence_number;
-
-		} else if (last_seq == packet_seq) {
-			printf("OOOO[%s][DUPLICATE!!][%d] (last %d, current %d)OOOO\n",ib_print[roce_hdr->opcode],diff,last_seq, packet_seq);
-			//mpr.size = 0;
-			//mpr.pkts[0] = NULL;
-			rte_pktmbuf_free(pkt);
-			new_latest=roce_hdr->packet_sequence_number;
-		}
-
-		destination_cs->last_seq=new_latest;
-		*/
-
-		/*
-		#ifdef TAKE_MEASUREMENTS
-		for (int i=0;i< mpr.size;i++) {
-			struct rte_mbuf * pkt2 =  mpr.pkts[i];
-			struct rte_ether_hdr * eth_hdr2 = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-			struct rte_ipv4_hdr* ipv4_hdr2 = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-			struct rte_udp_hdr * udp_hdr2 = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-			struct roce_v2_header * roce_hdr2 = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-			struct clover_hdr * clover_header2 = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
-			append_sequence_number(mapped_request->id,roce_hdr2->packet_sequence_number);
-		}
-		#endif
-		*/
 
 		//re ecalculate the checksum
 		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -1799,14 +1732,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 		//repoen the slot
 		open_slot(mapped_request);
-
 		return mpr;
 	}
-
-	//printf("\n\n\nThis is an interesting point\n\n\n\n\n\n");
-	//printf("I think this point means that mapping is turned on but we are seeing old packets TAG_TAG\n");
-
-
 
 	uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
 	if (msn > 0) {
@@ -1887,17 +1814,6 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
 
-
-		/*
-		if (*key < 1 || *key > KEYSPACE) {
-			print_packet(pkt);
-			if (size == 1084) {
-				printf("DEBUG packet is strange");
-			}
-		}
-		*/
-
-		//!TODO TODO figure out what is actually going on here
 		/*
 		When I perform writes across keys but aslo mux QP on the writes
 		there is an issue where writes with size of 68 get through and
@@ -2004,64 +1920,22 @@ void true_classify(struct rte_mbuf * pkt) {
 
 	if (opcode == RC_ACK) {
 		track_qp(pkt);
-
-		//find_and_set_stc_qp_wrapper(roce_hdr);
-		//map_qp_backwards(pkt);
-		//This is purely here for testing CRC
-		//uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-		//crc_check =csum_pkt(pkt); //This need to be added before we can validate packets
-		//printf("Finished Checksumming as single ack, time to exit (TEST)\n");
-		//exit(0);
-
 	} 
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
 		track_qp(pkt);
 		reads++;
-		
-		//struct read_request * rr = (struct read_request *)clover_header;
-		//print_read_request(rr);
-		//count_read_req_addr(rr);
 	}
 
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
 		track_qp(pkt);
-		//struct read_response * rr = (struct read_response*) clover_header;
-		//print_packet(pkt);;;
-		//count_read_resp_addr(rr);
 	}
-
-/*
-	#ifdef TAKE_MEASUREMENTS
-		if (    (opcode == RC_ATOMIC_ACK) ||
-				(size == 1072 && opcode == RC_READ_RESPONSE)
-		) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
-			append_sequence_number(id,roce_hdr->packet_sequence_number);
-		} else if (qp_is_mapped(roce_hdr->dest_qp) && opcode == RC_ACK) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
-			append_sequence_number(id,roce_hdr->packet_sequence_number);
-		}
-	#endif
-*/
-
-
-
-
-	//Write Requestdest_qp
-			//Dangerous section
-			//print_packet(pkt);
 
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 252) {
 			//TODO determine what these writes are doing
-			//log_printf(DEBUG,"type1 size %d\n",size);
 		} else if (size == 68) {
-			log_printf(DEBUG,"write (2) size %d\n",size);
-			//print_packet(pkt);
-			//uint32_t id = get_id(r_qp);
-			//map_qp(pkt);
-
+			//log_printf(DEBUG,"write (2) size %d\n",size);
 			//TODO Check if the packet is one of the live QP
 			//track if the qp is live
 			if (qp_is_mapped(r_qp) == 1) {
