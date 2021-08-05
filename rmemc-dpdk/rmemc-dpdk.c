@@ -2111,10 +2111,8 @@ void true_classify(struct rte_mbuf * pkt) {
 		//Based on the key predict where the next CNS address should go. This requires the first CNS to be set
 		uint32_t key = latest_key[id];
 		uint64_t predict = outstanding_write_predicts[id][key];
-		//printf("Raw predict %d\n",predict);
 		predict = predict + be64toh(first_cns[key]);
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
-		//predict = htobe64( 0x00000000FFFFFFFF & predict);
 
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
@@ -2128,39 +2126,16 @@ void true_classify(struct rte_mbuf * pkt) {
 			#endif
 			
 		} else {
-			/*
-			printf("\n\n\n\n\n SWAPPPING OUT THE VADDR!!!!!!!";
-			"key %"PRIu64" id %d" 
-			"\n\n\n\n\n",latest_key[id],id);
-			printf("Now we need to know how different these addresses are\n");
-			printf("next addr[key = %"PRIu64"] ID: %d vaddr %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
-			printf("cs addr %"PRIu64"\n",cs->atomic_req.vaddr);
-			//Modify the next cns to poinnt to the last scene write
-			*/
-
-			//vaddr_swaps++;
-			//if (vaddr_swaps % 10000 == 0) {
-			//	printf("virtual memory swaps %"PRIu64" packets %"PRIu64"\n",vaddr_swaps,packet_counter);
-			//}
-
-			//THIS IS TO Measure conflicts
-			//#ifdef DONT_SWAP_VADDR
-			//rte_rwlock_write_unlock(&next_lock);
-			//return;
-			//#endif
 			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
 			//modify the ICRC checksum
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 			memcpy(current_checksum,&crc_check,4);
-			
-
 		}
 
 		//given that a cns has been determined move the next address for this 
 		//key, to the outstanding write of the cns that was just made
 		if (likely(predict == swap)) {
-
 			//This is where the write (for all intents and purposes has been commited)
 			#ifdef READ_STEER
 			update_write_vaddr_cache(latest_key[id],next_vaddr[latest_key[id]]);
@@ -2171,6 +2146,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			outstanding_write_predicts[id][latest_key[id]] = 0;
 			outstanding_write_vaddrs[id][latest_key[id]] = 0;
 			//printf("the next tail of the list for key %"PRIu64" has been found to be id: %d vaddr: %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
+
 		} else {
 			//This is the crash condtion
 			//Fatal, unable to find the next key
@@ -2214,37 +2190,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	return;
 }
 
-
-void print_classify_packet_size(void) {
-	for (int i=0;i<RDMA_COUNTER_SIZE;i++) {
-		for (int j=0;j<PACKET_SIZES;j++) {
-			if(packet_size_index[i][j] != 0)
-				printf("Call: %s Size: %"PRIu64", calls: %d\n",ib_print[i],packet_size_index[i][j],packet_size_calls[i][j]);
-		}
-	}
-	printf("----------------------------\n");
-}
-
-
-void rdma_count_calls(roce_v2_header *rdma) {
-	rdma_call_count[rdma->opcode]++;
-	return;
-}
-
-
-void print_rdma_call_count(void) {
-	if (rdma_counter % 100 == 0) {
-		for (int i=0;i<RDMA_COUNTER_SIZE;i++) {
-			if (rdma_call_count[i] > 0) {
-				printf("Call: %s Count: %d Raw: %02X\n",ib_print[i],rdma_call_count[i],i);
-			}
-		}
-
-	}
-	return;
-}
-
-
 //ib_print[RC_ACK] = "RC_ACK\0";
 void init_ib_words(void) {
 	strcpy(ib_print[RC_SEND],"RC_SEND");
@@ -2255,7 +2200,6 @@ void init_ib_words(void) {
 	strcpy(ib_print[RC_ATOMIC_ACK],"RC_ATOMIC_ACK");
 	strcpy(ib_print[RC_CNS],"RC_COMPARE_AND_SWAP");
 }
-
 
 int log_printf(int level, const char *format, ...) {
 	va_list args;
@@ -2277,9 +2221,6 @@ static const struct rte_eth_conf port_conf_default = {
 #define RSS_HASH_KEY_LENGTH 40 // for mlx5
 uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 
-//uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;
-//uint64_t rss_hf = 0;
-//rss_hf = 0;
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
         0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A, 0x6D, 0x5A,
@@ -2459,20 +2400,6 @@ struct rte_ether_hdr *eth_hdr_process(struct rte_mbuf* buf) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
 
 	if(eth_hdr->ether_type == rte_be_to_cpu_16(RTE_ETHER_TYPE_IPV4)){									
-
-		#ifdef TURN_PACKET_AROUND
-		//Swap ethernet addresses
-		struct rte_ether_addr temp_eth_addr   = eth_hdr->s_addr;
-		eth_hdr->s_addr = eth_hdr->d_addr;
-		eth_hdr->d_addr = temp_eth_addr;
-		#endif
-
-		#ifdef PACKET_DEBUG_PRINTOUT
-
-		print_ether_hdr(eth_hdr);
-		print_raw(buf);
-
-		#endif
 		return eth_hdr;
 	}
 	return NULL;
@@ -2541,29 +2468,8 @@ void print_udp_hdr(struct rte_udp_hdr * udp_hdr) {
 }
 
 struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
-
-	//ipv4_udp_rx++;
-	//log_printf(INFO,"ipv4_udp_rx:%" PRIu16 "\n",ipv4_udp_rx);
-
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	if (ipv4_hdr->next_proto_id == IPPROTO_UDP){
-
-		#ifdef TURN_PACKET_AROUND
-		//Swap udp ports
-		uint16_t temp_udp_port = udp_hdr->src_port;
-		udp_hdr->src_port = udp_hdr->dst_port; 
-		udp_hdr->dst_port = temp_udp_port;							
-		udp_hdr->dgram_len = rte_cpu_to_be_16(sizeof(struct alt_header) + sizeof(struct rte_udp_hdr));
-		//alt = (struct alt_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-		#endif
-
-		#ifdef PACKET_DEBUG_PRINTOUT
-		print_udp_hdr(udp_hdr);
-		#endif
-
-		//udp_hdr->dgram_cksum = 0;									
-		//udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, (void*)udp_hdr);
-		//printf("udp src port : %d\n",udp_hdr->src_port);
 		return udp_hdr;
 	}
 	return NULL;
@@ -2671,16 +2577,9 @@ void print_clover_hdr(struct clover_hdr * clover_header) {
 }
 
 struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
-
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
-	#ifdef PACKET_DEBUG_PRINTOUT
-	print_clover_header(clover_hdr);
-	#endif 
-
 	return clover_header;
 }
-
 
 void print_packet_lite(struct rte_mbuf * buf) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
@@ -2708,7 +2607,6 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	}
 
 	id_colorize(id);
-
 	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
 
 	if (roce_hdr->opcode == 129) {
@@ -2718,7 +2616,6 @@ void print_packet_lite(struct rte_mbuf * buf) {
 		printf("ECN TOS %X ntoh(%X)\n",ecn,ntohs(ecn));
 		printf("\n\n\n");
 	}
-
 }
 
 void print_packet(struct rte_mbuf * buf) {
@@ -2770,27 +2667,14 @@ int accept_packet(struct rte_mbuf * pkt) {
 		rte_pktmbuf_free(pkt);
 		return 0;
 	}
-
-	/*
-	clover_header = mitsume_msg_process(roce_hdr);
-	if (unlikely(clover_header == NULL)) {
-		log_printf(DEBUG, "clover msg not parsable for some reason\n");
-		rte_pktmbuf_free(rx_pkts[i]);
-		continue;
-	}
-	*/
 	return 1;
 
 }
-
-
 
 /*
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
  */
-
-
 static __attribute__((noreturn)) void
 lcore_main(void)
 {
@@ -2837,23 +2721,15 @@ lcore_main(void)
 			uint32_t queue = rte_lcore_id()/2;
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			uint16_t nb_tx = 0;
-			//const uint16_t nb_rx = rte_eth_rx_burst(port, 0, rx_pkts, BURST_SIZE);
-			//uint32_t current_ring =  rand() %2;
-			//printf("currently reading from ring %d\n",current_ring);
-			//const uint16_t nb_rx = rte_eth_rx_burst(port, current_ring, rx_pkts, BURST_SIZE);
 			
 			if (unlikely(nb_rx == 0))
 				continue;
 
-			//log_printf(INFO,"rx:%" PRIu16 "\n",nb_rx);
-			//printf("<<<<<<<<<<<<<<<<<<<<<<<Core %d rec %d packets\n",rte_lcore_id(),nb_rx);
 
 			for (uint16_t i = 0; i < nb_rx; i++){
-				/*
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				}
-				*/
 				
 				struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(rx_pkts[i], struct rte_ether_hdr *);
 				struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2862,20 +2738,6 @@ lcore_main(void)
 				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 
 				packet_counter++;
-				/*
-				if (!accept_packet(rx_pkts[i])) {
-					printf("unacceptable packet\n");
-					continue;
-				}
-				*/
-
-				/*
-				int64_t clocks_before = rdtsc_s ();
-				if (debug_start_printing_every_packet != 0) {
-					//print_packet(rx_pkts[i]);
-					print_packet_lite(rx_pkts[i]);
-				}
-				*/
 
 				lock_qp();
 				true_classify(rx_pkts[i]);
@@ -2891,50 +2753,7 @@ lcore_main(void)
 					to_send++;
 				}
 			   	unlock_qp();
-				/*
-				int64_t clocks_after = rdtsc_e ();
-				int64_t clocks_per_packet = clocks_after - clocks_before;
-
-				#ifdef TAKE_MEASUREMENTS
-				if (roce_hdr->opcode == RC_WRITE_ONLY) {
-					append_packet_latency(clocks_per_packet);
-				}
-				#endif
-				*/
-
-			   //nb_tx += rte_eth_tx_burst(port, queue, &tx_pkts[to_tx-to_send], to_send);
 			}
-			/*
-			for( int i=0;i<to_tx;i++) {
-				finish_mem_pkt(tx_pkts[i],port,queue);
-			}	
-			*/						
-
-
-			//log_printf(INFO,"rx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, ipv4_udp_rx);	
-
-			/* Send burst of TX packets, to the same port */
-			//const uint16_t nb_tx = rte_eth_tx_burst(port, 0, rx_pkts, nb_rx);
-			//printf("sending %d after receiving %d\n",to_tx,nb_rx);
-
-			/*
-			if (to_tx != nb_rx) {
-				printf("sending %d after receiving %d\n",to_tx,nb_rx);
-			}
-			//printf(">>>>>>>>>>>>>>>>>>>>Core %d sending %d packets\n",rte_lcore_id(),to_tx);
-			if (unlikely(nb_tx < to_tx)) {
-				printf("Freeing packets that were not sent %d",nb_tx - to_tx);
-				printf("TOIDODODODOOD THIS IS A BUG nb_tx might have a hole, this code assumes it's just a linear set of missing packets %d",nb_tx - to_tx);
-				uint16_t buf;
-				for (buf = nb_tx; buf < to_tx; buf++)
-					rte_pktmbuf_free(tx_pkts[buf]);
-			}
-			*/
-
-			//printf("rx:%" PRIu16 ",tx:%" PRIu16 ",udp_rx:%" PRIu16 "\n",nb_rx, nb_tx, ipv4_udp_rx);
-			//printf("rx:%" PRIu16 ",tx:%" PRIu16 "\n",nb_rx, nb_tx);
-
-
 		}
 	}
 }
@@ -2947,8 +2766,6 @@ void debug_icrc(struct rte_mempool *mbuf_pool) {
 	memcpy(eth_hdr,test_ack_pkt,pkt_len);
 	buf->pkt_len=pkt_len;
 	buf->data_len=pkt_len;
-	//printf("%d\n",test_ack_pkt[0]);
-	//memcpy(eth_hdr,test_ack_pkt,1);
 	printf("pkt copied\n");
 	print_packet(buf);
 	csum_pkt_fast(buf);
@@ -2971,8 +2788,6 @@ void fork_lcores(void) {
 	} 	
 }
 
-
-
 volatile sig_atomic_t flag = 0;
 void kill_signal_handler(int sig){
 	#ifdef TAKE_MEASUREMENTS
@@ -2980,10 +2795,6 @@ void kill_signal_handler(int sig){
 	#endif
 	exit(0);
 }
-
-
-
-
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
