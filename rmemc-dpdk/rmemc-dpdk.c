@@ -1851,7 +1851,7 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
-	if (MAP_QP == 0) {
+	if (likely(has_mapped_qp != 0) || MAP_QP == 0) {
 		return;
 	}
 
@@ -1860,7 +1860,11 @@ void track_qp(struct rte_mbuf * pkt) {
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 
-	if (has_mapped_qp != 0) {
+
+	if (unlikely(roce_hdr->opcode == RC_WRITE_ONLY && fully_qp_init())) {
+		//flip the switch
+		print_first_mapping();
+		has_mapped_qp = 1;
 		return;
 	}
 
@@ -1868,20 +1872,12 @@ void track_qp(struct rte_mbuf * pkt) {
 		case RC_ACK:
 		case RC_READ_RESPONSE:
 			break;
-		case RC_READ_REQUEST:
-		case RC_CNS:
-			cts_track_connection_state(pkt);
-			break;
 		case RC_ATOMIC_ACK:
 			find_and_set_stc_wrapper(roce_hdr,udp_hdr);
 			break;
+		case RC_READ_REQUEST:
+		case RC_CNS:
 		case RC_WRITE_ONLY:
-			//flip the switch
-			if (unlikely(fully_qp_init())) {
-				print_first_mapping();
-				has_mapped_qp = 1;
-				break;
-			}
 			cts_track_connection_state(pkt);
 			break;
 		default:
