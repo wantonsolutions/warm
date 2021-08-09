@@ -51,7 +51,7 @@
 #define SEQUENCE_NUMBER_SHIFT 256
 #define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
-int MAP_QP = 0;
+int MAP_QP = 1;
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
@@ -452,8 +452,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	uint32_t *head = NULL;
 	uint32_t *tail = NULL;
 	struct rte_mbuf * (*buf_ptr)[TOTAL_ENTRY][PKT_REORDER_BUF];
-
-	//rte_rwlock_write_lock(&mem_qp_lock);
 	lock_mem_qp();
 
 	//Find the ID of the packet We are using generic head and tail pointers here
@@ -533,11 +531,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	uint32_t diff = (*tail+1)-*head;
 	for (int i=*head;i<=*tail;i++){
 		struct rte_mbuf * s_pkt = (*buf_ptr)[id][i%PKT_REORDER_BUF];
-		/*
-		if (diff > 1) {
-			print_packet_lite(s_pkt);
-		}
-		*/
 		#ifdef TAKE_MEASUREMENTS
 		if (buf_ptr == &mem_qp_buf) {
 			append_sequence_number(id,get_psn(s_pkt));
@@ -1704,7 +1697,7 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 
 		if (size == 68) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
-			*key = latest_key[id];
+			*key = get_latest_key(id);
 			if (*key < 1 || *key > KEYSPACE) {
 				printf("danger zone\n");
 				*key = 0;
@@ -1713,7 +1706,7 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 		map_qp_forward(pkt,*key);
 	} else if (opcode == RC_CNS) {
 		uint32_t id = get_id(roce_hdr->dest_qp);
-		map_qp_forward(pkt,latest_key[id]);
+		map_qp_forward(pkt,get_latest_key(id));
 	}
 	return mpr;
 }
@@ -1849,6 +1842,26 @@ void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode) {
 	#endif
 }
 
+//In the case of regular operation where all of the writes are
+//cached, there should be no nacks. However if we set
+//CACHE_KEYSPACE to a value less than all of the keys, then we are
+//going to start to see NACKS. This only is a problem when the
+//writes are allowed to pass through. Reads should be a strict
+//subset of the writes so it's not going to be a problem there. If
+//you are running an experiment to show the effect of varying
+//cache size just comment out the exit below.
+void catch_nack(struct clover_hdr * clover_header, uint8_t opcode) {
+    if (opcode == RC_ATOMIC_ACK) {
+		struct cs_response * csr = (struct cs_response*) clover_header;
+		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
+		if (original != 0) {
+			nacked_cns++;
+			printf("danger only hit here if you have the keyspace option turned on\n");
+			exit(0);
+		} 
+	}
+}
+
 void true_classify(struct rte_mbuf * pkt) {
 //void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1862,6 +1875,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint32_t r_qp= roce_hdr->dest_qp;
 
 	catch_ecn(pkt,opcode);
+	catch_nack(clover_header, opcode);
 
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 252 || size == 68) {
@@ -1872,6 +1886,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
 		uint32_t id = get_id(r_qp);
+		set_latest_key(id,*key);
 
 		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 		check_and_cache_predicted_shift(rdma_size);
@@ -1879,7 +1894,6 @@ void true_classify(struct rte_mbuf * pkt) {
 		//Experimentatiopn for working with restricted cache keyspaces. Return
 		//from here if the key is out of the cache range.
 		if (*key > CACHE_KEYSPACE) {
-			latest_key[id] = *key;
 			unlock_next();
 			return;
 		}
@@ -1912,28 +1926,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
 			}
 		}
-		latest_key[id] = *key;
 		unlock_next();
-	}
-
-    if (opcode == RC_ATOMIC_ACK) {
-		struct cs_response * csr = (struct cs_response*) clover_header;
-		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
-		if (original != 0) {
-			nacked_cns++;
-			/*
-				In the case of regular operation where all of the writes are
-				cached, there should be no nacks. However if we set
-				CACHE_KEYSPACE to a value less than all of the keys, then we are
-				going to start to see NACKS. This only is a problem when the
-				writes are allowed to pass through. Reads should be a strict
-				subset of the writes so it's not going to be a problem there. If
-				you are running an experiment to show the effect of varying
-				cache size just comment out the exit below.
-			*/
-			printf("danger only hit here if you have the keyspace option turned on\n");
-			exit(0);
-		} 
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
@@ -1944,10 +1937,11 @@ void true_classify(struct rte_mbuf * pkt) {
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
 		swap = htobe64(swap);
 		uint32_t id = get_id(r_qp);
+		uint64_t key = get_latest_key(id);
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
-		if(latest_key[id] > CACHE_KEYSPACE) {
+		if(key > CACHE_KEYSPACE) {
 			//this key is not being tracked, return
 			unlock_next();
 			return;
@@ -1956,17 +1950,17 @@ void true_classify(struct rte_mbuf * pkt) {
 		//This is the first time we are seeking this key. We can't make a
 		//prediction for it so we are just going to store the address so that we
 		//can use is as an offset for performing redirections later.
-		if (first_cns[latest_key[id]] == 0) {
+		if (first_cns[key] == 0) {
 			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
-			first_cns[latest_key[id]] = swap;
-			first_write[latest_key[id]] = outstanding_write_vaddrs[id][latest_key[id]];
-			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][latest_key[id]];
+			first_cns[key] = swap;
+			first_write[key] = outstanding_write_vaddrs[id][key];
+			next_vaddr[key] = outstanding_write_vaddrs[id][key];
 
 			for (uint i=0;i<qp_id_counter;i++) {
-				if (outstanding_write_predicts[i][latest_key[id]] == 1) {
+				if (outstanding_write_predicts[i][key] == 1) {
 					//printf("(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
-					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][latest_key[id]]) - be64toh(first_write[latest_key[id]])) >> 10);
-					outstanding_write_predicts[i][latest_key[id]] = predict;
+					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][key]) - be64toh(first_write[key])) >> 10);
+					outstanding_write_predicts[i][key] = predict;
 				}
 			}
 			//Return and forward the packet if this is the first cns
@@ -1976,15 +1970,13 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//Based on the key predict where the next CNS address should go. This
 		//requires the first CNS to be set
-		uint32_t key = latest_key[id];
 		uint64_t predict = outstanding_write_predicts[id][key];
 		predict = predict + be64toh(first_cns[key]);
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
-		if (next_vaddr[latest_key[id]] != cs->atomic_req.vaddr) {
-			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
-			//modify the ICRC checksum
+		if (next_vaddr[key] != cs->atomic_req.vaddr) {
+			cs->atomic_req.vaddr = next_vaddr[key]; //We can add this once we can predict with confidence
 			recalculate_rdma_checksum(pkt);
 		}
 
@@ -1993,13 +1985,13 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (likely(predict == swap)) {
 			//This is where the write (for all intents and purposes has been commited)
 			#ifdef READ_STEER
-			update_write_vaddr_cache(latest_key[id],next_vaddr[latest_key[id]]);
+			update_write_vaddr_cache(key,next_vaddr[key]);
 			#endif
 
-			next_vaddr[latest_key[id]] = outstanding_write_vaddrs[id][key];
+			next_vaddr[key] = outstanding_write_vaddrs[id][key];
 			//erase the old entries
-			outstanding_write_predicts[id][latest_key[id]] = 0;
-			outstanding_write_vaddrs[id][latest_key[id]] = 0;
+			outstanding_write_predicts[id][key] = 0;
+			outstanding_write_vaddrs[id][key] = 0;
 		} else {
 			//This is the crash condtion
 			//Fatal, unable to find the next key
@@ -2562,10 +2554,10 @@ lcore_main(void)
 				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 				packet_counter++;
 
+				lock_qp();
 				true_classify(rx_pkts[i]);
 				struct map_packet_response mpr;
 
-				lock_qp();
 				mpr = map_qp(rx_pkts[i]);
 				uint32_t to_send = 0;
 				for (int j=0;j<mpr.size;j++) {
