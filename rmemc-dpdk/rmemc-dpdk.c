@@ -51,8 +51,7 @@
 #define SEQUENCE_NUMBER_SHIFT 256
 #define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
-
-int MAP_QP = 1;
+int MAP_QP = 0;
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
@@ -1103,6 +1102,14 @@ static uint64_t outstanding_write_predicts[TOTAL_ENTRY][KEYSPACE]; //outstanding
 static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE]; //outstanding vaddr values, used for replacing addrs
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
+
+uint64_t get_latest_key(uint32_t id) {
+	return latest_key[id];
+}
+
+void set_latest_key(uint32_t id, uint64_t key) {
+	latest_key[id] = key;
+}
 
 static int init =0;
 
@@ -2543,7 +2550,6 @@ lcore_main(void)
 			if (unlikely(nb_rx == 0))
 				continue;
 
-
 			for (uint16_t i = 0; i < nb_rx; i++){
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
@@ -2554,15 +2560,13 @@ lcore_main(void)
 				struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 				struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
 				packet_counter++;
 
-				lock_qp();
 				true_classify(rx_pkts[i]);
 				struct map_packet_response mpr;
 
+				lock_qp();
 				mpr = map_qp(rx_pkts[i]);
-
 				uint32_t to_send = 0;
 				for (int j=0;j<mpr.size;j++) {
 					tx_pkts[to_tx] = mpr.pkts[j];
@@ -2570,7 +2574,7 @@ lcore_main(void)
 					to_tx++;
 					to_send++;
 				}
-			   	unlock_qp();
+			  	unlock_qp();
 			}
 		}
 	}
