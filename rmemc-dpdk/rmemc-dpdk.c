@@ -1934,10 +1934,14 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//Find value of the clover pointer. This is the value we are going to potentially swap out.
 		struct cs_request * cs = (struct cs_request*) clover_header;
-		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
-		swap = htobe64(swap);
+		uint64_t swap =  htobe64(MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add)));
 		uint32_t id = get_id(r_qp);
 		uint64_t key = get_latest_key(id);
+		uint64_t* first_cns_p = &first_cns[key];
+		uint64_t* first_write_p = &first_write[key];
+		uint64_t* outstanding_write_vaddr_p = &outstanding_write_vaddrs[id][key];
+		uint64_t* outstanding_write_predict_p = &outstanding_write_predicts[id][key];
+		uint64_t* next_vaddr_p = &next_vaddr[key];
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -1950,16 +1954,16 @@ void true_classify(struct rte_mbuf * pkt) {
 		//This is the first time we are seeking this key. We can't make a
 		//prediction for it so we are just going to store the address so that we
 		//can use is as an offset for performing redirections later.
-		if (first_cns[key] == 0) {
+		if (*first_cns_p == 0) {
 			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
-			first_cns[key] = swap;
-			first_write[key] = outstanding_write_vaddrs[id][key];
-			next_vaddr[key] = outstanding_write_vaddrs[id][key];
+			*first_cns_p = swap;
+			*first_write_p = *outstanding_write_vaddr_p;
+			*next_vaddr_p = *outstanding_write_vaddr_p;
 
 			for (uint i=0;i<qp_id_counter;i++) {
 				if (outstanding_write_predicts[i][key] == 1) {
 					//printf("(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
-					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][key]) - be64toh(first_write[key])) >> 10);
+					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][key]) - be64toh(*first_write_p)) >> 10);
 					outstanding_write_predicts[i][key] = predict;
 				}
 			}
@@ -1970,13 +1974,13 @@ void true_classify(struct rte_mbuf * pkt) {
 
 		//Based on the key predict where the next CNS address should go. This
 		//requires the first CNS to be set
-		uint64_t predict = outstanding_write_predicts[id][key];
-		predict = predict + be64toh(first_cns[key]);
+		uint64_t predict = *outstanding_write_predict_p;
+		predict = predict + be64toh(*first_cns_p);
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
-		if (next_vaddr[key] != cs->atomic_req.vaddr) {
-			cs->atomic_req.vaddr = next_vaddr[key]; //We can add this once we can predict with confidence
+		if (*next_vaddr_p != cs->atomic_req.vaddr) {
+			cs->atomic_req.vaddr = *next_vaddr_p; //We can add this once we can predict with confidence
 			recalculate_rdma_checksum(pkt);
 		}
 
@@ -1985,13 +1989,13 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (likely(predict == swap)) {
 			//This is where the write (for all intents and purposes has been commited)
 			#ifdef READ_STEER
-			update_write_vaddr_cache(key,next_vaddr[key]);
+			update_write_vaddr_cache(key,*next_vaddr_p);
 			#endif
 
-			next_vaddr[key] = outstanding_write_vaddrs[id][key];
+			*next_vaddr_p = *outstanding_write_vaddr_p;
 			//erase the old entries
-			outstanding_write_predicts[id][key] = 0;
-			outstanding_write_vaddrs[id][key] = 0;
+			*outstanding_write_predict_p = 0;
+			*outstanding_write_vaddr_p = 0;
 		} else {
 			//This is the crash condtion
 			//Fatal, unable to find the next key
