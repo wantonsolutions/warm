@@ -83,40 +83,40 @@ rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
 void lock_qp() {
-	//rte_smp_mb();
 	rte_rwlock_write_lock(&qp_lock);
 	rte_smp_mb();
 }
 
 void unlock_qp() {
-	//rte_smp_mb();
 	rte_rwlock_write_unlock(&qp_lock);
 	rte_smp_mb();
 }
 
 void lock_mem_qp() {
-	//rte_smp_mb();
 	rte_rwlock_write_lock(&mem_qp_lock);
 	rte_smp_mb();
 }
 
 void unlock_mem_qp() {
-	//rte_smp_mb();
 	rte_rwlock_write_unlock(&mem_qp_lock);
 	rte_smp_mb();
-	//rte_mb();
 }
 
+void lock_next() {
+	rte_rwlock_write_lock(&next_lock);
+	rte_smp_mb();
+}
+
+void unlock_next() {
+	rte_rwlock_write_unlock(&next_lock);
+	rte_smp_mb();
+}
 
 uint8_t test_ack_pkt[] = {
 0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
 0x00,0x30,0x2A,0x2B,0x40,0x00,0x40,0x11,0x8D,0x26,0xC0,0xA8,0x01,0x0C,0xC0,0xA8,
 0x01,0x0D,0xCF,0x15,0x12,0xB7,0x00,0x1C,0x00,0x00,0x11,0x40,0xFF,0xFF,0x00,0x00,
 0x6C,0xA9,0x00,0x00,0x0C,0x71,0x0D,0x00,0x00,0x01,0xDC,0x97,0x84,0x42,};
-
-
-
-
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
@@ -139,8 +139,6 @@ uint8_t test_ack_pkt[] = {
 #define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
 
 char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
-
-
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
 
@@ -156,7 +154,6 @@ uint64_t packet_latency_count = 0;
 uint32_t sequence_order[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
 uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
 uint32_t request_count_id[TOTAL_ENTRY];
-
 #endif
 
 static __inline__ int64_t rdtsc_s(void)
@@ -174,7 +171,6 @@ static __inline__ int64_t rdtsc_e(void)
   asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
   return ((unsigned long)a) | (((unsigned long)d) << 32); 
 }
-
 
 void append_packet_latency(uint64_t clock_cycles) {
 	if (packet_latency_count < TOTAL_PACKET_LATENCIES) {
@@ -200,7 +196,6 @@ void write_packet_latencies_to_known_file() {
 		perror("Failed: ");
 		return;
 	}
-
 	for (int i=0;i<packet_latency_count;i++) {
 		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
 	}
@@ -216,7 +211,6 @@ void write_sequence_order_to_known_file() {
 		perror("Failed: ");
 		return;
 	}
-
 	for (int i=0;i<TOTAL_ENTRY;i++){
 		for (int j=0;j<request_count_id[i];j++) {
 			fprintf(fp,"%d,%d,%"PRIu64"\n",i,sequence_order[i][j],sequence_order_timestamp[i][j]);
@@ -233,7 +227,6 @@ void write_general_stats_to_known_file() {
 		perror("Failed: ");
 		return;
 	}
-
 	fprintf(fp,"READS %"PRIu64"\n",reads);
 	fprintf(fp,"READ REDIRECTIONS %"PRIu64"\n",read_redirections);
 	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
@@ -249,23 +242,17 @@ void write_run_data(void) {
 
 uint32_t rdma_call_count[RDMA_COUNTER_SIZE];
 
-
 static int packet_counter = 0;
 uint64_t packet_size_index[RDMA_COUNTER_SIZE][PACKET_SIZES];
 uint32_t packet_size_calls[RDMA_COUNTER_SIZE][PACKET_SIZES];
-
 uint64_t read_req_addr_index[KEYSPACE];
 uint32_t read_req_addr_count[KEYSPACE];
-
 uint64_t read_resp_addr_index[KEYSPACE];
 uint32_t read_resp_addr_count[KEYSPACE];
 
 #define MAX_CORES 24
 uint32_t core_pkt_counters[MAX_CORES];
 uint64_t vaddr_swaps = 0;
-
-
-
 
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
@@ -282,62 +269,15 @@ uint32_t id_qp[TOTAL_ENTRY];
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
 
-/*
-export COLOR_NC='\e[0m' # No Color
-export COLOR_BLACK='\e[0;30m'
-export COLOR_GRAY='\e[1;30m'
-export COLOR_RED='\e[0;31m'
-export COLOR_LIGHT_RED='\e[1;31m'
-export COLOR_GREEN='\e[0;32m'
-export COLOR_LIGHT_GREEN='\e[1;32m'
-export COLOR_BROWN='\e[0;33m'
-export COLOR_YELLOW='\e[1;33m'
-export COLOR_BLUE='\e[0;34m'
-export COLOR_LIGHT_BLUE='\e[1;34m'
-export COLOR_PURPLE='\e[0;35m'
-export COLOR_LIGHT_PURPLE='\e[1;35m'
-export COLOR_CYAN='\e[0;36m'
-export COLOR_LIGHT_CYAN='\e[1;36m'
-export COLOR_LIGHT_GRAY='\e[0;37m'
-export COLOR_WHITE='\e[1;37m'
-*/
-
-void red () {
-  printf("\033[1;31m");
-}
-
-void yellow () {
-  printf("\033[1;33m");
-}
-
-void blue () {
-  printf("\033[1;34m");
-}
-
-void green () {
-  printf("\033[1;32m");
-}
-
-
-void black() {
-	printf("\033[1;30m");
-}
-
-void magenta() {
-	printf("\033[1;35m");
-}
-
-void cyan() {
-	printf("\033[1;36m");
-}
-
-void white() {
-	printf("\033[1;37m");
-}
-
-void reset () {
-  printf("\033[0m");
-}
+void red () {printf("\033[1;31m");}
+void yellow () {printf("\033[1;33m");}
+void blue () {printf("\033[1;34m");}
+void green () {printf("\033[1;32m");}
+void black() {printf("\033[1;30m");}
+void magenta() {printf("\033[1;35m");}
+void cyan() {printf("\033[1;36m");}
+void white() {printf("\033[1;37m");}
+void reset () {printf("\033[0m");}
 
 void id_colorize(uint32_t id) {
 	switch(id){
@@ -380,19 +320,14 @@ void id_colorize(uint32_t id) {
 } while(0)
 
 
+//Keys start at 1, so I'm subtracting 1 to make the first key equal to index
+//zero.  qp_id_counter is the total number of qp that can be written to. So here
+//we are just taking all of the keys and wrapping them around so the first key
+//goes to the first qp, and the qp_id_counter + 1  key goes to the first qp.
 uint32_t key_to_qp(uint64_t key) {
-
-	//Keys start at 1, so I'm subtracting 1 to make the first key equal to index
-	//zero.  qp_id_counter is the total number of qp that can be written to. So
-	//here we are just taking all of the keys and wrapping them around so the
-	//first key goes to the first qp, and the qp_id_counter + 1  key goes to the
-	//first qp
-	//uint32_t index = (key-1)%qp_id_counter;
 	uint32_t index = (key)%qp_id_counter;
-	//printf("qpindex %d key %"PRIu64" counter %d\n",index,key,qp_id_counter);
 	return id_qp[index];
 }
-
 
 uint32_t get_psn(struct rte_mbuf *pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -402,8 +337,6 @@ uint32_t get_psn(struct rte_mbuf *pkt) {
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 	return roce_hdr->packet_sequence_number;
 }
-
-
 
 int init_hash(void) {
 	qp2id_table = rte_hash_create(&qp2id_params);
@@ -423,6 +356,9 @@ int set_id(uint32_t qp, uint32_t id) {
 	return  ret;
 }
 
+//Warning this is a very unsafe function. Only call it when you know that a
+//packet corresponds to an ID that has an established QP. If the ID is not set,
+//this will set it. Otherwise the ID is returned.
 uint32_t get_id(uint32_t qp) {
 	uint32_t* return_value;
 	uint32_t id;
@@ -436,7 +372,6 @@ uint32_t get_id(uint32_t qp) {
 	} else {
 		id = *return_value;
 	}
-	//Turn this on and off for debugging
 	#ifdef MAP_PRINT
 	id_colorize(id);
 	#endif
@@ -444,11 +379,9 @@ uint32_t get_id(uint32_t qp) {
 	return id;
 }
 
-
 uint32_t readable_seq(uint32_t seq) {
 	return ntohl(seq) / 256;
 }
-
 
 void print_request_map(struct Request_Map *rm) {
 	if (rm->open == 1) 
@@ -456,7 +389,6 @@ void print_request_map(struct Request_Map *rm) {
 	else {
 		printf("closed");
 	}
-
 	printf("ID: %d\n");
 	printf("Original Seq %d, mapped seq %d\n",readable_seq(rm->original_sequence), readable_seq(rm->mapped_sequence));
 	printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
@@ -501,6 +433,14 @@ void init_reorder_buf(void) {
 	}
 }
 
+void recalculate_rdma_checksum(struct rte_mbuf *pkt) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
+	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+	memcpy(current_checksum,&crc_check,4);
+}
+
 void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -521,7 +461,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	//for both directions of queueing.  The memory direction has a queue and so
 	//does the client.  If the requests are arriving out of order in either
 	//direction they will be queued.
-
 	for (int i=0;i<qp_id_counter;i++) {
 		if (Connection_States[i].ctsqp == roce_hdr->dest_qp) {
 				id = Connection_States[i].id;
@@ -658,13 +597,11 @@ void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
 	return;
 }
 
-
 void copy_eth_addr(uint8_t *src, uint8_t *dst) {
 	for (int i=0;i<6;i++) {
 		dst[i] = src[i];
 	}
 }
-
 
 void init_connection_state(struct rte_mbuf *pkt) {
 
@@ -700,14 +637,6 @@ void init_connection_state(struct rte_mbuf *pkt) {
 
 	copy_eth_addr((uint8_t*)eth_hdr->s_addr.addr_bytes,(uint8_t*)cs.cts_eth_addr);
 	copy_eth_addr((uint8_t*)eth_hdr->d_addr.addr_bytes,(uint8_t*)cs.stc_eth_addr);
-
-	//src_macaddr = eth->s_addr;
-	//dst_macaddr = eth->d_addr;
-	//printf("src_macaddr: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
-	//	" %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-	//	src_macaddr.addr_bytes[0], src_macaddr.addr_bytes[1],
-	//	src_macaddr.addr_bytes[2], src_macaddr.addr_bytes[3],
-
 	cs.sender_init=1;
 
 	//These fields do not need to be set. They are for the second half of the algorithm
@@ -716,8 +645,6 @@ void init_connection_state(struct rte_mbuf *pkt) {
 	//cs.mseq_current = 0;
 	Connection_States[cs.id] = cs;
 }
-
-
 
 void init_cs_wrapper(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -731,7 +658,6 @@ void init_cs_wrapper(struct rte_mbuf* pkt) {
 	}
 	uint32_t rkey = get_rkey_rdma_packet(roce_hdr);
 	init_connection_state(pkt);
-	
 }
 
 void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn) {
@@ -781,28 +707,22 @@ int get_msn(struct roce_v2_header *roce_hdr) {
 	return msn;
 }
 
+//Calculate the MSN of the packet based on the offset. If the msn of the
+//connection state is behind, update that as well.
 uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connection_State *cs) {
-	//new way of doing it
 	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
 	if (ntohl(msn) > ntohl(cs->mseq_current)) {
-		/*
-		uint32_t difference = readable_seq(msn) - readable_seq(cs->mseq_current);
-		if ( difference > 1 ) {
-			//printf("current msn %d incomming msn %d\n",readable_seq(cs->mseq_current),readable_seq(msn));
-			//printf("gap between packets non monotonic difference = %d\n",difference);
-			//printf("TODO reducing msn to try and reduce conflicts\n",difference);
-			msn = htonl(ntohl(msn) - ((difference - 1) * SEQUENCE_NUMBER_SHIFT));
-		}
-		*/
 		cs->mseq_current = msn;
 	}
-	//return msn;
 	return cs->mseq_current;
 }
 
+
+//Update the server to clinet connection state based on roce and udp header.
+//Search for the connection state first. If it's not found, just return.
+//Otherwise update the MSN.
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	struct Connection_State *cs;
-
 	uint32_t found = 0;
 
 	//check to see if this value has allready been set
@@ -823,12 +743,8 @@ uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr
 
 	//at this point we have the correct cs
 	uint32_t msn = produce_and_update_msn(roce_hdr,cs);
-	//printf("msn updated to %d on %d\n",readable_seq(msn),cs->id);
-	//this should be it
-
 	return msn;
 }
-
 
 void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
 	struct Connection_State cs;
@@ -878,7 +794,6 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		id_colorize(cs.id);
 		//printf("***********MSN init on receiver side for matching id %d**************<<<<<<<<<<<<<<>>>>>>>>>>>>>\n",matching_id);
 		//printf("ID WE ARE USING %d\n",cs.id);
-		
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
 		cs.mseq_current = get_msn(roce_hdr);
@@ -1979,116 +1894,86 @@ void true_classify(struct rte_mbuf * pkt) {
 	}
 	#endif
 
-	if (opcode == RC_ACK) {
-		//track_qp(pkt);
-	} 
-
-	if (size == 60 && opcode == RC_READ_REQUEST) {
-		//track_qp(pkt);
-		reads++;
-	}
-
-	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
-		//track_qp(pkt);
-	}
-
 	if (opcode == RC_WRITE_ONLY) {
-		if (size == 252) {
-			//TODO determine what these writes are doing
-		} else if (size == 68) {
-			//track if the qp is live
-			if (qp_is_mapped(r_qp) == 1) {
-				//track_qp(pkt);
-			}
+		if (size == 252 || size == 68) {
+			return;
+		}
+		rte_rwlock_write_lock(&next_lock);
+		rte_smp_mb();
 
-		} else {
-			rte_rwlock_write_lock(&next_lock);
-			rte_smp_mb();
+		struct write_request * wr = (struct write_request*) clover_header;
+		//print_packet(pkt);
+		uint64_t *key = (uint64_t*)&(wr->data);
+		uint32_t id = get_id(r_qp);
+		#ifdef DATA_PATH_PRINT
+		log_printf(INFO,"ID: %d KEY: %"PRIu64"\n",id,*key);
+		log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
+		log_printf(INFO,"KEY: %"PRIu64"\n", *key);
+		#endif
 
-			struct write_request * wr = (struct write_request*) clover_header;
-			//print_packet(pkt);
-			uint64_t *key = (uint64_t*)&(wr->data);
-			uint32_t id = get_id(r_qp);
-			#ifdef DATA_PATH_PRINT
-			log_printf(INFO,"ID: %d KEY: %"PRIu64"\n",id,*key);
-			log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
-			log_printf(INFO,"KEY: %"PRIu64"\n", *key);
-			#endif
+		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 
-			uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
+		//init write packet size
+		if (unlikely(write_value_packet_size == 0)) {
+			write_value_packet_size = rdma_size;
+			predict_shift_value = get_predicted_shift(write_value_packet_size);
+		}
+		//Sanity check, we should only reach here if we are dealing with statically sized write packets
+		if (unlikely(write_value_packet_size != rdma_size)) {
+			printf("ERROR in write packet block, but packet size not correct Established runtime size %d, Found size %d\n",write_value_packet_size,size);
+			exit(0);
+		}
 
-			//init write packet size
-			if (unlikely(write_value_packet_size == 0)) {
-				write_value_packet_size = rdma_size;
-				predict_shift_value = get_predicted_shift(write_value_packet_size);
-			}
-			//Sanity check, we should only reach here if we are dealing with statically sized write packets
-			if (unlikely(write_value_packet_size != rdma_size)) {
-				printf("ERROR in write packet block, but packet size not correct Established runtime size %d, Found size %d\n",write_value_packet_size,size);
-				exit(0);
-			}
-
-			//FOR ADJUSTING THE CACHED KEYS ONLY, todo remove post experiments Feb 20 2021
-			if (*key > CACHE_KEYSPACE) {
-				//This key is out of the range that we are caching
-				//it still counts as a write but we have to let if through
-				latest_key[id] = *key;
-				//log_printf(DEBUG,"not tracking key %d\n",*key);
-				//track_qp(pkt);
-				rte_smp_mb();
-				rte_rwlock_write_unlock(&next_lock);
-				return;
-			}
-
-			//printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
-			if(first_write[*key] != 0 && first_cns[*key] != 0) {
-				//log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
-				//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
-				predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
-				outstanding_write_predicts[id][*key] = predict_address[*key];
-				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-			} else {
-				//okay so this happens twice becasuse the order is 
-				//Write 1;
-				//Write 2;
-				//Cn wNS 1 (write 1 - > write 2)
-				if (first_write[*key] == 0) {
-					//These are dummy values for testing because I think I got the algorithm wrong
-					first_write[*key] = 1;
-					//next_vaddr[*kdest_qpey] = 1;
-					//log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
-				} else if (first_write[*key] == 1) {
-					//Lets leave this for now, but it can likely change once the cns is solved
-					first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
-					next_vaddr[*key] = wr->rdma_extended_header.vaddr;  //next_vaddr subject to change
-					//log_printf(DEBUG,"second write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
-					outstanding_write_predicts[id][*key] = 1;
-					outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-				} else {
-					//log_printf(INFO,"THIS IS WHERE THE BUGS HAPPEN CONCURRENT INIT (might crash)!!!! ID: %d KEY: %d\n",id,*key);
-					//log_printf(INFO,"Trying to save the ship by hoping the prior write makes it through first\n");
-					outstanding_write_predicts[id][*key] = 1;
-					outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-					//log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
-				}
-			}
-
+		//FOR ADJUSTING THE CACHED KEYS ONLY, todo remove post experiments Feb 20 2021
+		if (*key > CACHE_KEYSPACE) {
+			//This key is out of the range that we are caching
+			//it still counts as a write but we have to let if through
 			latest_key[id] = *key;
-			if (size == 1084) {
-				//track_qp(pkt);
-			}
-
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
+			return;
+		}
 
-		} 
+		//printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
+		if(first_write[*key] != 0 && first_cns[*key] != 0) {
+			//log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
+			//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
+			predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
+			outstanding_write_predicts[id][*key] = predict_address[*key];
+			outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+		} else {
+			//okay so this happens twice becasuse the order is 
+			//Write 1;
+			//Write 2;
+			//Cn wNS 1 (write 1 - > write 2)
+			if (first_write[*key] == 0) {
+				//These are dummy values for testing because I think I got the algorithm wrong
+				first_write[*key] = 1;
+				//next_vaddr[*kdest_qpey] = 1;
+				//log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
+			} else if (first_write[*key] == 1) {
+				//Lets leave this for now, but it can likely change once the cns is solved
+				first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
+				next_vaddr[*key] = wr->rdma_extended_header.vaddr;  //next_vaddr subject to change
+				//log_printf(DEBUG,"second write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
+				outstanding_write_predicts[id][*key] = 1;
+				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+			} else {
+				//log_printf(INFO,"THIS IS WHERE THE BUGS HAPPEN CONCURRENT INIT (might crash)!!!! ID: %d KEY: %d\n",id,*key);
+				//log_printf(INFO,"Trying to save the ship by hoping the prior write makes it through first\n");
+				outstanding_write_predicts[id][*key] = 1;
+				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+				//log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
+			}
+		}
+
+		latest_key[id] = *key;
+		rte_smp_mb();
+		rte_rwlock_write_unlock(&next_lock);
 	}
 
     if (opcode == RC_ATOMIC_ACK) {
-		//printf("atomic ack\n");
 		struct cs_response * csr = (struct cs_response*) clover_header;
-		//printf("original contents A%"PRIu64"\n",be64toh(csr->atomc_ack_extended.original_remote_data));
-
 		uint32_t original = ntohl(csr->atomc_ack_extended.original_remote_data);
 		if (original != 0) {
 			nacked_cns++;
@@ -2102,36 +1987,31 @@ void true_classify(struct rte_mbuf * pkt) {
 				you are running an experiment to show the effect of varying
 				cache size just comment out the exit below.
 			*/
+			printf("danger only hit here if you have the keyspace option turned on\n");
+			exit(0);
 		} 
-		#ifdef DATA_PATH_PRINT
-		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
-		#endif
-		//track_qp(pkt);
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
-		rte_rwlock_write_lock(&next_lock);
-		rte_smp_mb();
+		lock_next();
 
+		//Find value of the clover pointer. This is the value we are going to potentially swap out.
 		struct cs_request * cs = (struct cs_request*) clover_header;
 		uint64_t swap = MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add));
 		swap = htobe64(swap);
-
 		uint32_t id = get_id(r_qp);
+
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
-
 		if(latest_key[id] > CACHE_KEYSPACE) {
 			//this key is not being tracked, return
-			log_printf(INFO,"(cns) Returning key not tracked no need to adjust %"PRIu64"\n",latest_key[id]);
-
-			//track_qp(pkt);
-			rte_smp_mb();
-			rte_rwlock_write_unlock(&next_lock);
+			unlock_next();
 			return;
 		}
 
-
+		//This is the first time we are seeking this key. We can't make a
+		//prediction for it so we are just going to store the address so that we
+		//can use is as an offset for performing redirections later.
 		if (first_cns[latest_key[id]] == 0) {
 			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
 			first_cns[latest_key[id]] = swap;
@@ -2140,37 +2020,25 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			for (uint i=0;i<qp_id_counter;i++) {
 				if (outstanding_write_predicts[i][latest_key[id]] == 1) {
-					//log_printf(INFO,"(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
+					//printf("(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
 					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][latest_key[id]]) - be64toh(first_write[latest_key[id]])) >> 10);
 					outstanding_write_predicts[i][latest_key[id]] = predict;
 				}
 			}
 			//Return and forward the packet if this is the first cns
-
-			//track_qp(pkt);
-			rte_smp_mb();
-			rte_rwlock_write_unlock(&next_lock);
+			unlock_next();
 			return;
 		}
 
-		//Based on the key predict where the next CNS address should go. This requires the first CNS to be set
+		//Based on the key predict where the next CNS address should go. This
+		//requires the first CNS to be set
 		uint32_t key = latest_key[id];
 		uint64_t predict = outstanding_write_predicts[id][key];
 		predict = predict + be64toh(first_cns[key]);
 		predict = htobe64( 0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
-		#ifdef DATA_PATH_PRINT
-		log_printf(DEBUG,"(cns) KEY %d qp_id %d seq %d \n",key,r_qp,readable_seq(roce_hdr->packet_sequence_number));
-		#endif
-
-
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
-		if (next_vaddr[latest_key[id]] == cs->atomic_req.vaddr) {
-			#ifdef DATA_PATH_PRINT
-			log_printf(DEBUG,"this is good, it seems we made the correct prediction, this is the common case Key %d ID %d\n",latest_key[id],id);
-			#endif
-			
-		} else {
+		if (next_vaddr[latest_key[id]] != cs->atomic_req.vaddr) {
 			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
 			//modify the ICRC checksum
 			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
@@ -2190,8 +2058,6 @@ void true_classify(struct rte_mbuf * pkt) {
 			//erase the old entries
 			outstanding_write_predicts[id][latest_key[id]] = 0;
 			outstanding_write_vaddrs[id][latest_key[id]] = 0;
-			//printf("the next tail of the list for key %"PRIu64" has been found to be id: %d vaddr: %"PRIu64"\n",latest_key[id],id,next_vaddr[latest_key[id]]);
-
 		} else {
 			//This is the crash condtion
 			//Fatal, unable to find the next key
@@ -2224,13 +2090,9 @@ void true_classify(struct rte_mbuf * pkt) {
 			#endif
 
 			print_packet(pkt);
-
 			exit(0);
 		}
-		//track_qp(pkt);
-		rte_smp_mb();
-		rte_rwlock_write_unlock(&next_lock);
-
+		unlock_next();
 	}
 	return;
 }
