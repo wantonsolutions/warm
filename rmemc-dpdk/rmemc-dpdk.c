@@ -1381,59 +1381,25 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	
 	
 	uint32_t r_qp= roce_hdr->dest_qp;
-	//id is the senders id
 	uint32_t id = get_id(r_qp);
-
-
-	//Initalize the packet here.
-	//cts_track_connection_state(udp_hdr, roce_hdr);
-
-
-	//printf("old qp dst %d seq %d \n",ntohl(roce_hdr->dest_qp), ntohl(roce_hdr->packet_sequence_number));
-	//printf("KEY REMAP: %"PRIu64" old qp dst %d seq %d seq_bigen %d\n",latest_key[id],roce_hdr->dest_qp, ntohl(roce_hdr->packet_sequence_number), roce_hdr->packet_sequence_number);
-	//log_printf(DEBUG,"MAP FORWARD: (ID: %d) (Key: %"PRIu64") (QP dest: %d) (seq raw %d) (seq %d)\n",id, latest_key[id],roce_hdr->dest_qp, roce_hdr->packet_sequence_number, readable_seq(roce_hdr->packet_sequence_number));
 	uint32_t n_qp = 0;
 
+	//Keys are set to 0 when we are not going to map them. If the key is not
+	//equal to zero apply the mapping policy.
 	if (key != 0) {
 		n_qp = key_to_qp(key);
 	} else {
 		n_qp = roce_hdr->dest_qp;
 	} 
-	
 
-	//printf("KEY %"PRIu64" QP %d\n",key,n_qp);
-
-
-	//uint32_t dest_id = get_id(n_qp);
+	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
-
-	/*
-	for (int i=0;i<TOTAL_ENTRY;i++) {
-		destination_connection=&Connection_States[i];
-		if (destination_connection->ctsqp == n_qp) {
-			break;
-		}
-		destination_connection = NULL;
-	}
-	*/
 	destination_connection=&Connection_States[get_id(n_qp)];
-
 	if (destination_connection == NULL) {
 		printf("I did not want to end up here\n");
 		return;
 	}
-	//printf("Incomming packet for id %d key %d qp %d routing to another qp %d\n",id,key,roce_hdr->dest_qp,n_qp);
-	//printf("request is being mapped to this connection\n");
-	//printf("printf qpid counter (should be == max (2)) == %d\n",qp_id_counter);
-	//print_connection_state(destination_connection);
 
-
-
-	//printf("dest connection\n");
-	//print_connection_state(destination_connection);
-	//printf("src connection\n");
-	//print_connection_state(&Connection_States[id]);
-	uint32_t msn = Connection_States[id].mseq_current;
 
 	//Our middle box needs to keep track of the sequence number
 	//that should be tracked for the destination. This should
@@ -1442,6 +1408,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
 	#ifdef MAP_PRINT
+	uint32_t msn = Connection_States[id].mseq_current;
 	printf("MAP FRWD(key %"PRIu64") (id %d) (core %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id,rte_lcore_id(), ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 	#endif
 
@@ -1453,20 +1420,14 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
 	
 	//Search for an open slot
-	//!!!TODO TODO gotta go fast start here after lunch
 	struct Request_Map* slot;
-	if (MOD_SLOT) {
-		slot = get_empty_slot_mod(destination_connection);
-	} else {
-		slot = get_empty_slot(destination_connection);
-	}
+	slot = get_empty_slot_mod(destination_connection);
 
 	//The next step is to save the data from the current packet
 	//to a list of outstanding requests. As clover is blocking
 	//we can use the id to track which sequence number belongs
 	//to which request. These values will be used to map
 	//responses back.
-
 	close_slot(slot);
 	slot->id=id;
 	//Save a unique id of sequence number and the qp that this response will arrive back on
@@ -1479,28 +1440,19 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	slot->original_src_ip=ipv4_hdr->src_addr;
 	slot->server_to_client_rkey=Connection_States[id].stc_rkey;
 
-	//print_eth_header(eth_hdr);
 	copy_eth_addr(eth_hdr->s_addr.addr_bytes, slot->original_eth_addr);
-	//print_eth_header(eth_hdr);
 	
 	//Set the packet with the mapped information to the new qp
 	roce_hdr->dest_qp = destination_connection->ctsqp;
 	roce_hdr->packet_sequence_number = destination_connection->seq_current;
 	udp_hdr->src_port = destination_connection->udp_src_port_client;
 
-	//printf("RKEY %d dest conn\n",destination_connection->cts_rkey);
-	//printf("Rkey client %d\n",get_rkey_rdma_packet(roce_hdr));
-
 	//print_ip_header(ipv4_hdr);
 	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
 	ipv4_hdr->hdr_checksum = 0;
 	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-	//print_ip_header(ipv4_hdr);
 
-	//csum the modified packet
-	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-	memcpy(current_checksum,&crc_check,4);
+	recalculate_rdma_checksum(pkt);
 }
 
 
@@ -1658,11 +1610,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		}
 		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
 		set_msn(roce_hdr,msn);
-		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-		memcpy(current_checksum,&crc_check,4);
+		recalculate_rdma_checksum(pkt);
 	}
-
 	return mpr;
 }
 
@@ -1701,12 +1650,10 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 		return mpr;
 	}
 
-
 	if (qp_is_mapped(r_qp) == 0) {
 		//This is not a packet we should map forward
 		return mpr;
 	}
-
 
 	if (opcode == RC_READ_REQUEST) {
 		uint32_t stub_key = 0;
@@ -2041,9 +1988,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		if (next_vaddr[latest_key[id]] != cs->atomic_req.vaddr) {
 			cs->atomic_req.vaddr = next_vaddr[latest_key[id]]; //We can add this once we can predict with confidence
 			//modify the ICRC checksum
-			uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-			void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-			memcpy(current_checksum,&crc_check,4);
+			recalculate_rdma_checksum(pkt);
 		}
 
 		//given that a cns has been determined move the next address for this 
@@ -2339,23 +2284,18 @@ void print_ip_hdr(struct rte_ipv4_hdr * ipv4_hdr) {
 }
 
 struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
-
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	int hdr_len = (ipv4_hdr->version_ihl & RTE_IPV4_HDR_IHL_MASK) * RTE_IPV4_IHL_MULTIPLIER;
-
 	if (hdr_len == sizeof(struct rte_ipv4_hdr)) {
-
 		#ifdef TURN_PACKET_AROUND
 		//Swap ipv4 addr
 		uint32_t temp_ipv4_addr = ipv4_hdr->src_addr;
 		ipv4_hdr->src_addr = ipv4_hdr->dst_addr;
 		ipv4_hdr->dst_addr = temp_ipv4_addr;
 		#endif
-		
 		#ifdef PACKET_DEBUG_PRINTOUT
 		print_ipv4_hdr(ipv4_hdr);
 		#endif		
-
 		return ipv4_hdr;
 	}
 	return NULL;
@@ -2371,7 +2311,6 @@ void print_udp_hdr(struct rte_udp_hdr * udp_hdr) {
 	printf("src_port:%" PRIu16 ", dst_port:%" PRIu16 "\n", src_port, dst_port);
 	printf("-------------------\n");
 	return;
-
 }
 
 struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
@@ -2398,9 +2337,7 @@ void print_roce_v2_hdr(struct roce_v2_header * rh) {
     //printf("packet sequence #   %02X HEX %d DEC\n",rh->packet_sequence_number, rh->packet_sequence_number);
     printf("packet sequence #   %02X HEX %d DEC\n",readable_seq(rh->packet_sequence_number), readable_seq(rh->packet_sequence_number));
 
-
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)rh + sizeof(roce_v2_header));
-
 	switch(rh->opcode) {
 		case RC_SEND:
 			printf("roce send\n");
@@ -2444,13 +2381,10 @@ struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	struct roce_v2_header * roce_hdr = NULL;
 	if (likely(rte_be_to_cpu_16(udp_hdr->dst_port) == ROCE_PORT)) {
 		roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
 		rdma_counter++;
-
 		#ifdef PACKET_DEBUG_PRINTOUT
 		print_roce_v2_header(roce_hdr);
 		#endif
-
 		return roce_hdr;
 	}
 	return NULL;
@@ -2460,7 +2394,6 @@ void print_clover_hdr(struct clover_hdr * clover_header) {
 		printf("-----------------------------------------\n");
 		printf("size of rocev2 header = %ld\n",sizeof(struct roce_v2_header));
 		printf("CLOVER MESSAGE TIME\n");
-
 		printf("((potential first 8 byte addr ");
 		print_bytes((uint8_t *)&clover_header->ptr.pointer, sizeof(uint64_t));
 		printf("\n");
@@ -2468,19 +2401,15 @@ void print_clover_hdr(struct clover_hdr * clover_header) {
 		struct mitsume_msg * clover_msg;
 		clover_msg = &(clover_header->mitsume_hdr);
 		struct mitsume_msg_header *header = &(clover_msg->msg_header);
-
 		printf("msg-type  %d ntohl %d\n",header->type,ntohl(header->type));
 		printf("source id %d ntohl %d\n",header->src_id,ntohl(header->src_id));
 		printf("dest id %d ntohl %d\n",header->des_id,ntohl(header->des_id));
 		printf("thread id %d ntohl %d \n",header->thread_id, ntohl(header->thread_id));
-
 		printf("(ib_mr_attr) -- Addr");
 		print_bytes((uint8_t *) &header->reply_attr.addr, sizeof(uint64_t));
 		printf("\n");
-
 		printf("(ib_mr_attr) -- rkey %d\n",ntohl(header->reply_attr.rkey));
 		printf("(ib_mr_attr) -- mac id %d\n",ntohs(header->reply_attr.machine_id));
-
 }
 
 struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
@@ -2515,7 +2444,6 @@ void print_packet_lite(struct rte_mbuf * buf) {
 
 	id_colorize(id);
 	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
-
 	if (roce_hdr->opcode == 129) {
 		print_packet(buf);
 		uint8_t ecn = ipv4_hdr->type_of_service;
@@ -2536,8 +2464,6 @@ void print_packet(struct rte_mbuf * buf) {
 	print_ip_hdr(ipv4_hdr);
 	print_udp_hdr(udp_hdr);
 	print_roce_v2_hdr(roce_hdr);
-	//print_clover_hdr(clover_header);
-
 }
 
 int accept_packet(struct rte_mbuf * pkt) {
@@ -2575,7 +2501,6 @@ int accept_packet(struct rte_mbuf * pkt) {
 		return 0;
 	}
 	return 1;
-
 }
 
 /*
