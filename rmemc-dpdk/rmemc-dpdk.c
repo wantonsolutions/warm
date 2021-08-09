@@ -1847,11 +1847,57 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 	return mpr;
 }
 
+int should_track(struct rte_mbuf * pkt) {
+//void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint8_t opcode = roce_hdr->opcode;
+	uint32_t r_qp= roce_hdr->dest_qp;
+
+	if (opcode == RC_ACK) {
+		return 1;
+	} 
+
+	if (size == 60 && opcode == RC_READ_REQUEST) {
+		return 1;
+	}
+
+	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
+		return 1;
+	}
+
+	if (opcode == RC_WRITE_ONLY) {
+		if (size == 68 && (qp_is_mapped(r_qp) == 1)) {
+			return 1;
+		} else if (size == 1084) {
+			return 1;
+		} 
+	}
+
+    if (opcode == RC_ATOMIC_ACK) {
+		return 1;
+	}
+
+	if (size == 72 && opcode == RC_CNS) {
+		return 1;
+	}
+	return 0;
+}
+
 
 
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
 	if (likely(has_mapped_qp != 0) || MAP_QP == 0) {
+		return;
+	}
+
+	if (!should_track(pkt)) {
 		return;
 	}
 
