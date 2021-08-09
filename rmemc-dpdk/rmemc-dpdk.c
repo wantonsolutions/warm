@@ -1763,6 +1763,8 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 		return mpr;
 	}
 
+	track_qp(pkt);
+
 	//Not mapping yet
 	if (has_mapped_qp == 0) {
 		return mpr;
@@ -1893,13 +1895,14 @@ int should_track(struct rte_mbuf * pkt) {
 
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
+	if (!should_track(pkt)) {
+		return;
+	}
+
 	if (likely(has_mapped_qp != 0) || MAP_QP == 0) {
 		return;
 	}
 
-	if (!should_track(pkt)) {
-		return;
-	}
 
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -1977,16 +1980,16 @@ void true_classify(struct rte_mbuf * pkt) {
 	#endif
 
 	if (opcode == RC_ACK) {
-		track_qp(pkt);
+		//track_qp(pkt);
 	} 
 
 	if (size == 60 && opcode == RC_READ_REQUEST) {
-		track_qp(pkt);
+		//track_qp(pkt);
 		reads++;
 	}
 
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
-		track_qp(pkt);
+		//track_qp(pkt);
 	}
 
 	if (opcode == RC_WRITE_ONLY) {
@@ -1995,7 +1998,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		} else if (size == 68) {
 			//track if the qp is live
 			if (qp_is_mapped(r_qp) == 1) {
-				track_qp(pkt);
+				//track_qp(pkt);
 			}
 
 		} else {
@@ -2031,7 +2034,7 @@ void true_classify(struct rte_mbuf * pkt) {
 				//it still counts as a write but we have to let if through
 				latest_key[id] = *key;
 				//log_printf(DEBUG,"not tracking key %d\n",*key);
-				track_qp(pkt);
+				//track_qp(pkt);
 				rte_smp_mb();
 				rte_rwlock_write_unlock(&next_lock);
 				return;
@@ -2072,7 +2075,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			latest_key[id] = *key;
 			if (size == 1084) {
-				track_qp(pkt);
+				//track_qp(pkt);
 			}
 
 			rte_smp_mb();
@@ -2103,7 +2106,7 @@ void true_classify(struct rte_mbuf * pkt) {
 		#ifdef DATA_PATH_PRINT
 		log_printf(DEBUG,"CNS ACK seq: %d dest qp: %d\n",readable_seq(roce_hdr->packet_sequence_number),roce_hdr->dest_qp);
 		#endif
-		track_qp(pkt);
+		//track_qp(pkt);
 	}
 
 	if (size == 72 && opcode == RC_CNS) {
@@ -2122,7 +2125,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			//this key is not being tracked, return
 			log_printf(INFO,"(cns) Returning key not tracked no need to adjust %"PRIu64"\n",latest_key[id]);
 
-			track_qp(pkt);
+			//track_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -2144,7 +2147,7 @@ void true_classify(struct rte_mbuf * pkt) {
 			}
 			//Return and forward the packet if this is the first cns
 
-			track_qp(pkt);
+			//track_qp(pkt);
 			rte_smp_mb();
 			rte_rwlock_write_unlock(&next_lock);
 			return;
@@ -2224,7 +2227,7 @@ void true_classify(struct rte_mbuf * pkt) {
 
 			exit(0);
 		}
-		track_qp(pkt);
+		//track_qp(pkt);
 		rte_smp_mb();
 		rte_rwlock_write_unlock(&next_lock);
 
