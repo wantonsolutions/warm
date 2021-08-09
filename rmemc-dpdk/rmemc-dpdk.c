@@ -1816,6 +1816,32 @@ uint32_t get_predicted_shift(packet_size) {
 	}
 }
 
+void check_and_cache_predicted_shift(uint32_t rdma_size) {
+	//init write packet size
+	if (unlikely(write_value_packet_size == 0)) {
+		write_value_packet_size = rdma_size;
+		predict_shift_value = get_predicted_shift(write_value_packet_size);
+	}
+	//Sanity check, we should only reach here if we are dealing with statically sized write packets
+	if (unlikely(write_value_packet_size != rdma_size)) {
+		printf("ERROR in write packet block, but packet size not correct Established runtime size %d\n",write_value_packet_size);
+		exit(0);
+	}
+}
+
+void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode) {
+	#ifdef CATCH_ECN
+	if (opcode == ECN_OPCODE) {
+		for (int i=0;i<20;i++) {
+			printf("Packet # %d\n",packet_counter);
+			printf("ECN\n");
+		}
+		print_packet(pkt);
+		//debug_start_printing_every_packet = 1;
+	}
+	#endif
+}
+
 void true_classify(struct rte_mbuf * pkt) {
 //void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -1828,95 +1854,59 @@ void true_classify(struct rte_mbuf * pkt) {
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp= roce_hdr->dest_qp;
 
-
-
-	#ifdef CATCH_ECN
-	if (opcode == ECN_OPCODE) {
-		for (int i=0;i<20;i++) {
-			printf("Packet # %d\n",packet_counter);
-			printf("ECN\n");
-		}
-		print_packet(pkt);
-		//debug_start_printing_every_packet = 1;
-	}
-	#endif
+	catch_ecn(pkt,opcode);
 
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 252 || size == 68) {
 			return;
 		}
-		rte_rwlock_write_lock(&next_lock);
-		rte_smp_mb();
+		lock_next();
 
 		struct write_request * wr = (struct write_request*) clover_header;
-		//print_packet(pkt);
 		uint64_t *key = (uint64_t*)&(wr->data);
 		uint32_t id = get_id(r_qp);
-		#ifdef DATA_PATH_PRINT
-		log_printf(INFO,"ID: %d KEY: %"PRIu64"\n",id,*key);
-		log_printf(INFO,"(write) Accessing remote keyspace %d size %d\n",r_qp, size);
-		log_printf(INFO,"KEY: %"PRIu64"\n", *key);
-		#endif
 
 		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
+		check_and_cache_predicted_shift(rdma_size);
 
-		//init write packet size
-		if (unlikely(write_value_packet_size == 0)) {
-			write_value_packet_size = rdma_size;
-			predict_shift_value = get_predicted_shift(write_value_packet_size);
-		}
-		//Sanity check, we should only reach here if we are dealing with statically sized write packets
-		if (unlikely(write_value_packet_size != rdma_size)) {
-			printf("ERROR in write packet block, but packet size not correct Established runtime size %d, Found size %d\n",write_value_packet_size,size);
-			exit(0);
-		}
-
-		//FOR ADJUSTING THE CACHED KEYS ONLY, todo remove post experiments Feb 20 2021
+		//Experimentatiopn for working with restricted cache keyspaces. Return
+		//from here if the key is out of the cache range.
 		if (*key > CACHE_KEYSPACE) {
-			//This key is out of the range that we are caching
-			//it still counts as a write but we have to let if through
 			latest_key[id] = *key;
-			rte_smp_mb();
-			rte_rwlock_write_unlock(&next_lock);
+			unlock_next();
 			return;
 		}
-
-		//printf("(write) KEY %"PRIu64" qp_id %d \n",*key,r_qp);
+		//okay so this happens twice becasuse the order is 
+		//Write 0;
+		//Write 1;
+		//Cn wNS 1 (write 1 - > write 2)
 		if(first_write[*key] != 0 && first_cns[*key] != 0) {
-			//log_printf(DEBUG,"COMMON_CASE_WRITE -- predict from not addr for key %"PRIu64", for remote key space %d\n",*key,roce_hdr->partition_key);
-			//predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> 10);
 			predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
 			outstanding_write_predicts[id][*key] = predict_address[*key];
 			outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
 		} else {
-			//okay so this happens twice becasuse the order is 
-			//Write 1;
-			//Write 2;
-			//Cn wNS 1 (write 1 - > write 2)
 			if (first_write[*key] == 0) {
-				//These are dummy values for testing because I think I got the algorithm wrong
+				//Write 0
+				//This is the init write. On the first write, for some reason we
+				//don't do anything. I just mark that it's received.
 				first_write[*key] = 1;
-				//next_vaddr[*kdest_qpey] = 1;
-				//log_printf(DEBUG,"first write is being set, this is indeed the first write for key %"PRIu64" id: %d\n",*key,id);
 			} else if (first_write[*key] == 1) {
-				//Lets leave this for now, but it can likely change once the cns is solved
+				//Write 1
+				//Here we actually record both the first vaddr for the write, and the 
 				first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
 				next_vaddr[*key] = wr->rdma_extended_header.vaddr;  //next_vaddr subject to change
-				//log_printf(DEBUG,"second write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
+
 				outstanding_write_predicts[id][*key] = 1;
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
 			} else {
-				//log_printf(INFO,"THIS IS WHERE THE BUGS HAPPEN CONCURRENT INIT (might crash)!!!! ID: %d KEY: %d\n",id,*key);
-				//log_printf(INFO,"Trying to save the ship by hoping the prior write makes it through first\n");
+				//Write n
+				//We should not really reach this point, I think that it's an error if we do.
 				outstanding_write_predicts[id][*key] = 1;
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-				//log_printf(INFO,"crash write full write is equal to %"PRIu64" for key %"PRIu64" id: %d\n",first_write[*key],*key,id);
 			}
 		}
-
 		latest_key[id] = *key;
-		rte_smp_mb();
-		rte_rwlock_write_unlock(&next_lock);
+		unlock_next();
 	}
 
     if (opcode == RC_ATOMIC_ACK) {
@@ -2532,15 +2522,11 @@ lcore_main(void)
 	printf("Keyspace %d\n", KEYSPACE);
 
 	/* Run until the application is quit or killed. */
-
-
 	for (;;) {
 		/*
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
-
-
 		RTE_ETH_FOREACH_DEV(port) {
 			uint16_t ipv4_udp_rx = 0;	
 
@@ -2649,8 +2635,6 @@ main(int argc, char *argv[])
 	/* Check that there is an even number of ports to send/receive on. */
 	nb_ports = rte_eth_dev_count_avail();
 	printf("num ports:%u\n", nb_ports);
-	//if (nb_ports < 2 || (nb_ports & 1))
-	//	rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
 
 	/* Creates a new mempool in memory to hold the mbufs. */
 	//TODO create an mbuf pool per core
@@ -2673,12 +2657,8 @@ main(int argc, char *argv[])
 
 	printf("master core %d\n",rte_get_master_lcore());
 
-	
-
 	if (init == 0) {
-
 		signal(SIGINT, kill_signal_handler);
-
 		bzero(first_write,KEYSPACE*sizeof(uint64_t));
 		bzero(second_write,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(first_cns,KEYSPACE*sizeof(uint64_t));
@@ -2700,16 +2680,12 @@ main(int argc, char *argv[])
 		#ifdef READ_STEER
 		bzero(cached_write_vaddrs,KEYSPACE * WRITE_VADDR_CACHE_SIZE * sizeof(uint64_t));
 		bzero(writes_per_key, KEYSPACE * sizeof(uint32_t));
-
-
 		bzero(cached_write_vaddr_mod, sizeof(uint64_t) * HASHSPACE);
 		bzero(cached_write_vaddr_mod_lookup, sizeof(uint64_t) * HASHSPACE);
 		bzero(cached_write_vaddr_mod_latest, sizeof(uint64_t) * KEYSPACE);
-
 		#endif
 
 		init_reorder_buf();
-
 		init_connection_states();
 		init_hash();
 		write_value_packet_size=0;
@@ -2723,9 +2699,6 @@ main(int argc, char *argv[])
 	rte_rwlock_init(&mem_qp_lock);
 
 	init_ib_words();
-	/* Call lcore_main on the master core only. */
-	//debug_icrc(mbuf_pool);
-
 	fork_lcores();
 	lcore_main();
 
