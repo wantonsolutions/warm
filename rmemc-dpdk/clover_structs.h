@@ -2,6 +2,8 @@
 #define CLOVER_STRUCTS_H
 
 #include <stdint.h>
+#include <stdint.h>
+#include <rte_mbuf.h>
 
 #define MITSUME_CLT_CONSUMER_PER_ASK_NUMS 16
 #define MITSUME_CLT_CONSUMER_MAX_ENTRY_NUMS MITSUME_CLT_CONSUMER_PER_ASK_NUMS
@@ -25,10 +27,6 @@
 
 #define ETH_ALEN 6
 #define ROCE_PORT 4791
-
-#include <stdint.h>
-#include <rte_mbuf.h>
-#include "clover_structs.h"
 
 typedef struct __attribute__ ((__packed__)) roce_v2_header {
     uint8_t opcode;
