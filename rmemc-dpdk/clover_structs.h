@@ -7,7 +7,14 @@
 #define MITSUME_CLT_CONSUMER_MAX_ENTRY_NUMS MITSUME_CLT_CONSUMER_PER_ASK_NUMS
 #define MITSUME_NUM_REPLICATION_BUCKET 1
 
-
+#define RC_SEND 0x04
+#define RC_WRITE_ONLY 0x0A
+#define RC_READ_REQUEST 0x0C
+#define RC_READ_RESPONSE 0x10
+#define RC_ACK 0x11
+#define RC_ATOMIC_ACK 0x12
+#define RC_CNS 0x13
+#define ECN_OPCODE 0x81
 
 struct ib_mr_attr {
   uint64_t addr;

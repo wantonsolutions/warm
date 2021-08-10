@@ -20,6 +20,7 @@
 #include "rmemc-dpdk.h"
 #include "packets.h"
 #include "clover_structs.h"
+#include "print_helpers.h"
 #include <arpa/inet.h>
 
 #include <rte_jhash.h>
@@ -32,14 +33,6 @@
 #include <zlib.h>
 
 
-#define RC_SEND 0x04
-#define RC_WRITE_ONLY 0x0A
-#define RC_READ_REQUEST 0x0C
-#define RC_READ_RESPONSE 0x10
-#define RC_ACK 0x11
-#define RC_ATOMIC_ACK 0x12
-#define RC_CNS 0x13
-#define ECN_OPCODE 0x81
 
 #define RDMA_COUNTER_SIZE 256
 #define RDMA_STRING_NAME_LEN 256
@@ -117,16 +110,6 @@ uint8_t test_ack_pkt[] = {
 0x01,0x0D,0xCF,0x15,0x12,0xB7,0x00,0x1C,0x00,0x00,0x11,0x40,0xFF,0xFF,0x00,0x00,
 0x6C,0xA9,0x00,0x00,0x0C,0x71,0x0D,0x00,0x00,0x01,0xDC,0x97,0x84,0x42,};
 
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-  (byte & 0x80 ? '1' : '0'), \
-  (byte & 0x40 ? '1' : '0'), \
-  (byte & 0x20 ? '1' : '0'), \
-  (byte & 0x10 ? '1' : '0'), \
-  (byte & 0x08 ? '1' : '0'), \
-  (byte & 0x04 ? '1' : '0'), \
-  (byte & 0x02 ? '1' : '0'), \
-  (byte & 0x01 ? '1' : '0') 
 
 #define MITSUME_PTR_MASK_LH 0x0ffffffff0000000
 //#define MITSUME_PTR_MASK_OFFSET                 0x0000fffff8000000
@@ -137,7 +120,6 @@ uint8_t test_ack_pkt[] = {
 
 #define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
 
-char ib_print[RDMA_COUNTER_SIZE][RDMA_STRING_NAME_LEN];
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
 
@@ -268,47 +250,6 @@ uint32_t id_qp[TOTAL_ENTRY];
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
 
-void red () {printf("\033[1;31m");}
-void yellow () {printf("\033[1;33m");}
-void blue () {printf("\033[1;34m");}
-void green () {printf("\033[1;32m");}
-void black() {printf("\033[1;30m");}
-void magenta() {printf("\033[1;35m");}
-void cyan() {printf("\033[1;36m");}
-void white() {printf("\033[1;37m");}
-void reset () {printf("\033[0m");}
-
-void id_colorize(uint32_t id) {
-	switch(id){
-		case 0:
-			red();
-			break;
-		case 1:
-			yellow();
-			break;
-		case 2:
-			blue();
-			break;
-		case 3:
-			green();
-			break;
-		case 4:
-			black();
-			break;
-		case 5:
-			magenta();
-			break;
-		case 6:
-			cyan();
-			break;
-		case 7:
-			white();
-			break;
-		default:
-			reset();
-			break;
-	}
-}
 
 #define HASH_RETURN_IF_ERROR(handle, cond, str, ...) do {                \
     if (cond) {                         \
@@ -371,9 +312,7 @@ uint32_t get_id(uint32_t qp) {
 	} else {
 		id = *return_value;
 	}
-	#ifdef MAP_PRINT
 	id_colorize(id);
-	#endif
 
 	return id;
 }
@@ -382,23 +321,6 @@ uint32_t readable_seq(uint32_t seq) {
 	return ntohl(seq) / 256;
 }
 
-void print_request_map(struct Request_Map *rm) {
-	if (rm->open == 1) 
-		printf("open\n");
-	else {
-		printf("closed");
-	}
-	printf("ID: %d\n");
-	printf("Original Seq %d, mapped seq %d\n",readable_seq(rm->original_sequence), readable_seq(rm->mapped_sequence));
-	printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
-	printf("stcqp port %d\n", rm->server_to_client_udp_port);
-}
-
-void print_connection_state(struct Connection_State* cs) {
-	printf("ID: %d port-cts %d port-stc %d\n",cs->id, cs->udp_src_port_client, cs->udp_src_port_server);
-	printf("cts qp: %d stc qp: %d \n",cs->ctsqp, cs->stcqp);
-	printf("seqt %d seq %d mseqt %d mseq %d\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
-}
 ;
 int fully_qp_init() {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
@@ -582,7 +504,7 @@ void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
 			cs_req->atomic_req.rkey = rkey;
 			return;
 		default:
-    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print[roce_hdr->opcode]);
+    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print_op(roce_hdr->opcode));
 			printf("rh-opcode unknown while setting rkey. Exiting\n");
 			exit(0);
 	}
@@ -899,90 +821,6 @@ void classify_packet_size(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce) 
 }
 
 
-void print_bytes(const uint8_t * buf, uint32_t len) {
-	for (uint32_t i=0;i<len;i++)  {
-		printf("%02X ", buf[i]);
-	}
-}
-
-void print_binary_bytes(const uint8_t * buf, uint32_t len) {
-	for (uint32_t i=0;i<len;i++)  {
-		printf(BYTE_TO_BINARY_PATTERN" ", BYTE_TO_BINARY(buf[i]));
-	} 
-}
-
-void print_address(uint64_t *address) {
-	printf("address: ");
-	print_bytes((uint8_t *) address,sizeof(uint64_t));
-	printf("\n");
-}
-
-
-void print_binary_address(uint64_t *address) {
-	printf("bin address: ");
-	print_binary_bytes((uint8_t *)address,sizeof(uint64_t));
-	printf("\n");
-}
-
-void print_ack_extended_header(struct AETH *aeth) {
-	printf("Reserved        %u\n", ntohs(aeth->reserved));
-	printf("Opcode          %u\n", ntohs(aeth->opcode));
-	printf("Credit Count    %u\n", ntohs(aeth->credit_count));
-	printf("Sequence Number %u\n", ntohl(aeth->sequence_number));
-}
-
-void print_rdma_extended_header(struct RTEH * rteh) {
-	printf("dma len %u \traw: ", ntohl(rteh->dma_length));
-	print_bytes((uint8_t *)&(rteh->dma_length),sizeof(uint32_t));
-} 
- 
-void print_read_request(struct read_request* rr) {
-	printf("(START) Read Request: \n");
-	printf("(raw) ");
-	print_bytes((void*) rr, 16);
-	printf("\n");
-	print_rdma_extended_header(&rr->rdma_extended_header);
-	printf("\n");
-	//printf("(STOP) Read Request\n");
-	return;
-}
-
-void print_read_response(struct read_response *rr) {
-	printf("(START) Read Response \t");
-	//Not sure why this is ten
-	uint32_t default_read_header_size=10;
-	print_bytes((uint8_t*) rr, default_read_header_size);
-	printf("\n");
-	//printf("(STOP) Read Response\n");
-	return;
-}
-
-void print_write_request(struct write_request* wr) {
-	printf("(START) Write Request\n");
-	print_rdma_extended_header(&wr->rdma_extended_header);
-	printf("(STOP) Write Request\n");
-	return;
-}
-
-void print_atomic_eth(struct AtomicETH* ae){
-	printf("Vaddr: %"PRIu64"\n",ae->vaddr);
-	printf("rkey: %d\n",ae->rkey);
-	printf("swap || add: %"PRIu64"\n",ae->swap_or_add);
-	printf("cmp: %"PRIu64"\n",ae->compare);
-}
-
-void print_cs_request(struct cs_request *csr) {
-	printf("(START) compare and swap request\n");
-	print_atomic_eth(&csr->atomic_req);
-	printf("(STOP) compare and swap request\n");
-	return;
-}
-
-void print_cs_response(struct cs_response *csr) {
-	printf("(START) compare and swap response\n");
-	printf("(STOP) compare and swap response\n");
-	return;
-}
 
 
 
@@ -1112,11 +950,6 @@ static uint32_t nacked_cns =0;
 
 
 
-void print_first_mapping(void){
-	for (int i=0;i<15;i++) {
-		printf("FIRST MAPPING OF QP GET READY BOIIS\n\n");
-	}
-}
 
 
 void init_connection_states(void) {
@@ -1203,11 +1036,6 @@ uint64_t get_latest_vaddr_ring(uint32_t key) {
 	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
 	return cached_write_vaddrs[key][cache_index];
 }
-
-
-//int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_ring;
-//void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_ring;
-//uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_ring;
 
 int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
 void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
@@ -1409,7 +1237,7 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 	#ifdef MAP_PRINT
 	uint32_t msn = Connection_States[id].mseq_current;
-	printf("MAP FRWD(key %"PRIu64") (id %d) (core %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id,rte_lcore_id(), ib_print[roce_hdr->opcode], readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
+	printf("MAP FRWD(key %"PRIu64") (id %d) (core %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id,rte_lcore_id(), ib_print_op(roce_hdr->opcode), readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 	#endif
 
 	//Multiple reads occur at once. We don't want them to overwrite
@@ -1528,13 +1356,8 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 	return NULL;
 }
 
-
-
-
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
-
-
 struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -1579,7 +1402,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		#ifdef MAP_PRINT
 		uint32_t packet_msn = get_msn(roce_hdr);
 		id_colorize(mapped_request->id);
-		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",rte_lcore_id(),readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",rte_lcore_id(),readable_seq(mapped_request->original_sequence),readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn),ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		#endif
 		
 		set_msn(roce_hdr,msn);
@@ -1608,7 +1431,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		if (packet_msn == -1 ) {
 			printf("How did we get here?\n");
 		}
-		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn),ib_print[roce_hdr->opcode], roce_hdr->dest_qp);
+		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d)\n",readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn),ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr,msn);
 		recalculate_rdma_checksum(pkt);
 	}
@@ -2035,27 +1858,7 @@ void true_classify(struct rte_mbuf * pkt) {
 	return;
 }
 
-//ib_print[RC_ACK] = "RC_ACK\0";
-void init_ib_words(void) {
-	strcpy(ib_print[RC_SEND],"RC_SEND");
-	strcpy(ib_print[RC_WRITE_ONLY],"RC_WRITE_ONLY");
-	strcpy(ib_print[RC_READ_REQUEST],"RC_READ_REQUEST");
-	strcpy(ib_print[RC_READ_RESPONSE],"RC_READ_RESPONSE");
-	strcpy(ib_print[RC_ACK],"RC_ACK");
-	strcpy(ib_print[RC_ATOMIC_ACK],"RC_ATOMIC_ACK");
-	strcpy(ib_print[RC_CNS],"RC_COMPARE_AND_SWAP");
-}
 
-int log_printf(int level, const char *format, ...) {
-	va_list args;
-    va_start(args, format);
-	int ret = 0;
-	if (unlikely(LOG_LEVEL >= level)) {
-		ret = vprintf(format,args);
-	}
-	va_end(args);
-	return ret;
-}
 
 static const struct rte_eth_conf port_conf_default = {
 	.rxmode = {
@@ -2179,102 +1982,8 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	return 0;
 }
 
-void print_raw(struct rte_mbuf* pkt){
-	printf("\n\n\n\n----(start-raw) (new packet)\n\n");
-	int room = rte_pktmbuf_headroom(pkt);
-	for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-		printf("%02X ",(uint8_t)((char *)(pkt->buf_addr))[i]);
-		if (i - room == sizeof(struct rte_ether_hdr) - 1) { // eth
-			printf("|\n");
-		}
-		if (i - room == sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) - 1) { // eth
-			printf("|\n");
-		}
-		if (i  - room == sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) - 1) { // eth
-			printf("|\n");
-		}
-		if (i  - room == sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct roce_v2_header) - 1) { // eth
-			printf("|\n");
-		}
-		if (i  - room == sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) + sizeof(struct roce_v2_header) + sizeof(struct mitsume_msg_header) -1 ) {
-			printf("|\n");
-		}
-		//printf("%c-",((char *)pkt->userdata)[itter]);
-	}
 
-	printf("fullraw:\n");
-	for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-	//for (int i=rte_pktmbuf_headroom(pkt) + sizeof(struct rte_ether_hdr);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-		printf("%02X",(uint8_t)((char *)(pkt->buf_addr))[i]);
-		}
-		//printf("%c-",((char *)pkt->userdata)[itter]);
-	printf("\n");
-	printf("fullraw ascii:\n");
-	//for (int i=rte_pktmbuf_headroom(pkt);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-	for (int i=rte_pktmbuf_headroom(pkt) + sizeof(struct rte_ether_hdr);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-		printf("%c",(uint8_t)((char *)(pkt->buf_addr))[i]);
-		}
-		//printf("%c-",((char *)pkt->userdata)[itter]);
-	printf("\n");
-	printf("\n----(end-raw)----\n");
-}
 
-void print_ether_hdr(struct rte_ether_hdr * eth){
-	// L2 headers
-	struct rte_ether_addr src_macaddr;
-	struct rte_ether_addr dst_macaddr;	
-
-	src_macaddr = eth->s_addr;
-	dst_macaddr = eth->d_addr;
-	printf("src_macaddr: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
-		" %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-		src_macaddr.addr_bytes[0], src_macaddr.addr_bytes[1],
-		src_macaddr.addr_bytes[2], src_macaddr.addr_bytes[3],
-		src_macaddr.addr_bytes[4], src_macaddr.addr_bytes[5]);
-
-	printf("dst_macaddr: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
-		" %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-		dst_macaddr.addr_bytes[0], dst_macaddr.addr_bytes[1],
-		dst_macaddr.addr_bytes[2], dst_macaddr.addr_bytes[3],
-		dst_macaddr.addr_bytes[4], dst_macaddr.addr_bytes[5]);
-
-	return;
-}
-
-struct rte_ether_hdr *eth_hdr_process(struct rte_mbuf* buf) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-
-	if(eth_hdr->ether_type == rte_be_to_cpu_16(RTE_ETHER_TYPE_IPV4)){									
-		return eth_hdr;
-	}
-	return NULL;
-}
-
-void print_ip_hdr(struct rte_ipv4_hdr * ipv4_hdr) {
-	// L3 headers: IPv4
-	uint32_t dst_ipaddr;
-	uint32_t src_ipaddr;
-
-	src_ipaddr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
-	dst_ipaddr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-	uint8_t src_addr[4];
-	src_addr[0] = (uint8_t) (src_ipaddr >> 24) & 0xff;
-	src_addr[1] = (uint8_t) (src_ipaddr >> 16) & 0xff;
-	src_addr[2] = (uint8_t) (src_ipaddr >> 8) & 0xff;
-	src_addr[3] = (uint8_t) src_ipaddr & 0xff;
-	printf("src_addr: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 "\n", 
-			src_addr[0], src_addr[1], src_addr[2], src_addr[3]);
-
-	uint8_t dst_addr[4];
-	dst_addr[0] = (uint8_t) (dst_ipaddr >> 24) & 0xff;
-	dst_addr[1] = (uint8_t) (dst_ipaddr >> 16) & 0xff;
-	dst_addr[2] = (uint8_t) (dst_ipaddr >> 8) & 0xff;
-	dst_addr[3] = (uint8_t) dst_ipaddr & 0xff;
-	printf("dst_addr: %" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8 "\n", 
-		dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
-	return;
-
-}
 
 struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
@@ -2294,17 +2003,6 @@ struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
 	return NULL;
 }
 
-void print_udp_hdr(struct rte_udp_hdr * udp_hdr) {
-	// L4 headers: UDP 
-	uint16_t dst_port = 0;
-	uint16_t src_port = 0;
-	dst_port = rte_be_to_cpu_16(udp_hdr->dst_port);
-	src_port = rte_be_to_cpu_16(udp_hdr->src_port);
-	//Because of the way we fill in these data, we don't need rte_be_to_cpu_32 or rte_be_to_cpu_16 
-	printf("src_port:%" PRIu16 ", dst_port:%" PRIu16 "\n", src_port, dst_port);
-	printf("-------------------\n");
-	return;
-}
 
 struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
@@ -2314,60 +2012,6 @@ struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 	return NULL;
 }
 
-void print_roce_v2_hdr(struct roce_v2_header * rh) {
-    printf("op code             %02X %s\n",rh->opcode, ib_print[rh->opcode]);
-    printf("solicited event     %01X\n",rh->solicited_event);
-    printf("migration request   %01X\n",rh->migration_request);
-    printf("pad count           %01X\n",rh->pad_count);
-    printf("transport version   %01X\n",rh->transport_header_version);
-    printf("partition key       %02X\n",rh->partition_key);
-    printf("fecn                %01X\n",rh->fecn);
-    printf("becn                %01X\n",rh->bcen);
-    printf("reserved            %01X\n",rh->reserverd);
-    printf("dest qp        (hex)%02X\t  (dec)%d\n",rh->dest_qp, rh->dest_qp);
-    printf("ack                 %01X\n",rh->ack);
-    printf("reserved            %01X\n",rh->reserved);
-    //printf("packet sequence #   %02X HEX %d DEC\n",rh->packet_sequence_number, rh->packet_sequence_number);
-    printf("packet sequence #   %02X HEX %d DEC\n",readable_seq(rh->packet_sequence_number), readable_seq(rh->packet_sequence_number));
-
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)rh + sizeof(roce_v2_header));
-	switch(rh->opcode) {
-		case RC_SEND:
-			printf("roce send\n");
-			break;
-		case RC_WRITE_ONLY:
-			printf("roce write\n");
-			struct write_request *wr = (struct write_request*) clover_header;
-			print_write_request(wr);
-			break;
-		case RC_READ_REQUEST:
-			printf("read_request\n");
-			struct read_request * read_req = (struct read_request *)clover_header;
-			print_read_request(read_req);
-			break;
-		case RC_READ_RESPONSE:
-			printf("roce read\n");
-			struct read_response * read_resp = (struct read_response*) clover_header;
-			print_read_response(read_resp);
-			break;
-		case RC_ACK:
-			printf("roce ack\n");
-			break;
-		case RC_ATOMIC_ACK:
-			printf("atomic_req\n");
-			struct cs_response * cs_resp = (struct cs_response *)clover_header;
-			print_cs_response(cs_resp);
-			break;
-		case RC_CNS:
-			printf("atomic_ack\n");
-			struct cs_request * cs_req = (struct cs_request *)clover_header;
-			print_cs_request(cs_req);
-			break;
-		default:
-			printf("DEFAULT RDMA NOT HANEDLED\n");
-			break;
-	}
-}
 
 struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	//Dont start parsing if the udp port is not roce
@@ -2383,27 +2027,6 @@ struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	return NULL;
 }
 
-void print_clover_hdr(struct clover_hdr * clover_header) {
-		printf("-----------------------------------------\n");
-		printf("size of rocev2 header = %ld\n",sizeof(struct roce_v2_header));
-		printf("CLOVER MESSAGE TIME\n");
-		printf("((potential first 8 byte addr ");
-		print_bytes((uint8_t *)&clover_header->ptr.pointer, sizeof(uint64_t));
-		printf("\n");
-
-		struct mitsume_msg * clover_msg;
-		clover_msg = &(clover_header->mitsume_hdr);
-		struct mitsume_msg_header *header = &(clover_msg->msg_header);
-		printf("msg-type  %d ntohl %d\n",header->type,ntohl(header->type));
-		printf("source id %d ntohl %d\n",header->src_id,ntohl(header->src_id));
-		printf("dest id %d ntohl %d\n",header->des_id,ntohl(header->des_id));
-		printf("thread id %d ntohl %d \n",header->thread_id, ntohl(header->thread_id));
-		printf("(ib_mr_attr) -- Addr");
-		print_bytes((uint8_t *) &header->reply_attr.addr, sizeof(uint64_t));
-		printf("\n");
-		printf("(ib_mr_attr) -- rkey %d\n",ntohl(header->reply_attr.rkey));
-		printf("(ib_mr_attr) -- mac id %d\n",ntohs(header->reply_attr.machine_id));
-}
 
 struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
@@ -2416,7 +2039,7 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 
-	char * op = ib_print[roce_hdr->opcode];
+	char * op = ib_print_op(roce_hdr->opcode);
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
@@ -2427,7 +2050,7 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	}
 
 	int id = -1;
-	for (int i=0;i<qp_id_counter;i++) {
+	for (int i=0;i<TOTAL_ENTRY;i++) {
 		if (Connection_States[i].ctsqp == roce_hdr->dest_qp ||
 			Connection_States[i].stcqp == roce_hdr->dest_qp) {
 				id = Connection_States[i].id;
@@ -2437,26 +2060,6 @@ void print_packet_lite(struct rte_mbuf * buf) {
 
 	id_colorize(id);
 	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
-	if (roce_hdr->opcode == 129) {
-		print_packet(buf);
-		uint8_t ecn = ipv4_hdr->type_of_service;
-		printf("\n\n\n");
-		printf("ECN TOS %X ntoh(%X)\n",ecn,ntohs(ecn));
-		printf("\n\n\n");
-	}
-}
-
-void print_packet(struct rte_mbuf * buf) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	print_raw(buf);
-	print_ether_hdr(eth_hdr);
-	print_ip_hdr(ipv4_hdr);
-	print_udp_hdr(udp_hdr);
-	print_roce_v2_hdr(roce_hdr);
 }
 
 int accept_packet(struct rte_mbuf * pkt) {
@@ -2698,7 +2301,6 @@ main(int argc, char *argv[])
 	rte_rwlock_init(&qp_init_lock);
 	rte_rwlock_init(&mem_qp_lock);
 
-	init_ib_words();
 	fork_lcores();
 	lcore_main();
 
