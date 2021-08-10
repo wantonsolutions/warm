@@ -30,12 +30,8 @@
 #include <endian.h>
 #include <zlib.h>
 
-#define RDMA_COUNTER_SIZE 256
-#define RDMA_STRING_NAME_LEN 256
-#define PACKET_SIZES 256
 
 #define KEYSPACE 1024
-//#define KEYSPACE 500;
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
@@ -49,6 +45,9 @@ int MOD_SLOT = 1;
 
 uint32_t debug_start_printing_every_packet = 0;
 
+static int has_mapped_qp = 0;
+static int packet_counter = 0;
+
 #define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -59,7 +58,6 @@ uint32_t writes_per_key[KEYSPACE];
 uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
-
 
 rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
@@ -96,18 +94,6 @@ void unlock_next() {
 	rte_smp_mb();
 }
 
-static int rdma_counter = 0;
-static int has_mapped_qp = 0;
-
-
-static int packet_counter = 0;
-uint64_t packet_size_index[RDMA_COUNTER_SIZE][PACKET_SIZES];
-uint32_t packet_size_calls[RDMA_COUNTER_SIZE][PACKET_SIZES];
-
-#define MAX_CORES 24
-uint32_t core_pkt_counters[MAX_CORES];
-uint64_t vaddr_swaps = 0;
-
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
     .entries = TOTAL_ENTRY,
@@ -116,13 +102,12 @@ static struct rte_hash_parameters qp2id_params = {
     .hash_func_init_val = 0,
     .socket_id = 0,
 };
+
+struct Connection_State Connection_States[TOTAL_ENTRY];
 struct rte_hash* qp2id_table;
 static uint32_t qp_id_counter=0;
 uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
-
-struct Connection_State Connection_States[TOTAL_ENTRY];
-
 
 #define HASH_RETURN_IF_ERROR(handle, cond, str, ...) do {                \
     if (cond) {                         \
@@ -131,7 +116,6 @@ struct Connection_State Connection_States[TOTAL_ENTRY];
         return -1;                      \
     }                               \
 } while(0)
-
 
 //Keys start at 1, so I'm subtracting 1 to make the first key equal to index
 //zero.  qp_id_counter is the total number of qp that can be written to. So here
@@ -318,7 +302,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	unlock_mem_qp();
 }
 
-
 void copy_eth_addr(uint8_t *src, uint8_t *dst) {
 	for (int i=0;i<6;i++) {
 		dst[i] = src[i];
@@ -326,12 +309,10 @@ void copy_eth_addr(uint8_t *src, uint8_t *dst) {
 }
 
 void init_connection_state(struct rte_mbuf *pkt) {
-
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
 	uint16_t udp_src_port= udp_hdr->src_port;
 	uint32_t cts_dest_qp=roce_hdr->dest_qp;
 	uint32_t seq=roce_hdr->packet_sequence_number;
@@ -382,7 +363,6 @@ void init_cs_wrapper(struct rte_mbuf* pkt) {
 	init_connection_state(pkt);
 }
 
-
 //Calculate the MSN of the packet based on the offset. If the msn of the
 //connection state is behind, update that as well.
 uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connection_State *cs) {
@@ -392,7 +372,6 @@ uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connecti
 	}
 	return cs->mseq_current;
 }
-
 
 //Update the server to clinet connection state based on roce and udp header.
 //Search for the connection state first. If it's not found, just return.
@@ -412,7 +391,6 @@ uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr
 			break;
 		}
 	}
-
 	if (found == 0) {
 		return 0;
 	}
@@ -522,12 +500,6 @@ void cts_track_connection_state(struct rte_mbuf * pkt) {
 	update_cs_seq_wrapper(roce_hdr);
 }
 
-#ifdef PACKET_DEBUG_PRINTOUT
-#define KEY_VERSION_RING_SIZE 256
-static uint64_t key_address[KEYSPACE];
-static uint64_t key_versions[KEYSPACE][KEY_VERSION_RING_SIZE];
-static uint32_t key_count[KEYSPACE];
-#endif
 
 static uint64_t first_write[KEYSPACE];
 static uint64_t second_write[TOTAL_ENTRY][KEYSPACE];
@@ -1011,7 +983,6 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 	}  else if (opcode == RC_WRITE_ONLY) {
 		struct write_request * wr = (struct write_request*) clover_header;
 		uint64_t *key = (uint64_t*)&(wr->data);
-
 		/*
 		When I perform writes across keys but aslo mux QP on the writes
 		there is an issue where writes with size of 68 get through and
@@ -1028,7 +999,6 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 
 		Jun 15 2021 - Stewart Grant
 		*/
-
 		if (size == 68) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
 			*key = get_latest_key(id);
@@ -1060,15 +1030,12 @@ int should_track(struct rte_mbuf * pkt) {
 	if (opcode == RC_ACK) {
 		return 1;
 	} 
-
 	if (size == 60 && opcode == RC_READ_REQUEST) {
 		return 1;
 	}
-
 	if ((size == 56 || size == 1072) && opcode == RC_READ_RESPONSE) {
 		return 1;
 	}
-
 	if (opcode == RC_WRITE_ONLY) {
 		if (size == 68 && (qp_is_mapped(r_qp) == 1)) {
 			return 1;
@@ -1076,11 +1043,9 @@ int should_track(struct rte_mbuf * pkt) {
 			return 1;
 		} 
 	}
-
     if (opcode == RC_ATOMIC_ACK) {
 		return 1;
 	}
-
 	if (size == 72 && opcode == RC_CNS) {
 		return 1;
 	}
@@ -1094,17 +1059,14 @@ void track_qp(struct rte_mbuf * pkt) {
 	if (!should_track(pkt)) {
 		return;
 	}
-
 	if (likely(has_mapped_qp != 0) || MAP_QP == 0) {
 		return;
 	}
-
 
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
 
 	if (unlikely(roce_hdr->opcode == RC_WRITE_ONLY && fully_qp_init())) {
 		//flip the switch
@@ -1369,8 +1331,6 @@ void true_classify(struct rte_mbuf * pkt) {
 	return;
 }
 
-
-
 static const struct rte_eth_conf port_conf_default = {
 	.rxmode = {
 		.max_rx_pkt_len = RTE_ETHER_MAX_LEN,
@@ -1503,14 +1463,10 @@ struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
 		ipv4_hdr->src_addr = ipv4_hdr->dst_addr;
 		ipv4_hdr->dst_addr = temp_ipv4_addr;
 		#endif
-		#ifdef PACKET_DEBUG_PRINTOUT
-		print_ipv4_hdr(ipv4_hdr);
-		#endif		
 		return ipv4_hdr;
 	}
 	return NULL;
 }
-
 
 struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
@@ -1525,10 +1481,6 @@ struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	struct roce_v2_header * roce_hdr = NULL;
 	if (likely(rte_be_to_cpu_16(udp_hdr->dst_port) == ROCE_PORT)) {
 		roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-		rdma_counter++;
-		#ifdef PACKET_DEBUG_PRINTOUT
-		print_roce_v2_header(roce_hdr);
-		#endif
 		return roce_hdr;
 	}
 	return NULL;
@@ -1544,7 +1496,6 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
 	char * op = ib_print_op(roce_hdr->opcode);
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint32_t dest_qp = roce_hdr->dest_qp;
@@ -1707,6 +1658,7 @@ void kill_signal_handler(int sig){
 	#endif
 	exit(0);
 }
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -1759,7 +1711,6 @@ main(int argc, char *argv[])
 		bzero(predict_address,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_cns_key,KEYSPACE*sizeof(uint64_t));
 		bzero(latest_key,TOTAL_ENTRY*sizeof(uint64_t));
-		bzero(core_pkt_counters,MAX_CORES*sizeof(uint32_t));
 		bzero(outstanding_write_predicts,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
@@ -1787,13 +1738,12 @@ main(int argc, char *argv[])
 		has_mapped_qp=0;
 		init = 1;
 	}
+
 	rte_rwlock_init(&next_lock);
 	rte_rwlock_init(&qp_lock);
 	rte_rwlock_init(&qp_init_lock);
 	rte_rwlock_init(&mem_qp_lock);
-
 	fork_lcores();
 	lcore_main();
-
 	return 0;
 }
