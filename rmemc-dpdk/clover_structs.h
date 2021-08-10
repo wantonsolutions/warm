@@ -16,6 +16,40 @@
 #define RC_CNS 0x13
 #define ECN_OPCODE 0x81
 
+#define ETH_ALEN 6
+#define ROCE_PORT 4791
+
+#include <stdint.h>
+#include <rte_mbuf.h>
+#include "clover_structs.h"
+
+typedef struct __attribute__ ((__packed__)) roce_v2_header {
+    uint8_t opcode;
+    unsigned int solicited_event:1;
+    unsigned int migration_request:1;
+    unsigned int pad_count:2;
+    unsigned int transport_header_version:4;
+    uint16_t partition_key;
+    //Reserved
+    unsigned int fecn:1;
+    unsigned int bcen:1;
+    unsigned int reserverd:6;
+    //end reserved
+    unsigned int dest_qp:24;
+    unsigned int ack:1;
+    unsigned int reserved:7;
+    unsigned int packet_sequence_number:24;
+    //unsigned int padding:16;
+    //unsigned int stew_pad:8; // TODO FIGURE OUT WHAT THE HELL THIS IS!!!
+    //unsigned int ICRC:4;
+} roce_v2_header;
+
+
+typedef struct clover_hdr {
+  struct mitsume_ptr ptr;
+  struct mitsume_msg mitsume_hdr;
+} clover_hdr;
+
 struct ib_mr_attr {
   uint64_t addr;
   uint32_t rkey;

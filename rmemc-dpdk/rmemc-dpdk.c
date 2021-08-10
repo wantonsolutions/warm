@@ -2012,7 +2012,6 @@ struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr) {
 	return NULL;
 }
 
-
 struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	//Dont start parsing if the udp port is not roce
 	struct roce_v2_header * roce_hdr = NULL;
@@ -2026,7 +2025,6 @@ struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr) {
 	}
 	return NULL;
 }
-
 
 struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
 	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
