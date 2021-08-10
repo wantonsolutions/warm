@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdarg.h>
-#include <signal.h>
 #include <inttypes.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -21,6 +20,7 @@
 #include "roce_v2.h"
 #include "clover_structs.h"
 #include "print_helpers.h"
+#include "measurement.h"
 #include <arpa/inet.h>
 
 #include <rte_jhash.h>
@@ -63,6 +63,27 @@ rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
 rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
+
+
+struct rte_ether_hdr * get_eth_hdr(struct rte_mbuf* pkt) {
+	return rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+}
+
+struct rte_ipv4_hdr* get_ipv4_hdr(struct rte_mbuf * pkt) {
+	struct rte_ether_hdr * eth_hdr = get_eth_hdr(pkt);
+	return (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+}
+
+struct rte_udp_hdr * get_udp_hdr(struct rte_mbuf *pkt) {
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	return (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+}
+
+struct roce_v2_header * get_roce_hdr(struct rte_mbuf *pkt) {
+	struct rte_udp_hdr * udp_hdr = get_udp_hdr(pkt);
+	return (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+}
+
 
 void lock_qp() {
 	rte_rwlock_write_lock(&qp_lock);
@@ -198,11 +219,7 @@ void init_reorder_buf(void) {
 }
 
 void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 
 	#define FAKE_ID -1
 	int id = FAKE_ID;
@@ -309,10 +326,10 @@ void copy_eth_addr(uint8_t *src, uint8_t *dst) {
 }
 
 void init_connection_state(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct rte_ether_hdr * eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr* udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 	uint16_t udp_src_port= udp_hdr->src_port;
 	uint32_t cts_dest_qp=roce_hdr->dest_qp;
 	uint32_t seq=roce_hdr->packet_sequence_number;
@@ -325,8 +342,8 @@ void init_connection_state(struct rte_mbuf *pkt) {
 	int id = get_id(cts_dest_qp);
 	cs = Connection_States[id];
 
+	//Connection State allready initalized for this qp
 	if (cs.sender_init != 0) {
-		log_printf(DEBUG,"Connection State allready initialized DEST QP(%d)\n",cts_dest_qp);
 		return;
 	}
 
@@ -337,30 +354,24 @@ void init_connection_state(struct rte_mbuf *pkt) {
 	cs.cts_rkey = rkey;
 	cs.ip_addr_client=client_ip;
 	cs.ip_addr_server=server_ip;
-
 	copy_eth_addr((uint8_t*)eth_hdr->s_addr.addr_bytes,(uint8_t*)cs.cts_eth_addr);
 	copy_eth_addr((uint8_t*)eth_hdr->d_addr.addr_bytes,(uint8_t*)cs.stc_eth_addr);
 	cs.sender_init=1;
-
-	//These fields do not need to be set. They are for the second half of the algorithm
-	//cs.stcqp = 0; //At init time the opposite side of the qp is going to be unknown
-	//cs.udp_src_port_server = 0;
-	//cs.mseq_current = 0;
 	Connection_States[cs.id] = cs;
 }
 
 void init_cs_wrapper(struct rte_mbuf* pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
-	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_READ_REQUEST && roce_hdr->opcode != RC_CNS ) {
-		printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
-		exit(0);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
+	switch(roce_hdr->opcode) {
+		case RC_WRITE_ONLY:
+		case RC_READ_REQUEST:
+		case RC_CNS:
+			init_connection_state(pkt);
+			break;
+		default:
+			printf("only init connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
+			exit(0);
 	}
-	uint32_t rkey = get_rkey_rdma_packet(roce_hdr);
-	init_connection_state(pkt);
 }
 
 //Calculate the MSN of the packet based on the offset. If the msn of the
@@ -376,7 +387,7 @@ uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connecti
 //Update the server to clinet connection state based on roce and udp header.
 //Search for the connection state first. If it's not found, just return.
 //Otherwise update the MSN.
-uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr) {
+uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr) {
 	struct Connection_State *cs;
 	uint32_t found = 0;
 
@@ -411,7 +422,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	}
 
 	//Try to perform a basic update
-	if (find_and_update_stc(roce_hdr,udp_hdr) > 0) {
+	if (find_and_update_stc(roce_hdr) > 0) {
 		return;
 	}
 
@@ -616,8 +627,7 @@ uint32_t mod_slot(uint32_t seq) {
 }
 
 uint32_t qp_is_mapped(uint32_t qp) {
-	uint32_t is_mapped = 0;
-	for(int i=0;i<qp_id_counter;i++){
+	for(uint32_t i=0;i<qp_id_counter;i++){
 		if (id_qp[i]==qp) {
 			return 1;
 		}
@@ -636,14 +646,11 @@ struct Request_Map * get_empty_slot_mod(struct Connection_State *cs) {
 	return slot;
 }
 
-
 void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	
+	struct rte_ether_hdr * eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr * udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 	
 	uint32_t r_qp= roce_hdr->dest_qp;
 	uint32_t id = get_id(r_qp);
@@ -665,7 +672,6 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 		return;
 	}
 
-
 	//Our middle box needs to keep track of the sequence number
 	//that should be tracked for the destination. This should
 	//always be an increment of 1 from it's previous number.
@@ -677,12 +683,12 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	printf("MAP FRWD(key %"PRIu64") (id %d) (core %d) (op: %s) :: (%d -> %d) (%d) (qpo %d -> qpn %d) \n",key, id,rte_lcore_id(), ib_print_op(roce_hdr->opcode), readable_seq(roce_hdr->packet_sequence_number), readable_seq(destination_connection->seq_current), readable_seq(msn), roce_hdr->dest_qp, destination_connection->ctsqp);
 	#endif
 
-	//Multiple reads occur at once. We don't want them to overwrite
-	//eachother. Initally I used Oustanding_Requests[id] to hold
-	//requests. But this only ever used the one index. On parallel reads
-	//the sequence number over write the old one because they collied.
-	//To save time, I'm using the old extra space TOTAL_ENTRIES in the
-	//Outstanding Requests to hold the concurrent reads. These should really be hased in the future.
+	//Multiple reads occur at once. We don't want them to overwrite eachother.
+	//Initally I used Oustanding_Requests[id] to hold requests. But this only
+	//ever used the one index. On parallel reads the sequence number over write
+	//the old one because they collied.  To save time, I'm using the old extra
+	//space TOTAL_ENTRIES in the Outstanding Requests to hold the concurrent
+	//reads. These should really be hased in the future.
 	
 	//Search for an open slot
 	struct Request_Map* slot;
@@ -722,11 +728,8 @@ void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 
 
 struct Connection_State * find_connection(struct rte_mbuf* pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 
 	//We have very little information on the demultiplex side. We need to search
 	//through the entire list in order to determine if this sequence number was
@@ -734,9 +737,8 @@ struct Connection_State * find_connection(struct rte_mbuf* pkt) {
 	//reverse lookup. In this case we have to pass over the whole list of
 	//connections, then we have to look through each entry in each connection to
 	//determine if there is an outstanding request.
-
 	struct Connection_State *source_connection = NULL;
-	for (int i=0;i<TOTAL_ENTRY;i++) {
+	for (uint32_t i=0;i<TOTAL_ENTRY;i++) {
 		//This optimization is safe because we should not ever have more than qp
 		//enteries in the Connection State list. However it uses knowledge not local to this funtion.
 		if (unlikely(i > qp_id_counter)) {
@@ -753,13 +755,7 @@ struct Connection_State * find_connection(struct rte_mbuf* pkt) {
 }
 
 struct Request_Map * find_slot_mod(struct Connection_State * source_connection, struct rte_mbuf *pkt) {
-
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	uint32_t slot_num = mod_slot(search_sequence_number);
 	struct Request_Map * mapped_request = &(source_connection->Outstanding_Requests[slot_num]);
@@ -774,12 +770,10 @@ struct Request_Map * find_slot_mod(struct Connection_State * source_connection, 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
+	struct rte_ether_hdr * eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr * udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 
 	struct map_packet_response mpr;
 	mpr.pkts[0] = pkt;
@@ -787,7 +781,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 	if (unlikely(has_mapped_qp ==  0 )) {
 		printf("We have not started multiplexing yet. Returning with no packet modifictions.\n");
-		return;
+		return mpr;
 	}
 
 	struct Connection_State *source_connection = find_connection(pkt);
@@ -823,22 +817,16 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
-		//copy_eth_addr(eth_hdr->d_addr.addr_bytes,mapped_request->original_eth_addr);
 		copy_eth_addr(mapped_request->original_eth_addr,eth_hdr->d_addr.addr_bytes);
+		recalculate_rdma_checksum(pkt);
 
-		//re ecalculate the checksum
-		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-		memcpy(current_checksum,&crc_check,4);
-
-		//repoen the slot
 		open_slot(mapped_request);
 		return mpr;
 	}
 
-	uint32_t msn = find_and_update_stc(roce_hdr,udp_hdr);
+	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0) {
-		uint32_t packet_msn = get_msn(roce_hdr);
+		int packet_msn = get_msn(roce_hdr);
 		if (packet_msn == -1 ) {
 			printf("How did we get here?\n");
 		}
@@ -851,8 +839,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 
 
 struct map_packet_response map_qp(struct rte_mbuf * pkt) {
-	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
-
 	struct map_packet_response mpr;
 	mpr.pkts[0] = pkt;
 	mpr.size = 1;
@@ -946,13 +932,8 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 }
 
 int should_track(struct rte_mbuf * pkt) {
-//void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp= roce_hdr->dest_qp;
@@ -1022,7 +1003,7 @@ void track_qp(struct rte_mbuf * pkt) {
 }
 
 
-uint32_t get_predicted_shift(packet_size) {
+uint32_t get_predicted_shift(uint32_t packet_size) {
 	switch(packet_size){
 		case 1024:
 			return 10;
@@ -1046,9 +1027,9 @@ void check_and_cache_predicted_shift(uint32_t rdma_size) {
 		write_value_packet_size = rdma_size;
 		predict_shift_value = get_predicted_shift(write_value_packet_size);
 	}
-	//Sanity check, we should only reach here if we are dealing with statically sized write packets
+	//sanity check, we should only reach here if we are dealing with statically sized write packets
 	if (unlikely(write_value_packet_size != rdma_size)) {
-		printf("ERROR in write packet block, but packet size not correct Established runtime size %d\n",write_value_packet_size);
+		printf("error in write packet block, but packet size not correct established runtime size %d\n",write_value_packet_size);
 		exit(0);
 	}
 }
@@ -1057,8 +1038,8 @@ void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode) {
 	#ifdef CATCH_ECN
 	if (opcode == ECN_OPCODE) {
 		for (int i=0;i<20;i++) {
-			printf("Packet # %d\n",packet_counter);
-			printf("ECN\n");
+			printf("packet # %d\n",packet_counter);
+			printf("ecn\n");
 		}
 		print_packet(pkt);
 		//debug_start_printing_every_packet = 1;
@@ -1066,12 +1047,12 @@ void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode) {
 	#endif
 }
 
-//In the case of regular operation where all of the writes are
-//cached, there should be no nacks. However if we set
-//CACHE_KEYSPACE to a value less than all of the keys, then we are
-//going to start to see NACKS. This only is a problem when the
-//writes are allowed to pass through. Reads should be a strict
-//subset of the writes so it's not going to be a problem there. If
+//in the case of regular operation where all of the writes are
+//cached, there should be no nacks. however if we set
+//cache_keyspace to a value less than all of the keys, then we are
+//going to start to see nacks. this only is a problem when the
+//writes are allowed to pass through. reads should be a strict
+//subset of the writes so it's not going to be a problem there. if
 //you are running an experiment to show the effect of varying
 //cache size just comment out the exit below.
 void catch_nack(struct clover_hdr * clover_header, uint8_t opcode) {
@@ -1382,15 +1363,14 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 }
 
 void print_packet_lite(struct rte_mbuf * buf) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	char * op = ib_print_op(roce_hdr->opcode);
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(buf);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(buf);
+
 	uint32_t size = ntohs(ipv4_hdr->total_length);
+	char * op = ib_print_op(roce_hdr->opcode);
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
-	uint32_t msn = get_msn(roce_hdr);
+	int msn = get_msn(roce_hdr);
 
 	if (msn != -1) {
 		msn = readable_seq(msn);
@@ -1453,7 +1433,6 @@ int accept_packet(struct rte_mbuf * pkt) {
 	struct rte_ipv4_hdr *ipv4_hdr; 
 	struct rte_udp_hdr* udp_hdr;
 	struct roce_v2_header * roce_hdr;
-	struct clover_hdr * clover_header;
 
 	eth_hdr = eth_hdr_process(pkt);
 	if (unlikely(eth_hdr == NULL)) {
@@ -1520,17 +1499,13 @@ lcore_main(void)
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
 		RTE_ETH_FOREACH_DEV(port) {
-			uint16_t ipv4_udp_rx = 0;	
-
 			/* Get burst of RX packets, from first and only port */
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
 			struct rte_mbuf *tx_pkts[BURST_SIZE];
 			uint32_t to_tx = 0;
-			//printf("%X bufs\n",&rx_pkts[0]);
 
 			uint32_t queue = rte_lcore_id()/2;
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
-			uint16_t nb_tx = 0;
 			
 			if (unlikely(nb_rx == 0))
 				continue;
@@ -1541,13 +1516,13 @@ lcore_main(void)
 				}
 				packet_counter++;
 
-				lock_qp();
 				true_classify(rx_pkts[i]);
 				struct map_packet_response mpr;
+				lock_qp();
 
 				mpr = map_qp(rx_pkts[i]);
 				uint32_t to_send = 0;
-				for (int j=0;j<mpr.size;j++) {
+				for (uint32_t j=0;j<mpr.size;j++) {
 					tx_pkts[to_tx] = mpr.pkts[j];
 					finish_mem_pkt(tx_pkts[to_tx],port,queue);
 					to_tx++;
@@ -1559,7 +1534,7 @@ lcore_main(void)
 	}
 }
 
-int coretest(void) {
+int coretest(__attribute__((unused)) void * arg) {
 	printf("I'm actually running on core %d\n",rte_lcore_id());
 	lcore_main();
 	return 1;
@@ -1572,14 +1547,6 @@ void fork_lcores(void) {
 		printf("running core %d\n",lcore);
 		rte_eal_remote_launch(coretest, NULL, lcore);
 	} 	
-}
-
-volatile sig_atomic_t flag = 0;
-void kill_signal_handler(int sig){
-	#ifdef TAKE_MEASUREMENTS
-	write_run_data();
-	#endif
-	exit(0);
 }
 
 /*
@@ -1627,7 +1594,6 @@ main(int argc, char *argv[])
 	printf("master core %d\n",rte_get_master_lcore());
 
 	if (init == 0) {
-		signal(SIGINT, kill_signal_handler);
 		bzero(first_write,KEYSPACE*sizeof(uint64_t));
 		bzero(second_write,TOTAL_ENTRY*KEYSPACE*sizeof(uint64_t));
 		bzero(first_cns,KEYSPACE*sizeof(uint64_t));
@@ -1639,10 +1605,7 @@ main(int argc, char *argv[])
 		bzero(next_vaddr,KEYSPACE*sizeof(uint64_t));
 
 		#ifdef TAKE_MEASUREMENTS
-		bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
-		bzero(sequence_order,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint32_t));
-		bzero(sequence_order_timestamp,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint64_t));
-		bzero(request_count_id, TOTAL_ENTRY * sizeof(uint32_t));
+		init_measurements();
 		#endif
 
 		#ifdef READ_STEER
@@ -1653,6 +1616,11 @@ main(int argc, char *argv[])
 		bzero(cached_write_vaddr_mod_latest, sizeof(uint64_t) * KEYSPACE);
 		#endif
 
+		rte_rwlock_init(&next_lock);
+		rte_rwlock_init(&qp_lock);
+		rte_rwlock_init(&qp_init_lock);
+		rte_rwlock_init(&mem_qp_lock);
+
 		init_reorder_buf();
 		init_connection_states();
 		init_hash();
@@ -1662,10 +1630,6 @@ main(int argc, char *argv[])
 		init = 1;
 	}
 
-	rte_rwlock_init(&next_lock);
-	rte_rwlock_init(&qp_lock);
-	rte_rwlock_init(&qp_init_lock);
-	rte_rwlock_init(&mem_qp_lock);
 	fork_lcores();
 	lcore_main();
 	return 0;

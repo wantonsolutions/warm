@@ -388,13 +388,12 @@ void print_clover_hdr(struct clover_hdr * clover_header) {
 }
 
 
-void print_packet(struct rte_mbuf * buf) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	print_raw(buf);
+void print_packet(struct rte_mbuf * pkt) {
+	struct rte_ether_hdr * eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr * udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
+	print_raw(pkt);
 	print_ether_hdr(eth_hdr);
 	print_ip_hdr(ipv4_hdr);
 	print_udp_hdr(udp_hdr);

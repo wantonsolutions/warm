@@ -4,6 +4,7 @@
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
+#include "print_helpers.h"
 
 uint32_t get_psn(struct rte_mbuf *pkt) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -166,7 +167,6 @@ void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn) {
 	struct read_response * read_resp = (struct read_response*) clover_header;
 	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
 	struct cs_response * cs_resp = (struct cs_response *)clover_header;
-	uint32_t* msn;
 	switch(roce_hdr->opcode) {
 		case RC_READ_RESPONSE:;
 			read_resp->ack_extended.sequence_number = new_msn;

@@ -98,6 +98,11 @@ void rdma_print_pattern(roce_v2_header * rdma);
 void init_ib_words(void);
 void init_connection_state(struct rte_mbuf *pkt);
 
+uint32_t get_predicted_shift(uint32_t packet_size);
+void check_and_cache_predicted_shift(uint32_t rdma_size);
+void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode);
+void catch_nack(struct clover_hdr * clover_header, uint8_t opcode);
+
 
 //qp tracking
 uint32_t key_to_qp(uint64_t key);
@@ -106,17 +111,56 @@ void cts_track_connection_state(struct rte_mbuf * pkt);
 void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq);
 void find_and_set_stc_qp_wrapper(struct roce_v2_header *roce_hdr);
 void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
-int coretest(void);
+int coretest(__attribute__((unused)) void * arg);
 void fork_lcores(void);
 void init_cs_wrapper(struct rte_mbuf* pkt);
 
+//Connection States
+void copy_eth_addr(uint8_t *src, uint8_t *dst);
+void init_connection_state(struct rte_mbuf *pkt);
+void init_cs_wrapper(struct rte_mbuf* pkt);
+uint32_t produce_and_update_msn(struct roce_v2_header* roce_hdr, struct Connection_State *cs);
+uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr);
+void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr);
+void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr);
+void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq);
+void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
+void cts_track_connection_state(struct rte_mbuf * pkt);
+uint64_t get_latest_key(uint32_t id);
+void set_latest_key(uint32_t id, uint64_t key);
+void init_connection_states(void);
 
+//Read Caching
+uint32_t mod_hash(uint64_t vaddr);
+void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr);
+int does_read_have_cached_write_mod(uint64_t vaddr);
+uint64_t get_latest_vaddr_mod(uint32_t key);
+void steer_read(struct rte_mbuf *pkt, uint32_t key);
 
+//Slots
+uint32_t slot_is_open(struct Request_Map *rm);
+void close_slot(struct Request_Map* rm);
+void open_slot(struct Request_Map* rm);
+uint32_t mod_slot(uint32_t seq);
+struct Request_Map * get_empty_slot_mod(struct Connection_State *cs);
+
+//mapping and tracking
+uint32_t qp_is_mapped(uint32_t qp);
+void track_qp(struct rte_mbuf * pkt);
+int should_track(struct rte_mbuf * pkt);
+struct map_packet_response map_qp(struct rte_mbuf * pkt);
+struct Connection_State * find_connection(struct rte_mbuf* pkt);
+struct Request_Map * find_slot_mod(struct Connection_State * source_connection, struct rte_mbuf *pkt);
+void map_qp_forward(struct rte_mbuf * pkt, uint64_t key);
+struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt);
+
+//Packet processing
 struct rte_ether_hdr *eth_hdr_process(struct rte_mbuf* buf);
 struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr);
 struct rte_udp_hdr * udp_hdr_process(struct rte_ipv4_hdr *ipv4_hdr);
 struct roce_v2_header * roce_hdr_process(struct rte_udp_hdr * udp_hdr);
 struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr);
+int accept_packet(struct rte_mbuf * pkt);
 //struct mitsume_msg * mitsume_msg_process(struct roce_v2_header * roce_hdr);
 
 void print_packet_lite(struct rte_mbuf * buf);

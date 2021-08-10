@@ -1,25 +1,20 @@
 #include "measurement.h"
 #include "rmemc-dpdk.h"
+#include <signal.h>
 
 
 //Measurement for getting end host latencies
 //rdma calls counts the number of calls for each RDMA op code
-#define TAKE_MEASUREMENTS
-#ifdef TAKE_MEASUREMENTS
 uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
 uint64_t packet_latency_count = 0;
 
 //measurement for understanding mapped packet ordering
-#define TOTAL_PACKET_SEQUENCES 100000
 uint32_t sequence_order[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
 uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
 uint32_t request_count_id[TOTAL_ENTRY];
-
 uint64_t read_redirections = 0;
 uint64_t reads = 0;
 uint64_t read_misses = 0;
-
-#endif
 
 static __inline__ int64_t rdtsc_s(void)
 {
@@ -111,4 +106,25 @@ void read_redirected(void) {
 
 void read_not_cached(void){
     read_misses++;
+}
+
+volatile sig_atomic_t flag = 0;
+void kill_signal_handler(int sig){
+	printf("Kill signal handlers [sig %d]\n",sig);
+	#ifdef TAKE_MEASUREMENTS
+	write_run_data();
+	#endif
+	exit(0);
+}
+
+void register_handler(void) {
+    signal(SIGINT, kill_signal_handler);
+}
+
+void init_measurements(void) {
+    register_handler();
+    bzero(packet_latencies,TOTAL_PACKET_LATENCIES*sizeof(uint64_t));
+    bzero(sequence_order,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint32_t));
+    bzero(sequence_order_timestamp,TOTAL_ENTRY*TOTAL_PACKET_SEQUENCES*sizeof(uint64_t));
+    bzero(request_count_id, TOTAL_ENTRY * sizeof(uint32_t));
 }

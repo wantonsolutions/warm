@@ -4,6 +4,8 @@
 #include <inttypes.h>
 
 #define TOTAL_PACKET_LATENCIES 10000
+#define TOTAL_PACKET_SEQUENCES 100000
+#define TAKE_MEASUREMENTS
 
 void append_packet_latency(uint64_t clock_cycles);
 void append_sequence_number(uint32_t id, uint32_t seq);
@@ -13,5 +15,8 @@ void write_general_stats_to_known_file();
 void write_run_data(void);
 void read_redirected(void);
 void read_not_cached(void);
+void kill_signal_handler(int sig);
+void register_handler(void);
+void init_measurements(void);
 
 #endif
