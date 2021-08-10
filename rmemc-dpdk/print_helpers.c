@@ -16,7 +16,7 @@ int log_printf(int level, const char *format, ...) {
 	return ret;
 }
 
-char * ib_print_op(uint8_t opcode) {
+const char * ib_print_op(uint8_t opcode) {
 	switch (opcode){
 		case RC_ACK:
 			return "RC_ACK";
@@ -43,7 +43,7 @@ void print_request_map(struct Request_Map *rm) {
 	else {
 		printf("closed");
 	}
-	printf("ID: %d\n");
+	printf("ID: %d\n",rm->id);
 	printf("Original Seq %d, mapped seq %d\n",readable_seq(rm->original_sequence), readable_seq(rm->mapped_sequence));
 	printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
 	printf("stcqp port %d\n", rm->server_to_client_udp_port);
@@ -190,6 +190,9 @@ void print_cs_request(struct cs_request *csr) {
 
 void print_cs_response(struct cs_response *csr) {
 	printf("(START) compare and swap response\n");
+	print_ack_extended_header(&csr->ack_extended);
+	//TODO this function should be written
+	//print_atomic_ack_eth(&csr->atomc_ack_extended);
 	printf("(STOP) compare and swap response\n");
 	return;
 }

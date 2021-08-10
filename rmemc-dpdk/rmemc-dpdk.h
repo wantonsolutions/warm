@@ -2,6 +2,9 @@
 #define RMEMC_DPDK_H
 
 #include "clover_structs.h"
+#include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_udp.h>
 
 //macro magic
 #define DO_EXPAND(VAL)  VAL ## 1
@@ -32,6 +35,7 @@
     #undef MITSUME_BENCHMARK_THREAD_NUM
     #define MITSUME_BENCHMARK_THREAD_NUM MITSUME_BENCHMARK_THREAD_DEFAULT
 #endif
+
 
 //checksum
 
@@ -79,6 +83,13 @@ struct map_packet_response {
   struct rte_mbuf *pkts[BURST_SIZE];
 } map_packet_response;
 
+//Locking
+void lock_qp(void);
+void unlock_qp(void);
+void lock_mem_qp(void);
+void unlock_mem_qp(void);
+void lock_next(void);
+void unlock_next(void);
 
 uint32_t check_sums(const char* method, void* known, void* test, int try);
 uint32_t check_sums_wrap(const char* method, void* know, void* test);
@@ -103,6 +114,9 @@ void check_and_cache_predicted_shift(uint32_t rdma_size);
 void catch_ecn(struct rte_mbuf* pkt, uint8_t opcode);
 void catch_nack(struct clover_hdr * clover_header, uint8_t opcode);
 
+//Packet Buffering
+void init_reorder_buf(void);
+void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue);
 
 //qp tracking
 uint32_t key_to_qp(uint64_t key);
@@ -114,6 +128,7 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
 int coretest(__attribute__((unused)) void * arg);
 void fork_lcores(void);
 void init_cs_wrapper(struct rte_mbuf* pkt);
+int fully_qp_init(void);
 
 //Connection States
 void copy_eth_addr(uint8_t *src, uint8_t *dst);
@@ -166,6 +181,9 @@ int accept_packet(struct rte_mbuf * pkt);
 void print_packet_lite(struct rte_mbuf * buf);
 void debug_icrc(struct rte_mempool *mbuf_pool);
 
-
+struct rte_ether_hdr * get_eth_hdr(struct rte_mbuf* pkt);
+struct rte_ipv4_hdr* get_ipv4_hdr(struct rte_mbuf * pkt);
+struct rte_udp_hdr * get_udp_hdr(struct rte_mbuf *pkt);
+struct roce_v2_header * get_roce_hdr(struct rte_mbuf *pkt);
 
 #endif

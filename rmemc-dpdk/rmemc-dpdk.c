@@ -28,7 +28,6 @@
 #include <rte_table.h>
 
 #include <endian.h>
-#include <zlib.h>
 
 
 #define KEYSPACE 1024
@@ -64,7 +63,6 @@ rte_rwlock_t qp_lock;
 rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
-
 struct rte_ether_hdr * get_eth_hdr(struct rte_mbuf* pkt) {
 	return rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 }
@@ -84,33 +82,32 @@ struct roce_v2_header * get_roce_hdr(struct rte_mbuf *pkt) {
 	return (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
 }
 
-
-void lock_qp() {
+void lock_qp(void) {
 	rte_rwlock_write_lock(&qp_lock);
 	rte_smp_mb();
 }
 
-void unlock_qp() {
+void unlock_qp(void) {
 	rte_rwlock_write_unlock(&qp_lock);
 	rte_smp_mb();
 }
 
-void lock_mem_qp() {
+void lock_mem_qp(void) {
 	rte_rwlock_write_lock(&mem_qp_lock);
 	rte_smp_mb();
 }
 
-void unlock_mem_qp() {
+void unlock_mem_qp(void) {
 	rte_rwlock_write_unlock(&mem_qp_lock);
 	rte_smp_mb();
 }
 
-void lock_next() {
+void lock_next(void) {
 	rte_rwlock_write_lock(&next_lock);
 	rte_smp_mb();
 }
 
-void unlock_next() {
+void unlock_next(void) {
 	rte_rwlock_write_unlock(&next_lock);
 	rte_smp_mb();
 }
@@ -182,11 +179,10 @@ uint32_t get_id(uint32_t qp) {
 		id = *return_value;
 	}
 	id_colorize(id);
-
 	return id;
 }
 
-int fully_qp_init() {
+int fully_qp_init(void) {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State cs = Connection_States[i];
 		if (!cs.sender_init || !cs.receiver_init) {
@@ -223,8 +219,8 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 
 	#define FAKE_ID -1
 	int id = FAKE_ID;
-	uint32_t *head = NULL;
-	uint32_t *tail = NULL;
+	uint64_t *head = NULL;
+	uint64_t *tail = NULL;
 	struct rte_mbuf * (*buf_ptr)[TOTAL_ENTRY][PKT_REORDER_BUF];
 	lock_mem_qp();
 
@@ -232,7 +228,7 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	//for both directions of queueing.  The memory direction has a queue and so
 	//does the client.  If the requests are arriving out of order in either
 	//direction they will be queued.
-	for (int i=0;i<qp_id_counter;i++) {
+	for (uint32_t i=0;i<qp_id_counter;i++) {
 		if (Connection_States[i].ctsqp == roce_hdr->dest_qp) {
 				id = Connection_States[i].id;
 				head = &mem_qp_buf_head[id];
@@ -292,7 +288,7 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	//make sure that all of the entries from the head to the tail are not equal
 	//to null. If any are then we have non-contigous sequence numbers i.e a gap,
 	//and need to move forward without sending anything.
-	for (int i=*head;i<=*tail;i++){
+	for (uint32_t i=*head;i<=*tail;i++){
 		if ((*buf_ptr)[id][i%PKT_REORDER_BUF] == NULL) {
 			unlock_mem_qp();
 			//printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
@@ -302,8 +298,7 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	}
 
 	//If we made it here it's time to send
-	uint32_t diff = (*tail+1)-*head;
-	for (int i=*head;i<=*tail;i++){
+	for (uint32_t i=*head;i<=*tail;i++){
 		struct rte_mbuf * s_pkt = (*buf_ptr)[id][i%PKT_REORDER_BUF];
 		#ifdef TAKE_MEASUREMENTS
 		if (buf_ptr == &mem_qp_buf) {
@@ -1367,7 +1362,7 @@ void print_packet_lite(struct rte_mbuf * buf) {
 	struct roce_v2_header * roce_hdr = get_roce_hdr(buf);
 
 	uint32_t size = ntohs(ipv4_hdr->total_length);
-	char * op = ib_print_op(roce_hdr->opcode);
+	const char * op = ib_print_op(roce_hdr->opcode);
 	uint32_t dest_qp = roce_hdr->dest_qp;
 	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
 	int msn = get_msn(roce_hdr);

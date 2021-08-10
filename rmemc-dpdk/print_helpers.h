@@ -6,7 +6,7 @@
 
 
 int log_printf(int level, const char *format, ...);
-char * ib_print_op(uint8_t opcode);
+const char * ib_print_op(uint8_t opcode);
 void print_request_map(struct Request_Map *rm);
 void print_connection_state(struct Connection_State* cs);
 

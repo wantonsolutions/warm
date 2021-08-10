@@ -47,8 +47,8 @@ void append_sequence_number(uint32_t id, uint32_t seq) {
 	}
 }
 
-void write_packet_latencies_to_known_file() {
-	char* filename="/tmp/latency-latest.dat";
+void write_packet_latencies_to_known_file(void) {
+	const char* filename="/tmp/latency-latest.dat";
 	printf("Writing a total of %"PRIu64" packet latencies to %s\n",packet_latency_count,filename);
 	FILE *fp = fopen(filename, "w");
 	if (fp == NULL) {
@@ -56,14 +56,14 @@ void write_packet_latencies_to_known_file() {
 		perror("Failed: ");
 		return;
 	}
-	for (int i=0;i<packet_latency_count;i++) {
+	for (uint32_t i=0;i<packet_latency_count;i++) {
 		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
 	}
 	fclose(fp);
 }
 
-void write_sequence_order_to_known_file() {
-	char* filename="/tmp/sequence_order.dat";
+void write_sequence_order_to_known_file(void) {
+	const char* filename="/tmp/sequence_order.dat";
 	printf("Writing Sequence Order to file %s\n",filename);
 	FILE *fp = fopen(filename, "w");
 	if (fp == NULL) {
@@ -72,15 +72,15 @@ void write_sequence_order_to_known_file() {
 		return;
 	}
 	for (int i=0;i<TOTAL_ENTRY;i++){
-		for (int j=0;j<request_count_id[i];j++) {
+		for (uint32_t j=0;j<request_count_id[i];j++) {
 			fprintf(fp,"%d,%d,%"PRIu64"\n",i,sequence_order[i][j],sequence_order_timestamp[i][j]);
 		}
 	}
 	fclose(fp);
 }
 
-void write_general_stats_to_known_file() {
-	char* filename="/tmp/switch_statistics.dat";
+void write_general_stats_to_known_file(void) {
+	const char* filename="/tmp/switch_statistics.dat";
 	FILE *fp = fopen(filename, "w");
 	if (fp == NULL) {
 		printf("Unable to write file out, fopen has failed\n");

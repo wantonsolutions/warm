@@ -5,13 +5,11 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include "print_helpers.h"
+#include "rmemc-dpdk.h"
+#include <zlib.h>
 
 uint32_t get_psn(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+    struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 	return roce_hdr->packet_sequence_number;
 }
 
@@ -49,10 +47,9 @@ uint32_t check_sums_wrap(const char* method, void* know, void* test) {
 }
 
 uint32_t csum_pkt_fast(struct rte_mbuf* pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr * udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header * roce_hdr = get_roce_hdr(pkt);
 
 	uint8_t ttl = ipv4_hdr->time_to_live;
 	ipv4_hdr->time_to_live=0xFF;
@@ -75,13 +72,11 @@ uint32_t csum_pkt_fast(struct rte_mbuf* pkt) {
 	uint8_t bcen = roce_hdr->bcen;
 	roce_hdr->bcen=1;
 
-
 	uint8_t * start = (uint8_t*)(ipv4_hdr);
 	uint32_t len = ntohs(ipv4_hdr->total_length) - 4;
 
 	uint32_t crc_check;
 	uint8_t buf[1500];
-
 
 	void * current = (uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4;
 	uint8_t current_val[4];
@@ -111,8 +106,7 @@ uint32_t csum_pkt_fast(struct rte_mbuf* pkt) {
 }
 
 void recalculate_rdma_checksum(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_ipv4_hdr* ipv4_hdr = get_ipv4_hdr(pkt);
 	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
 	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
 	memcpy(current_checksum,&crc_check,4);
