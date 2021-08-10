@@ -4,8 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/ssgrant/dpdk-stable-19.11.5",
-                "/usr/local/ssgrant/dpdk-stable-19.11.5/lib/librte_mbuf"
+                "/usr/local/ssgrant/dpdk-stable-19.11.5/lib/**",
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

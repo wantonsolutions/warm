@@ -328,7 +328,7 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue)
 		if ((*buf_ptr)[id][i % PKT_REORDER_BUF] == NULL)
 		{
 			unlock_mem_qp();
-			//printf("[core %d] Returning due to hole in head(%d) -> tail(%d)\n",rte_lcore_id(),*head,*tail);
+			printf("[core %d] Returning due to hole in head(%"PRIu64") -> tail(%"PRIu64")\n",rte_lcore_id(),*head,*tail);
 			//print_packet_lite(pkt);
 			return;
 		}
@@ -337,6 +337,9 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue)
 	//If we made it here it's time to send
 	for (uint32_t i = *head; i <= *tail; i++)
 	{
+		if((*tail - *head) >= 1) {
+			printf("sending gap > 1\n");
+		}
 		struct rte_mbuf *s_pkt = (*buf_ptr)[id][i % PKT_REORDER_BUF];
 #ifdef TAKE_MEASUREMENTS
 		if (buf_ptr == &mem_qp_buf)
@@ -1736,12 +1739,13 @@ lcore_main(void)
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
 				packet_counter++;
-
 				true_classify(rx_pkts[i]);
+
 				struct map_packet_response mpr;
 				lock_qp();
-
 				mpr = map_qp(rx_pkts[i]);
+				unlock_qp();
+
 				uint32_t to_send = 0;
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
@@ -1750,7 +1754,6 @@ lcore_main(void)
 					to_tx++;
 					to_send++;
 				}
-				unlock_qp();
 			}
 		}
 	}
