@@ -122,9 +122,17 @@ function set_ecn {
     done
 }
 
+#out of order 
+function set_ooo {
+    echo "Setting Out of Order"
+    # Enable all mlx5 devices.
+    export MLX5_RELAXED_PACKET_ORDERING_ON="all"
+}
+
 set_server_params
 setup_nic
 setup_hugepages
+set_ooo
 set_ecn
 
 if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then
