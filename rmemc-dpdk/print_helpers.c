@@ -55,7 +55,6 @@ void print_connection_state(struct Connection_State* cs) {
 	printf("seqt %d seq %d mseqt %d mseq %d\n",readable_seq(cs->seq_current),cs->seq_current,readable_seq(cs->mseq_current),cs->mseq_current);
 }
 
-
 void red (void) {printf("\033[1;31m");}
 void yellow (void) {printf("\033[1;33m");}
 void blue (void) {printf("\033[1;34m");}
