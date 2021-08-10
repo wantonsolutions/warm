@@ -565,48 +565,6 @@ uint64_t get_latest_vaddr_mod(uint32_t key) {
 	return cached_write_vaddr_mod_latest[key];
 }
 
-void update_write_vaddr_cache_ring(uint64_t key, uint64_t vaddr) {
-	uint32_t cache_index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
-	//printf("updating write for key %"PRIu64", vaddr %"PRIu64" slot %d\n",key,vaddr,cache_index);
-	cached_write_vaddrs[key][cache_index] = vaddr;
-	writes_per_key[key]++;
-}
-
-int does_read_have_cached_write_ring(uint64_t vaddr) {
-	//for (int key=0;key<KEYSPACE;key++) {
-	//TODO this is an error the last key will not be indexed here
-	for (int key=1;key<CACHE_KEYSPACE;key++) {
-
-		if(writes_per_key[key]==0) {
-			continue;
-		}
-		//!TODO start at the last written index
-		int index = writes_per_key[key]%WRITE_VADDR_CACHE_SIZE;
-		for (uint32_t counter=0;counter<WRITE_VADDR_CACHE_SIZE;counter++) {
-			//printf("INDEX %d counter %d\n",index, counter);
-			if (cached_write_vaddrs[key][index] == vaddr) {
-				//printf("found key %d add stored %"PRIu64" incomming %"PRIu64"\n",key,cached_write_vaddrs[key][index],vaddr);
-				return key;
-			}
-			//TODO decrement to optimize
-			index = (index-1);
-			if (index < 0) {
-				index = WRITE_VADDR_CACHE_SIZE -1;
-			}
-		}
-	}
-	return 0;
-}
-
-uint64_t get_latest_vaddr_ring(uint32_t key) {
-	if (unlikely(writes_per_key[key] == 0)) {
-		printf("Should not be rewriting something that has not been touched\n");
-		return 0;
-	}
-	uint32_t cache_index = (writes_per_key[key]-1)%WRITE_VADDR_CACHE_SIZE;
-	return cached_write_vaddrs[key][cache_index];
-}
-
 int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
 void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
 uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
@@ -657,20 +615,6 @@ uint32_t mod_slot(uint32_t seq) {
 	return readable_seq(seq) % CS_SLOTS; 
 }
 
-struct Request_Map * get_empty_slot_mod(struct Connection_State *cs) {
-	uint32_t slot_num = mod_slot(cs->seq_current);
-	//printf("(%d,%d)\n",cs->id,slot_num);
-	struct Request_Map * slot = &(cs->Outstanding_Requests[slot_num]);
-	if (!slot_is_open(slot)) {
-		printf("CLOSED SLOT, this is really bad!!\n");
-		//print_request_map(slot);
-		//exit(0);
-	}
-	//open anyways
-	open_slot(slot);
-	return slot;
-}
-
 uint32_t qp_is_mapped(uint32_t qp) {
 	uint32_t is_mapped = 0;
 	for(int i=0;i<qp_id_counter;i++){
@@ -680,6 +624,18 @@ uint32_t qp_is_mapped(uint32_t qp) {
 	}
 	return 0;
 }
+
+struct Request_Map * get_empty_slot_mod(struct Connection_State *cs) {
+	uint32_t slot_num = mod_slot(cs->seq_current);
+	struct Request_Map * slot = &(cs->Outstanding_Requests[slot_num]);
+	if (!slot_is_open(slot)) {
+		printf("CLOSED SLOT, this is really bad!!\n");
+	}
+	//open anyways
+	open_slot(slot);
+	return slot;
+}
+
 
 void map_qp_forward(struct rte_mbuf * pkt, uint64_t key) {
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -796,28 +752,6 @@ struct Connection_State * find_connection(struct rte_mbuf* pkt) {
 	return source_connection;
 }
 
-struct Request_Map * find_slot(struct Connection_State * source_connection, struct rte_mbuf *pkt) {
-
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-
-	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	struct Request_Map * mapped_request;
-
-	for (int j=0;j<CS_SLOTS;j++) {
-		mapped_request = &(source_connection->Outstanding_Requests[j]);
-		//printf("looking for the outstanding request %d::: (maped,search) (%d,%d)\n",j,mapped_request->mapped_sequence,search_sequence_number);
-		//First search to find if the sequence numbers match
-		if ((!slot_is_open(mapped_request)) && mapped_request->mapped_sequence == search_sequence_number) {
-			return mapped_request;
-		}
-	}
-	return NULL;
-}
-
 struct Request_Map * find_slot_mod(struct Connection_State * source_connection, struct rte_mbuf *pkt) {
 
 	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -862,12 +796,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf* pkt) {
 		return mpr;
 	}
 
-	struct Request_Map * mapped_request;
-	if (MOD_SLOT) {
-		mapped_request = find_slot_mod(source_connection,pkt);
-	} else {
-		mapped_request = find_slot(source_connection,pkt);
-	}
+	struct Request_Map * mapped_request = find_slot_mod(source_connection,pkt);
+
 	//struct Request_Map * 
 	if (mapped_request != NULL) {
 		//Set the packety headers to that of the mapped request
@@ -1051,8 +981,6 @@ int should_track(struct rte_mbuf * pkt) {
 	}
 	return 0;
 }
-
-
 
 void track_qp(struct rte_mbuf * pkt) {
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
@@ -1453,6 +1381,34 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	return 0;
 }
 
+void print_packet_lite(struct rte_mbuf * buf) {
+	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
+	char * op = ib_print_op(roce_hdr->opcode);
+	uint32_t size = ntohs(ipv4_hdr->total_length);
+	uint32_t dest_qp = roce_hdr->dest_qp;
+	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+	uint32_t msn = get_msn(roce_hdr);
+
+	if (msn != -1) {
+		msn = readable_seq(msn);
+	}
+
+	int id = -1;
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		if (Connection_States[i].ctsqp == roce_hdr->dest_qp ||
+			Connection_States[i].stcqp == roce_hdr->dest_qp) {
+				id = Connection_States[i].id;
+				break;
+		}
+	}
+
+	id_colorize(id);
+	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
+}
+
 struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	int hdr_len = (ipv4_hdr->version_ihl & RTE_IPV4_HDR_IHL_MASK) * RTE_IPV4_IHL_MULTIPLIER;
@@ -1491,33 +1447,6 @@ struct clover_hdr * mitsume_msg_process(struct roce_v2_header * roce_hdr){
 	return clover_header;
 }
 
-void print_packet_lite(struct rte_mbuf * buf) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	char * op = ib_print_op(roce_hdr->opcode);
-	uint32_t size = ntohs(ipv4_hdr->total_length);
-	uint32_t dest_qp = roce_hdr->dest_qp;
-	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
-	uint32_t msn = get_msn(roce_hdr);
-
-	if (msn != -1) {
-		msn = readable_seq(msn);
-	}
-
-	int id = -1;
-	for (int i=0;i<TOTAL_ENTRY;i++) {
-		if (Connection_States[i].ctsqp == roce_hdr->dest_qp ||
-			Connection_States[i].stcqp == roce_hdr->dest_qp) {
-				id = Connection_States[i].id;
-				break;
-		}
-	}
-
-	id_colorize(id);
-	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d]\n",rte_lcore_id(),id, op,roce_hdr->opcode,size,dest_qp,seq,msn);
-}
 
 int accept_packet(struct rte_mbuf * pkt) {
 	struct rte_ether_hdr* eth_hdr;
@@ -1610,12 +1539,6 @@ lcore_main(void)
 				if (likely(i < nb_rx - 1)) {
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i+1],void *));
 				}
-				
-				struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(rx_pkts[i], struct rte_ether_hdr *);
-				struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-				struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-				struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-				struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 				packet_counter++;
 
 				lock_qp();
