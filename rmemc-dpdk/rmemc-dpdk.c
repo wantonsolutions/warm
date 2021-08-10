@@ -18,6 +18,7 @@
 #include <rte_launch.h>
 #include <rte_rwlock.h>
 #include "rmemc-dpdk.h"
+#include "roce_v2.h"
 #include "clover_structs.h"
 #include "print_helpers.h"
 #include <arpa/inet.h>
@@ -27,11 +28,7 @@
 #include <rte_table.h>
 
 #include <endian.h>
-
-//#include <linux/crc32.h>
 #include <zlib.h>
-
-
 
 #define RDMA_COUNTER_SIZE 256
 #define RDMA_STRING_NAME_LEN 256
@@ -102,12 +99,6 @@ void unlock_next() {
 	rte_rwlock_write_unlock(&next_lock);
 	rte_smp_mb();
 }
-
-uint8_t test_ack_pkt[] = {
-0xEC,0x0D,0x9A,0x68,0x21,0xCC,0xEC,0x0D,0x9A,0x68,0x21,0xD0,0x08,0x00,0x45,0x02,
-0x00,0x30,0x2A,0x2B,0x40,0x00,0x40,0x11,0x8D,0x26,0xC0,0xA8,0x01,0x0C,0xC0,0xA8,
-0x01,0x0D,0xCF,0x15,0x12,0xB7,0x00,0x1C,0x00,0x00,0x11,0x40,0xFF,0xFF,0x00,0x00,
-0x6C,0xA9,0x00,0x00,0x0C,0x71,0x0D,0x00,0x00,0x01,0xDC,0x97,0x84,0x42,};
 
 
 #define MITSUME_PTR_MASK_LH 0x0ffffffff0000000
@@ -220,15 +211,9 @@ void write_run_data(void) {
 	write_general_stats_to_known_file();
 }
 
-uint32_t rdma_call_count[RDMA_COUNTER_SIZE];
-
 static int packet_counter = 0;
 uint64_t packet_size_index[RDMA_COUNTER_SIZE][PACKET_SIZES];
 uint32_t packet_size_calls[RDMA_COUNTER_SIZE][PACKET_SIZES];
-uint64_t read_req_addr_index[KEYSPACE];
-uint32_t read_req_addr_count[KEYSPACE];
-uint64_t read_resp_addr_index[KEYSPACE];
-uint32_t read_resp_addr_count[KEYSPACE];
 
 #define MAX_CORES 24
 uint32_t core_pkt_counters[MAX_CORES];
@@ -266,15 +251,6 @@ struct Connection_State Connection_States[TOTAL_ENTRY];
 uint32_t key_to_qp(uint64_t key) {
 	uint32_t index = (key)%qp_id_counter;
 	return id_qp[index];
-}
-
-uint32_t get_psn(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	return roce_hdr->packet_sequence_number;
 }
 
 int init_hash(void) {
@@ -316,11 +292,6 @@ uint32_t get_id(uint32_t qp) {
 	return id;
 }
 
-uint32_t readable_seq(uint32_t seq) {
-	return ntohl(seq) / 256;
-}
-
-;
 int fully_qp_init() {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State cs = Connection_States[i];
@@ -351,14 +322,6 @@ void init_reorder_buf(void) {
 			client_qp_buf[i][j] = NULL;
 		}
 	}
-}
-
-void recalculate_rdma_checksum(struct rte_mbuf *pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-	void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-	memcpy(current_checksum,&crc_check,4);
 }
 
 void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
@@ -466,49 +429,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
 	unlock_mem_qp();
 }
 
-uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct write_request *wr = (struct write_request*) clover_header;
-	struct read_request * read_req = (struct read_request *)clover_header;
-	struct cs_request * cs_req = (struct cs_request *)clover_header;
-
-	switch(roce_hdr->opcode) {
-		case RC_WRITE_ONLY:
-			return wr->rdma_extended_header.rkey;
-		case RC_READ_REQUEST:
-			return read_req->rdma_extended_header.rkey;
-		case RC_CNS:
-			return cs_req->atomic_req.rkey;
-		default:
-			printf("rh-opcode unknown while getting rkey. Exiting\n");
-			exit(0);
-	}
-	return -1;
-}
-
-void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct write_request *wr = (struct write_request*) clover_header;
-	struct read_request * read_req = (struct read_request *)clover_header;
-	struct cs_request * cs_req = (struct cs_request *)clover_header;
-
-	switch(roce_hdr->opcode) {
-		case RC_WRITE_ONLY:
-			wr->rdma_extended_header.rkey = rkey;
-			return;
-		case RC_READ_REQUEST:
-			read_req->rdma_extended_header.rkey = rkey;
-			return;
-		case RC_CNS:
-			cs_req->atomic_req.rkey = rkey;
-			return;
-		default:
-    		printf("op code %02X %s\n",roce_hdr->opcode, ib_print_op(roce_hdr->opcode));
-			printf("rh-opcode unknown while setting rkey. Exiting\n");
-			exit(0);
-	}
-	return;
-}
 
 void copy_eth_addr(uint8_t *src, uint8_t *dst) {
 	for (int i=0;i<6;i++) {
@@ -573,52 +493,6 @@ void init_cs_wrapper(struct rte_mbuf* pkt) {
 	init_connection_state(pkt);
 }
 
-void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct read_response * read_resp = (struct read_response*) clover_header;
-	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
-	struct cs_response * cs_resp = (struct cs_response *)clover_header;
-	uint32_t* msn;
-	switch(roce_hdr->opcode) {
-		case RC_READ_RESPONSE:;
-			read_resp->ack_extended.sequence_number = new_msn;
-			return;
-		case RC_ACK:;
-			ack->ack_extended.sequence_number = new_msn;
-			return;
-		case RC_ATOMIC_ACK:;
-			cs_resp->ack_extended.sequence_number = new_msn;
-			return;
-		default:
-			printf("WRONG HEADER MSN NOT FOUND\n");
-			exit(0);
-			return;
-	}
-	return;
-}
-
-int get_msn(struct roce_v2_header *roce_hdr) {
-	struct clover_hdr * clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
-	struct read_response * read_resp = (struct read_response*) clover_header;
-	struct rdma_ack *ack = (struct rdma_ack*) clover_header;
-	struct cs_response * cs_resp = (struct cs_response *)clover_header;
-	uint32_t msn;
-	switch(roce_hdr->opcode) {
-		case RC_READ_RESPONSE:;
-			msn = read_resp->ack_extended.sequence_number;
-			break;
-		case RC_ACK:;
-			msn = ack->ack_extended.sequence_number;
-			break;
-		case RC_ATOMIC_ACK:;
-			msn=cs_resp->ack_extended.sequence_number;
-			break;
-		default:
-			msn=-1;
-			break;
-	}
-	return msn;
-}
 
 //Calculate the MSN of the packet based on the offset. If the msn of the
 //connection state is behind, update that as well.
@@ -772,149 +646,6 @@ void cts_track_connection_state(struct rte_mbuf * pkt) {
 	update_cs_seq_wrapper(roce_hdr);
 }
 
-void count_values(uint64_t *index, uint32_t *count, uint32_t size, uint64_t value) {
-	//search
-	for (uint32_t i=0;i<size;i++) {
-		if(index[i] == value) {
-			count[i]++;
-			return;
-		}
-	}
-	//add new index
-	for (uint32_t i=0;i<size;i++) {
-		if(index[i] == 0) {
-			index[i]=value;
-			count[i]=1;
-			return;
-		}
-	}
-}
-
-void print_count(uint64_t *index, uint32_t *count, uint32_t size) {
-	for (uint32_t i=0;i<size;i++) {
-		if (index[i] != 0) {
-			printf("[%08d] Index: ",i);
-			print_bytes((uint8_t *)&index[i],sizeof(uint64_t));
-			printf(" Count: %d\n",count[i]);
-		}
-	}
-
-}
-
-void count_read_req_addr(struct read_request * rr) {
-	count_values(read_req_addr_index,read_req_addr_count,KEYSPACE,rr->rdma_extended_header.vaddr);
-}
-
-void print_read_req_addr(void) {
-	print_count(read_req_addr_index,read_req_addr_count,KEYSPACE);
-}
-
-void classify_packet_size(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce) {
-	uint32_t size = ntohs(ip->total_length);
-	uint8_t opcode = roce->opcode;
-	if (packet_counter == 0) {
-		bzero(packet_size_index,RDMA_COUNTER_SIZE*PACKET_SIZES*sizeof(uint32_t));
-		bzero(packet_size_calls,RDMA_COUNTER_SIZE*PACKET_SIZES*sizeof(uint32_t));
-	}
-	count_values(packet_size_index[opcode],packet_size_calls[opcode], PACKET_SIZES, size);
-}
-
-
-
-
-
-uint32_t check_sums(const char* method, void* known, void* test, int try) {
-	if (memcmp(known,test, 4) == 0) {
-		printf("(%s) found the matching crc on try %d\n",method, try);
-		print_bytes(test,4);
-		printf("\n");
-		return 1;
-	}
-	return 0;
-}
-
-uint32_t check_sums_wrap(const char* method, void* know, void* test) {
-	uint32_t variant;
-
-	uint32_t found = 0;
-	variant = *(uint32_t *)test;
-	found |= check_sums(method,know, &variant, 1);
-
-	variant = ~variant;
-	found |= check_sums(method,know, &variant, 2);
-
-	variant = *(uint32_t *)test;
-	variant = ntohl(variant);
-	found |= check_sums(method,know, &variant, 3);
-
-	variant = ~variant;
-	found |= check_sums(method,know, &variant, 4);
-	return found;
-}
-
-
-uint32_t csum_pkt_fast(struct rte_mbuf* pkt) {
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-
-	uint8_t ttl = ipv4_hdr->time_to_live;
-	ipv4_hdr->time_to_live=0xFF;
-
-	uint16_t ipv4_csum = ipv4_hdr->hdr_checksum;
-	ipv4_hdr->hdr_checksum=0xFFFF;
-
-	uint8_t ipv4_tos = ipv4_hdr->type_of_service;
-	ipv4_hdr->type_of_service=0xFF;
-
-	uint16_t udp_csum = udp_hdr->dgram_cksum;
-	udp_hdr->dgram_cksum=0xFFFF;
-
-	uint8_t roce_res = roce_hdr->reserverd;
-	roce_hdr->reserverd=0x3F;
-
-	uint8_t fecn = roce_hdr->fecn;
-	roce_hdr->fecn=1;
-
-	uint8_t bcen = roce_hdr->bcen;
-	roce_hdr->bcen=1;
-
-
-	uint8_t * start = (uint8_t*)(ipv4_hdr);
-	uint32_t len = ntohs(ipv4_hdr->total_length) - 4;
-
-	uint32_t crc_check;
-	uint8_t buf[1500];
-
-
-	void * current = (uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4;
-	uint8_t current_val[4];
-	memcpy(current_val,current,4);
-	uint8_t test_buf[] = {0xff, 0xff, 0xff, 0xff};
-
-	//TODO debug to prevent needing this bzero
-	bzero(buf,1500);
-	memcpy(buf,start,len);
-	uLong crc = crc32(0xFFFFFFFF, test_buf, 4);
-	
-	//Now lets test with the dummy bytes
-	crc = crc32(crc,buf,len) & 0xFFFFFFFF;
-	crc_check = crc;
-	//check_sums_wrap("zlib_crc",current_val, &crc_check);
-
-	//Restore header values post masking
-	ipv4_hdr->time_to_live=ttl;
-	ipv4_hdr->hdr_checksum = ipv4_csum;
-	ipv4_hdr->type_of_service = ipv4_tos;
-	udp_hdr->dgram_cksum = udp_csum;
-	roce_hdr->reserverd=roce_res;
-	roce_hdr->fecn = fecn;
-	roce_hdr->bcen = bcen;
-
-	return crc_check;
-}
-
 #ifdef PACKET_DEBUG_PRINTOUT
 #define KEY_VERSION_RING_SIZE 256
 static uint64_t key_address[KEYSPACE];
@@ -942,14 +673,9 @@ void set_latest_key(uint32_t id, uint64_t key) {
 }
 
 static int init =0;
-
 static uint32_t write_value_packet_size = 0;
 static uint32_t predict_shift_value=0;
 static uint32_t nacked_cns =0;
-
-
-
-
 
 void init_connection_states(void) {
 	bzero(Connection_States,TOTAL_ENTRY * sizeof(Connection_State));
@@ -962,7 +688,6 @@ void init_connection_states(void) {
 			mapped_request->open = 1;
 		}
 	}
-
 }
 
 uint32_t mod_hash(uint64_t vaddr) {
@@ -998,8 +723,6 @@ void update_write_vaddr_cache_ring(uint64_t key, uint64_t vaddr) {
 	cached_write_vaddrs[key][cache_index] = vaddr;
 	writes_per_key[key]++;
 }
-
-
 
 int does_read_have_cached_write_ring(uint64_t vaddr) {
 	//for (int key=0;key<KEYSPACE;key++) {
@@ -1131,9 +854,6 @@ struct Request_Map * find_empty_slot(struct Connection_State* cs) {
 	}
 	return NULL;
 }
-
-
-
 
 struct Request_Map * get_empty_slot(struct Connection_State* cs) {
 	//Search
@@ -1981,9 +1701,6 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	return 0;
 }
 
-
-
-
 struct rte_ipv4_hdr* ipv4_hdr_process(struct rte_ether_hdr *eth_hdr) {
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	int hdr_len = (ipv4_hdr->version_ihl & RTE_IPV4_HDR_IHL_MASK) * RTE_IPV4_IHL_MULTIPLIER;
@@ -2175,21 +1892,6 @@ lcore_main(void)
 		}
 	}
 }
-
-void debug_icrc(struct rte_mempool *mbuf_pool) {
-	printf("debugging CRC using a cached packet\n");
-	struct rte_mbuf* buf = rte_pktmbuf_alloc(mbuf_pool);
-	struct rte_ether_hdr * eth_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
-	uint16_t pkt_len = 62;
-	memcpy(eth_hdr,test_ack_pkt,pkt_len);
-	buf->pkt_len=pkt_len;
-	buf->data_len=pkt_len;
-	printf("pkt copied\n");
-	print_packet(buf);
-	csum_pkt_fast(buf);
-	exit(0);
-}
-
 
 int coretest(void) {
 	printf("I'm actually running on core %d\n",rte_lcore_id());
