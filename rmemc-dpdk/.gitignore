@@ -1,3 +1,7 @@
 output.log
 plot/latency.pdf
 
+plot/sequence.pdf
+latency.pdf
+timeline.pdf
+sequence.pdf
