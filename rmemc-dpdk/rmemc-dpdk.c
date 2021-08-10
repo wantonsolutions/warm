@@ -38,7 +38,6 @@
 //#define KEYSPACE 500;
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
-#define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 int MAP_QP = 1;
 int MOD_SLOT = 1;
@@ -52,9 +51,6 @@ uint32_t debug_start_printing_every_packet = 0;
 
 #define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
-uint64_t read_redirections = 0;
-uint64_t reads = 0;
-uint64_t read_misses = 0;
 
 uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
 uint32_t writes_per_key[KEYSPACE];
@@ -103,103 +99,6 @@ void unlock_next() {
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
 
-//Measurement for getting end host latencies
-//rdma calls counts the number of calls for each RDMA op code
-#define TAKE_MEASUREMENTS
-#ifdef TAKE_MEASUREMENTS
-uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
-uint64_t packet_latency_count = 0;
-
-//measurement for understanding mapped packet ordering
-#define TOTAL_PACKET_SEQUENCES 100000
-uint32_t sequence_order[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
-uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
-uint32_t request_count_id[TOTAL_ENTRY];
-#endif
-
-static __inline__ int64_t rdtsc_s(void)
-{
-  unsigned a, d; 
-  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
-  asm volatile("rdtsc" : "=a" (a), "=d" (d)); 
-  return ((unsigned long)a) | (((unsigned long)d) << 32); 
-}
-
-static __inline__ int64_t rdtsc_e(void)
-{
-  unsigned a, d; 
-  asm volatile("rdtscp" : "=a" (a), "=d" (d)); 
-  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
-  return ((unsigned long)a) | (((unsigned long)d) << 32); 
-}
-
-void append_packet_latency(uint64_t clock_cycles) {
-	if (packet_latency_count < TOTAL_PACKET_LATENCIES) {
-		packet_latencies[packet_latency_count] = clock_cycles;
-		packet_latency_count++;
-	}
-}
-
-void append_sequence_number(uint32_t id, uint32_t seq) {
-	if (request_count_id[id] < TOTAL_PACKET_SEQUENCES){
-		sequence_order[id][request_count_id[id]]=readable_seq(seq);
-		sequence_order_timestamp[id][request_count_id[id]]=rdtsc_s ();
-		request_count_id[id]++;
-	}
-}
-
-void write_packet_latencies_to_known_file() {
-	char* filename="/tmp/latency-latest.dat";
-	printf("Writing a total of %"PRIu64" packet latencies to %s\n",packet_latency_count,filename);
-	FILE *fp = fopen(filename, "w");
-	if (fp == NULL) {
-		printf("Unable to write file out, fopen has failed\n");
-		perror("Failed: ");
-		return;
-	}
-	for (int i=0;i<packet_latency_count;i++) {
-		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
-	}
-	fclose(fp);
-}
-
-void write_sequence_order_to_known_file() {
-	char* filename="/tmp/sequence_order.dat";
-	printf("Writing Sequence Order to file %s\n",filename);
-	FILE *fp = fopen(filename, "w");
-	if (fp == NULL) {
-		printf("Unable to write file out, fopen has failed\n");
-		perror("Failed: ");
-		return;
-	}
-	for (int i=0;i<TOTAL_ENTRY;i++){
-		for (int j=0;j<request_count_id[i];j++) {
-			fprintf(fp,"%d,%d,%"PRIu64"\n",i,sequence_order[i][j],sequence_order_timestamp[i][j]);
-		}
-	}
-	fclose(fp);
-}
-
-void write_general_stats_to_known_file() {
-	char* filename="/tmp/switch_statistics.dat";
-	FILE *fp = fopen(filename, "w");
-	if (fp == NULL) {
-		printf("Unable to write file out, fopen has failed\n");
-		perror("Failed: ");
-		return;
-	}
-	fprintf(fp,"READS %"PRIu64"\n",reads);
-	fprintf(fp,"READ REDIRECTIONS %"PRIu64"\n",read_redirections);
-	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
-	fprintf(fp,"READ HITS %"PRIu64"\n",reads - read_misses);
-	fclose(fp); 
-}
-
-void write_run_data(void) {
-	write_packet_latencies_to_known_file();
-	write_sequence_order_to_known_file();
-	write_general_stats_to_known_file();
-}
 
 static int packet_counter = 0;
 uint64_t packet_size_index[RDMA_COUNTER_SIZE][PACKET_SIZES];
@@ -569,24 +468,14 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 	cs = Connection_States[matching_id];
 	if (cs.receiver_init==0) {
 		id_colorize(cs.id);
-		//printf("***********MSN init on receiver side for matching id %d**************<<<<<<<<<<<<<<>>>>>>>>>>>>>\n",matching_id);
-		//printf("ID WE ARE USING %d\n",cs.id);
 		cs.stcqp = roce_hdr->dest_qp;
 		cs.udp_src_port_server = udp_hdr->src_port;
 		cs.mseq_current = get_msn(roce_hdr);
 		cs.mseq_offset = htonl(ntohl(cs.seq_current) - ntohl(cs.mseq_current)); //still shifted by 256 but not in network order
-		//printf("cs.mseq_offset = %d\n",readable_seq(cs.mseq_offset));
 		cs.receiver_init = 1;
 		Connection_States[matching_id] = cs;
 		return;
-	} else {
-		//id_colorize(cs.id);
-		//printf("Connection state %d allready initlaized\n", cs.id);
-		return;
-	}
-
-	printf("ERRROR we should not be reaching here, either update the msn or init it.");
-	exit(0);
+	} 
 	return;
 }
 
@@ -595,7 +484,6 @@ void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hd
 		printf("Only find and set stc on ACKS, and responses");
 		return;
 	}
-	//find_and_set_stc(roce_hdr->dest_qp,htonl(roce_hdr->packet_sequence_number));
 	find_and_set_stc(roce_hdr, udp_hdr);
 }
 
@@ -618,7 +506,6 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr){
 		printf("only update connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
 		exit(0);
 	}
-	//update_cs_seq(roce_hdr->dest_qp,htonl(roce_hdr->packet_sequence_number));
 	update_cs_seq(roce_hdr->dest_qp,roce_hdr->packet_sequence_number);
 }
 
@@ -628,7 +515,6 @@ void cts_track_connection_state(struct rte_mbuf * pkt) {
 	struct rte_ipv4_hdr* ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr * udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header * roce_hdr = (struct roce_v2_header *)((uint8_t*)udp_hdr + sizeof(struct rte_udp_hdr));
-	//void cts_track_connection_state(struct rte_udp_hdr *udp_hdr , struct roce_v2_header * roce_hdr) {
 	if (has_mapped_qp == 1) {
 		return;
 	}
@@ -772,10 +658,10 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key) {
 		rr->rdma_extended_header.vaddr = vaddr;
 		//printf("Re routing key %d for cached index %d\n",key,cache_index);
 		//With the vaddr updated redo the checksum
-		uint32_t crc_check =csum_pkt_fast(pkt); //This need to be added before we can validate packets
-		void * current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-		memcpy(current_checksum,&crc_check,4);
-		read_redirections++;
+		recalculate_rdma_checksum(pkt);
+		#ifdef TAKE_MESUREMENTS
+		read_redirected();
+		#endif
 	}
 }
 
@@ -1115,7 +1001,9 @@ struct map_packet_response map_qp(struct rte_mbuf * pkt) {
 			steer_read(pkt,*key);
 		} else {
 			*key=0;
-			read_misses++;
+			#ifdef TAKE_MEASUREMENTS
+			read_not_cached();
+			#endif
 		}
 		#endif
 		map_qp_forward(pkt, *key);

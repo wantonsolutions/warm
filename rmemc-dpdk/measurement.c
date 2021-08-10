@@ -1,0 +1,114 @@
+#include "measurement.h"
+#include "rmemc-dpdk.h"
+
+
+//Measurement for getting end host latencies
+//rdma calls counts the number of calls for each RDMA op code
+#define TAKE_MEASUREMENTS
+#ifdef TAKE_MEASUREMENTS
+uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
+uint64_t packet_latency_count = 0;
+
+//measurement for understanding mapped packet ordering
+#define TOTAL_PACKET_SEQUENCES 100000
+uint32_t sequence_order[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
+uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
+uint32_t request_count_id[TOTAL_ENTRY];
+
+uint64_t read_redirections = 0;
+uint64_t reads = 0;
+uint64_t read_misses = 0;
+
+#endif
+
+static __inline__ int64_t rdtsc_s(void)
+{
+  unsigned a, d; 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  asm volatile("rdtsc" : "=a" (a), "=d" (d)); 
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
+
+static __inline__ int64_t rdtsc_e(void)
+{
+  unsigned a, d; 
+  asm volatile("rdtscp" : "=a" (a), "=d" (d)); 
+  asm volatile("cpuid" ::: "%rax", "%rbx", "%rcx", "%rdx");
+  return ((unsigned long)a) | (((unsigned long)d) << 32); 
+}
+
+void append_packet_latency(uint64_t clock_cycles) {
+	if (packet_latency_count < TOTAL_PACKET_LATENCIES) {
+		packet_latencies[packet_latency_count] = clock_cycles;
+		packet_latency_count++;
+	}
+}
+
+void append_sequence_number(uint32_t id, uint32_t seq) {
+	if (request_count_id[id] < TOTAL_PACKET_SEQUENCES){
+		sequence_order[id][request_count_id[id]]=readable_seq(seq);
+		sequence_order_timestamp[id][request_count_id[id]]=rdtsc_s ();
+		request_count_id[id]++;
+	}
+}
+
+void write_packet_latencies_to_known_file() {
+	char* filename="/tmp/latency-latest.dat";
+	printf("Writing a total of %"PRIu64" packet latencies to %s\n",packet_latency_count,filename);
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+	for (int i=0;i<packet_latency_count;i++) {
+		fprintf(fp,"%"PRIu64"\n",packet_latencies[i]);
+	}
+	fclose(fp);
+}
+
+void write_sequence_order_to_known_file() {
+	char* filename="/tmp/sequence_order.dat";
+	printf("Writing Sequence Order to file %s\n",filename);
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+	for (int i=0;i<TOTAL_ENTRY;i++){
+		for (int j=0;j<request_count_id[i];j++) {
+			fprintf(fp,"%d,%d,%"PRIu64"\n",i,sequence_order[i][j],sequence_order_timestamp[i][j]);
+		}
+	}
+	fclose(fp);
+}
+
+void write_general_stats_to_known_file() {
+	char* filename="/tmp/switch_statistics.dat";
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		printf("Unable to write file out, fopen has failed\n");
+		perror("Failed: ");
+		return;
+	}
+	fprintf(fp,"READS %"PRIu64"\n",reads);
+	fprintf(fp,"READ REDIRECTIONS %"PRIu64"\n",read_redirections);
+	fprintf(fp,"READ MISSES %"PRIu64"\n",read_misses);
+	fprintf(fp,"READ HITS %"PRIu64"\n",reads - read_misses);
+	fclose(fp); 
+}
+
+void write_run_data(void) {
+	write_packet_latencies_to_known_file();
+	write_sequence_order_to_known_file();
+	write_general_stats_to_known_file();
+}
+
+void read_redirected(void) {
+    read_redirections++;
+}
+
+void read_not_cached(void){
+    read_misses++;
+}
