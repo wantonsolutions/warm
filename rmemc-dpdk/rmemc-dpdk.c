@@ -18,7 +18,6 @@
 #include <rte_launch.h>
 #include <rte_rwlock.h>
 #include "rmemc-dpdk.h"
-#include "packets.h"
 #include "clover_structs.h"
 #include "print_helpers.h"
 #include <arpa/inet.h>

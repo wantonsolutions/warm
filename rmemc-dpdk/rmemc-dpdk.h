@@ -1,13 +1,11 @@
 #ifndef RMEMC_DPDK_H
 #define RMEMC_DPDK_H
 
+#include "clover_structs.h"
+
 //macro magic
 #define DO_EXPAND(VAL)  VAL ## 1
 #define EXPAND(VAL)     DO_EXPAND(VAL)
-
-#include "packets.h"
-//#define PACKET_DEBUG_PRINTOUT
-//#define TURN_PACKET_AROUND
 
 #define DEBUG 2
 #define INFO 1

@@ -5,7 +5,7 @@
 APP = rmemc-dpdk
 
 # all source are stored in SRCS-y
-SRCS-y := rmemc-dpdk.c packets.c
+SRCS-y := rmemc-dpdk.c print_helpers.c
 
 # Build using pkg-config variables if possible
 ifeq ($(shell pkg-config --exists libdpdk && echo 0),0)

@@ -45,11 +45,6 @@ typedef struct __attribute__ ((__packed__)) roce_v2_header {
 } roce_v2_header;
 
 
-typedef struct clover_hdr {
-  struct mitsume_ptr ptr;
-  struct mitsume_msg mitsume_hdr;
-} clover_hdr;
-
 struct ib_mr_attr {
   uint64_t addr;
   uint32_t rkey;
@@ -184,5 +179,11 @@ struct mitsume_msg {
   uint64_t option;
   uint64_t end_crc;
 };
+
+typedef struct clover_hdr {
+  struct mitsume_ptr ptr;
+  struct mitsume_msg mitsume_hdr;
+} clover_hdr;
+
 
 #endif
