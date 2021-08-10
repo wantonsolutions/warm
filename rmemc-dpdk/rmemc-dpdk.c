@@ -100,16 +100,6 @@ void unlock_next() {
 	rte_smp_mb();
 }
 
-
-#define MITSUME_PTR_MASK_LH 0x0ffffffff0000000
-//#define MITSUME_PTR_MASK_OFFSET                 0x0000fffff8000000
-#define MITSUME_PTR_MASK_NEXT_VERSION 0x0000000007f80000
-#define MITSUME_PTR_MASK_ENTRY_VERSION 0x000000000007f800
-#define MITSUME_PTR_MASK_XACT_AREA 0x00000000000007fe
-#define MITSUME_PTR_MASK_OPTION 0x0000000000000001
-
-#define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
-
 static int rdma_counter = 0;
 static int has_mapped_qp = 0;
 
@@ -803,92 +793,6 @@ void close_slot(struct Request_Map* rm) {
 
 void open_slot(struct Request_Map* rm) {
 	rm->open=1;
-}
-
-uint32_t garbage_collect_slots(struct Connection_State* cs) {
-	//Find the highest sequence number used in this connection
-	uint32_t max_sequence_number=0;
-	for (int j=0;j<CS_SLOTS;j++) {
-		struct Request_Map* slot = &cs->Outstanding_Requests[j];
-		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) > max_sequence_number) {
-			max_sequence_number = readable_seq(cs->Outstanding_Requests[j].mapped_sequence);
-		}
-	}
-
-	//The idea behind the stale water mark, is that entries which have sequence
-	//numbers lower than it have not been accounted for or have disapeared
-	//somewhere in the messaging. This is likely due to bugs, but it's hard to
-	//tell. The point is that we can keep running by just removing these entries
-	//probably. I think it's very important to learn why this is happening but
-	//for now garbage collection might be a path forward.  The value here should
-	//be TOTAL_ENYTRY, but I'm starting with CS_SLOTS * constant_multiper so
-	//that I'm "extra" safe.
-	//!TODO figure out what's actually going on here.
-	uint32_t constant_multiplier = 1;
-	int32_t stale_water_mark = max_sequence_number - (CS_SLOTS * constant_multiplier);
-	//printf("Max Sequence Number %d Stale Water Mark %d\n",max_sequence_number,stale_water_mark);
-	uint32_t garbage_collected = 0;
-
-	if (stale_water_mark < 0) {
-		return garbage_collected;
-	}
-
-	//Perform garbage collection
-	for (int j=0;j<CS_SLOTS;j++) {
-		struct Request_Map* slot = &cs->Outstanding_Requests[j];
-		if (!slot_is_open(slot) && readable_seq(slot->mapped_sequence) < stale_water_mark) {
-			open_slot(slot);
-			garbage_collected++;
-		}
-	}
-	printf("[garbage %d] %d\n",cs->id,garbage_collected);
-	return garbage_collected;
-}
-
-struct Request_Map * find_empty_slot(struct Connection_State* cs) {
-
-	for (int j=0;j<CS_SLOTS;j++) {
-		if (slot_is_open(&cs->Outstanding_Requests[j])) {
-			return &cs->Outstanding_Requests[j];
-		}
-	}
-	return NULL;
-}
-
-struct Request_Map * get_empty_slot(struct Connection_State* cs) {
-	//Search
-	struct Request_Map * slot;
-	#ifdef COLLECT_GARBAGE
-	slot = find_empty_slot(cs);
-	if (likely(slot)) {
-		return slot;
-	}
-
-	//printf(" Unable to find empty slot GARBAGE COLLECTING\n");
-	uint32_t collected = garbage_collect_slots(cs);
-	//printf("Collected %d garbage slots\n",collected);
-	#endif
-
-	//Second Try
-	slot = find_empty_slot(cs);
-	if (likely(slot)) {
-		return slot;
-	} else {
-		printf("ERROR: unable to find empty slot for forwarding. Look at TOTAL_ENTRY Exiting for safty!\n");
-		for (int j=0;j<CS_SLOTS;j++) {
-			printf("INDEX %d\n",j);
-			print_request_map(&cs->Outstanding_Requests[j]);
-		}
-		//Something has gone very wrong
-		#ifdef TAKE_MEASUREMENTS
-		write_run_data();
-		#endif
-		exit(0);
-	}
-
-	//error we did not find anything good
-	exit(0);
-	return NULL;
 }
 
 uint32_t mod_slot(uint32_t seq) {
