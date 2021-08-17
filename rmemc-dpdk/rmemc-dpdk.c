@@ -253,12 +253,16 @@ struct Buffer_State {
 	struct rte_mbuf *(*buf)[PKT_REORDER_BUF];
 } Buffer_State;
 
-#define FAKE_ID -1
 
 struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	struct Buffer_State bs;
-	bs.id = FAKE_ID;
+
+	//Assign to the etc buffer by default
+	bs.id = 0;
+	bs.head = &ect_qp_buf_head[bs.id];
+	bs.tail = &ect_qp_buf_tail[bs.id];
+	bs.buf = &ect_qp_buf[bs.id];
 
 	//Find the ID of the packet We are using generic head and tail pointers here
 	//for both directions of queueing.  The memory direction has a queue and so
@@ -284,14 +288,6 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 		}
 	}
 
-	//We are not tracking this connection state. Put it on the etc buffer
-	if (bs.id == FAKE_ID) {
-		bs.id = 0;
-		bs.head = &ect_qp_buf_head[bs.id];
-		bs.tail = &ect_qp_buf_tail[bs.id];
-		bs.buf = &ect_qp_buf[bs.id];
-	}
-
 	return bs;
 }
 
@@ -309,20 +305,9 @@ void enqueue_finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue)
 	if (bs.buf == &ect_qp_buf[bs.id])
 	{
 		seq = *(bs.tail) + 1;
-		//printf("seq:%d id:%d\n",seq,bs.id);
-		//rte_eth_tx_burst(port, queue, &pkt, 1);
-		//unlock_mem_qp();
-		//tmp, put the not found packet at the end of the list
-		//return;
-	}
-	if (pkt == NULL) {
-		printf("what?");
-		rte_eth_tx_burst(port, queue, &pkt, 1);
 	}
 
 	uint32_t entry = seq % PKT_REORDER_BUF;
-
-
 	//Write the packet to the buffer (direction independent)
 	(*bs.buf)[entry] = pkt;
 
@@ -339,81 +324,44 @@ void enqueue_finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue)
 		*bs.tail = seq;
 	}
 	//printf("head %d tail %d\n",*bs.head,*bs.tail);
+	//rte_smp_mb();
 	unlock_mem_qp();
 }
 
-void dequeue_finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
-	lock_mem_qp();
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	struct Buffer_State bs = get_buffer_state(pkt);
-	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
-	if (bs.id == FAKE_ID)
+int contiguous_buffered_packets(struct rte_mbuf *pkt_buf[PKT_REORDER_BUF], uint64_t head, uint64_t tail) {
+	for (uint32_t i = head; i <= tail; i++)
 	{
-		unlock_mem_qp();
-		return;
-	}
-
-	//If the head is currently higher than the tail, this means that it's not
-	//time to send anyhting. We are eitheir going to enqueue (the usual case) or
-	//there is nothing to do.
-	if (*bs.head > *bs.tail)
-	{
-		unlock_mem_qp();
-		return;
-	}
-
-	//I'm not sure why this would happen
-	if (seq < *bs.head)
-	{
-		printf("we have a problem, perhaps the sequence numbers rolled over?\n");
-		exit(0);
-	}
-
-	//make sure that all of the entries from the head to the tail are not equal
-	//to null. If any are then we have non-contigous sequence numbers i.e a gap,
-	//and need to move forward without sending anything.
-	for (uint32_t i = *bs.head; i <= *bs.tail; i++)
-	{
-		if ((*bs.buf)[i % PKT_REORDER_BUF] == NULL)
+		if (pkt_buf[i % PKT_REORDER_BUF] == NULL)
 		{
-			unlock_mem_qp();
-			//printf("[core %d] Returning due to hole in head(%"PRIu64") -> tail(%"PRIu64")\n",rte_lcore_id(),*head,*tail);
-			//print_packet_lite(pkt);
-			return;
+			return 0;
 		}
 	}
-	struct rte_mbuf * tmp_buf[PKT_REORDER_BUF];
-	//If we made it here it's time to send
-	int counter=0;
-	for (uint32_t i = *bs.head; i <= *bs.tail; i++)
-	{
-		if((*bs.tail - *bs.head) >= 1) {
-			//printf("sending gap > 1\n");
-		}
-		struct rte_mbuf *s_pkt = (*bs.buf)[i % PKT_REORDER_BUF];
-#ifdef TAKE_MEASUREMENTS
-		if (bs.buf == &mem_qp_buf[bs.id])
-		{
-			append_sequence_number(bs.id, get_psn(s_pkt));
-		}
-#endif
-		tmp_buf[counter]=(*bs.buf)[i % PKT_REORDER_BUF];
-		//rte_eth_tx_burst(port, queue, &s_pkt, 1);
-		(*bs.buf)[i % PKT_REORDER_BUF] = NULL;
-		counter++;
-	}
-	*bs.head = *bs.tail + 1;
-	unlock_mem_qp();
-	rte_eth_tx_burst(port, queue, tmp_buf, counter);
+	return 1;
 }
 
-uint64_t mem_qp_buf_head[TOTAL_ENTRY];
-uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
-void dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
-	lock_mem_qp();
-	int counter = 0;
-	struct rte_mbuf * tmp_buf[PKT_REORDER_BUF * PKT_REORDER_BUF];
-	for (int id=0;id<TOTAL_ENTRY;id++) {
+void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source) {
+	for (int i=0;i<source->size;i++) {
+		dest->pkts[dest->size] = source->pkts[i];
+		dest->size++;
+	}
+}
+
+struct map_packet_response dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
+	struct map_packet_response mpr;
+	mpr.pkts[0] = NULL;
+	mpr.size = 0;
+	int loop_max = 0;
+
+
+	if (id_buf == ect_qp_buf) {
+		loop_max = 1;
+	} else {
+		loop_max = qp_id_counter;
+	}
+	//loop_max=TOTAL_ENTRY;
+
+	//printf("loop max %d\n",loop_max);
+	for (int id=0;id<loop_max;id++) {
 
 		struct Buffer_State bs;
 		bs.id = id;
@@ -421,37 +369,22 @@ void dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t queue, struct rte_mbuf 
 		bs.tail = &tail_list[bs.id];
 		bs.buf = &id_buf[bs.id];
 
-		if (bs.id == FAKE_ID)
-		{
-			//printf("Fake ID\n");
-			continue;
-		}
 
 		//If the head is currently higher than the tail, this means that it's not
 		//time to send anyhting. We are eitheir going to enqueue (the usual case) or
 		//there is nothing to do.
 		if (*bs.head > *bs.tail)
 		{
-			//printf("Head > Tail\n");
+			continue;
+		}
+
+		if(!contiguous_buffered_packets(bs.buf,*bs.head,*bs.tail)) {
 			continue;
 		}
 
 		//make sure that all of the entries from the head to the tail are not equal
 		//to null. If any are then we have non-contigous sequence numbers i.e a gap,
 		//and need to move forward without sending anything.
-		int broken=0;
-		for (uint32_t i = *bs.head; i <= *bs.tail; i++)
-		{
-			if ((*bs.buf)[i % PKT_REORDER_BUF] == NULL)
-			{
-				broken=1;
-				break;
-			}
-		}
-		if (broken) {
-			//printf("Broken! id:%d\n",bs.id);
-			continue;
-		}
 		//If we made it here it's time to send
 		for (uint32_t i = *bs.head; i <= *bs.tail; i++)
 		{
@@ -465,30 +398,29 @@ void dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t queue, struct rte_mbuf 
 				append_sequence_number(bs.id, get_psn(s_pkt));
 			}
 	#endif
-			tmp_buf[counter]=(*bs.buf)[i % PKT_REORDER_BUF];
-			//rte_eth_tx_burst(port, queue, &s_pkt, 1);
+			mpr.pkts[mpr.size]=s_pkt;
+			mpr.size++;
 			(*bs.buf)[i % PKT_REORDER_BUF] = NULL;
-			counter++;
 		}
 		*bs.head = *bs.tail + 1;
-		//printf("counter %d\n",counter);
 	}
-	//printf("pre-burst sending %d\n",counter);
-	rte_eth_tx_burst(port, queue, tmp_buf, counter);
-	//printf("post-burst\n");
+	return mpr;
+
+}
+
+struct map_packet_response dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
+	lock_mem_qp();
+	struct map_packet_response mpr1;
+	struct map_packet_response mpr2;
+	struct map_packet_response mpr3;
+	mpr1 = dequeue_finish_mem_pkt_bulk(port,queue,ect_qp_buf,ect_qp_buf_head,ect_qp_buf_tail);
+	mpr2 = dequeue_finish_mem_pkt_bulk(port,queue,mem_qp_buf,mem_qp_buf_head,mem_qp_buf_tail);
+	mpr3 = dequeue_finish_mem_pkt_bulk(port,queue,client_qp_buf,client_qp_buf_head,client_qp_buf_tail);
+	merge_mpr(&mpr1,&mpr2);
+	merge_mpr(&mpr1,&mpr3);
+	rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
 	unlock_mem_qp();
-
-}
-
-void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
-	dequeue_finish_mem_pkt_bulk(port,queue,ect_qp_buf,ect_qp_buf_head,ect_qp_buf_tail);
-	dequeue_finish_mem_pkt_bulk(port,queue,mem_qp_buf,mem_qp_buf_head,mem_qp_buf_tail);
-	dequeue_finish_mem_pkt_bulk(port,queue,client_qp_buf,client_qp_buf_head,client_qp_buf_tail);
-}
-
-void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue) {
-	enqueue_finish_mem_pkt(pkt,port,queue);
-	dequeue_finish_mem_pkt(pkt,port,queue);
+	return mpr1;
 }
 
 void copy_eth_addr(uint8_t *src, uint8_t *dst)
@@ -1863,6 +1795,9 @@ lcore_main(void)
 
 			uint32_t queue = rte_lcore_id() / 2;
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
+			//if (nb_rx > 0) {
+			//	printf("[core %d] rx %d\n",rte_lcore_id(),nb_rx);
+			//}
 
 			if (unlikely(nb_rx == 0))
 				continue;
@@ -1879,19 +1814,14 @@ lcore_main(void)
 				struct map_packet_response mpr;
 				lock_qp();
 				mpr = map_qp(rx_pkts[i]);
-
-				uint32_t to_send = 0;
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
-					tx_pkts[to_tx] = mpr.pkts[j];
-					enqueue_finish_mem_pkt(tx_pkts[to_tx],port,queue);
-					//finish_mem_pkt(tx_pkts[to_tx], port, queue);
-					to_tx++;
-					to_send++;
+					enqueue_finish_mem_pkt(mpr.pkts[j],port,queue);
 				}
 				unlock_qp();
 			}
-			dequeue_finish_mem_pkt_bulk_full(port,queue);
+			struct map_packet_response master_mpr;
+			master_mpr = dequeue_finish_mem_pkt_bulk_full(port,queue);
 		}
 	}
 }

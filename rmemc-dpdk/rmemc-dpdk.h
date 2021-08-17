@@ -82,7 +82,7 @@ struct Connection_State
 struct map_packet_response
 {
   uint32_t size;
-  struct rte_mbuf *pkts[BURST_SIZE];
+  struct rte_mbuf *pkts[BURST_SIZE*BURST_SIZE];
 } map_packet_response;
 
 //Locking
