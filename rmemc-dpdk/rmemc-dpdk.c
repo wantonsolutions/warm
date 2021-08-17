@@ -1814,11 +1814,16 @@ lcore_main(void)
 				struct map_packet_response mpr;
 				lock_qp();
 				mpr = map_qp(rx_pkts[i]);
+				unlock_qp();
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
-					enqueue_finish_mem_pkt(mpr.pkts[j],port,queue);
+					tx_pkts[to_tx] = mpr.pkts[j];
+					to_tx++;
 				}
-				unlock_qp();
+			}
+			//actually do the sending
+			for (int i=0;i<to_tx;i++) {
+				enqueue_finish_mem_pkt(tx_pkts[i],port,queue);
 			}
 			struct map_packet_response master_mpr;
 			master_mpr = dequeue_finish_mem_pkt_bulk_full(port,queue);
