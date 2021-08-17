@@ -291,40 +291,47 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	return bs;
 }
 
-
-void enqueue_finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue)
-{
+void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t port, uint32_t queue) {
+	struct Buffer_State buffer_states[BURST_SIZE*BURST_SIZE];
+	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
+	for (int i=0;i<size;i++) {
+		buffer_states[i] = get_buffer_state(pkts[i]);
+		struct roce_v2_header *roce_hdr = get_roce_hdr(pkts[i]);
+		sequence_numbers[i] = readable_seq(roce_hdr->packet_sequence_number);
+	}
+	//Here the buffer states have been collected
+	uint32_t seq;
+	struct Buffer_State bs;
+	struct rte_mbuf *pkt;
 	lock_mem_qp();
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	struct Buffer_State bs = get_buffer_state(pkt);
+	for (int i=0;i<size;i++) {
+		//set loop locals
+		seq = sequence_numbers[i];
+		bs = buffer_states[i];
+		pkt = pkts[i];
+		//If it's going in the etc buffer then just throw it on fifo
+		if (bs.buf == &ect_qp_buf[bs.id])
+		{
+			seq = *(bs.tail) + 1;
+		}
 
-	//Find the location in the circular buffer that hold the current packet
-	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+		uint32_t entry = seq % PKT_REORDER_BUF;
+		//Write the packet to the buffer (direction independent)
+		(*bs.buf)[entry] = pkt;
 
-	//If it's going in the etc buffer then just throw it on fifo
-	if (bs.buf == &ect_qp_buf[bs.id])
-	{
-		seq = *(bs.tail) + 1;
+		//On the first call the sequence numbers are going to start somewhere
+		//random. In this case just move the head of the buffer to the current
+		//sequence number
+		if (unlikely(*bs.head == 0))
+		{
+			*bs.head = seq;
+		}
+		//If the tail is the new latest sequence number than slide it forward
+		if (*bs.tail < seq)
+		{
+			*bs.tail = seq;
+		}
 	}
-
-	uint32_t entry = seq % PKT_REORDER_BUF;
-	//Write the packet to the buffer (direction independent)
-	(*bs.buf)[entry] = pkt;
-
-	//On the first call the sequence numbers are going to start somewhere
-	//random. In this case just move the head of the buffer to the current
-	//sequence number
-	if (unlikely(*bs.head == 0))
-	{
-		*bs.head = seq;
-	}
-	//If the tail is the new latest sequence number than slide it forward
-	if (*bs.tail < seq)
-	{
-		*bs.tail = seq;
-	}
-	//printf("head %d tail %d\n",*bs.head,*bs.tail);
-	//rte_smp_mb();
 	unlock_mem_qp();
 }
 
@@ -408,7 +415,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t q
 
 }
 
-struct map_packet_response dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
+void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	lock_mem_qp();
 	struct map_packet_response mpr1;
 	struct map_packet_response mpr2;
@@ -420,7 +427,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint3
 	merge_mpr(&mpr1,&mpr3);
 	rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
 	unlock_mem_qp();
-	return mpr1;
+	return;
 }
 
 void copy_eth_addr(uint8_t *src, uint8_t *dst)
@@ -974,6 +981,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//To do this we need to take a look at what the original connection was so that we can update it accordingly.
 		struct Connection_State *destination_cs = &Connection_States[mapped_request->id];
 		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
+
 #ifdef MAP_PRINT
 		uint32_t packet_msn = get_msn(roce_hdr);
 		id_colorize(mapped_request->id);
@@ -1822,11 +1830,8 @@ lcore_main(void)
 				}
 			}
 			//actually do the sending
-			for (int i=0;i<to_tx;i++) {
-				enqueue_finish_mem_pkt(tx_pkts[i],port,queue);
-			}
-			struct map_packet_response master_mpr;
-			master_mpr = dequeue_finish_mem_pkt_bulk_full(port,queue);
+			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx,port,queue);
+			dequeue_finish_mem_pkt_bulk_full(port,queue);
 		}
 	}
 }
