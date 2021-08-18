@@ -88,37 +88,37 @@ struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 void lock_qp(void)
 {
 	rte_rwlock_write_lock(&qp_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void unlock_qp(void)
 {
 	rte_rwlock_write_unlock(&qp_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void lock_mem_qp(void)
 {
 	rte_rwlock_write_lock(&mem_qp_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void unlock_mem_qp(void)
 {
 	rte_rwlock_write_unlock(&mem_qp_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void lock_next(void)
 {
 	rte_rwlock_write_lock(&next_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void unlock_next(void)
 {
 	rte_rwlock_write_unlock(&next_lock);
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 static struct rte_hash_parameters qp2id_params = {
@@ -129,6 +129,19 @@ static struct rte_hash_parameters qp2id_params = {
 	.hash_func_init_val = 0,
 	.socket_id = 0,
 };
+
+void lock_connection_state(struct Connection_State *cs) {
+	//printf("lock %d\n",cs->id);
+	rte_rwlock_write_lock(&(cs->cs_lock));
+	rte_smp_mb();
+}
+
+void unlock_connection_state(struct Connection_State *cs) {
+	//printf("unlock %d\n",cs->id);
+	rte_rwlock_write_unlock(&(cs->cs_lock));
+	rte_smp_mb();
+}
+
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
 struct rte_hash *qp2id_table;
@@ -207,10 +220,13 @@ int fully_qp_init(void)
 	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		struct Connection_State cs = Connection_States[i];
+		lock_connection_state(&cs);
 		if (!cs.sender_init || !cs.receiver_init)
 		{
+			unlock_connection_state(&cs);
 			return 0;
 		}
+		unlock_connection_state(&cs);
 	}
 	return 1;
 }
@@ -473,6 +489,7 @@ void init_connection_state(struct rte_mbuf *pkt)
 	copy_eth_addr((uint8_t *)eth_hdr->d_addr.addr_bytes, (uint8_t *)cs.stc_eth_addr);
 	cs.sender_init = 1;
 	Connection_States[cs.id] = cs;
+	rte_smp_mb();
 }
 
 void init_cs_wrapper(struct rte_mbuf *pkt)
@@ -495,11 +512,13 @@ void init_cs_wrapper(struct rte_mbuf *pkt)
 //connection state is behind, update that as well.
 uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connection_State *cs)
 {
+	lock_connection_state(cs);
 	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
 	if (ntohl(msn) > ntohl(cs->mseq_current))
 	{
 		cs->mseq_current = msn;
 	}
+	unlock_connection_state(cs);
 	return cs->mseq_current;
 }
 
@@ -683,6 +702,7 @@ void init_connection_states(void)
 	{
 		struct Connection_State *source_connection;
 		source_connection = &Connection_States[i];
+		rte_rwlock_init(&source_connection->cs_lock);
 		for (int j = 0; j < CS_SLOTS; j++)
 		{
 			struct Request_Map *mapped_request;
@@ -844,6 +864,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//that should be tracked for the destination. This should
 	//always be an increment of 1 from it's previous number.
 	//Here we increment the sequence number
+	lock_connection_state(destination_connection);
 	destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 
 #ifdef MAP_PRINT
@@ -890,6 +911,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
 	ipv4_hdr->hdr_checksum = 0;
 	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+	unlock_connection_state(destination_connection);
 
 	recalculate_rdma_checksum(pkt);
 }
@@ -966,6 +988,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
+	lock_connection_state(source_connection);
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 
 	//struct Request_Map *
@@ -975,12 +998,22 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 		roce_hdr->packet_sequence_number = mapped_request->original_sequence;
 		udp_hdr->src_port = mapped_request->server_to_client_udp_port;
-		//set_rkey_rdma_packet(roce_hdr,mapped_request->server_to_client_rkey);
+		ipv4_hdr->dst_addr = mapped_request->original_src_ip;
+		copy_eth_addr(mapped_request->original_eth_addr, eth_hdr->d_addr.addr_bytes);
+		//make a local copy of the id before unlocking
+		uint32_t id = mapped_request->id;
+		//open up the mapped request
+		open_slot(mapped_request);
+		unlock_connection_state(source_connection);
 
-		//Update the tracked msn this requires adding to it, and then storing back to the connection states
-		//To do this we need to take a look at what the original connection was so that we can update it accordingly.
-		struct Connection_State *destination_cs = &Connection_States[mapped_request->id];
+		//Update the tracked msn this requires adding to it, and then storing
+		//back to the connection states To do this we need to take a look at
+		//what the original connection was so that we can update it accordingly.
+
+		//This is must be done after the unlock
+		struct Connection_State *destination_cs = &Connection_States[id];
 		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
+		set_msn(roce_hdr, msn);
 
 #ifdef MAP_PRINT
 		uint32_t packet_msn = get_msn(roce_hdr);
@@ -988,20 +1021,15 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n", rte_lcore_id(), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 #endif
 
-		set_msn(roce_hdr, msn);
-
 		//Ip mapping recalculate the ip checksum
-		ipv4_hdr->dst_addr = mapped_request->original_src_ip;
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-
-		copy_eth_addr(mapped_request->original_eth_addr, eth_hdr->d_addr.addr_bytes);
 		recalculate_rdma_checksum(pkt);
 
-		open_slot(mapped_request);
 		return mpr;
 	}
 
+	unlock_connection_state(source_connection);
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
@@ -1820,9 +1848,9 @@ lcore_main(void)
 				true_classify(rx_pkts[i]);
 
 				struct map_packet_response mpr;
-				lock_qp();
+				//lock_qp();
 				mpr = map_qp(rx_pkts[i]);
-				unlock_qp();
+				//unlock_qp();
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];

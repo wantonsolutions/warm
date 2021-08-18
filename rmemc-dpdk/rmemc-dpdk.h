@@ -65,17 +65,15 @@ struct Connection_State
   uint32_t stcqp;
   uint8_t cts_eth_addr[6];
   uint8_t stc_eth_addr[6];
-  uint32_t seq_current;  // Packet sequence number
-  uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
   uint32_t sender_init;
   uint32_t receiver_init;
   uint32_t last_seq;
-  //init test variables
   int32_t mseq_offset;
-
+  //Past here the variables actually change while the program is running in the fast path
+  rte_rwlock_t cs_lock;
+  uint32_t seq_current;  // Packet sequence number
+  uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
   //experimental
-  struct rte_mbuf *read_holder;
-
   struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;
 
