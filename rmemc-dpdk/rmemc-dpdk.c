@@ -68,6 +68,71 @@ rte_rwlock_t mem_qp_lock;
 
 struct rte_mempool *mbuf_pool_ack;
 
+uint8_t template_ack[] = {
+    0xEC,
+    0x0D,
+    0x9A,
+    0x68,
+    0x21,
+    0xCC,
+    0xEC,
+    0x0D,
+    0x9A,
+    0x68,
+    0x21,
+    0xD0,
+    0x08,
+    0x00,
+    0x45,
+    0x02,
+    0x00,
+    0x30,
+    0x2A,
+    0x2B,
+    0x40,
+    0x00,
+    0x40,
+    0x11,
+    0x8D,
+    0x26,
+    0xC0,
+    0xA8,
+    0x01,
+    0x0C,
+    0xC0,
+    0xA8,
+    0x01,
+    0x0D,
+    0xCF,
+    0x15,
+    0x12,
+    0xB7,
+    0x00,
+    0x1C,
+    0x00,
+    0x00,
+    0x11,
+    0x40,
+    0xFF,
+    0xFF,
+    0x00,
+    0x00,
+    0x6C,
+    0xA9,
+    0x00,
+    0x00,
+    0x0C,
+    0x71,
+    0x0D,
+    0x00,
+    0x00,
+    0x01,
+    0xDC,
+    0x97,
+    0x84,
+    0x42,
+};
+
 
 struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 {
@@ -1157,6 +1222,56 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 
 }
 
+struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
+	printf("Generating Ack");
+	struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
+
+	#define ACK_PKT_LEN 62
+	rte_pktmbuf_append(pkt,ACK_PKT_LEN);
+
+	//do I need to expand the packet here?
+	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+	//copy over the template ack (can't remember exactly what this is doing)
+	memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+
+	//struct Request_Map *
+	if (missing_write != NULL)
+	{
+		//Set the packety headers to that of the mapped request
+		roce_hdr->dest_qp = missing_write->server_to_client_qp;
+		roce_hdr->packet_sequence_number = missing_write->original_sequence;
+		udp_hdr->src_port = missing_write->server_to_client_udp_port;
+		ipv4_hdr->dst_addr = missing_write->original_src_ip;
+		copy_eth_addr(missing_write->original_eth_addr, eth_hdr->d_addr.addr_bytes);
+		//make a local copy of the id before unlocking
+		uint32_t id = missing_write->id;
+		//open up the mapped request
+		open_slot(missing_write);
+
+		//Update the tracked msn this requires adding to it, and then storing
+		//back to the connection states To do this we need to take a look at
+		//what the original connection was so that we can update it accordingly.
+
+		//This is must be done after the unlock
+		struct Connection_State *destination_cs = &Connection_States[id];
+		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
+		set_msn(roce_hdr, msn);
+
+		//Ip mapping recalculate the ip checksum
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+		recalculate_rdma_checksum(pkt);
+
+		//THis is a good place to inject the transition from a write to a CNS.
+		return pkt;
+	}
+	return NULL;
+}
+
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
@@ -1189,6 +1304,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	//This is a good place to start to detect if there is a missing write. If there is then we want to generate an ACK here.
 	struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
 	if (missing_write){
+		struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write);
+		mpr.pkts[1] = coalesed_ack;
+		mpr.size++;
 		printf("send a new ack\n");
 	}
 
@@ -1227,11 +1345,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		recalculate_rdma_checksum(pkt);
-
-		//Capture ACK
-		if(roce_hdr->opcode == RC_ACK) {
-			print_packet(pkt);
-		}
 
 		//THis is a good place to inject the transition from a write to a CNS.
 		return mpr;
