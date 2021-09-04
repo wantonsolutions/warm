@@ -2,6 +2,12 @@
 #include "rmemc-dpdk.h"
 #include <signal.h>
 
+#include <stdio.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 //Measurement for getting end host latencies
 //rdma calls counts the number of calls for each RDMA op code
 uint64_t packet_latencies[TOTAL_PACKET_LATENCIES];
@@ -33,6 +39,10 @@ static __inline__ int64_t rdtsc_e(void)
     asm volatile("cpuid" ::
                      : "%rax", "%rbx", "%rcx", "%rdx");
     return ((unsigned long)a) | (((unsigned long)d) << 32);
+}
+
+int64_t timestamp(void) {
+    return rdtsc_s();
 }
 
 void append_packet_latency(uint64_t clock_cycles)
@@ -127,6 +137,22 @@ void read_not_cached(void)
     read_misses++;
 }
 
+void stk_trc_handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
+
+
+
+
 volatile sig_atomic_t flag = 0;
 void kill_signal_handler(int sig)
 {
@@ -139,6 +165,7 @@ void kill_signal_handler(int sig)
 
 void register_handler(void)
 {
+    signal(SIGSEGV, stk_trc_handler);   // install our handler
     signal(SIGINT, kill_signal_handler);
 }
 

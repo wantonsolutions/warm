@@ -50,30 +50,31 @@ struct Request_Map
   uint16_t server_to_client_udp_port;
   uint32_t server_to_client_rkey;
   uint8_t original_eth_addr[6];
+  uint8_t rdma_op;
 } Request_Map;
 
 struct Connection_State
 {
-  uint32_t id;
-  uint16_t udp_src_port_client;
-  uint16_t udp_src_port_server;
-  uint32_t ip_addr_client;
-  uint32_t ip_addr_server;
-  uint32_t cts_rkey;
-  uint32_t stc_rkey;
-  uint32_t ctsqp;
-  uint32_t stcqp;
-  uint8_t cts_eth_addr[6];
-  uint8_t stc_eth_addr[6];
-  uint32_t sender_init;
-  uint32_t receiver_init;
-  uint32_t last_seq;
-  int32_t mseq_offset;
+  uint32_t id;                  // ID of the destination connection
+  uint16_t udp_src_port_client; // udp port of the client (dynamic)
+  uint16_t udp_src_port_server; // udp port of the server (should be static RDMA port)
+  uint32_t ip_addr_client;      // per machine IP addresses, clients may have many
+  uint32_t ip_addr_server;      // memory server address
+  uint32_t cts_rkey;            // rkey of the client to server connection
+  uint32_t stc_rkey;            // rkey of the server to client connection
+  uint32_t ctsqp;               // client to server qp identifier (per run specific)
+  uint32_t stcqp;               // server to client qp identifier, must be captured from acking packets
+  uint8_t cts_eth_addr[6];      // client to server eth addr
+  uint8_t stc_eth_addr[6];      // server to client eth adder
+  uint32_t sender_init;         // client side initalized
+  uint32_t receiver_init;       // server side initialized
+  uint32_t last_seq;            // (deprecated) last sequence observed
+  int32_t mseq_offset;          // message sequence offset from the first seqeunce number
   //Past here the variables actually change while the program is running in the fast path
   rte_rwlock_t cs_lock;
   uint32_t seq_current;  // Packet sequence number
   uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
-  //experimental
+  //Slot for storing outstanding requests on this connection
   struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;
 
@@ -81,6 +82,7 @@ struct map_packet_response
 {
   uint32_t size;
   struct rte_mbuf *pkts[BURST_SIZE*BURST_SIZE];
+  uint64_t timestamps[BURST_SIZE*BURST_SIZE];
 } map_packet_response;
 
 //Locking

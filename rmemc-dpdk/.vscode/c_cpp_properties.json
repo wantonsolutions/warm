@@ -4,7 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/ssgrant/dpdk-stable-19.11.5/lib/**",
+                "/usr/local/ssgrant/dpdk-stable-19.11.5/x86_64-native-linux-gcc/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

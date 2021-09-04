@@ -68,9 +68,11 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     for thread in individual_gap:
         #x = range(len(thread))
         x = individual_timestamps[index]
-        y = thread
+        #y = thread
+        y = np.full(len(x),index)
         plt.plot(x,y, label=str(index), marker='x')
         index=index+1
+    plt.ylabel("threads id")
     plt.xlabel("Seconds")
     plt.savefig(timeline_output_filename)
 
