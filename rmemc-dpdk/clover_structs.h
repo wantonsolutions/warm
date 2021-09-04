@@ -103,7 +103,7 @@ struct __attribute__ ((__packed__)) rdma_ack {
 
 struct __attribute__ ((__packed__)) cs_request {
   struct AtomicETH atomic_req;
-} cc_request;
+} cs_request;
 
 struct __attribute__ ((__packed__)) cs_response {
   struct AETH ack_extended;

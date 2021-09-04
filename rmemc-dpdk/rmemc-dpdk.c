@@ -21,6 +21,7 @@
 #include "clover_structs.h"
 #include "print_helpers.h"
 #include "measurement.h"
+#include "packet_templates.h"
 #include <arpa/inet.h>
 
 #include <rte_jhash.h>
@@ -68,70 +69,6 @@ rte_rwlock_t mem_qp_lock;
 
 struct rte_mempool *mbuf_pool_ack;
 
-uint8_t template_ack[] = {
-    0xEC,
-    0x0D,
-    0x9A,
-    0x68,
-    0x21,
-    0xCC,
-    0xEC,
-    0x0D,
-    0x9A,
-    0x68,
-    0x21,
-    0xD0,
-    0x08,
-    0x00,
-    0x45,
-    0x02,
-    0x00,
-    0x30,
-    0x2A,
-    0x2B,
-    0x40,
-    0x00,
-    0x40,
-    0x11,
-    0x8D,
-    0x26,
-    0xC0,
-    0xA8,
-    0x01,
-    0x0C,
-    0xC0,
-    0xA8,
-    0x01,
-    0x0D,
-    0xCF,
-    0x15,
-    0x12,
-    0xB7,
-    0x00,
-    0x1C,
-    0x00,
-    0x00,
-    0x11,
-    0x40,
-    0xFF,
-    0xFF,
-    0x00,
-    0x00,
-    0x6C,
-    0xA9,
-    0x00,
-    0x00,
-    0x0C,
-    0x71,
-    0x0D,
-    0x00,
-    0x00,
-    0x01,
-    0xDC,
-    0x97,
-    0x84,
-    0x42,
-};
 
 
 struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -155,6 +92,12 @@ struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 {
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	return (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
+}
+
+struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
+{
+	struct roce_v2_hdr *roce_hdr = get_roce_hdr(pkt);
+	return (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 }
 
 void lock_qp(void)
@@ -1073,6 +1016,77 @@ struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 	return slot;
 }
 
+#define CNS_TO_WRITE
+void map_cns_to_write(struct rte_mbuf *pkt) {
+	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	struct clover_hdr *clover_header = get_clover_hdr(pkt);
+	if (roce_hdr->opcode == RC_CNS) {
+		print_packet(pkt);
+		struct cs_request *cs = (struct cs_request *)clover_header;
+		struct write_request *wr = (struct write_request *)clover_header;
+
+		//set the opcode to write
+		roce_hdr->opcode = RC_WRITE_ONLY;
+		uint64_t write_value = cs->atomic_req.swap_or_add;
+		wr->rdma_extended_header.dma_length = htonl(sizeof(uint64_t));
+		wr->ptr=write_value;
+
+		//Header change now we need to adjust the length (should be -4)
+		//uint32_t size_diff = (sizeof(cs_request) - sizeof(write_request));
+		uint32_t size_diff = 4; // This is a magic number because the line before this (cs - write) gives 3
+		printf("size diff %d\n",size_diff);
+		udp_hdr->dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
+		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
+		printf("CNS - forward\n");
+		//TODO remove the this part
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+		recalculate_rdma_checksum(pkt);
+		print_packet(pkt);
+	}
+}
+
+void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot) {
+	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	struct clover_hdr *clover_header = get_clover_hdr(pkt);
+
+	if (slot->rdma_op == RC_CNS) {
+		struct cs_response *cs = (struct cs_response *)clover_header;
+		struct rdma_ack *ack = (struct rdma_ack *)clover_header;
+		if(roce_hdr->opcode != RC_ACK) {
+			printf("This was a safty check, we should not reach here with CNS_TO_WRITE turned on");
+		}
+		//Set the headers
+		//First extend the size of the packt buf
+		print_packet(pkt);
+		rte_pktmbuf_append(pkt,8);
+		roce_hdr->opcode = RC_ATOMIC_ACK;
+		//cs->atomc_ack_extended.original_remote_data = be64toh(0);
+		cs->atomc_ack_extended.original_remote_data = htobe64(0);
+
+		int32_t size_diff = -8; // This is a magic number because the line before this (cs - write) gives 3
+		printf("size diff %d\n",size_diff);
+		udp_hdr->dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
+		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
+		printf("CNS - forward\n");
+		//TODO remove the this part
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+		recalculate_rdma_checksum(pkt);
+		print_packet(pkt);
+
+
+
+		
+	}
+}
+
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 {
 	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
@@ -1151,13 +1165,18 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	roce_hdr->dest_qp = destination_connection->ctsqp;
 	roce_hdr->packet_sequence_number = destination_connection->seq_current;
 	udp_hdr->src_port = destination_connection->udp_src_port_client;
-
-	//print_ip_header(ipv4_hdr);
 	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
-	ipv4_hdr->hdr_checksum = 0;
-	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	unlock_connection_state(destination_connection);
 
+
+	//Transform CNS to WRITES
+	#ifdef CNS_TO_WRITE
+	map_cns_to_write(pkt);
+	#endif
+
+	//checksumming
+	ipv4_hdr->hdr_checksum = 0;
+	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	recalculate_rdma_checksum(pkt);
 }
 
@@ -1226,7 +1245,6 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
 	printf("Generating Ack");
 	struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
 
-	#define ACK_PKT_LEN 62
 	rte_pktmbuf_append(pkt,ACK_PKT_LEN);
 
 	//do I need to expand the packet here?
@@ -1323,8 +1341,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//make a local copy of the id before unlocking
 		uint32_t id = mapped_request->id;
 		//open up the mapped request
-		open_slot(mapped_request);
-		unlock_connection_state(source_connection);
 
 		//Update the tracked msn this requires adding to it, and then storing
 		//back to the connection states To do this we need to take a look at
@@ -1344,7 +1360,15 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//Ip mapping recalculate the ip checksum
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
+		#ifdef CNS_TO_WRITE
+		map_write_ack_to_atomic_ack(pkt,mapped_request);
+		#endif
+
 		recalculate_rdma_checksum(pkt);
+
+		open_slot(mapped_request);
+		unlock_connection_state(source_connection);
 
 		//THis is a good place to inject the transition from a write to a CNS.
 		return mpr;
@@ -1508,6 +1532,9 @@ int should_track(struct rte_mbuf *pkt)
 	}
 	if (opcode == RC_ATOMIC_ACK)
 	{
+		print_packet(pkt);
+		struct cs_response * cs = (struct cs_response *) get_clover_hdr(pkt);
+		printf("%"PRIu64" ,_original data\n",cs->atomc_ack_extended.original_remote_data);
 		return 1;
 	}
 	if (size == 72 && opcode == RC_CNS)
@@ -1723,6 +1750,7 @@ void true_classify(struct rte_mbuf *pkt)
 	if (size == 72 && opcode == RC_CNS)
 	{
 		lock_next();
+
 
 		//Find value of the clover pointer. This is the value we are going to potentially swap out.
 		struct cs_request *cs = (struct cs_request *)clover_header;
