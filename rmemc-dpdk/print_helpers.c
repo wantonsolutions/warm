@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "clover_structs.h"
 #include "rmemc-dpdk.h"
 #include "print_helpers.h"
@@ -157,8 +158,10 @@ void print_ack_extended_header(struct AETH *aeth)
 
 void print_rdma_extended_header(struct RTEH *rteh)
 {
+	printf("Vaddr: %"PRIx64"\n", rteh->vaddr);
+	printf("rkey: %x\n", rteh->rkey);
 	printf("dma len %u \traw: ", ntohl(rteh->dma_length));
-	print_bytes((uint8_t *)&(rteh->dma_length), sizeof(uint32_t));
+	print_bytes((uint8_t *)&(rteh->dma_length)+(sizeof (uint32_t)),ntohl(rteh->dma_length));
 }
 
 void print_read_request(struct read_request *rr)
@@ -167,7 +170,11 @@ void print_read_request(struct read_request *rr)
 	printf("(raw) ");
 	print_bytes((void *)rr, 16);
 	printf("\n");
-	print_rdma_extended_header(&rr->rdma_extended_header);
+	struct RTEH *rteh = &rr->rdma_extended_header;
+	printf("Vaddr: %"PRIx64"\n", rteh->vaddr);
+	printf("rkey: %x\n", rteh->rkey);
+	printf("dma len %u \traw: ", ntohl(rteh->dma_length));
+	//print_rdma_extended_header(&rr->rdma_extended_header);
 	printf("\n");
 	//printf("(STOP) Read Request\n");
 	return;
@@ -194,10 +201,10 @@ void print_write_request(struct write_request *wr)
 
 void print_atomic_eth(struct AtomicETH *ae)
 {
-	printf("Vaddr: %" PRIu64 "\n", ae->vaddr);
-	printf("rkey: %d\n", ae->rkey);
-	printf("swap || add: %" PRIu64 "\n", ae->swap_or_add);
-	printf("cmp: %" PRIu64 "\n", ae->compare);
+	printf("Vaddr: %"PRIx64"\n", ae->vaddr);
+	printf("rkey: %x\n", ae->rkey);
+	printf("swap || add: %" PRIx64 "\n", be64toh(ae->swap_or_add));
+	printf("cmp: %" PRIx64 "\n", be64toh(ae->compare));
 }
 
 void print_cs_request(struct cs_request *csr)

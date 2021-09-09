@@ -51,6 +51,7 @@ struct Request_Map
   uint32_t server_to_client_rkey;
   uint8_t original_eth_addr[6];
   uint8_t rdma_op;
+  uint8_t was_write_swapped;
 } Request_Map;
 
 struct Connection_State
