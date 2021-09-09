@@ -6,6 +6,6 @@ echo "double test" >> memory_output.dat;
 echo iwicbV15 | sudo -S ./run_memory.sh 3 > memory_output.dat &
 echo $a >> memory_output.dat;
 
-sleep 30;
+sleep 45;
 echo iwicbV15 | sudo -S killall run_memory.sh;
 echo iwicbV15 | sudo -S killall init;

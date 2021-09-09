@@ -96,7 +96,7 @@ sleep 1
 echo "third sleep sleep"
 sleep 1
 echo "fourth sleep sleep"
-sleep 1
+sleep 3
 
 echo "FINSHED ALL THE LAUNCHING SCRIPTS WAITING"
 
@@ -108,6 +108,7 @@ scp yak0:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
 scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
 
 scp yak2:/tmp/switch_statistics.dat switch_statistics.dat
+scp yak2:/tmp/sequence_order.dat sequence_order.dat
 
 tail -1 clean_1.dat >> results.dat
 tail -1 clean_2.dat >> results.dat
@@ -116,7 +117,7 @@ tail -1 clean_2.dat >> latest.dat
 
 cat switch_statistics.dat >> agg_switch_statistics.dat
 
-sleep 5
+sleep 10
 
 
 #'

@@ -1,0 +1,123 @@
+\section{Scratch}
+\label{sec:scratch}
+
+Using memory as a syncronization tool is a decent tactic as the writes
+to a location are sequential, however the end hosts can only be
+rejected. Even if we innovate on this technololy some performace is
+dropped on the floor as an entire round trip must be made for the
+rejection notification to be relayed and the notification messages to
+be generated.
+
+A centralized switch solution is fully capable of implementing each of the in
+memory operations while providing serialization. The key insight is that
+memory operations can be serialized at the switch centrally. The last moment
+for reordering is egress on the switch port to an endhost (assuming that the
+nic preserves ordering, queue pairs are maintained, and the memory controller
+does not mess with us). 
+
+todo{Follow the path of a packet and determine where reordering could
+happen at each point}
+
+lowest level, switches provide serialization, versioning of memory, and notify multicast, and write rejection.
+Programmable switches can provide serialization at the egress port, they can
+maintian versioning of memory by kepping an atomic counter on each block.
+Switches can mantain notify groups for each block. Using multicast primitives
+notify messages can be propagates to cores sharing memory as fast as a direct
+message. 
+
+locking and transactional memory
+
+Locking is as simple sending a lock request to a block, the switch either
+propagates lock messages or rejects the lock if the version of the write is
+out of date.
+
+The switch can support transactions by collecting all memory writes and reads
+and write of a packet. A single reject fails the transaction, while a
+collective accept into a single packet header with itterative packet
+processing for each read This is equivalent to the atomic collection of
+multiple locks.
+
+%% Race condtion advantage Without a syncronization mechanism si clients must
+determine themselves if their wreads a vaild. Proposed techniques include
+using a checksum of the memory values as validation that the read or write
+occured to the same value of memory that was observed prior, another
+technique is to use hashing to validate that the version of the memory
+witnesses is identical to the expected value. This is in the case where no
+lock on the memory is acquired. Aquiring a lock on a memory location requires
+that a request is made to the lock location, the read or write is performed
+and then the lock is released. In the case of RDMA one sided operations this
+can take up takes 3 RTT in the normal case, and more twhen the lock is
+contested. In general without a centralized athority starvation can occur.
+This problem is only made more severe when multiple memory locations need to
+be accessed as each location requires a lock to be accessed and then
+released. This can lead to priority inversion, lock starvation, and live
+lock. 
+
+A memory centric archetecture utilizes the fact that a single memory location
+serilaizes its own access. Versions of memory can therefore be controlled
+using a simple counter, where each write increments the version of the
+memory. Client request to the memory can test and set the version number to
+ensure consistancy. However this requries that memory is able to perform such
+a check. Using memory as a syncronziation mechanism aleviates clients of the
+need to check the consistancy of their reads and writes. Clients need only
+submit the version of the memory they wish to read or write, and the memory
+can determine if the read or write is valid. From a clients perspective it
+takes a single RTT for a memory access. This does not however solve the
+problem of transactional batching of reads and writes. A client still needs
+to lock the locations, individually, then perform an atomic operation, and
+then unlock. This reuqires an RTT for each read and write (Storm 5.4)
+~\cite{storm} A programmable switch can currently perform each of the
+operations a memory centric archetecture can only promise after new
+technologies arrive, and it can perform it with lower latency. While a client
+requires a full RTT to to determine if it's reads and writes are vaild, and a
+full RTT to be notified if a memory location has changed, a switch, at the
+top of a rack, can return invalid reads and writes at half and RTT, and
+notifiy other clients that memory has been modified in half an RTT.
+
+Notify latency - Memory centric architectures propose that memory should
+notify cores which share a region of memory when the memory is updated. This
+is to prevent them failing to make a vaild read. The delay for such a
+notification is a single RTT as the memory must first accept a new write and
+then broadcast to all those affected nodes. A programmable switch, can
+disseminate such a notification in half the time leading to far less
+contention and out of date reads and writes.
+
+Notify Groups - Keepying track of which cores should be notified is a probelm
+on its own. The HP crew suggest a publish subscribe model. This would require
+each piece of memory to have a group associated with it. Given that the
+memory is going to be calling the group based on a notfiy, the memory must
+track a group of nodes for each memory region. This problem is true on the
+switch as well, and perhaps worse as the switch is more resource constrained.
+I think that groups should be difficult to create, i.e a consensus protocol
+should be invoked before a node can read or write to a reigion of memory.
+Then it is the job of the nodes to know who should be notified for a given
+read or write. The IPs of the group could then be put into a multicast group
+so that the switch need only forward the request to the subscribed nodes when
+a write occurs. Consensus should also be used to initally spread state about
+the shared region and RDMA queue pair information.
+
+Serialization probelms - The key insight of this work is that the egress port
+on the switch can at as a serialization point just as well as memory.
+However, this insight hinges on the idea that no other reordering can occur.
+Is this an okay assumption to make? It requires that there is no reordering
+at the NIC, and that the RDMA requests from the NIC to memory are also not
+reorderd. The path is Switch Port - > NIC -> DMA engine (potentially with
+scatter gather) -> Local memory controll (who knows what these things
+actually do). To make this happen a deep understanding of each of these
+components and the potential for requests to run in parallel must be known.
+
+
+Granularity - It is impracticle to assume that we would ever have byte level
+access to remote memory. The overhead is too high. Judicious though should be
+put into how large the block size for remote memory should be. The smallest I
+can imagine it would be a cache line. Ideally it would be the size of a page.
+\todo{Find a citation about pageing to remote memory (GFS / legos)}
+
+\section{Use Cases}
+
+Any in memory RDMA store. The B-Tree os one example, memcached D is another.
+OS structures are another potential. It would be cool to have a file buffer
+cache with both metadata (local) and file data (remote) as a use case. The
+key thing here is that I want to both enable distributed applications, and
+the development of distributed OS's. This sould be seen as an interface to
+shared memory and not a specific shared memory sysetm (Although it will be).
