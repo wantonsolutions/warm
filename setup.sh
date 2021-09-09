@@ -84,13 +84,15 @@ function setup_switch {
     interface ethernet 1/30 openflow mode hybrid
     interface ethernet 1/31 openflow mode hybrid
 
-    #Port Eth1/29 is Yak00 (192.168.1.11)
-    #Port Eth1/30 is Yak01 (192.168.1.12)
-    #Port Eth1/31 is Yak02 
+    #Port Eth1/29 is Yak00 (192.168.1.12)
+    #Port Eth1/30 is Yak01 (192.168.1.13)
+    #Port Eth1/31 is Yak02 (192.168.1.14)
+    #Port Eth1/3 is Yeti5 (192.168.1.17)
 
     #add redirection flows to table 0
     openflow add-flows 1 ,table=0,in_port=Eth1/30,nw_src=192.168.1.12/32,nw_dst=192.168.1.11/32,actions=output=Eth1/31
     openflow add-flows 2 ,table=0,in_port=Eth1/29,nw_src=192.168.1.11/32,nw_dst=192.168.1.12/32,actions=output=Eth1/31
+    openflow add-flows 3 ,table=0,in_port=Eth1/3,nw_src=192.168.1.17/32,nw_dst=192.168.1.12/32,actions=output=Eth1/31
 
     #remove redirection flows
     openflow del-flows 1
@@ -105,18 +107,32 @@ function set_ecn {
 
     dir="/sys/class/net/$iface/ecn/roce_np/enable"
     for i in $(seq 0 7); do
+        echo "roce ecn write -> $dir/$i"
+        echo "current state"
+        cat $dir/$i
         echo $state > $dir/$i
     done
 
     dir="/sys/class/net/$iface/ecn/roce_rp/enable"
     for i in $(seq 0 7); do
+        echo "roce ecn write -> $dir/$i"
+        echo "current state"
+        cat $dir/$i
         echo $state > $dir/$i
     done
+}
+
+#out of order 
+function set_ooo {
+    echo "Setting Out of Order"
+    # Enable all mlx5 devices.
+    export MLX5_RELAXED_PACKET_ORDERING_ON="all"
 }
 
 set_server_params
 setup_nic
 setup_hugepages
+set_ooo
 set_ecn
 
 if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then

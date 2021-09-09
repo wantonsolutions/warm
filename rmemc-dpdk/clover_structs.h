@@ -2,11 +2,52 @@
 #define CLOVER_STRUCTS_H
 
 #include <stdint.h>
+#include <stdint.h>
+#include <rte_mbuf.h>
 
 #define MITSUME_CLT_CONSUMER_PER_ASK_NUMS 16
 #define MITSUME_CLT_CONSUMER_MAX_ENTRY_NUMS MITSUME_CLT_CONSUMER_PER_ASK_NUMS
 #define MITSUME_NUM_REPLICATION_BUCKET 1
 
+#define RC_SEND 0x04
+#define RC_WRITE_ONLY 0x0A
+#define RC_READ_REQUEST 0x0C
+#define RC_READ_RESPONSE 0x10
+#define RC_ACK 0x11
+#define RC_ATOMIC_ACK 0x12
+#define RC_CNS 0x13
+#define ECN_OPCODE 0x81
+
+#define MITSUME_PTR_MASK_LH 0x0ffffffff0000000
+#define MITSUME_PTR_MASK_NEXT_VERSION 0x0000000007f80000
+#define MITSUME_PTR_MASK_ENTRY_VERSION 0x000000000007f800
+#define MITSUME_PTR_MASK_XACT_AREA 0x00000000000007fe
+#define MITSUME_PTR_MASK_OPTION 0x0000000000000001
+#define MITSUME_GET_PTR_LH(A) (A & MITSUME_PTR_MASK_LH) >> 28
+
+#define ETH_ALEN 6
+#define ROCE_PORT 4791
+
+typedef struct __attribute__ ((__packed__)) roce_v2_header {
+    uint8_t opcode;
+    unsigned int solicited_event:1;
+    unsigned int migration_request:1;
+    unsigned int pad_count:2;
+    unsigned int transport_header_version:4;
+    uint16_t partition_key;
+    //Reserved
+    unsigned int fecn:1;
+    unsigned int bcen:1;
+    unsigned int reserverd:6;
+    //end reserved
+    unsigned int dest_qp:24;
+    unsigned int ack:1;
+    unsigned int reserved:7;
+    unsigned int packet_sequence_number:24;
+    //unsigned int padding:16;
+    //unsigned int stew_pad:8; // TODO FIGURE OUT WHAT THE HELL THIS IS!!!
+    //unsigned int ICRC:4;
+} roce_v2_header;
 
 
 struct ib_mr_attr {
@@ -62,7 +103,7 @@ struct __attribute__ ((__packed__)) rdma_ack {
 
 struct __attribute__ ((__packed__)) cs_request {
   struct AtomicETH atomic_req;
-} cc_request;
+} cs_request;
 
 struct __attribute__ ((__packed__)) cs_response {
   struct AETH ack_extended;
@@ -143,5 +184,11 @@ struct mitsume_msg {
   uint64_t option;
   uint64_t end_crc;
 };
+
+typedef struct clover_hdr {
+  struct mitsume_ptr ptr;
+  struct mitsume_msg mitsume_hdr;
+} clover_hdr;
+
 
 #endif
