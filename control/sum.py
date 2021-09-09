@@ -5,7 +5,6 @@ import sys
 # csv file name 
 filename = sys.argv[1]
 #filename = "sum.dat"
-print("filename: ",filename)
   
 # initializing the titles and rows list 
 fields = [] 

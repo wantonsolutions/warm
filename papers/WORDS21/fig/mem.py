@@ -2,7 +2,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-
+matplotlib.rcParams['pdf.fonttype'] = 42
 
 #labels = ['1', '2', '4', '8', '16', '24','32']
 
