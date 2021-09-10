@@ -1,4 +1,56 @@
-\section{Design}
+\section{Solutions}
+
+
+\subsection{Atomic Replacement} Atomic operations are expensive, as such we
+would like to replace atomic operations such as CNS with non-blocking operations
+such as read and write. Using a middle box the transformation is simple, RoceV2
+CNS headers are very close to write headers, conceptually its a special case
+where the write is conditional and only requires 8 bytes of writing, so swapping
+CNS out with write headers can be done inplace while processing a packet. When
+the ACK transits back from the memory server, it can be replaced by an atomic
+ACK with the original data from the write location filled in by the middle box.
+Doing this does nothing to disturb the higher level protocol, as the receiving
+NIC processes the requests as is, and the sender gets back the responses it
+expects. however all of the safety of the atomic operation is lost.  In the
+following subsections we describe the dangers of removing atomics, and present
+our solutions.
+
+A few assumptions must be made in order for this replacement of operations to be
+made. First and foremost all operation serialization must be made, and finalized
+at the point where the CNS is swapped out. More formally, all of the data
+structure invariants which required locking, must be satisfied at the time of
+transforming the packet. Further the order of operations must be maintained
+downstream from the checking of the invariant. These two requirements influence
+the design of any system which aims to make this performance improvement.
+
+
+\subsection{Connection Remapping}
+
+While removing locking operations is a general principle here we consider a
+solution for RDMA. Different transports with different ordering guarantees would
+require bespoke solutions. RDMA ensures that operations performed on the same QP
+arrive in order~\cite{infiniband spec}~\footnote{while IB allows for relaxed
+ordering here we rely on that feature being turned off on the receiver}. Our
+solution is to map all operations for the same shared state to the same QP to
+ensure ordering of operations in the absense of locks. Similar to TCP, RDMA RC
+ensures that all operations arrive in order. RDMA retransmits requests if
+reordering occurs using a go back n algorithm.
+
+
+\subsection{Instruction Coalescing} A final additional challenge in mapping
+requests, is that receving NIC's can coalese acknoledgement messages. Given a
+single connection, if two concurrent writes are issued, it is perfectly valid
+for an RDMA NIC to only ack the second write. This is a challange when mapping
+requests as a coalesed message might have been for a different sender. In our
+scheme as all requests have mapping stubs stored in the middle box, when a
+request is coalessed a gap in the sequence number is observable. In this case we
+generate the coalesed request. While read, and CNS requests can not be
+coalessed, CNS requests mapped to writes can be. In the case of coalesed ATOMIC
+acks an atomic ACK is generated in place of the coalessed write ack.
+
+
+
+\section{Improving Clover performance}
 
 \todo{High level overview of system}
 
@@ -41,6 +93,8 @@ resolve their conflicts in network as the operations flow by serially to memory.
     \label{fig:throughput}
     \vskip -1em
 \end{figure}
+
+\subsection{Implementing Atomic replacement}
 
 \textbf{writes:} In the case of clover we cache the location of the latest writes to occur for
 each key. If a write occurs which is for a stale virtual address, our conflict
@@ -89,27 +143,7 @@ small amount of in network state~\ref{fig:cache} we have considered dynamic
 approaches such as LRU which would allows for a finite amount of space and an
 arbitrary number of keys to be serviced.
 
-\subsection{Atomic Replacement} Atomic operations are expensive, as such we
-would like to replace atomic operations such as CNS with non-blocking operations
-such as read and write. Using a middle box the transformation is simple, RoceV2
-CNS headers are very close to write headers, conceptually its a special case
-where the write is conditional and only requires 8 bytes of writing, so swapping
-CNS out with write headers can be done inplace while processing a packet. When
-the ACK transits back from the memory server, it can be replaced by an atomic
-ACK with the original data from the write location filled in by the middle box.
-Doing this does nothing to disturb the higher level protocol, as the receiving
-NIC processes the requests as is, and the sender gets back the responses it
-expects. however all of the safety of the atomic operation is lost.  In the
-following subsections we describe the dangers of removing atomics, and present
-our solutions.
-
-A few assumptions must be made in order for this replacement of operations to be
-made. First and foremost all operation serialization must be made, and finalized
-at the point where the CNS is swapped out. More formally, all of the data
-structure invariants which required locking, must be satisfied at the time of
-transforming the packet. Further the order of operations must be maintained
-downstream from the checking of the invariant. These two requirements influence
-the design of any system which aims to make this performance improvement. 
+ 
 
 \textbf{1) metadata required} The first requirement, that the structural invariants
 of the data structure be maintained at the point of transformation demands that
@@ -133,22 +167,6 @@ Without this guarantee the preservation of operation ordering must be maintained
 in another way.
 
 \subsection{Connection Remapping}
-
-While removing locking operations is a general principle here we consider a
-solution for RDMA. Different transports with different ordering guarantees would
-require bespoke solutions. RDMA ensures that operations performed on the same QP
-arrive in order~\cite{infiniband spec}~\footnote{while IB allows for relaxed
-ordering here we rely on that feature being turned off on the receiver}. Our
-solution is to map all operations for the same shared state to the same QP to
-ensure ordering of operations in the absense of locks. Similar to TCP, RDMA RC
-ensures that all operations arrive in order. RDMA retransmits requests if
-reordering occurs using a go back n algorithm.
-
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/read_reordering.pdf}
-    \caption{Read reordering as a function of the number of clients contesting a key. Results are obtained by running on a zipf 1.0 distribution with 1000 keys}
-    \label{fig:reorder}
-\end{figure}
 
 
 Our solution here is simple, given that we have the key's for reads and writes
@@ -197,17 +215,6 @@ suggest that given the tight memory restrictions on middleboxes algorithms which
 have an unbounded number of async requests leave the ordering of remapped
 requests to client side user space using IB verbs or a different transport layer
 entirely.
-
-\subsection{Instruction Coalescing} A final additional challenge in mapping
-requests, is that receving NIC's can coalese acknoledgement messages. Given a
-single connection, if two concurrent writes are issued, it is perfectly valid
-for an RDMA NIC to only ack the second write. This is a challange when mapping
-requests as a coalesed message might have been for a different sender. In our
-scheme as all requests have mapping stubs stored in the middle box, when a
-request is coalessed a gap in the sequence number is observable. In this case we
-generate the coalesed request. While read, and CNS requests can not be
-coalessed, CNS requests mapped to writes can be. In the case of coalesed ATOMIC
-acks an atomic ACK is generated in place of the coalessed write ack.
 
 \todo{these sections may not be nessisary}
 

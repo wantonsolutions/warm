@@ -91,36 +91,34 @@
 \section*{Abstract}
 
 Disaggregating memory from compute incurs extreme latency
- penalties. These
-penalties are multiplied when remote memory is shared and
- contended for. State
-of the art approaches for mitigating the cost of contention use mostly lockless
-data structures for accessing and modifying remote memory with common case O(1)
-operations.
- Unfortunately in the face of even modestly contended resources
-opportunistic algorithms incur extreme performance degradation due to multiple
-round trip
- times, and expensive atomic memory operations such as compare and
-swap.
+penalties. These penalties are multiplied when remote memory is shared
+and contended for. State of the art approaches for mitigating the cost
+of contention use mostly lockless data structures for accessing and
+modifying remote memory with common case O(1) operations.
+Unfortunately in the face of even modestly contended resources
+opportunistic algorithms incur extreme performance degradation due to
+multiple round trip times, and expensive atomic memory operations such
+as compare and swap.
 
-In this work we make the observation that all memory operations in a rack scale
-disaggregation system pass through a centralized switch which must serialize
-all
- remote memory accesses on the wire. We use this implicit serialization to
-arbitrate access to rack scale memory. We use Clover (a state of the art
-disaggregated key value store) to show that our approach removes all conflict,
-and can provide serialization which allows for the removal of expensive atomic
-locking operations.
+In this work we make the observation that all memory operations in a
+rack scale disaggregation system pass through a centralized switch
+which must serialize all remote memory accesses on the wire. We use
+this implicit serialization to arbitrate access to rack scale
+memory. We use Clover (a state of the art disaggregated key value
+store) to show that our approach removes all conflict, and can provide
+serialization which allows for the removal of expensive atomic locking
+operations.
 
 
 \input{intro}
 \input{background}
+\input{challenges}
 \input{design}
 \input{eval}
 %\input{body}
 \input{discussion}
 
-\section*{Acknowledgments}
+%\section*{Acknowledgments}
 
 \balance
 \vspace{-0.3cm}
