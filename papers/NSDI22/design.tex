@@ -1,1 +1,69 @@
 \section{Design}
+
+\todo{High level overview of system}
+\todo{Figure 1}
+
+\subsection{Operation Caching}
+
+Any asyncronous data structure which allows for lockless reads and writes must
+have a mechanism in place to resolve conflicts. When memory is close, conflict
+resolution stratatges can make many reads and writes quickly in the uncommon
+case of a conflict, the cost of which is typically amortized by the unlikelyhood
+of the conflict itself. In the case of far memory the cost of a conflict is
+severe. In contrast to opprotunistic algorithms in a shared cache archetecure,
+in a disaggretated system with small amounts of in network compute conflicts can
+be detected and resolved in the data path. Our solution is to provide a general
+framework in which developers with knowledge of their remote structures can
+resolve their conflicts in network as the operations flow by serially to memory. 
+
+\textbf{writes:} In the case of clover we cache the location of the latest writes to occur for
+each key. If a write occurs which is for a stale virtual address, our conflict
+detection algorithm first uses information about clovers algorithm to find the
+value of the key in each RDMA write packet. We find this value by checking the
+size of the write, and checking the location in the packet for specific clover
+data. Once the key from the write is extracted a table lookup is used to
+translate the key into the virtual address of the latest write for that key.
+This strategy uses 64 bytes per key, as each RDMA virtual address is 64 bytes.
+By performing this lookup in the data path all writes succeed reguardless of how
+contested the memory address is. ~\ref{figure from words}.
+
+\textbf{reads:} Reads present a slightly more complicated case. Writes contain
+the key, which allows for a table lookup, while RDMA read requests only contain
+a virtual address and a size. When a read fails it must be retried, as mentioned
+earlier reads are performed itterativly untill the tail of the list is reached,
+which in the case of highly contested keys could be arbetrarily long. Repeating
+reads does not destroy system performance as they are lockless, however in terms
+of client latency each retry adds serious latency. What makes handling reads
+hard is identifying the clover key for which the read is for, without additional
+data in the packet the value must be determined another way. As reads can be for
+arbetrarily old virtual addresses a naieve solution would be to store the entire
+lineage of each key, which would require caching all of clovers meta data in the
+network. Our solution is to hash the address of each write into an array
+~\todo{2x} the size of the keyspace. When writes occur their virutal address and
+key value are stored in the array. New writes simply overwrite old values in the
+table. This allows keys with higher hit rates to maintain longer histories in
+the table. When reads occur their address is looked up in the table, if the
+address has a hit the read is steered to the tail of the list. If a miss occurs
+the read is left to flow through, clovers default mechanism kicks in and
+performs a lookup to the meta data server for the last known address and the
+process repeats. We found that by using an array size of 8x the ~\todo{vast
+majority of reads succeed first try.} While the number of reads that require a
+second try is ~\todo{a number}. ~\todo{insert the CDF of read retries}.
+
+\textbf{reduced cache size} we show that if hot keys are known we require only a
+small amount of in netowrk state ~\todo{words} we have considered dynamic
+approaches such as LRU which would allows for a finite amount of space and an
+arbetrary number of keys to be serviced.
+
+\subsection{Atomic Replacement} Atomic operations are expensive, as such we
+would like to replace atomic operations such as CNS with non-blocking operations
+such as read and write. Using a middle box the operation is simple, CNS
+operations have their headers swapped out with write headers when sent. When the
+ACK transits back from the memory server, it can be replaced by an atomic ACK.
+Doing this does nothing to disturb the higher level protocol, however all of the
+safty of the atomic operation is lost. In the following subsections we describe
+the dangers of removing atomics, and present our solutions.
+
+\subsection{Connection Remapping}
+
+\subsection{Instruction Collaesing}
