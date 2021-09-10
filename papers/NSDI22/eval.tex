@@ -26,6 +26,29 @@ lock in remote memory.
 
 \subsection{Memory Utilization}
 
+Our techniques give a performance boots at the cost of in network memory. We
+took special care to design our algorithms so that they could 1) use only a
+small amount of network memory, 2) be scalable depending on the resources
+available. We show how our performance varies as a function of the available in
+network state.
+
+As seen in figure~\ref{fig:cache} our write caching is able to provide a
+significant performance boost while only using a small number of cached
+addresses. In the following experiment we show the maximum performance boost we
+can provide as a function of the available in network memory. Specifically in
+the case of read and write caching this means shrinking the size of the
+available cache. In terms of QP mapping it restricts the number of connections
+which can have their connections mapped. Unmapped connections must use atomic
+operations for their requests to succeed.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/memory_util.jpg}
+    \caption{{Relative performance improvement of our techniques with restricted amounts of memory. Here a rightsized allocation implies that for the given number of connections we could support, all requests were mapped and reads and writes were cached.}}
+    \label{fig:memory_util}
+\end{figure}
+
+\todo{say something real about the the memory utilization takeaways}
+
 
 \subsection{Bandwidth Reduction}
 
