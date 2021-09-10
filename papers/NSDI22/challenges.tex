@@ -35,28 +35,31 @@ individual queue pair, so sequential consistency can be ensured by
 ensuring that all requests for a given memory location arrive on the
 same queue pair.
 
-Figure~\ref{fig:reorder} shows that this guarantee is actually
-required: i.e., requests across queue pairs are \emph{not} always
-processed in the order received in practice.  In this example, we use
-RDMA \texttt{t\&s} operations to detect reordering.  Specifically, we
-generate a sequence of test-and-set operations that increment the
-value stored at the indicated location by one if and only if the
-current value is as expected, i.e., one lower.  Because we ensure the
-operations are delivered to the NIC sequentially, a failed operation
-indicates the request was reordered internal to the remote server.  We
-generate operations for 1,000 different physical addresses (according
-to a Zipf distribution) using a varying number of queue pairs and report
-the frequency with which they are reordered with respect to another
-request for the same address (i.e., the \texttt{t\&s} operation
-fails).  As expected, when all requests
-are issued on the same queue pair, they are serviced in order.  Once a
-non-trivial level of concurrency is reached, however, the reordering
-becomes significant, with over 7\% of requests to the same address
-serviced out of order when they are spread across 32 queue pairs.
+
+
+\todo{modify this paragraph so that it is closer to the truth}
+Figure~\ref{fig:reorder} shows that this guarantee is actually required: i.e.,
+requests across queue pairs are \emph{not} always processed in the order
+received in practice.  In this example, we use RDMA \texttt{t\&s} operations to
+detect reordering.  Specifically, we generate a sequence of test-and-set
+operations that increment the value stored at the indicated location by one if
+and only if the current value is as expected, i.e., one lower.  Because we
+ensure the operations are delivered to the NIC sequentially, a failed operation
+indicates the request was reordered internal to the remote server.  We generate
+operations for 1,000 different physical addresses (according to a Zipf
+distribution) using a varying number of queue pairs and report the frequency
+with which they are reordered with respect to another request for the same
+address (i.e., the \texttt{t\&s} operation fails).  As expected, when all
+requests are issued on the same queue pair, they are serviced in order.  Once a
+non-trivial level of concurrency is reached, however, the reordering becomes
+significant, with over 7\% of requests to the same address serviced out of order
+when they are spread across 32 queue pairs.\sg{given a zipf distribution, and
+16qp around 3% of packets are reordered. This is detected by checking the
+sequence numbers against the known monotonic sequence.}
 
 \begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/read_reordering.pdf}
-    \caption{Read reordering as a function of the number of queue pairs employed. Results are obtained by running on a zipf 1.0 distribution with 1000 keys}
+    \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
+    \caption{CDF of packet reorderings once QP mapping is applied to a zipf distribution}
     \label{fig:reorder}
 \end{figure}
 
