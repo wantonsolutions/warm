@@ -1,1 +1,46 @@
 \section{Evaluation}
+
+Adding computation to the network increases latency and consumes memory. Our
+evaluation demonstrates that by applying our techniques we are able to see
+significant performance boots, while consuming only a small amount of memory.
+
+\subsection{YCSB Benchmarks}
+
+The ycsb benchmark consists of varying read and write workloads which have been
+shown to emulate many common data center operations. We show a breakdown of our
+techniques, mainly read and write caching, QP mapping, and atomic replacement
+with respect to their effect to system performance on two YCSB benchmarks. We
+choose YCSB-B (95% read and 5% write) as our baseline, and YCSB-A (50% read and
+50% write) to demonstrate how our algorithm performs under high contention. We
+also show the performance boots obtained while running a 100% write workload
+which is intended to emulate other programmatic workloads such as accessing a
+lock in remote memory.
+
+\begin{figure*}
+    \includegraphics[width=0.95\textwidth]{fig/full_system_performance.jpg}
+    \caption{{Performance increase of each technique using clover as a baseline on YCSB benchmarks.}}
+    \label{fig:full_system_performance}
+\end{figure*}
+
+\todo{real takeaways}
+
+\subsection{Memory Utilization}
+
+
+\subsection{Bandwidth Reduction}
+
+Placing memory operations in band with regular network traffic can be
+problematic as applications remote memory usage has the potential to vary
+dramatically per application. When under contention resources require additional
+packets which inflate the bandwidth necessary for a single operation. Our in
+network steering algorithm, removes the need for operations to retry.
+Figure~\ref{fig:bandwidth-reduction} shows the percentage of bandwidth reduced
+per operation when resources are contested under different workloads.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/bandwidth_reduction.jpg}
+    \caption{{Bandwidth reduction when in network steering is applied}}
+    \label{fig:bandwidth_reduction}
+\end{figure}
+
+\todo{real takeaways}
