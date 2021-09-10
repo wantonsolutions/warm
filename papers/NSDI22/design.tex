@@ -168,3 +168,35 @@ request is coalessed a gap in the sequence number is observable. In this case we
 generate the coalesed request. While read, and CNS requests can not be
 coalessed, CNS requests mapped to writes can be. In the case of coalesed ATOMIC
 acks an atomic ACK is generated in place of the coalessed write ack.
+
+\todo{these sections may not be nessisary}
+
+\subsection{Traffic Identification} Depending on the design of a disaggregated
+rack memory traffic might be coresident with regular network traffic.
+Additionally some of the traffic on the memory bus may not require tracking or
+manipulation. In the case of clover we do not modify any traffic to the metadata
+server as it is not in the read/write path. The first stage of our packet
+processing pipeline is to match requests for manipulation. In our design users
+submit a filter as part of their program to allow traffic which does not need to
+be modified to flow freely.
+
+\subsection{Dynamic enable/disable of connections, and epochs} A key goal in our
+design is to not require the existence of a middle box in the data structures
+algorithm. Clover for instance is designed to deal with memory operations made
+to the wrong location via iterative pointer chasing. We strongly suggest that
+disaggregated algorithms take this approach as our middlebox solution only acts
+to acclerate operations in the common case. We add and subtract connections
+based on the send and receipt of a single CNS operation. The QP and sequence
+number for the CNS are stored on send, and the ATOMIC ACK is used to retreive
+the other recevers QP. As this approach requires only a single packet requests
+can be added and removed from our algorithm dynamically with little effort. As
+some state may be dependent on the number of connections (such as the key to QP
+mappings), state transitions either require a lock, or the coping of current
+state over to a new epoch when new connections are added. In all of our
+experiments only one such transition is made. We begin our mapping after a
+specific number of clients for the experiment have connected. Once the total
+number of clients have connected, a switch is flipped, and the QP multiplexing
+algorithm begins. Requests which do not have mappings stored, but were in flight
+during the flip have their sequence numbers, and MSN values applied to the
+connection state of the new epoch.
+
