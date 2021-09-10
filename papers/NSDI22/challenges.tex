@@ -70,7 +70,12 @@ serviced out of order when they are spread across 32 queue pairs.
  pair on commercial NICs is significantly less than line rate (likely
  precisely because of the need to enforce ordering constraints).
 
- \textbf{XXX: Need graph showing limited throughput of individual queue pairs.}
+\begin{figure}[t]
+    \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.jpg}
+    \caption{Max throughput per QP \todo{take real measurement}}
+    \label{fig:qp_bottleneck}
+\end{figure}
+
  
 
 
