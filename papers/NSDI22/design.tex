@@ -1,7 +1,24 @@
 \section{Design}
 
 \todo{High level overview of system}
-\todo{Figure 1}
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/overview_2.png}
+%%
+    \caption{ System overview, Metadata, client, and Remote Memory
+    servers are Clover components. Our remote memory coordinator is
+    located on a centralized TOR interconnecting the clover components.
+    }
+%%
+    \label{fig:overview} 
+\end{figure}
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/system.png}
+    \caption{Our packet processing pipeline}
+    \label{fig:system}
+\end{figure}
+
 
 \subsection{Operation Caching}
 \label{sec:operation-caching}
@@ -16,6 +33,14 @@ in a disaggretated system with small amounts of in network compute conflicts can
 be detected and resolved in the data path. Our solution is to provide a general
 framework in which developers with knowledge of their remote structures can
 resolve their conflicts in network as the operations flow by serially to memory. 
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
+    \caption{Default Clover throughput vs. Clover with write conflict
+    detection and correction turned on \todo{recompute with the read caching values (old)}}
+    \label{fig:throughput}
+    \vskip -1em
+\end{figure}
 
 \textbf{writes:} In the case of clover we cache the location of the latest writes to occur for
 each key. If a write occurs which is for a stale virtual address, our conflict
@@ -51,8 +76,16 @@ process repeats. We found that by using an array size of 8x the ~\todo{vast
 majority of reads succeed first try.} While the number of reads that require a
 second try is ~\todo{a number}. ~\todo{insert the CDF of read retries}.
 
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
+    \caption{Performance as a function of keys cached. Caching a few
+    of the top-$N$ keys provides the greatest marginal throughput
+    benefits.}
+    \label{fig:cache}
+\end{figure}
+
 \textbf{reduced cache size} we show that if hot keys are known we require only a
-small amount of in netowrk state ~\todo{words} we have considered dynamic
+small amount of in netowrk state~\ref{fig:cache} we have considered dynamic
 approaches such as LRU which would allows for a finite amount of space and an
 arbetrary number of keys to be serviced.
 
