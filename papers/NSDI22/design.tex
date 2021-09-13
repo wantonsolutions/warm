@@ -18,7 +18,7 @@ expects. however all of the safety of the atomic operation is lost.
 While removing locking operations is a general principle here we consider a
 solution for RDMA. Different transports with different ordering guarantees would
 require bespoke solutions. RDMA ensures that operations performed on the same QP
-arrive in order~\cite{infiniband spec}~\footnote{while IB allows for relaxed
+arrive in order~\cite{infiniband-spec}~\footnote{while IB allows for relaxed
 ordering here we rely on that feature being turned off on the receiver}. Our
 solution is to map all operations for the same shared state to the same QP to
 ensure ordering of operations in the absense of locks. Similar to TCP, RDMA RC
@@ -125,7 +125,7 @@ data. Once the key from the write is extracted a table lookup is used to
 translate the key into the virtual address of the latest write for that key.
 This strategy uses 64 bytes per key, as each RDMA virtual address is 64 bytes.
 By performing this lookup in the data path all writes succeed regardless of how
-contested the memory address is. ~\ref{figure from words}.
+contested the memory address is. \todo{ref fig from words}.
 
 \textbf{reads:} Reads present a slightly more complicated case. Writes contain
 the key, which allows for a table lookup, while RDMA read requests only contain
@@ -208,7 +208,7 @@ Depending on the algorithm and the QP mapping scheme requests from a single
 sender can be reordered. That is, if a client makes a read and write request to
 different locations in memory, and they are mapped to different QP, they may be
 returned out of order. Infiniband allows for out of order operations on
-receivers~\cite{ib specification}, which pushes operation ordering to client
+receivers~\cite{infiniband-spec}, which pushes operation ordering to client
 side user space. Roce does not allow for out of order operations. In this case
 the receiving NIC will retransmit if requests are delivered out of order. Here
 we buffer requests in network, as we have application knowledge the size of the

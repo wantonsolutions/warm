@@ -70,16 +70,16 @@ write operations especially when the memory locations are contested.
 \subsection{Programable Middleboxes}
 
 There are a variety of proposals for the construction of rack scale
-disaggregated systems~\cite{firebox, beyond, disandapp}~\todo{cite more}. The machinary which arbetrates memory access varies from
+disaggregated systems~\cite{firebox, beyond, disandapp}~\todo{cite more}. The machinery which arbitrates memory access varies from
 implementation to implementation but in general they rely on a centralized
 controller. In some cases this takes the form of a programmable PCIe root
 complex scaled out ~\todo{cite}, while some imagine a programmable
-middle box with an API exposed to applications~\cite{disandapp}. We see the latter as a promising opprotunity as it allows for
+middle box with an API exposed to applications~\cite{disandapp}. We see the latter as a promising opportunity as it allows for
 developers to highly optimize their programs for remote memory. In this work we
-invision rack scale computing with either a progammable switch, or some other
+envision rack scale computing with either a programmable switch, or some other
 programmable hardware (FPGA) being used as a centralized switching fabric for
 memory operations. We assume that these middle boxes have highly constrained
-resouces such as a limited amount of SRAM intended for forwarding packets with
+resources such as a limited amount of SRAM intended for forwarding packets with
 limited functionality for executing programs in the data path.
 
 \subsection{Clover}
