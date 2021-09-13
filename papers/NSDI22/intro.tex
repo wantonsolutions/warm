@@ -7,32 +7,24 @@ approximately 20x, (50ns local and ~1us remote). While this cost may seem
 prohibitive the benefits of resource disaggregation, mainly high memory
 utilization, arbitrarily flexible resource allocation, and energy efficiency~\cite{zombieland}
 make the architectural paradigm tantalizing.
-
-Protocols for accessing remote memory vary (RDMA (ROCE, IB)
-%%~\cite{},
-
-GenZ~\cite{genz}, 
-
-%%omipath~\cite{}) 
+Protocols for accessing remote memory vary RDMA (ROCE, IB)~\cite{infiniband-spec}
+GenZ~\cite{genz}, omipath~\todo{cite}
 however each protocol meets approximately the same
 requirements, and services the same needs. Reliable access to by addressable
 remote memory with low latency and high throughput.
 
-Regardless of the memory transport technology the underlying scheme is the
-same, clients request remote addresses, and the address translation and memory
-operation serving is performed by DMA capable NICs (either commodity RDMA capable
-NICS ConnectX5/6 or smartNICs with configurable protocols 
-
-%%Cavium~/cite{}, 
-%%Clio~/cite{clio}). 
+Regardless of the memory transport technology the underlying scheme is the same,
+clients request remote addresses, and the address translation and memory
+operation serving is performed by DMA capable NICs (either commodity RDMA
+capable NICS ConnectX5/6 or smartNICs with configurable protocols 
+Cavium~/todo{cite}, Clio~\todo{cite}. 
 
 While the implementation of the memory access semantics, when
 applied to the context of resource disaggregation the remote memory operations
 are handled exclusively by the network interface cards. This is because the
 machines hosting the memory are by definition not housing a CPU which could
 otherwise be used to aid in the memory access operations
-%%~\cite{HERD,SoNUMA,
-%%STORM, (every KV store), RMA-paper}. 
+~\cite{herd,sonuma,storm,erpc,cliquemap}. 
 
 An implication of running all memory
 operations on a NIC is that even while being colocate across a PCIe bus from
