@@ -4,8 +4,7 @@
 \subsection{Resource Disaggergation}
 
 Resource disaggregation is an architectural paradigm which separates resources
-such as disk, cpu and memory over a network ~\cite{requirements for resource
-disaggregation}~\cite{legoOS}. The aim of resource disaggregation is to allow
+such as disk, cpu and memory over a network ~\cite{requirements}~\cite{legoos}. The aim of resource disaggregation is to allow
 for near limitless flexibility in terms of machine composition. Memory can be
 dynamically added and removed from a system by reconfiguration, rather than by
 manually changing the physical components of a single machine~\cite{fastswap}.
@@ -19,26 +18,29 @@ and requires more sophisticated solutions to hide latency. Within the
 disaggreted memory community a divide exists between two sides of the solution
 spectrum. On one extreme custom hardware is used to either page out, or evict
 the cache to remote memory. The use of custom hardware to access and control
-memory over the network is refered to as memory disaggregation~\cite{clio,vmware
-papers on cache line remote memory, there are a few others here}. In contrast
-techniques which use commodity hardware to access and control remote memory are
-referred to as \textit{far memory} systems~\cite{LegoOS, remote reigions,
-Clover, ...(there are more)}. In this work we concentrate on the latter, our
-solutions for accessesing and controlling remote memory are confined to existing
-hardware, mainly RDMA capable NICs and programmable switches.
+memory over the network is refered to as memory disaggregation
+
+%~\cite{clio,vmware
+%papers on cache line remote memory, there are a few others here}.
+
+In contrast techniques which use commodity hardware to access and control remote
+memory are referred to as \textit{far memory} systems~\cite{legoos, reigons,
+clover}~\todo{more}. In this work we concentrate on the latter, our solutions
+for accessesing and controlling remote memory are confined to existing hardware,
+mainly RDMA capable NICs and programmable switches.
 
 \textbf{two sides}: The degree to which remote memory should be exposed to the
 user is up for debate. Some approaches attempt for complete
-transparncy~\cite{Fastswap,GMS, all remote paging / cache systems}. Others
+transparncy~\cite{fastswap,GMS,leap,infiniswap}. Others
 expose the remote memory to the application for increased performance
-~\cite{remote regions, aifm}. While the former approach suggests the highest
+~\cite{reigons, aifm}. While the former approach suggests the highest
 degree of backwards compatibility it also sees the largest issues in terms of
 performance, no prior work with transparent remote memory has solved the problem
 of shared access to remote memory. We take the latter approach and suggest that
 to achieve the highest performance programs for remote memory should be built by
 engineers who understand the constraints of remote memory, and expose common
 API's to users, such as POSIX, PUT/GET, or language integrated
-runtimes~\cite{there are many cites here}.
+runtimes\todo{\\cite}.
 
 \subsection{RDMA Key Value Stores}
 
@@ -46,7 +48,7 @@ There is a litany of prior work on making fast in memory key value stores using
 RDMA NICs. The main difference between most RDMA key value stores and solutions
 which are tailored for far memory is that RDMA key value stores rely on each
 machine to have a CPU co-resident with memory~\cite{herd,pilaf,storm,soNUMA,
-MemC3, ect}. In these systems clients make put and get requests to remote memory
+MemC3}~\todo{citemore}. In these systems clients make put and get requests to remote memory
 which are translated to RDMA verbs which read and write to remote memory. Much
 debate has been had over which verbs to use~\cite{storm, herd, eRPC} the
 relative performance of signaled and unsignaled verbs, and the reliability of
@@ -68,13 +70,11 @@ write operations especially when the memory locations are contested.
 \subsection{Programable Middleboxes}
 
 There are a variety of proposals for the construction of rack scale
-disaggregated systems~\cite{firebox, themachine, disaggregation and the
-application, ect}. The machinary which arbetrates memory access varies from
+disaggregated systems~\cite{firebox, beyond, disandapp}~\todo{cite more}. The machinary which arbetrates memory access varies from
 implementation to implementation but in general they rely on a centralized
 controller. In some cases this takes the form of a programmable PCIe root
-complex scaled out ~\cite{cant remember}, while some imagine a programmable
-middle box with an API exposed to applications~\cite{dissagregation and the
-application}. We see the latter as a promising opprotunity as it allows for
+complex scaled out ~\todo{cite}, while some imagine a programmable
+middle box with an API exposed to applications~\cite{disandapp}. We see the latter as a promising opprotunity as it allows for
 developers to highly optimize their programs for remote memory. In this work we
 invision rack scale computing with either a progammable switch, or some other
 programmable hardware (FPGA) being used as a centralized switching fabric for

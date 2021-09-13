@@ -419,25 +419,6 @@ publisher = {{USENIX} Association},
 month = jul,
 }
 
-@inproceedings{10.1145/2619239.2626299,
-author = {Kalia, Anuj and Kaminsky, Michael and Andersen, David G.},
-title = {Using RDMA Efficiently for Key-Value Services},
-year = {2014},
-isbn = {9781450328364},
-publisher = {Association for Computing Machinery},
-address = {New York, NY, USA},
-url = {https://doi.org/10.1145/2619239.2626299},
-doi = {10.1145/2619239.2626299},
-abstract = {This paper describes the design and implementation of HERD, a key-value system designed to make the best use of an RDMA network. Unlike prior RDMA-based key-value systems, HERD focuses its design on reducing network round trips while using efficient RDMA primitives; the result is substantially lower latency, and throughput that saturates modern, commodity RDMA hardware.HERD has two unconventional decisions: First, it does not use RDMA reads, despite the allure of operations that bypass the remote CPU entirely. Second, it uses a mix of RDMA and messaging verbs, despite the conventional wisdom that the messaging primitives are slow. A HERD client writes its request into the server's memory; the server computes the reply. This design uses a single round trip for all requests and supports up to 26 million key-value operations per second with 5μs average latency. Notably, for small key-value items, our full system throughput is similar to native RDMA read throughput and is over 2X higher than recent RDMA-based key-value systems. We believe that HERD further serves as an effective template for the construction of RDMA-based datacenter services.},
-booktitle = {Proceedings of the 2014 ACM Conference on SIGCOMM},
-pages = {295–306},
-numpages = {12},
-keywords = {RDMA, key-value stores, ROCE, infiniband},
-location = {Chicago, Illinois, USA},
-series = {SIGCOMM '14}
-}
-
-  
 
 @article{herd,
 author = {Kalia, Anuj and Kaminsky, Michael and Andersen, David G.},
@@ -497,7 +478,7 @@ month = jul,
    pages={1138–1143}
 }
 
-@inproceedings{job_throughput,
+@inproceedings{fastswap,
 author = {Amaro, Emmanuel and Branner-Augmon, Christopher and Luo, Zhihong and Ousterhout, Amy and Aguilera, Marcos K. and Panda, Aurojit and Ratnasamy, Sylvia and Shenker, Scott},
 title = {Can Far Memory Improve Job Throughput?},
 year = {2020},
@@ -531,3 +512,79 @@ location = {Virtual Event, USA},
 series = {WORDS '21}
 }
 
+@MISC{genz,
+  author = {GenZZ},
+  title = {Gen-Z Consortium},
+  howpublished = {https://genzconsortium.org/},
+  year = {2018}
+}
+
+@inproceedings {decible,
+author = {Mihir Nanavati and Jake Wires and Andrew Warfield},
+title = {Decibel: Isolation and Sharing in Disaggregated Rack-Scale Storage},
+booktitle = {14th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 17)},
+year = {2017},
+isbn = {978-1-931971-37-9},
+address = {Boston, MA},
+pages = {17--33},
+url = {https://www.usenix.org/conference/nsdi17/technical-sessions/presentation/nanavati},
+publisher = {{USENIX} Association},
+month = mar,
+}
+
+@inproceedings {aifm,
+author = {Zhenyuan Ruan and Malte Schwarzkopf and Marcos K. Aguilera and Adam Belay},
+title = {{AIFM}: High-Performance, Application-Integrated Far Memory},
+booktitle = {14th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 20)},
+year = {2020},
+isbn = {978-1-939133-19-9},
+pages = {315--332},
+url = {https://www.usenix.org/conference/osdi20/presentation/ruan},
+publisher = {{USENIX} Association},
+month = nov,
+}
+
+@inproceedings{firebox,
+author = {Karandikar, Sagar and Ou, Albert and Amid, Alon and Mao, Howard and Katz, Randy and Nikoli\'{c}, Borivoje and Asanovi\'{c}, Krste},
+title = {FirePerf: FPGA-Accelerated Full-System Hardware/Software Performance Profiling and Co-Design},
+year = {2020},
+isbn = {9781450371025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3373376.3378455},
+doi = {10.1145/3373376.3378455},
+abstract = {Achieving high-performance when developing specialized hardware/software systems requires
+understanding and improving not only core compute kernels, but also intricate and
+elusive system-level bottlenecks. Profiling these bottlenecks requires both high-fidelity
+introspection and the ability to run sufficiently many cycles to execute complex software
+stacks, a challenging combination. In this work, we enable agile full-system performance
+optimization for hardware/software systems with FirePerf, a set of novel out-of-band
+system-level performance profiling capabilities integrated into the open-source FireSim
+FPGA-accelerated hardware simulation platform. Using out-of-band call stack reconstruction
+and automatic performance counter insertion, FirePerf enables introspecting into hardware
+and software at appropriate abstraction levels to rapidly identify opportunities for
+software optimization and hardware specialization, without disrupting end-to-end system
+behavior like traditional profiling tools. We demonstrate the capabilities of FirePerf
+with a case study that optimizes the hardware/software stack of an open-source RISC-V
+SoC with an Ethernet NIC to achieve 8x end-to-end improvement in achievable bandwidth
+for networking applications running on Linux. We also deploy a RISC-V Linux kernel
+optimization discovered with FirePerf on commercial RISC-V silicon, resulting in up
+to 1.72x improvement in network performance.},
+booktitle = {Proceedings of the Twenty-Fifth International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {715–731},
+numpages = {17},
+keywords = {fpga-accelerated simulation, network performance optimization, performance profiling, agile hardware, hardware/software co-design},
+location = {Lausanne, Switzerland},
+series = {ASPLOS '20}
+}
+
+@inproceedings {ivy,
+author = {Athicha Muthitacharoen and Robert Morris and Thomer M. Gil and Benjie Chen},
+title = {Ivy: A Read/Write Peer-to-Peer File System},
+booktitle = {5th Symposium on Operating Systems Design and Implementation ({OSDI} 02)},
+year = {2002},
+address = {Boston, MA},
+url = {https://www.usenix.org/conference/osdi-02/ivy-readwrite-peer-peer-file-system},
+publisher = {{USENIX} Association},
+month = dec,
+}

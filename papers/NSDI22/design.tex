@@ -38,7 +38,7 @@ reordering occurs using a go back n algorithm.
 
 
 \subsection{Instruction Coalescing} A final additional challenge in mapping
-requests, is that receving NIC's can coalese acknoledgement messages. Given a
+requests, is that receving NIC's can coalesce acknowledgement messages. Given a
 single connection, if two concurrent writes are issued, it is perfectly valid
 for an RDMA NIC to only ack the second write. This is a challange when mapping
 requests as a coalesed message might have been for a different sender. In our
