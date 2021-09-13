@@ -11,18 +11,7 @@ the ACK transits back from the memory server, it can be replaced by an atomic
 ACK with the original data from the write location filled in by the middle box.
 Doing this does nothing to disturb the higher level protocol, as the receiving
 NIC processes the requests as is, and the sender gets back the responses it
-expects. however all of the safety of the atomic operation is lost.  In the
-following subsections we describe the dangers of removing atomics, and present
-our solutions.
-
-A few assumptions must be made in order for this replacement of operations to be
-made. First and foremost all operation serialization must be made, and finalized
-at the point where the CNS is swapped out. More formally, all of the data
-structure invariants which required locking, must be satisfied at the time of
-transforming the packet. Further the order of operations must be maintained
-downstream from the checking of the invariant. These two requirements influence
-the design of any system which aims to make this performance improvement.
-
+expects. however all of the safety of the atomic operation is lost.  
 
 \subsection{Connection Remapping}
 
@@ -35,6 +24,25 @@ solution is to map all operations for the same shared state to the same QP to
 ensure ordering of operations in the absense of locks. Similar to TCP, RDMA RC
 ensures that all operations arrive in order. RDMA retransmits requests if
 reordering occurs using a go back n algorithm.
+
+Doing so requires care on the middlebox. Multiplexing requests onto a single
+connection means that the sequence numbers of memory operations must be updated
+so that the receiving NIC on the memory side sees monotonic sequence numbers. To
+achieve this we track a sequence number per QP and inject the updated sequence
+number into the packet after a mapping decision has been made. When a response
+comes back (in the form of an ACK, READ RESPONSE, or ATOMIC ACK) the packet must
+me demuliplexed back onto it's original connection. In addition to sequence
+numbers, a \textit{message sequence number}, is maintained on the recever NIC
+for each inbound connection, this value is transmitted as part of the ROCE BTH+
+header in the response. It's value corresponds to the highest request number the
+receiver has processed. If this value is wrong in the response packet from the
+perspective of the sender, the packet is retransmitted. We calculate the message
+sequence number a sender expects to see by counting the number of operations a
+sender has issued and adding it to the value of the original message sequence
+number for that connection. When requests are mutiplexed the QP and sequence
+number of the original request are stored in a per QP table. The sequence number
+of the response packet is used to perform an O(1) lookup for the original QP and
+sequence number.
 
 
 \subsection{Instruction Coalescing} A final additional challenge in mapping
@@ -95,6 +103,18 @@ resolve their conflicts in network as the operations flow by serially to memory.
 \end{figure}
 
 \subsection{Implementing Atomic replacement}
+
+In the
+following subsections we describe the dangers of removing atomics, and present
+our solutions.
+
+A few assumptions must be made in order for this replacement of operations to be
+made. First and foremost all operation serialization must be made, and finalized
+at the point where the CNS is swapped out. More formally, all of the data
+structure invariants which required locking, must be satisfied at the time of
+transforming the packet. Further the order of operations must be maintained
+downstream from the checking of the invariant. These two requirements influence
+the design of any system which aims to make this performance improvement.
 
 \textbf{writes:} In the case of clover we cache the location of the latest writes to occur for
 each key. If a write occurs which is for a stale virtual address, our conflict
@@ -171,25 +191,7 @@ in another way.
 
 Our solution here is simple, given that we have the key's for reads and writes
 ~\ref{operation-caching}, all operations for the same key are mapped to the same
-QP. Doing so requires care on the middlebox. Multiplexing requests onto a single
-connection means that the sequence numbers of memory operations must be updated
-so that the receiving NIC on the memory side sees monotonic sequence numbers. To
-achieve this we track a sequence number per QP and inject the updated sequence
-number into the packet after a mapping decision has been made. When a response
-comes back (in the form of an ACK, READ RESPONSE, or ATOMIC ACK) the packet must
-me demuliplexed back onto it's original connection. In addition to sequence
-numbers, a \textit{message sequence number}, is maintained on the recever NIC
-for each inbound connection, this value is transmitted as part of the ROCE BTH+
-header in the response. It's value corresponds to the highest request number the
-receiver has processed. If this value is wrong in the response packet from the
-perspective of the sender, the packet is retransmitted. We calculate the message
-sequence number a sender expects to see by counting the number of operations a
-sender has issued and adding it to the value of the original message sequence
-number for that connection. When requests are mutiplexed the QP and sequence
-number of the original request are stored in a per QP table. The sequence number
-of the response packet is used to perform an O(1) lookup for the original QP and
-sequence number.
-
+QP. 
 This algorithm requires that a few pieces of state be maintained per connection.
 First the sending and response QP for each sender and receiver need to be
 tracked. Second the sequence number of each connection, and the original message
