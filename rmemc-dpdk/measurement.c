@@ -134,7 +134,6 @@ void read_redirected(void)
 
 void read_not_cached(void)
 {
-    printf("cache miss\n");
     read_misses++;
 }
 

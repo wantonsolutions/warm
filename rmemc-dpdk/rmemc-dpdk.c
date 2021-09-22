@@ -49,10 +49,11 @@ uint32_t debug_start_printing_every_packet = 0;
 
 static int has_mapped_qp = 0;
 static int packet_counter = 0;
+static int hash_collisons=0;
 
 #define READ_STEER
 #define WRITE_VADDR_CACHE_SIZE 16
-#define SINGLE_CORE
+//#define SINGLE_CORE
 
 uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
 uint32_t writes_per_key[KEYSPACE];
@@ -285,6 +286,42 @@ void init_reorder_buf(void)
 			client_qp_timestamp[i][j] = 0;
 			ect_qp_timestamp[i][j] = 0;
 		}
+	}
+}
+
+
+uint32_t seq_counter[TOTAL_ENTRY];
+int track_sequential_receipt(struct rte_mbuf* pkt) {
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	if(!roce_hdr) {
+		return 1;
+	}
+	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
+	uint32_t id = find_id(pkt);
+
+	if(id == -1) {
+		return 1;
+	}
+
+//only track response packets
+	if(
+		(roce_hdr->opcode == RC_ATOMIC_ACK) ||
+		(roce_hdr->opcode == RC_ACK) ||
+		(roce_hdr->opcode == RC_READ_RESPONSE)
+	) {
+		//monotonic case
+		if(seq_counter[id] == seq - 1) {
+			seq_counter[id] = seq;
+			return 1;
+		} else {
+			printf("Current Sequence Number %d Last Seq %d (%s) \n",seq,seq_counter[id],ib_print_op(roce_hdr->opcode));
+			if(seq_counter[id] == 0) {
+				seq_counter[id]=seq;
+			}
+			return 0;
+		}
+	} else {
+		printf("opcode %s\n",ib_print_op(roce_hdr->opcode));
 	}
 }
 
@@ -894,30 +931,96 @@ void init_connection_states(void)
 
 uint32_t mod_hash(uint64_t vaddr)
 {
-	//uint32_t index = crc32(0xFFFFFFFF, &vaddr, 8) % HASHSPACE;
+	uint32_t index = ((uint32_t)crc32(0xFFFFFFFF, &vaddr, 8)) % HASHSPACE;
 	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
-	uint32_t index = (ntohl(vaddr >> 32) % HASHSPACE);
-	//printf("%"PRIx64" %d\n",vaddr, index);
+	//uint32_t index = (ntohl(vaddr >> 33) % HASHSPACE);
+	//uint64_t value = (ntohl(vaddr >> 42));
+	//uint64_t index = be64toh(vaddr) % HASHSPACE;
+	//printf("%"PRIx64"\n",value);
+	//uint32_t index = (value % HASHSPACE);
+	//printf("vaddr: %"PRIx64" index: %u\n",vaddr, index);
 	return index;
+}
+
+void update_read_tail(uint64_t key, uint64_t vaddr) {
+	cached_write_vaddr_mod_latest[key] = vaddr;
 }
 
 void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 {
 	uint32_t index = mod_hash(vaddr);
+	if (cached_write_vaddr_mod[index] != 0) {
+		hash_collisons++;
+		printf("collissions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
+
+	}
+	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
-	cached_write_vaddr_mod_latest[key] = vaddr;
+
+	/*
+	if (key == 90) {
+		printf("vaddr key 90 %"PRIx64"\n",vaddr);
+	}
+	*/
+
+	//dumb test
+	/*
+	int test_index = mod_hash(0xedaf6d76550000);
+	printf("text index 1 %d\n",test_index);
+	test_index = mod_hash(0xf9ef09cb550000);
+	printf("text index 2 %d\n",test_index);
+	test_index = mod_hash(0xf98f2f0e560000);
+	printf("text index 3 %d\n",test_index);
+	*/
+}
+
+void closest_address(uint64_t vaddr) {
+	int64_t closest = 0;
+	int64_t closest_diff = 0xFFFFFFFF;
+	vaddr = be64toh(vaddr);
+	for(int i=0;i<HASHSPACE;i++) {
+		if (cached_write_vaddr_mod[i] == 0) {
+			continue;
+		}
+		int64_t diff = be64toh(cached_write_vaddr_mod[i]) - vaddr;
+		//printf("(diff) %"PRIx64"\n",diff);
+		if (diff < 0) {
+			diff *= -1;
+		}
+		if(diff < closest_diff){
+			closest_diff = diff;
+			closest = be64toh(cached_write_vaddr_mod[i]);
+		}
+	}
+	//printf("Addr: %"PRIx64" Closest %"PRIx64" Diff %"PRIx64"\n",vaddr,closest,closest_diff);
 }
 
 int does_read_have_cached_write_mod(uint64_t vaddr)
 {
+	//printf("\t%"PRIx64" \tREAD",be64toh(vaddr));
 	uint32_t index = mod_hash(vaddr);
 	if (cached_write_vaddr_mod[index] == vaddr)
 	{
+		//printf("   (hit)\n");
 		return cached_write_vaddr_mod_lookup[index];
+	} else {
+		//closest_address(vaddr);
 	}
+	//printf("\n");
 	return 0;
 }
+
+void print_cache_population() {
+	int populated = 0;
+	for(int i=0;i<HASHSPACE;i++) {
+		if (cached_write_vaddr_mod[i] != 0) {
+			populated++;
+		}
+	}
+	printf("CACHE SATURATION %d/%d\n",populated,HASHSPACE);
+}
+
 
 uint64_t get_latest_vaddr_mod(uint32_t key)
 {
@@ -941,7 +1044,6 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key)
 
 	if (vaddr == 0)
 	{
-
 		return;
 	}
 
@@ -967,22 +1069,21 @@ int get_key(struct rte_mbuf *pkt) {
 
 	if (roce_hdr->opcode == RC_WRITE_ONLY && size == 1084) {
 
-		struct write_request *wr = (struct write_request *)clover_header;
+		struct write_request *wr = (struct wriee_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
 		return (int)*key;
 	} else if (roce_hdr->opcode == RC_ATOMIC_ACK || roce_hdr->opcode == RC_CNS) {
 		return (int)get_latest_key(id);
 	} else if (roce_hdr->opcode == RC_READ_REQUEST) {
-		/*
 		struct read_request *rr = (struct read_request *)clover_header;
-		uint64_t *key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
-		if (*key)
+		int key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+		if (key != 0)
 		{
-			return (int)*key;
-		}*/
+			return key;
+		} 
 	} else if (roce_hdr->opcode == RC_READ_RESPONSE && size == 1072) {
-		struct read_response *rr = (struct read_response *)clover_header;
-		uint64_t *key = (uint64_t *)&(rr->data);
+		struct read_response *resp = (struct read_response *)clover_header;
+		uint64_t *key = (uint64_t *)&(resp->data);
 		return (int)*key;
 	} else {
 		return -1;
@@ -1077,10 +1178,10 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 			//printf("cs %"PRIx64"\n",be64toh(cs->atomic_req.swap_or_add));
 		}
 		roce_hdr->opcode = RC_WRITE_ONLY;
-		wr->rdma_extended_header.dma_length = htonl(sizeof(uint64_t) + 50);
+		wr->rdma_extended_header.dma_length = htonl(sizeof(uint64_t));
 		memcpy(&wr->ptr,&write_value,8);
 		if (print_counter < 300) {
-			printf("%"PRIx64" id %d\n",be64toh(write_value),slot->id);
+			//printf("raw pointer %"PRIx64"  vaddr %"PRIx64", slot id %d\n",be64toh(write_value),wr->rdma_extended_header.vaddr,slot->id);
 			//print_write_request(wr);
 			//print_packet(pkt);
 			print_counter++;
@@ -1090,6 +1191,7 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 		//Header change now we need to adjust the length (should be -4)
 		//uint32_t size_diff = (sizeof(cs_request) - sizeof(write_request));
 		uint32_t size_diff = 4; // This is a magic number because the line before this (cs - write) gives 3
+		rte_pktmbuf_trim(pkt,size_diff);
 		//printf("size diff %d\n",size_diff);
 		udp_hdr->dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
@@ -1110,6 +1212,7 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
 	if (slot->rdma_op == RC_CNS && slot->was_write_swapped==1) {
+		printf("converting missing ack to atomic-ack\n");
 		//printf("converting write-ack to cns-ack\n");
 		struct cs_response *cs = (struct cs_response *)clover_header;
 		struct rdma_ack *ack = (struct rdma_ack *)clover_header;
@@ -1119,32 +1222,30 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 		//Set the headers
 		//First extend the size of the packt buf
 		//print_packet(pkt);
-		rte_pktmbuf_append(pkt,8);
+		uint32_t size_diff = 8; // This is a magic number because the line before this (cs - write) gives 3
+		rte_pktmbuf_append(pkt,size_diff);
 		roce_hdr->opcode = RC_ATOMIC_ACK;
 		//cs->atomc_ack_extended.original_remote_data = be64toh(0);
 		cs->atomc_ack_extended.original_remote_data = htobe64(2048);
 		//cs->atomc_ack_extended.original_remote_data = htobe64(1024);
 
-		int32_t size_diff = -8; // This is a magic number because the line before this (cs - write) gives 3
 		//printf("size diff %d\n",size_diff);
 
-		uint16_t dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
+		uint16_t dgram_len = htons(ntohs(udp_hdr->dgram_len) + size_diff);
 		//printf("dgram len new %d old %d\n",ntohs(dgram_len),ntohs(udp_hdr->dgram_len));
 		udp_hdr->dgram_len = dgram_len;
 
 
-		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
+		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
 		//printf("CNS - forward\n");
 		//TODO remove the this part
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		recalculate_rdma_checksum(pkt);
 		//print_packet(pkt);
-
-
-
-		
-	} 
+	} else {
+		printf("slot not a cns, this is a strange one, I thought that it would have been\n");
+	}
 }
 
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
@@ -1346,9 +1447,8 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
 		set_msn(roce_hdr, msn);
 
 		#ifdef CNS_TO_WRITE
-		printf("converting to atomic-ack\n");
 		map_write_ack_to_atomic_ack(pkt,missing_write);
-		print_packet(pkt);
+		//print_packet(pkt);
 		#endif
 
 		//Ip mapping recalculate the ip checksum
@@ -1390,16 +1490,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 	lock_connection_state(source_connection);
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
+
 	
-	//This is a good place to start to detect if there is a missing write. If there is then we want to generate an ACK here.
-	struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
-	if (missing_write){
-		struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write);
-		mpr.pkts[1] = mpr.pkts[0];
-		mpr.pkts[0] = coalesed_ack;
-		mpr.size++;
-		printf("send a new ack\n");
-	}
 
 
 	//struct Request_Map *
@@ -1440,7 +1532,49 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 		recalculate_rdma_checksum(pkt);
 
+
+		//TODO!! start here
+		//is there another mapped request for this id with a lower sequence number
+		id = mapped_request->id;
+		uint32_t seq = readable_seq(mapped_request->original_sequence);
+		for(int i=0;i<TOTAL_ENTRY;i++) {
+			struct Connection_State *search_connection = &Connection_States[i];
+			for(int j=0;j<CS_SLOTS;j++) {
+				struct Request_Map *search_request = &search_connection->Outstanding_Requests[j];
+				if(
+					(search_request->id == id) &&
+					(!slot_is_open(search_request)) &&
+					(readable_seq(search_request->original_sequence) <seq) &&
+					(search_request->rdma_op == RC_WRITE_ONLY || search_request->rdma_op == RC_CNS)
+				) {
+					printf("I think that this is a coalesed packet\n");
+					print_request_map(search_request);
+					//This is a good place to start to detect if there is a missing write. If there is then we want to generate an ACK here.
+					//struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
+					struct Request_Map *missing_write = search_request;
+					if (missing_write){
+						struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write);
+						if (coalesed_ack != NULL) {
+							mpr.pkts[1] = mpr.pkts[0];
+							mpr.pkts[0] = coalesed_ack;
+							mpr.size++;
+
+							print_packet_lite(mpr.pkts[0]);
+							print_packet_lite(mpr.pkts[1]);
+							printf("send a new ack\n");
+						}
+					}
+				}
+
+			}
+		}
+		//!TODO this is the danger zone end
+
+
+
 		open_slot(mapped_request);
+
+
 		unlock_connection_state(source_connection);
 
 		//THis is a good place to inject the transition from a write to a CNS.
@@ -1509,30 +1643,25 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 
 	if (opcode == RC_READ_REQUEST)
 	{
-		uint32_t stub_key = 0;
-		uint32_t *key = &stub_key;
+		int key = 0;
 
 #ifdef READ_STEER
 		struct read_request *rr = (struct read_request *)clover_header;
-		//printf("DMA LEN %d\n", ntohl(dma_len));
-		*key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
-		//uint32_t dma_len = ntohl(rr->rdma_extended_header.dma_length);
-		//if (*key && dma_len == 1024) {
-		if (*key)
-		{
-			steer_read(pkt, *key);
-		}
-		else
-		{
-			*key = 0;
-#ifdef TAKE_MEASUREMENTS
-			//print_packet_lite(pkt);
-			//print_packet(pkt);
-			//read_not_cached();
+		key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
+		if (size == 1024) {
+			uint32_t id = get_id(roce_hdr->dest_qp);
+			if (key == 0) {
+				//printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
+				//print_packet(pkt);
+				read_not_cached();
+			} else {
+				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
+				steer_read(pkt, key);
+			}
+		} 
 #endif
-		}
-#endif
-		map_qp_forward(pkt, *key);
+		map_qp_forward(pkt, key);
 	}
 	else if (opcode == RC_WRITE_ONLY)
 	{
@@ -1608,7 +1737,7 @@ int should_track(struct rte_mbuf *pkt)
 	if (opcode == RC_ATOMIC_ACK)
 	{
 		//printf("GENERAL RC ATOMIC_ACK\n");
-		print_packet(pkt);
+		//print_packet(pkt);
 		struct cs_response * cs = (struct cs_response *) get_clover_hdr(pkt);
 		//print_cs_request(&cs);
 		//printf("%"PRIu64" ,_original data\n",cs->atomc_ack_extended.original_remote_data);
@@ -1780,6 +1909,7 @@ void true_classify(struct rte_mbuf *pkt)
 		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
 		check_and_cache_predicted_shift(rdma_size);
 
+
 		//Experimentatiopn for working with restricted cache keyspaces. Return
 		//from here if the key is out of the cache range.
 		if (*key > CACHE_KEYSPACE)
@@ -1787,6 +1917,11 @@ void true_classify(struct rte_mbuf *pkt)
 			unlock_next();
 			return;
 		}
+
+		#ifdef READ_STEER
+		update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
+		#endif
+
 		//okay so this happens twice becasuse the order is
 		//Write 0;
 		//Write 1;
@@ -1805,6 +1940,7 @@ void true_classify(struct rte_mbuf *pkt)
 				//This is the init write. On the first write, for some reason we
 				//don't do anything. I just mark that it's received.
 				first_write[*key] = 1;
+
 			}
 			else if (first_write[*key] == 1)
 			{
@@ -1814,6 +1950,14 @@ void true_classify(struct rte_mbuf *pkt)
 				next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
 				outstanding_write_predicts[id][*key] = 1;
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+
+				/*
+				#ifdef READ_STEER
+							//TODO SKETCHY!!
+							//update_write_vaddr_cache(key, cs->atomic_req.vaddr);
+							update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
+				#endif
+				*/
 			}
 			else
 			{
@@ -1822,6 +1966,7 @@ void true_classify(struct rte_mbuf *pkt)
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
 			}
 		}
+
 		unlock_next();
 	}
 
@@ -1871,6 +2016,12 @@ void true_classify(struct rte_mbuf *pkt)
 				}
 			}
 			//Return and forward the packet if this is the first cns
+
+			#ifdef READ_STEER
+						//TODO SUS
+						//update_write_vaddr_cache(key, cs->atomic_req.vaddr);
+						update_read_tail(key, *next_vaddr_p);
+			#endif
 			unlock_next();
 			return;
 		}
@@ -1893,11 +2044,12 @@ void true_classify(struct rte_mbuf *pkt)
 		if (likely(predict == swap))
 		{
 //This is where the write (for all intents and purposes has been commited)
-#ifdef READ_STEER
-			update_write_vaddr_cache(key, *next_vaddr_p);
-#endif
 
 			*next_vaddr_p = *outstanding_write_vaddr_p;
+
+#ifdef READ_STEER
+			update_read_tail(key, *next_vaddr_p);
+#endif
 			//erase the old entries
 			*outstanding_write_predict_p = 0;
 			*outstanding_write_vaddr_p = 0;
@@ -2295,7 +2447,7 @@ lcore_main(void)
 
 
 
-			#define PRINT_COUNT 5500
+			#define PRINT_COUNT 10000
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
 				if (likely(i < nb_rx - 1))
@@ -2310,18 +2462,12 @@ lcore_main(void)
 					struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 					uint32_t size = ntohs(ipv4_hdr->total_length);
 					int id = find_id(pkt);
-
-					if ((rh->opcode == RC_CNS && id >= 0) || 
-					(rh->opcode == RC_READ_REQUEST && size == 60 && id >= 0) ||
-					(rh->opcode == RC_WRITE_ONLY && size == 1084 && id >= 0)
-					)
-					{ 
-						print_packet_lite(pkt);
-					}
 				}
 
 				struct map_packet_response mpr;
 				mpr = map_qp(rx_pkts[i]);
+				//track_sequential_receipt(rx_pkts[i]);
+
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
@@ -2329,23 +2475,73 @@ lcore_main(void)
 						struct rte_mbuf * pkt = tx_pkts[to_tx];
 						struct roce_v2_header * rh = get_roce_hdr(pkt);
 						struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+						struct clover_hdr *clover_header = get_clover_hdr(pkt);
 						uint32_t size = ntohs(ipv4_hdr->total_length);
 						int id = find_id(pkt);
+						struct read_request *rr = (struct read_request *)clover_header;
+						struct write_request *wr = (struct write_request *)clover_header;
+
 
 						if(
-							(rh->opcode == RC_ATOMIC_ACK)||
-							(rh->opcode == RC_READ_RESPONSE && id >= 0)
-							)
+							((rh->opcode == RC_ATOMIC_ACK)||
+							(rh->opcode == RC_READ_RESPONSE && id >= 0 && size == 1072) ||
+							(rh->opcode == RC_WRITE_ONLY && id >= 0) ||
+							(rh->opcode == RC_READ_REQUEST && ntohl(rr->rdma_extended_header.dma_length)==1024))
+						)
 						{ 
-							print_packet_lite(pkt);
 							int key = get_key(pkt);
-							if (rh->opcode == RC_READ_RESPONSE && key == 56 && packet_counter < 5400) {
-								print_packet(pkt);
+							if (rh->opcode == RC_READ_REQUEST && ntohl(rr->rdma_extended_header.dma_length)==1024 && key == -1 ) {
+								//print_packet(pkt);
+								printf("rouge read!!\n");
+								print_packet_lite(pkt);
 							}
-							if (rh->opcode == RC_READ_RESPONSE && packet_counter > 5200 && packet_counter < 5400) {
-								print_packet(pkt);
+							if (rh->opcode == RC_READ_RESPONSE && (key == 0)) {
+								//print_packet(pkt);
+								print_packet_lite(pkt);
+							}
+							/*
+							if (packet_counter % 5000 == 0){
+								//printf("PROCCESSING ON SINGLE_CORE MACRO\n");
+								//print_packet_lite(tx_pkts[to_tx]);
+								print_cache_population();
+							}
+							*/
+							/*
+							int key = get_key(pkt);
+							if (key == 56) {
+								print_packet_lite(pkt);
+								//print_packet(pkt);
+							}
+							//vaddrs
+							if(rh->opcode == RC_WRITE_ONLY && id >= 0 && key == 56) {
+								struct write_request *wr = (struct write_request *)clover_header;
+								printf("write: %"PRIx64"\n",wr->rdma_extended_header.vaddr);
+							}
+							if(rh->opcode == RC_READ_REQUEST && key == 56) {
+								print_packet_lite(pkt);
+								printf("read: %"PRIx64"\n",rr->rdma_extended_header.vaddr);
+								printf("Latest key vaddr = %"PRIx64"\n",get_latest_vaddr(56));
+							}
+							*/
+
+						}
+
+						/*
+						if (rh->opcode == RC_READ_REQUEST && (packet_counter % 1000 == 0)) {
+							//print_cache_population();
+							//struct read_request *rr = (struct read_request *)clover_header;
+							//printf("request vaddr %"PRIx64"\n",rr->rdma_extended_header.vaddr);
+						}
+						if (rh->opcode == RC_WRITE_ONLY) {
+							//print_cache_population();
+							int key = get_key(pkt);
+							if (key == 56) {
+								struct write_request *wr = (struct write_request *)clover_header;
+								//printf("write key vaddr %"PRIx64"\n",wr->rdma_extended_header.vaddr);
+								//print_packet(pkt);
 							}
 						}
+						*/
 					}
 					to_tx++;
 					/*uncomment this for unbuffered io*/
@@ -2355,10 +2551,6 @@ lcore_main(void)
 			}
 			//bulk sending
 			#ifdef SINGLE_CORE
-			if (packet_counter % 500000 == 0){
-				printf("PROCCESSING ON SINGLE_CORE MACRO\n");
-				print_packet_lite(tx_pkts[to_tx]);
-			}
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
 			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx,port,queue);
@@ -2496,6 +2688,7 @@ int main(int argc, char *argv[])
 		bzero(outstanding_write_predicts, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
+		bzero(seq_counter, TOTAL_ENTRY *sizeof(uint32_t));
 
 #ifdef TAKE_MEASUREMENTS
 		init_measurements();

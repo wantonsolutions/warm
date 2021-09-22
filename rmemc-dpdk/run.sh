@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#clear the terminal
+clear
+
 if [[ $1 == -b ]]; then
     echo "about to clean"
     make clean

@@ -132,8 +132,8 @@ function set_ooo {
 set_server_params
 setup_nic
 setup_hugepages
-set_ooo
-set_ecn
+#set_ooo
+#set_ecn
 
 if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then
     #turn off roce
