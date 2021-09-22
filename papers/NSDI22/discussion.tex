@@ -1,1 +1,16 @@
 \section{Discussion and future work}
+
+Our approach only measures the benifits which clover observers by using our in
+network contention resolution. However our approach is general, and in the
+future we would like to add fuctionality for different systems. For example
+Remote Reigions~\cite{reigons} implements a POSIX file system API for remote
+memory.  Our approach could also be used to remove contention here in a much
+more standardized remote memory environment.
+
+Clover represents a state of the art key value store for remote memory, however
+it is designed with a different set of assumptions than we anticipte for future
+systems. We believe that in the context of remote memory with programmble middle
+boxes we should archetict remote algorithms differently. Mainly that algorithms
+and data structures should be designed with the assumption that conflicts can be
+resolved using small amounts of high speed compute in network. We aim to explore
+the design space of such algorithms and data structures in the future.

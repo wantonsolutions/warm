@@ -1,3 +1,78 @@
 \section{Introduction}
 
-We wrote a workshop paper ~\cite{clover:words21}
+Resource disaggregation, and specifically memory disaggregation incurs serious
+performance penalties due resources being exclusively accessed over a network.
+In the case of memory disaggregation the latency of remote memory vs local is
+approximately 20x, (50ns local and ~1us remote). While this cost may seem
+prohibitive the benefits of resource disaggregation, mainly high memory
+utilization, arbitrarily flexible resource allocation, and energy efficiency~\cite{zombieland}
+make the architectural paradigm tantalizing.
+Protocols for accessing remote memory vary RDMA (ROCE, IB)~\cite{infiniband-spec}
+GenZ~\cite{genz}, omipath~\todo{cite}
+however each protocol meets approximately the same
+requirements, and services the same needs. Reliable access to by addressable
+remote memory with low latency and high throughput.
+
+Regardless of the memory transport technology the underlying scheme is the same,
+clients request remote addresses, and the address translation and memory
+operation serving is performed by DMA capable NICs (either commodity RDMA
+capable NICS ConnectX5/6 or smartNICs with configurable protocols 
+Cavium~/todo{cite}, Clio~\todo{cite}. 
+
+While the implementation of the memory access semantics, when
+applied to the context of resource disaggregation the remote memory operations
+are handled exclusively by the network interface cards. This is because the
+machines hosting the memory are by definition not housing a CPU which could
+otherwise be used to aid in the memory access operations
+~\cite{herd,sonuma,storm,erpc,cliquemap}. 
+
+An implication of running all memory
+operations on a NIC is that even while being colocate across a PCIe bus from
+the memory it controls, it still incurs a serious latency penalty for
+arbitrating across the PCIe bus.
+
+The penalty for controlling remote memory without the aid of a remote CPU to aid
+in serialization of memory operation is stark. Clients are essentially forced
+strictly partition their accesses to remote memory as the price of contention is
+high~\cite{legoos, reigons}. Systems which aim to offer shared remote
+resources to clients in a disaggregated setting pay the harsh performance
+penalty of relying on NICs as memory controllers. Nowhere is this cost clearer
+than with the use of atomic memory operations on the NIC. The performance of
+RDMA atomics has been measured in prior work ~\cite{design-guidelines}~\cite{clover}. In state of the art memory disaggregation systems with
+sharing such as Clover~\cite{clover} a great deal of care is taken to avoid both
+memory conflicts and the need to perform multiple reads or writes to complete an
+operation. To achieve this Clover caches metadata about the location of the
+latest writes and reads while also make use of a remote data structures which
+allows for lockless reads. In the case of highly contended resources however the
+performance of clover diminishes sharply due to an increased number of atomic
+locking operations required on reads.
+
+In this work we make the observation that given a rack-scale disaggregated
+system memory operations are serialized by a centralized interconnect (either a
+Switch or some other middlebox~\cite{disandapp}). This
+physical layer serialization imposes a globally observable total order on memory
+operations within a rack. As such this centralized location can be used to
+resolve contention to shared resources, provide locking, and remove the need for
+expensive atomic operations on an RDMA enabled NIC. To show the benefits of such
+a system we implement a variety of in network contention resolutions for the
+Clover protocol and demonstrate their performance boots. Specially we cache the
+locations of the most recent reads and writes with stale metadata are steered to
+the most up to date locations allowing for O(1) remote memory accesses in all
+cases.
+
+We demonstrate in network serialization removes the need for expensive locking
+operations on the NIC. Using RDMA transport information and clover specific
+application knowledge all reads and writes to contended areas are totally
+ordered in the network. Specifically all reads and writes to the same keys are
+multiplexed to the same queue pairs, by utilizing the RDMA ordering requirements
+of QP's reads and writes require no expensive locks and can flow at line rate to
+remote memory. This ordering requires a number in band adjustments to the RDMA
+protocol in order to interoperable with commodity hardware. QP state must be
+maintained in network, specifically the sequence numbers of multiplexed
+requests, so that response packets can be demultiplexes back to their original
+connections. Small adjustments such as generating acks for collapsed requests is
+also required. We demonstrate that these algorithms are implementable in network
+at little cost with a DPDK prototype. We measure that ~\todo{we achieve a ?X
+improvement in performance using only XMB of in network state, and ?X
+performance improvement in highly contested settings with full use of system
+memory}.
