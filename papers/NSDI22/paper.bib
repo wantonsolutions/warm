@@ -513,11 +513,79 @@ series = {WORDS '21}
 }
 
 @MISC{genz,
-  author = {GenZZ},
+  author = {GenZ},
   title = {Gen-Z Consortium},
   howpublished = {https://genzconsortium.org/},
   year = {2018}
 }
+
+@MISC{omni-path,
+  author = {Intel},
+  title = {Intel Omni-Path Architecture},
+  howpublished = {https://tinyurl.com/ya3x4ktd},
+}
+
+@MISC{cxl,
+  author = {CLX},
+  title = {Compute Express Link},
+  howpublished = {https://www.computeexpresslink.org/},
+}
+
+@MISC{connectx,
+  author = {Nvidia},
+  title = {ConnectX SmartNICs},
+  howpublished = {https://www.nvidia.com/en-us/networking/ethernet-adapters/},
+  }
+
+@MISC{cavium,
+    author = {Cavium},
+    title = {Liquid IO II 10/25G Smart NIC Family},
+    howpublished = {https://www.marvell.com/documents/08icqisgkbtn6kstgzh4/},
+    year = 2017
+}
+
+@MISC{fungible,
+  author = {Fungible},
+  title = {The Fungible Data Processing Unit},
+  howpublished = {https://www.fungible.com/product/dpu-platform/},
+  year = 2021,
+}
+
+@misc{clio-arxiv,
+      title={Clio: A Hardware-Software Co-Designed Disaggregated Memory System}, 
+      author={Zhiyuan Guo and Yizhou Shan and Xuhao Luo and Yutong Huang and Yiying Zhang},
+      year={2021},
+      eprint={2108.03492},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC}
+}
+
+@inproceedings{corundum,
+	title="Corundum: An Open-Source 100-Gbps Nic",
+	author="Alex {Forencich} and Alex C. {Snoeren} and George {Porter} and George {Papen}",
+	booktitle="2020 IEEE 28th Annual International Symposium on Field-Programmable Custom Computing Machines (FCCM)",
+	pages="38--46",
+	notes="Sourced from Microsoft Academic - https://academic.microsoft.com/paper/3034977853",
+	year="2020"
+}
+
+@InProceedings{kv-direct,
+author = {Li, Bojie and Ruan, Zhenyuan and Xiao, Wencong and Lu, Yuanwei and Xiong, Yongqiang and Putnam, Andrew and Chen, Enhong and Zhang, Lintao},
+title = {KV-Direct: High-Performance In-Memory Key-Value Store with Programmable NIC},
+booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+year = {2017},
+month = {October},
+abstract = {Performance of in-memory key-value store (KVS) continues to be of great importance as modern KVS goes beyond the traditional object-caching workload and becomes a key infrastructure to support distributed main-memory computation in data centers. Recent years have witnessed a rapid increase of network bandwidth in data centers, shifting the bottleneck of most KVS from the network to the CPU. RDMA-capable NIC partly alleviates the problem, but the primitives provided by RDMA abstraction are rather limited. Meanwhile, programmable NICs become available in data centers, enabling in-network processing. In this paper, we present KV-Direct, a high performance KVS that leverages programmable NIC to extend RDMA primitives and enable remote direct key-value access to the main host memory.
+
+We develop several novel techniques to maximize the throughput and hide the latency of the PCIe connection between the NIC and the host memory, which becomes the new bottleneck. Combined, these mechanisms allow a single NIC KV-Direct to achieve up to 180 M key-value operations per second, equivalent to the throughput of tens of CPU cores. Compared with CPU based KVS implementation, KV-Direct improves power efficiency by 3x, while keeping tail latency below 10 μs. Moreover, KV-Direct can achieve near linear scalability with multiple NICs. With 10 programmable NIC cards in a commodity server, we achieve 1.22 billion KV operations per second, which is almost an order-of-magnitude improvement over existing systems, setting a new milestone for a general-purpose in-memory key-value store.},
+publisher = {ACM},
+url = {https://www.microsoft.com/en-us/research/publication/kv-direct-high-performance-memory-key-value-store-programmable-nic/},
+pages = {137-152},
+isbn = {978-1-4503-5085-3},
+edition = {Proceedings of the 26th Symposium on Operating Systems Principles},
+}
+
+
 
 @inproceedings {decible,
 author = {Mihir Nanavati and Jake Wires and Andrew Warfield},
