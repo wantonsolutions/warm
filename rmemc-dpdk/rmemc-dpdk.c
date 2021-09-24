@@ -1067,6 +1067,10 @@ int get_key(struct rte_mbuf *pkt) {
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint32_t id = find_id(pkt);
 
+	if(id == -1) {
+		return -1;
+	}
+
 	if (roce_hdr->opcode == RC_WRITE_ONLY && size == 1084) {
 
 		struct write_request *wr = (struct wriee_request *)clover_header;
@@ -1212,7 +1216,7 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
 	if (slot->rdma_op == RC_CNS && slot->was_write_swapped==1) {
-		printf("converting missing ack to atomic-ack\n");
+		//printf("converting missing ack to atomic-ack\n");
 		//printf("converting write-ack to cns-ack\n");
 		struct cs_response *cs = (struct cs_response *)clover_header;
 		struct rdma_ack *ack = (struct rdma_ack *)clover_header;
@@ -1243,9 +1247,8 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		recalculate_rdma_checksum(pkt);
 		//print_packet(pkt);
-	} else {
-		printf("slot not a cns, this is a strange one, I thought that it would have been\n");
-	}
+	} 
+	
 }
 
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
@@ -1391,25 +1394,38 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 struct Request_Map *find_missing_write(struct Connection_State * source_connection, struct rte_mbuf *pkt){
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	uint32_t slot_num = mod_slot_minus_one(search_sequence_number);
-	struct Request_Map *mapped_request = &(source_connection->Outstanding_Requests[slot_num]);
-	if ((!slot_is_open(mapped_request)) && mapped_request->rdma_op==RC_WRITE_ONLY)
+	uint32_t slot_num_0 = mod_slot(search_sequence_number);
+	uint32_t slot_num_1 = mod_slot_minus_one(search_sequence_number);
+	struct Request_Map *mapped_request_0 = &(source_connection->Outstanding_Requests[slot_num_0]);
+	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num_1]);
+
+
+	if (mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST)
+	{
+		//printf("write might be followd by a coalesed ack\n");
+	} else {
+		return NULL;
+	}
+
+
+
+	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
 	{
 		printf("Found the write that was missing an ack.. %d\n",missed_writes++);
-		return mapped_request;
+		return mapped_request_1;
 	}
-	if ((!slot_is_open(mapped_request)) && mapped_request->rdma_op==RC_CNS)
+	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
 	{
 		printf("Found the cns that was missing an ack.. %d\n",missed_writes++);
-		return mapped_request;
+		return mapped_request_1;
 	}
 	return NULL;
 
 
 }
 
-struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
-	printf("Generating Ack\n");
+struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
+	//printf("Generating Ack\n");
 	struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
 
 	rte_pktmbuf_append(pkt,ACK_PKT_LEN);
@@ -1424,13 +1440,19 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
 	//struct Request_Map *
-	if (missing_write != NULL)
+	if (missing_write)
 	{
+
+		//copy over the connection state info
+		copy_eth_addr(cs->stc_eth_addr,eth_hdr->s_addr.addr_bytes);
+		ipv4_hdr->src_addr = cs->ip_addr_server;
+
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = missing_write->server_to_client_qp;
 		roce_hdr->packet_sequence_number = missing_write->original_sequence;
 		udp_hdr->src_port = missing_write->server_to_client_udp_port;
 		ipv4_hdr->dst_addr = missing_write->original_src_ip;
+		//!todo perhaps the issue here is that the packet is being delivered across eth?
 		copy_eth_addr(missing_write->original_eth_addr, eth_hdr->d_addr.addr_bytes);
 		//make a local copy of the id before unlocking
 		uint32_t id = missing_write->id;
@@ -1455,6 +1477,8 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write) {
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		recalculate_rdma_checksum(pkt);
+
+		//print_packet(pkt);
 
 		//THis is a good place to inject the transition from a write to a CNS.
 		return pkt;
@@ -1497,6 +1521,30 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	//struct Request_Map *
 	if (mapped_request != NULL)
 	{
+		#define GAP_TRIGGER_COALESE
+		#ifdef GAP_TRIGGER_COALESE
+		struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
+		if (missing_write){
+			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
+			if (coalesed_ack != NULL) {
+				mpr.pkts[1] = mpr.pkts[0];
+				mpr.pkts[0] = coalesed_ack;
+				mpr.size++;
+
+				//printf("New Response Packet\n");
+				//print_packet_lite(mpr.pkts[0]);
+				//struct roce_v2_header *atomic_hdr = get_roce_hdr(mpr.pkts[0]);
+				//if(atomic_hdr->opcode == RC_ATOMIC_ACK) {
+				//	print_packet(mpr.pkts[0]);
+				//}
+				//printf("Trigger Packet\n");
+				//print_packet_lite(mpr.pkts[1]);
+				//printf("\n\n\n");
+				//printf("send a new ack\n");
+			}
+		}
+		#endif
+
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
 		roce_hdr->packet_sequence_number = mapped_request->original_sequence;
@@ -1533,8 +1581,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		recalculate_rdma_checksum(pkt);
 
 
-		//TODO!! start here
-		//is there another mapped request for this id with a lower sequence number
+		//is there another mapped request for this id with a lower sequence
+		//number This function makes sure that each packet is delivered in
+		//order. It works very similar to the other coalese algorithm, except
+		//that it is only triggered when the following packet arrives.
+		//#define DELIVER_TRIGGER_COALESE
+		#ifdef DELIVER_TRIGGER_COALESE
+		printf("Dont reach here\n");
 		id = mapped_request->id;
 		uint32_t seq = readable_seq(mapped_request->original_sequence);
 		for(int i=0;i<TOTAL_ENTRY;i++) {
@@ -1547,7 +1600,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 					(readable_seq(search_request->original_sequence) <seq) &&
 					(search_request->rdma_op == RC_WRITE_ONLY || search_request->rdma_op == RC_CNS)
 				) {
-					printf("I think that this is a coalesed packet\n");
+					//printf("I think that this is a coalesed packet\n");
 					print_request_map(search_request);
 					//This is a good place to start to detect if there is a missing write. If there is then we want to generate an ACK here.
 					//struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
@@ -1561,13 +1614,14 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 							print_packet_lite(mpr.pkts[0]);
 							print_packet_lite(mpr.pkts[1]);
-							printf("send a new ack\n");
+							//printf("send a new ack\n");
 						}
 					}
 				}
 
 			}
 		}
+		#endif
 		//!TODO this is the danger zone end
 
 
@@ -1871,7 +1925,7 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode)
 		{
 			nacked_cns++;
 			printf("danger only hit here if you have the keyspace option turned on\n");
-			exit(0);
+			//exit(0);
 		}
 	}
 }
@@ -2291,7 +2345,6 @@ void print_packet_lite(struct rte_mbuf *buf)
 	}
 
 	int id = find_id(buf);
-
 	int key = get_key(buf);
 
 	id_colorize(id);
@@ -2431,8 +2484,9 @@ lcore_main(void)
 		RTE_ETH_FOREACH_DEV(port)
 		{
 			/* Get burst of RX packets, from first and only port */
+
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
-			struct rte_mbuf *tx_pkts[BURST_SIZE];
+			struct rte_mbuf *tx_pkts[BURST_SIZE*PACKET_INFLATION];
 			uint32_t to_tx = 0;
 
 			uint32_t queue = rte_lcore_id() / 2;
@@ -2456,97 +2510,23 @@ lcore_main(void)
 				}
 				packet_counter++;
 				true_classify(rx_pkts[i]);
+				/*
 				if (packet_counter < PRINT_COUNT) {
 					struct rte_mbuf * pkt = rx_pkts[i];
 					struct roce_v2_header * rh = get_roce_hdr(pkt);
 					struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 					uint32_t size = ntohs(ipv4_hdr->total_length);
 					int id = find_id(pkt);
-				}
+				}*/
 
 				struct map_packet_response mpr;
 				mpr = map_qp(rx_pkts[i]);
-				//track_sequential_receipt(rx_pkts[i]);
+				print_packet_lite(rx_pkts[i]);
 
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
-					if (packet_counter < PRINT_COUNT) {
-						struct rte_mbuf * pkt = tx_pkts[to_tx];
-						struct roce_v2_header * rh = get_roce_hdr(pkt);
-						struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-						struct clover_hdr *clover_header = get_clover_hdr(pkt);
-						uint32_t size = ntohs(ipv4_hdr->total_length);
-						int id = find_id(pkt);
-						struct read_request *rr = (struct read_request *)clover_header;
-						struct write_request *wr = (struct write_request *)clover_header;
-
-
-						if(
-							((rh->opcode == RC_ATOMIC_ACK)||
-							(rh->opcode == RC_READ_RESPONSE && id >= 0 && size == 1072) ||
-							(rh->opcode == RC_WRITE_ONLY && id >= 0) ||
-							(rh->opcode == RC_READ_REQUEST && ntohl(rr->rdma_extended_header.dma_length)==1024))
-						)
-						{ 
-							int key = get_key(pkt);
-							if (rh->opcode == RC_READ_REQUEST && ntohl(rr->rdma_extended_header.dma_length)==1024 && key == -1 ) {
-								//print_packet(pkt);
-								printf("rouge read!!\n");
-								print_packet_lite(pkt);
-							}
-							if (rh->opcode == RC_READ_RESPONSE && (key == 0)) {
-								//print_packet(pkt);
-								print_packet_lite(pkt);
-							}
-							/*
-							if (packet_counter % 5000 == 0){
-								//printf("PROCCESSING ON SINGLE_CORE MACRO\n");
-								//print_packet_lite(tx_pkts[to_tx]);
-								print_cache_population();
-							}
-							*/
-							/*
-							int key = get_key(pkt);
-							if (key == 56) {
-								print_packet_lite(pkt);
-								//print_packet(pkt);
-							}
-							//vaddrs
-							if(rh->opcode == RC_WRITE_ONLY && id >= 0 && key == 56) {
-								struct write_request *wr = (struct write_request *)clover_header;
-								printf("write: %"PRIx64"\n",wr->rdma_extended_header.vaddr);
-							}
-							if(rh->opcode == RC_READ_REQUEST && key == 56) {
-								print_packet_lite(pkt);
-								printf("read: %"PRIx64"\n",rr->rdma_extended_header.vaddr);
-								printf("Latest key vaddr = %"PRIx64"\n",get_latest_vaddr(56));
-							}
-							*/
-
-						}
-
-						/*
-						if (rh->opcode == RC_READ_REQUEST && (packet_counter % 1000 == 0)) {
-							//print_cache_population();
-							//struct read_request *rr = (struct read_request *)clover_header;
-							//printf("request vaddr %"PRIx64"\n",rr->rdma_extended_header.vaddr);
-						}
-						if (rh->opcode == RC_WRITE_ONLY) {
-							//print_cache_population();
-							int key = get_key(pkt);
-							if (key == 56) {
-								struct write_request *wr = (struct write_request *)clover_header;
-								//printf("write key vaddr %"PRIx64"\n",wr->rdma_extended_header.vaddr);
-								//print_packet(pkt);
-							}
-						}
-						*/
-					}
 					to_tx++;
-					/*uncomment this for unbuffered io*/
-					//enqueue_finish_mem_pkt_bulk(&tx_pkts[to_tx-1],1,port,queue);
-					//dequeue_finish_mem_pkt_bulk_full(port,queue);
 				}
 			}
 			//bulk sending
