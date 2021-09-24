@@ -2,50 +2,48 @@
 
 Resource disaggregation, and specifically memory disaggregation incurs serious
 performance penalties due resources being exclusively accessed over a network.
-In the case of memory disaggregation the latency of remote memory vs local is
-approximately 20x, (50ns local and ~1us remote). While this cost may seem
-prohibitive the benefits of resource disaggregation, mainly high memory
-utilization, arbitrarily flexible resource allocation, and energy efficiency~\cite{zombieland}
-make the architectural paradigm tantalizing.
-Protocols for accessing remote memory vary RDMA (ROCE, IB)~\cite{infiniband-spec}
-GenZ~\cite{genz}, omipath~\todo{cite}
-however each protocol meets approximately the same
-requirements, and services the same needs. Reliable access to by addressable
+The latency of making a memory access over the network is significantly higher,
+on the order of 20x, than a local access (50ns local and ~1us remote).  While
+this cost may seem prohibitive the benefits of resource disaggregation, mainly
+high memory utilization, arbitrarily flexible resource allocation, and energy
+efficiency~\cite{zombieland} make the architectural paradigm tantalizing. In
+response a variety of Protocols for accessing remote memory have been developed
+and productionized: RDMA~\cite{infiniband-spec}, CXL~\cite{cxl},
+GenZ~\cite{genz} and Omni-Path~\cite{omni-path}. Each protocol, while distinct,
+meets approximately the same requirements, reliable access to byte addressable
 remote memory with low latency and high throughput.
 
-Regardless of the memory transport technology the underlying scheme is the same,
-clients request remote addresses, and the address translation and memory
-operation serving is performed by DMA capable NICs (either commodity RDMA
-capable NICS ConnectX5/6 or smartNICs with configurable protocols 
-Cavium~/todo{cite}, Clio~\todo{cite}. 
+%% it would be nice to Cite SUPERNIC and CLIO here but I'm not sure it makes
+%sense untill it's published at a major venue
+%%Clio~\cite{clio-arxiv}
+%%todo ask alex about the archive reference
 
-While the implementation of the memory access semantics, when
-applied to the context of resource disaggregation the remote memory operations
-are handled exclusively by the network interface cards. This is because the
-machines hosting the memory are by definition not housing a CPU which could
-otherwise be used to aid in the memory access operations
-~\cite{herd,sonuma,storm,erpc,cliquemap}. 
+%%todo do a quick read of how dma is delt with on the other interconnects
+Regardless of the memory transport technology the overarching scheme is the
+same, clients request remote addresses which is translated and transported via  
+DMA capable network devices such as commodity RDMA capable NICs~\cite{connectx},
+SOC~\cite{cavium} or FPGA smartNICs~\cite{corundum,kv-direct} or
+DPUs~\cite{fungible}.  These devices have the ability to execute operations,
+such as read, write and compare and swap directly on host memory across PCIe,
+however for the convince of serialization they typically coordinate with the CPU
+on the socket at which the DMA is being performed. This is the norm for high
+performance RDMA key value stores~\cite{cliquemap,erpc,herd,sonuma,storm}. 
 
-An implication of running all memory
-operations on a NIC is that even while being colocate across a PCIe bus from
-the memory it controls, it still incurs a serious latency penalty for
-arbitrating across the PCIe bus.
-
-The penalty for controlling remote memory without the aid of a remote CPU to aid
-in serialization of memory operation is stark. Clients are essentially forced
-strictly partition their accesses to remote memory as the price of contention is
-high~\cite{legoos, reigons}. Systems which aim to offer shared remote
-resources to clients in a disaggregated setting pay the harsh performance
-penalty of relying on NICs as memory controllers. Nowhere is this cost clearer
-than with the use of atomic memory operations on the NIC. The performance of
-RDMA atomics has been measured in prior work ~\cite{design-guidelines}~\cite{clover}. In state of the art memory disaggregation systems with
-sharing such as Clover~\cite{clover} a great deal of care is taken to avoid both
-memory conflicts and the need to perform multiple reads or writes to complete an
-operation. To achieve this Clover caches metadata about the location of the
-latest writes and reads while also make use of a remote data structures which
-allows for lockless reads. In the case of highly contended resources however the
-performance of clover diminishes sharply due to an increased number of atomic
-locking operations required on reads.
+In the absence of a CPU (the disaggregated case), it's up to the client to check
+that its reads and writes are serialized. Doing so typically requires the use of
+expensive locking operations such as compare and
+swap~\cite{design-guidelines,clover}.  The penalty for client side serialization
+is stark, in prior disaggregated prototypes clients simply partition memory
+completely and forgo any sharing ~\cite{reigons,fastswap, legoos}. The few
+disaggregated memory systems which provide sharing have made use of state of the
+art data structures to amortize the cost of contention. For example:
+Clover~\cite{clover} (a disaggregated key value store) a great deal of care is
+taken to avoid both memory conflicts and the need to perform multiple reads or
+writes to complete an operation. To achieve this Clover caches metadata about
+the location of the latest writes and reads while also make use of a remote data
+structures which allows for lockless reads. In the case of highly contended
+resources however the performance of clover diminishes sharply due to an
+increased number of atomic locking operations required on writes.
 
 In this work we make the observation that given a rack-scale disaggregated
 system memory operations are serialized by a centralized interconnect (either a

@@ -1,17 +1,41 @@
 \section{Solutions}
 
 
-\subsection{Atomic Replacement} Atomic operations are expensive, as such we
-would like to replace atomic operations such as CNS with non-blocking operations
-such as read and write. Using a middle box the transformation is simple, RoceV2
-CNS headers are very close to write headers, conceptually its a special case
-where the write is conditional and only requires 8 bytes of writing, so swapping
-CNS out with write headers can be done inplace while processing a packet. When
-the ACK transits back from the memory server, it can be replaced by an atomic
-ACK with the original data from the write location filled in by the middle box.
-Doing this does nothing to disturb the higher level protocol, as the receiving
-NIC processes the requests as is, and the sender gets back the responses it
-expects. however all of the safety of the atomic operation is lost.  
+\subsection{Atomic Replacement} 
+
+Atomic operations are expensive because memory colocate NICs must prevent
+concurrent reads from reading half written or torn data, and writes from
+conflicting with one another. The implementation of locking is vendor and
+transport specific~\cite{design-guidelines}. In the worst case a barrier is
+placed on all operations creating significant head of line blocking, in the best
+case locking is per QP and only causes head of line blocking when reads or
+writes occur on overlapping ranges virtual memory. Regardless of the
+implementation atomic operations are significantly slower than asynchronous
+reads and writes.
+%%
+Therefore, we would like to replace write atomics (CNS) with non-blocking
+writes. From a protocol perspective the transformation from CSN to write can be
+applied easily in the datapath: RoceV2 CNS headers are very close to write
+headers, conceptually its a special case where the write is conditional and only
+requires 8 bytes of writing. The transformation is performed in place by
+overwriting the RDMA op field for CSN with WRITE, copying the CNS payload to the
+WRITE location, setting the DMA length to 8, and shrinking the IPV4 length by 4.
+Finally the RDMA checksum and ipv4 checksum must be recalculated for the
+modified packet.
+%%
+The memory side NIC processes the CNS as a WRITE and responds with an ACK after
+the operation is completed. At the point the ACK reaches the middlebox it is
+replaced with an ATOMIC ACK. Similar to the forward transformation the Atomic
+Ack is very close in its construction to a regular ACK with the only difference
+being that the Atomic contains the original data from the memory location the
+CSN was applied. Here we inject a value which indicates success to the sender.
+In the case of clover this value is 64 zero bits.  Making this transformation
+does nothing to disturb the higher level protocol, as the receiving NIC
+processes the requests as is, and the sender gets back the responses it expects.
+However all of the safety of the atomic operation is lost. To prevent arbitrary
+corruption of data the data must be serialized somewhere else. Our approach is
+to detect conflicts in network, and utilize the in order delivery guarantees of
+RDMA reliable delivery to ensure safe serialized operations.
 
 \subsection{Connection Remapping}
 
