@@ -1175,21 +1175,9 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 		//set the opcode to write
 		uint64_t write_value;
 		memcpy(&write_value,&cs->atomic_req.swap_or_add,8);
-		if (print_counter < 50) {
-
-			//print_cs_request(cs);
-			//print_packet(pkt);
-			//printf("cs %"PRIx64"\n",be64toh(cs->atomic_req.swap_or_add));
-		}
 		roce_hdr->opcode = RC_WRITE_ONLY;
 		wr->rdma_extended_header.dma_length = htonl(sizeof(uint64_t));
 		memcpy(&wr->ptr,&write_value,8);
-		if (print_counter < 300) {
-			//printf("raw pointer %"PRIx64"  vaddr %"PRIx64", slot id %d\n",be64toh(write_value),wr->rdma_extended_header.vaddr,slot->id);
-			//print_write_request(wr);
-			//print_packet(pkt);
-			print_counter++;
-		}
 
 
 		//Header change now we need to adjust the length (should be -4)
@@ -1391,6 +1379,7 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 	return NULL;
 }
 
+
 struct Request_Map *find_missing_write(struct Connection_State * source_connection, struct rte_mbuf *pkt){
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
@@ -1411,12 +1400,12 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
 	{
-		printf("Found the write that was missing an ack.. %d\n",missed_writes++);
+		printf("Found the write that was missing an ack... %d\n",missed_writes++);
 		return mapped_request_1;
 	}
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
 	{
-		printf("Found the cns that was missing an ack.. %d\n",missed_writes++);
+		printf("Found the cns   that was missing an ack... %d\n",missed_writes++);
 		return mapped_request_1;
 	}
 	return NULL;
@@ -1521,8 +1510,12 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	//struct Request_Map *
 	if (mapped_request != NULL)
 	{
+
 		#define GAP_TRIGGER_COALESE
 		#ifdef GAP_TRIGGER_COALESE
+
+		//Single shot (does not take multiple coaleses into account)
+		/*
 		struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
 		if (missing_write){
 			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
@@ -1530,19 +1523,35 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 				mpr.pkts[1] = mpr.pkts[0];
 				mpr.pkts[0] = coalesed_ack;
 				mpr.size++;
-
-				//printf("New Response Packet\n");
-				//print_packet_lite(mpr.pkts[0]);
-				//struct roce_v2_header *atomic_hdr = get_roce_hdr(mpr.pkts[0]);
-				//if(atomic_hdr->opcode == RC_ATOMIC_ACK) {
-				//	print_packet(mpr.pkts[0]);
-				//}
-				//printf("Trigger Packet\n");
-				//print_packet_lite(mpr.pkts[1]);
-				//printf("\n\n\n");
-				//printf("send a new ack\n");
 			}
 		}
+		*/
+
+		//Recursive version
+		//TODO TODO Start here tomorro
+		//TODO The issue is that when more than one packet is coalesed I'm not recovering it.
+		//TODO I need to detect the scenarios recursivly to generate more acks.
+		//TODO The code below is wrong, becuase I'm generating a mapped ack, not the one I would receive from memory
+		//TODO Because of this every itterative call to find missing write is failing.
+		//TODO I just need a version of find_missing_write, that generates all the missing writes
+		struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
+		while(missing_write) {
+			printf("start here tomorrow you silly billy!!!!");
+			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
+			print_packet_lite(coalesed_ack);
+			if (coalesed_ack != NULL) {
+				//Shuffle packets back
+				for(int i=mpr.size;i>0;i--) {
+					mpr.pkts[i] = mpr.pkts[i-1];
+				}
+				mpr.pkts[0] = coalesed_ack;
+				mpr.size++;
+				missing_write = find_missing_write(source_connection, coalesed_ack);
+			} else {
+				break;
+			}
+		}
+
 		#endif
 
 		//Set the packety headers to that of the mapped request
@@ -2520,14 +2529,16 @@ lcore_main(void)
 				}*/
 
 				struct map_packet_response mpr;
+				//print_packet_lite(rx_pkts[i]);
 				mpr = map_qp(rx_pkts[i]);
-				print_packet_lite(rx_pkts[i]);
 
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
+					//print_packet_lite(tx_pkts[to_tx]);
 					to_tx++;
 				}
+				//printf("\n");
 			}
 			//bulk sending
 			#ifdef SINGLE_CORE
