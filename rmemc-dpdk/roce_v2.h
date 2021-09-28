@@ -5,6 +5,7 @@
 
 uint32_t get_psn(struct rte_mbuf *pkt);
 uint32_t readable_seq(uint32_t seq);
+uint32_t revert_seq(uint32_t seq);
 uint32_t check_sums(const char *method, void *known, void *test, int try);
 uint32_t check_sums_wrap(const char *method, void *know, void *test);
 uint32_t csum_pkt_fast(struct rte_mbuf *pkt);

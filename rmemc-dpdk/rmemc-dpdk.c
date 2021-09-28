@@ -1380,38 +1380,7 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 }
 
 
-struct Request_Map *find_missing_write(struct Connection_State * source_connection, struct rte_mbuf *pkt){
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
-	uint32_t slot_num_0 = mod_slot(search_sequence_number);
-	uint32_t slot_num_1 = mod_slot_minus_one(search_sequence_number);
-	struct Request_Map *mapped_request_0 = &(source_connection->Outstanding_Requests[slot_num_0]);
-	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num_1]);
 
-
-	if (mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST)
-	{
-		//printf("write might be followd by a coalesed ack\n");
-	} else {
-		return NULL;
-	}
-
-
-
-	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
-	{
-		printf("Found the write that was missing an ack... %d\n",missed_writes++);
-		return mapped_request_1;
-	}
-	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
-	{
-		printf("Found the cns   that was missing an ack... %d\n",missed_writes++);
-		return mapped_request_1;
-	}
-	return NULL;
-
-
-}
 
 struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
 	//printf("Generating Ack\n");
@@ -1475,6 +1444,33 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 	return NULL;
 }
 
+struct Request_Map *find_missing_write(struct Connection_State * source_connection, uint32_t search_sequence_number){
+	uint32_t slot_num_0 = mod_slot(search_sequence_number);
+	uint32_t slot_num_1 = mod_slot_minus_one(search_sequence_number);
+	struct Request_Map *mapped_request_0 = &(source_connection->Outstanding_Requests[slot_num_0]);
+	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num_1]);
+
+	if (mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST)
+	{
+		//printf("write might be followd by a coalesed ack\n");
+	} else {
+		return NULL;
+	}
+
+	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
+	{
+		//printf("Found the write that was missing an ack... %d\n",missed_writes++);
+		return mapped_request_1;
+	}
+	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
+	{
+		//printf("Found the cns   that was missing an ack... %d\n",missed_writes++);
+		return mapped_request_1;
+	}
+	return NULL;
+}
+
+
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
@@ -1534,11 +1530,11 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//TODO The code below is wrong, becuase I'm generating a mapped ack, not the one I would receive from memory
 		//TODO Because of this every itterative call to find missing write is failing.
 		//TODO I just need a version of find_missing_write, that generates all the missing writes
-		struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
+		uint32_t search_sequence_number = get_psn(pkt);
+		struct Request_Map *missing_write = find_missing_write(source_connection, search_sequence_number);
 		while(missing_write) {
-			printf("start here tomorrow you silly billy!!!!");
 			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
-			print_packet_lite(coalesed_ack);
+			//print_packet_lite(coalesed_ack);
 			if (coalesed_ack != NULL) {
 				//Shuffle packets back
 				for(int i=mpr.size;i>0;i--) {
@@ -1546,7 +1542,10 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 				}
 				mpr.pkts[0] = coalesed_ack;
 				mpr.size++;
-				missing_write = find_missing_write(source_connection, coalesed_ack);
+
+				//subtract the sequence number by one and revert it back to roce header format
+				search_sequence_number = revert_seq(readable_seq(search_sequence_number) - 1);
+				missing_write = find_missing_write(source_connection, search_sequence_number);
 			} else {
 				break;
 			}
