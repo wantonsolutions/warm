@@ -97,7 +97,13 @@ function setup_switch {
     #remove redirection flows
     openflow del-flows 1
     openflow del-flows 2
+
+    #change speed
+    interface etherent 1/3  #where 1/3 is the port
+    speed 100G force        #the force is there because without it the command fails
     "
+
+
 }
 
 function set_ecn {
