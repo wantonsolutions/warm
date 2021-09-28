@@ -19,6 +19,11 @@ uint32_t readable_seq(uint32_t seq)
     return ntohl(seq) / 256;
 }
 
+uint32_t revert_seq(uint32_t seq)
+{
+    return htonl(seq *256);
+}
+
 uint32_t check_sums(const char *method, void *known, void *test, int try)
 {
     if (memcmp(known, test, 4) == 0)
