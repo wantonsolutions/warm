@@ -1,0 +1,17 @@
+\section{Limitations}
+
+The main limitation of our work is that our middle box is developed in user
+space software and not on programmable networking hardware. There are additional
+limitations, in terms of language restrictions and processing power which occur
+on real hardware but not in our DPDK prototype. For example in programmable
+switches the need to recirculate packets which exceed the computational capacity
+of a pipeline results in decreased overall bandwidth. We use prior work on
+programable switches to inform our DPDK prototype and intentionally avoid
+decisions which would not be implementable on a programmable switch.
+
+Our experiments fall short of the underlying hardware limits. Our results are
+relative and show real performance boots which are obtained by reducing hardware
+contention. In future work we would like to extend our measurements to push the
+limitations of the underlying hardware. We expect that measuring at line rate
+will only increase the benifit seen by reducing this contention based on our
+current measurements~\todo{cite a figure from the paper}

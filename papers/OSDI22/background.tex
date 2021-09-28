@@ -1,0 +1,108 @@
+\section{Background}
+
+
+\subsection{Resource Disaggergation}
+
+Resource disaggregation is an architectural paradigm which separates resources
+such as disk, cpu and memory over a network ~\cite{requirements}~\cite{legoos}. The aim of resource disaggregation is to allow
+for near limitless flexibility in terms of machine composition. Memory can be
+dynamically added and removed from a system by reconfiguration, rather than by
+manually changing the physical components of a single machine~\cite{fastswap}.
+It is now common case for disks (HHD and SSD) to be disaggregated from CPU and
+memory by a network ~\cite{decible}. Disks are easier to disaggregated than
+memory as the access latency of the device (SSD ~1us) is on the order of the
+network overhead which amortizes some of the relative performance degradation
+with liberal use of batching to hide latency. In the case of memory, where
+remote access is roughly 20x local latency, disaggregation is more difficulty,
+and requires more sophisticated solutions to hide latency. Within the
+disaggreted memory community a divide exists between two sides of the solution
+spectrum. On one extreme custom hardware is used to either page out, or evict
+the cache to remote memory. The use of custom hardware to access and control
+memory over the network is refered to as memory disaggregation
+
+%~\cite{clio,vmware
+%papers on cache line remote memory, there are a few others here}.
+
+In contrast techniques which use commodity hardware to access and control remote
+memory are referred to as \textit{far memory} systems~\cite{legoos, reigons,
+clover}~\todo{more}. In this work we concentrate on the latter, our solutions
+for accessesing and controlling remote memory are confined to existing hardware,
+mainly RDMA capable NICs and programmable switches.
+
+\textbf{two sides}: The degree to which remote memory should be exposed to the
+user is up for debate. Some approaches attempt for complete
+transparncy~\cite{fastswap,GMS,leap,infiniswap}. Others
+expose the remote memory to the application for increased performance
+~\cite{reigons, aifm}. While the former approach suggests the highest
+degree of backwards compatibility it also sees the largest issues in terms of
+performance, no prior work with transparent remote memory has solved the problem
+of shared access to remote memory. We take the latter approach and suggest that
+to achieve the highest performance programs for remote memory should be built by
+engineers who understand the constraints of remote memory, and expose common
+API's to users, such as POSIX, PUT/GET, or language integrated
+runtimes\todo{\\cite}.
+
+\subsection{RDMA Key Value Stores}
+
+There is a litany of prior work on making fast in memory key value stores using
+RDMA NICs. The main difference between most RDMA key value stores and solutions
+which are tailored for far memory is that RDMA key value stores rely on each
+machine to have a CPU co-resident with memory~\cite{herd,pilaf,storm,soNUMA,
+MemC3}~\todo{citemore}. In these systems clients make put and get requests to remote memory
+which are translated to RDMA verbs which read and write to remote memory. Much
+debate has been had over which verbs to use~\cite{storm, herd, eRPC} the
+relative performance of signaled and unsignaled verbs, and the reliability of
+the transports have been shown to have many tradeoffs. One constant property
+though, is that the CPUs on the memory side are used to serialize requests. This
+allows request to be serviced in a single round trip time, with service times
+for puts and gets varying largely by the RDMA verbs used by the protocol. In the
+case of a disaggregated system using RDMA verbs, there is no remote CPU to
+serialize requests. Because of this clients must order their operations
+themselves or rely on locking VERBS provided by the RDMA NICs. Coordinating
+among clients is prohibitively slow for the memory read/write path, so atomic
+operations are typically used to serialize requests. Unfortunately these
+operations are suboptimal, they do not take into account any of the higher level
+semantics of the program, and in some NIC implementation can cause all operations
+to stall while a single atomic operation transits the PCIe bus. Prior work has
+shown that atomic operations are on the order of 100x slower than RDMA read and
+write operations especially when the memory locations are contested.
+
+\subsection{Programable Middleboxes}
+
+There are a variety of proposals for the construction of rack scale
+disaggregated systems~\cite{firebox, beyond, disandapp}~\todo{cite more}. The machinery which arbitrates memory access varies from
+implementation to implementation but in general they rely on a centralized
+controller. In some cases this takes the form of a programmable PCIe root
+complex scaled out ~\todo{cite}, while some imagine a programmable
+middle box with an API exposed to applications~\cite{disandapp}. We see the latter as a promising opportunity as it allows for
+developers to highly optimize their programs for remote memory. In this work we
+envision rack scale computing with either a programmable switch, or some other
+programmable hardware (FPGA) being used as a centralized switching fabric for
+memory operations. We assume that these middle boxes have highly constrained
+resources such as a limited amount of SRAM intended for forwarding packets with
+limited functionality for executing programs in the data path.
+
+\subsection{Clover}
+
+Clover is a key value store designed for disaggreated persistent memory. While
+it targets persistant storage it is also a prototypical example of a key value
+store for remote DRAM. It's design makes the assumption that there are no remote
+CPU's coresident with memory. All of Clovers remote memory accesses are made
+with one sided RDMA operations. Reads, Writes, and CNS. Clover's design moves
+metadata storage off of the data path. In the data path reads are writes are
+made to an append only linked list stored in remote memory. All operations are
+made to the tail of the list. A client may not know the location of the tail as
+other writers may concurently push it forward. When a read or a write fails to
+land on the tail of the list clover itteratvly traverses the structure until the
+tail is found. While this provides no liveness guaranteess in the common read
+heavy case concurrent clients all eventually reach the end of the list. To speed
+up operations clients keep caches of a pointer to the end of each keys linked
+list to avoid traversals. When writes are heavy, and when single keys are hot,
+clovers performane degrades substantially. In order to make writes serialized
+Clover uses RDMA CNS operations which when used frequently on the same location
+lead to abysmal performance. In cases when CNS's fail, clover performs a read
+for the tail and then retries the CNS. Therfore this number inflates as the
+number of clients and conflicts increase without guaranteing fair forward
+progress.
+
+\todo{cut a bunch of text from the }
