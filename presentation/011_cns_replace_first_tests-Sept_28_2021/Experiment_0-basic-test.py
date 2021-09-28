@@ -1,4 +1,3 @@
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,7 +13,7 @@ def div_thousand (list):
 
 cns_replacement=[28681,38360,49696,52220,57308,58549,59176]
 read_write_steering=[43706,76840,124477,181247,217367,220592,191877,]
-
+#clover_with_buffering=[36737,65418,106296,153510,162171,145687,114447]
 
 
 
