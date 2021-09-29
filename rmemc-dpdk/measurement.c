@@ -127,6 +127,10 @@ void write_run_data(void)
     write_general_stats_to_known_file();
 }
 
+void increment_read_counter(void) {
+    reads++;
+}
+
 void read_redirected(void)
 {
     read_redirections++;

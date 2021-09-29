@@ -14,6 +14,7 @@ void write_packet_latencies_to_known_file(void);
 void write_sequence_order_to_known_file(void);
 void write_general_stats_to_known_file(void);
 void write_run_data(void);
+void increment_read_counter(void);
 void read_redirected(void);
 void read_not_cached(void);
 void kill_signal_handler(int sig);
