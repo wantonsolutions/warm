@@ -25,6 +25,12 @@ read_write_steering_color='#1496BB'     #alice
 write_steering_color='#A3B86C'          #kelly
 default_clover_color='#F26D21'          #Coral 
 
+cns_color='#00702eff'                     #indigo
+qp_mapping_color='#9470b9ff'              #ruby
+read_write_steering_color='#cf243cff'     #alice
+write_steering_color='#ed7d31ff'          #kelly
+default_clover_color='#8caff6ff'          #Coral 
+
 
 def div_thousand (list):
     return [val /1000.0 for val in list]
@@ -38,11 +44,11 @@ def static_plot_attributes(ax,cns_replacement,qp_mapping,read_write_steering,wri
     clover_with_buffering=div_thousand(clover_with_buffering)
 
     #plot
-    ax.plot(labels,cns_replacement,label=cns_label,marker=cns_marker,color=cns_color)
-    ax.plot(labels,qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color)
-    ax.plot(labels,read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color)
-    ax.plot(labels,write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
-    ax.plot(labels,clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
+    ax.plot(labels[:len(cns_replacement)],cns_replacement,label=cns_label,marker=cns_marker,color=cns_color)
+    ax.plot(labels[:len(qp_mapping)],qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color)
+    ax.plot(labels[:len(read_write_steering)],read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color)
+    ax.plot(labels[:len(write_steering)],write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
+    ax.plot(labels[:len(clover_with_buffering)],clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
     ax.set_ylabel('KOP/s')
     ax.set_xlabel('Threads')
 
@@ -61,25 +67,30 @@ ax1.legend(loc='upper left')
 ax1.set_ylim(top=350)
 
 ####################### YCSB B
-cns_replacement_B=[x * 1000 for x in range(1, 8)]
-qp_mapping_B=[x * 2000 for x in range(1, 8)]
-read_write_steering_B=[x * 3000 for x in range(1, 8)]
-write_steering_B=[x * 4000 for x in range(1, 8)]
-clover_with_buffering_B=[x * 5000 for x in range(1, 8)]
+cns_replacement_B=[40201,54344,65534,69220]
+qp_mapping_B=[0]
+read_write_steering_B=[70161,135937,232888,357780,457676,481389,466011]
+write_steering_B=[76981,131557,237639,362646,478791,486266,477505]
+clover_with_buffering_B=[76231,140369,225298,374574,482870,483032,469943]
+
 
 static_plot_attributes(ax2,cns_replacement_B,qp_mapping_B,read_write_steering_B,write_steering_B,clover_with_buffering_B)
 ax2.set_title('YCSB B (95% Read 5% write)')
 
 ####################### Write Only
-cns_replacement_W=[x * 1000 for x in range(1, 8)]
-qp_mapping_W=[x * 2000 for x in range(1, 8)]
-read_write_steering_W=[x * 3000 for x in range(1, 8)]
-write_steering_W=[x * 4000 for x in range(1, 8)]
-clover_with_buffering_W=[x * 5000 for x in range(1, 8)]
+cns_replacement_W=[21466,29982,43185,63399,71201]
+qp_mapping_W=[21321,30143,43783,64288,71658,53677,55691]
+read_write_steering_W=[27362,60562,102853,150550,178756,216403,233423,]
+write_steering_W=[35134,61289,100051,158963,207892,242373,238822]
+clover_with_buffering_W=[22415,41149,68630,93214,91383,78164,64616]
+
+
+
 
 static_plot_attributes(ax3,cns_replacement_W,qp_mapping_W,read_write_steering_W,write_steering_W,clover_with_buffering_W)
 ax3.set_title('Write Only')
 
+plt.tight_layout()
 #ax1.tight_layout()
 plt.savefig(figure_name+'.pdf')
 plt.savefig(figure_name+'.png')
