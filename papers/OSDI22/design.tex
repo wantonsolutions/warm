@@ -3,39 +3,52 @@
 
 \subsection{Atomic Replacement} 
 
-Atomic operations are expensive because memory colocate NICs must prevent
-concurrent reads from reading half written or torn data, and writes from
-conflicting with one another. The implementation of locking is vendor and
-transport specific~\cite{design-guidelines}. In the worst case a barrier is
-placed on all operations creating significant head of line blocking, in the best
-case locking is per QP and only causes head of line blocking when reads or
-writes occur on overlapping ranges virtual memory. Regardless of the
-implementation atomic operations are significantly slower than asynchronous
-reads and writes.
+
+% atomic operations provided a serialized order on writes, and prevent torn
+% reads on the atomic region.
+
+In many disaggregated systems operation serialization is performed using RDMA
+atomic operations implemented on a NIC. These atomics are expensive because they
+can block many concurrent RDMA operations while they execute. The time required
+to complete an atomic is at minimum a PCIe round trip from the NIC to main
+memory, during which time a lock on the NIC guards the memory access. Lock
+implementation is both vendor and transport specific~\cite{design-guidelines}.
+In the worst case a barrier is placed on all operations resulting in complete
+head-of-line blocking, in the best case locking is per connection and only
+causes other operations to block when reads or writes occur on overlapping
+ranges virtual memory. Regardless of the implementation atomic operations are
+significantly slower than asynchronous non-blocking reads and writes.
+
+Because of their cost, we would like to replace atomic writes such as compare
+and swap (CAS) with non-blocking writes.  From a RoCE v2 perspective the per
+packet transformation from CAS to write can be applied easily in the datapath.
+RoCE v2 CAS and write headers only differ by a few fields. CAS can be though of
+as a special case where the write is conditional and the length is preset to 8
+bytes.
 %%
-Therefore, we would like to replace write atomics (CNS) with non-blocking
-writes. From a protocol perspective the transformation from CSN to write can be
-applied easily in the datapath: RoceV2 CNS headers are very close to write
-headers, conceptually its a special case where the write is conditional and only
-requires 8 bytes of writing. The transformation is performed in place by
-overwriting the RDMA op field for CSN with WRITE, copying the CNS payload to the
-WRITE location, setting the DMA length to 8, and shrinking the IPV4 length by 4.
-Finally the RDMA checksum and ipv4 checksum must be recalculated for the
-modified packet.
+To transform CAS headers to writes we switch the RDMA OP field from CAS to
+WRITE, copy the CAS value to the write payload location, set the DMA length of
+the write to 8, and shrink the IPV4 length by 4. Post modification the RoCE v2
+and IPv4 checksums are recalculated so the modified packet will not be rejected
+by the memory side NIC.
+
 %%
-The memory side NIC processes the CNS as a WRITE and responds with an ACK after
-the operation is completed. At the point the ACK reaches the middlebox it is
-replaced with an ATOMIC ACK. Similar to the forward transformation the Atomic
-Ack is very close in its construction to a regular ACK with the only difference
-being that the Atomic contains the original data from the memory location the
-CSN was applied. Here we inject a value which indicates success to the sender.
-In the case of clover this value is 64 zero bits.  Making this transformation
-does nothing to disturb the higher level protocol, as the receiving NIC
-processes the requests as is, and the sender gets back the responses it expects.
-However all of the safety of the atomic operation is lost. To prevent arbitrary
-corruption of data the data must be serialized somewhere else. Our approach is
-to detect conflicts in network, and utilize the in order delivery guarantees of
-RDMA reliable delivery to ensure safe serialized operations.
+On the memory server, the NIC processes the modified CAS as a WRITE and responds
+with an ACK once the operation is complete. Once the ACK reaches our middlebox
+we apply the inverse transformation from the ACK to an Atomic ACK which the
+sender expects to see. RDMA Atomic ACK headers are very similar to regular ACKs
+with the only difference being that the atomic contains the original data from
+the memory location of the CAS. This original data is missing due to the
+transformation so we inject a value which indicates success to the sender.
+%%
+This value is application specific; in Clovers case 64 zero bits indicate
+success. Transforming CAS to write does nothing to disturb the RDMA protocol,
+as both the sender and receiver side NIC are oblivious.  
+However, the guarantees the atomic provides, such as write serialization and the
+prevention of read tearing has been lost. To prevent arbitrary corruption of
+data the serialization point must be placed somewhere else. Our approach is to
+detect conflicts in network, and utilize the in order delivery guarantees of
+RDMA reliable connections to ensure safe and serialized operations.
 
 \subsection{Connection Remapping}
 
@@ -57,7 +70,7 @@ number into the packet after a mapping decision has been made. When a response
 comes back (in the form of an ACK, READ RESPONSE, or ATOMIC ACK) the packet must
 me demuliplexed back onto it's original connection. In addition to sequence
 numbers, a \textit{message sequence number}, is maintained on the recever NIC
-for each inbound connection, this value is transmitted as part of the ROCE BTH+
+for each inbound connection, this value is transmitted as part of the RoCE BTH+
 header in the response. It's value corresponds to the highest request number the
 receiver has processed. If this value is wrong in the response packet from the
 perspective of the sender, the packet is retransmitted. We calculate the message
@@ -76,8 +89,8 @@ for an RDMA NIC to only ack the second write. This is a challange when mapping
 requests as a coalesed message might have been for a different sender. In our
 scheme as all requests have mapping stubs stored in the middle box, when a
 request is coalessed a gap in the sequence number is observable. In this case we
-generate the coalesed request. While read, and CNS requests can not be
-coalessed, CNS requests mapped to writes can be. In the case of coalesed ATOMIC
+generate the coalesed request. While read, and CAS requests can not be
+coalessed, CAS requests mapped to writes can be. In the case of coalesed ATOMIC
 acks an atomic ACK is generated in place of the coalessed write ack.
 
 
@@ -134,7 +147,7 @@ our solutions.
 
 A few assumptions must be made in order for this replacement of operations to be
 made. First and foremost all operation serialization must be made, and finalized
-at the point where the CNS is swapped out. More formally, all of the data
+at the point where the CAS is swapped out. More formally, all of the data
 structure invariants which required locking, must be satisfied at the time of
 transforming the packet. Further the order of operations must be maintained
 downstream from the checking of the invariant. These two requirements influence
@@ -196,16 +209,16 @@ point in the network at which the swap is made. This fact increases the memory
 cost on a switch, however with intelligent data structure design the cost of the
 required metadata can be mitigated. In the case of Clover, while each key has
 an entire linked list history that can potentially span megabytes, the only
-required metadata to make the change from CNS to write is the location of the
+required metadata to make the change from CAS to write is the location of the
 tail pointer. In this case the metadata cost is O(n) as it grows linearly with
 the keyspace.
 
 \textbf{2) reordering} The second requirement, that operations not be reordered
 after the invariant has been checked requires more care in real systems. For
-instance in an RDMA system with two clients, both could have contesting CNS
+instance in an RDMA system with two clients, both could have contesting CAS
 operations swapped with writes. As the two clients are transmitting operations on
 separate QP, and the receiving NIC makes no guarantees about ordering between QP,
-the operations could easily be reordered. In the case with CNS, the order could
+the operations could easily be reordered. In the case with CAS, the order could
 be forced by ensuring that if one write was to succeed the second would fail.
 Without this guarantee the preservation of operation ordering must be maintained
 in another way.
@@ -258,8 +271,8 @@ algorithm. Clover for instance is designed to deal with memory operations made
 to the wrong location via iterative pointer chasing. We strongly suggest that
 disaggregated algorithms take this approach as our middlebox solution only acts
 to acclerate operations in the common case. We add and subtract connections
-based on the send and receipt of a single CNS operation. The QP and sequence
-number for the CNS are stored on send, and the ATOMIC ACK is used to retreive
+based on the send and receipt of a single CAS operation. The QP and sequence
+number for the CAS are stored on send, and the ATOMIC ACK is used to retreive
 the other recevers QP. As this approach requires only a single packet requests
 can be added and removed from our algorithm dynamically with little effort. As
 some state may be dependent on the number of connections (such as the key to QP
