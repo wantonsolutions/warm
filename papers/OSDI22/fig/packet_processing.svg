@@ -1,0 +1,1044 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="373.39148mm"
+   height="115.7277mm"
+   viewBox="0 0 373.39148 115.7277"
+   version="1.1"
+   id="svg8"
+   inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)"
+   sodipodi:docname="packet_processing.svg">
+  <defs
+     id="defs2">
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1950"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1948"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1923"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1921"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1917"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1915"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1323"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1321"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1317"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1315"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1303"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path1301"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path869"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)"
+         inkscape:connector-curvature="0" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend-7"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path869-5"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1923-1"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path1921-7"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker1950-1"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         inkscape:connector-curvature="0"
+         id="path1948-1"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1.00000003pt;stroke-opacity:1"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.35"
+     inkscape:cx="998.11242"
+     inkscape:cy="132.71178"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1920"
+     inkscape:window-height="1043"
+     inkscape:window-x="3120"
+     inkscape:window-y="840"
+     inkscape:window-maximized="1" />
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(60.937447,-49.571598)">
+    <rect
+       style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:1.3340261;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect820"
+       width="35.279572"
+       height="114.39135"
+       x="-60.937447"
+       y="50.31023"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-55.992966"
+       y="62.337364"
+       id="text824"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan822"
+         x="-55.992966"
+         y="62.337364"
+         style="stroke-width:0.26458332">DPDK </tspan><tspan
+         sodipodi:role="line"
+         x="-55.992966"
+         y="72.9207"
+         style="stroke-width:0.26458332"
+         id="tspan1977">  RX</tspan></text>
+    <rect
+       style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:1.69937801;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect820-3"
+       width="57.116444"
+       height="114.65862"
+       x="-19.026598"
+       y="50.176598"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-10.126124"
+       y="61.22242"
+       id="text843"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan841"
+         x="-10.126124"
+         y="61.22242"
+         style="stroke-width:0.26458332"> Protocol </tspan><tspan
+         sodipodi:role="line"
+         x="-10.126124"
+         y="71.805756"
+         style="stroke-width:0.26458332"
+         id="tspan845">Detection</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26499999;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow1Lend-7)"
+       d="m -37.529068,98.560067 c 0,0 17.90706,0.26726 25.92515,-2.13817"
+       id="path864-3"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.37193406;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151"
+       width="32.339611"
+       height="64.144691"
+       x="-13.096206"
+       y="78.373528"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="-11.492589"
+       y="86.658882"
+       id="text1155"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1153"
+         x="-11.492589"
+         y="86.658882"
+         style="stroke-width:0.26458332">Data </tspan><tspan
+         sodipodi:role="line"
+         x="-11.492589"
+         y="97.242218"
+         style="stroke-width:0.26458332"
+         id="tspan1157">Path </tspan><tspan
+         sodipodi:role="line"
+         x="-11.492589"
+         y="107.82555"
+         style="stroke-width:0.26458332"
+         id="tspan1159">Traffic?</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="23.252451"
+       y="87.460686"
+       id="text1163"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1161"
+         x="23.252451"
+         y="87.460686"
+         style="stroke-width:0.26458332">NO</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="22.723053"
+       y="129.56403"
+       id="text1163-5"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1161-6"
+         x="22.723053"
+         y="129.56403"
+         style="stroke-width:0.26458332">Yes</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1917)"
+       d="M 37.703125,83.915922 43.372768,63.599701 49.042411,58.969494 268.1741,57.552082"
+       id="path1183"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <rect
+       style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:2.00917697;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect820-3-2"
+       width="88.733482"
+       height="103.16604"
+       x="49.31123"
+       y="61.669186"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.31734413;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7"
+       width="64.946495"
+       height="23.252453"
+       x="62.674706"
+       y="95.478767"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.31799644;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7-0"
+       width="65.21376"
+       height="23.252453"
+       x="62.163094"
+       y="136.07852"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="65.304626"
+       y="108.50137"
+       id="text843-9-9"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="65.304626"
+         y="108.50137"
+         style="stroke-width:0.26458332"
+         id="tspan1225-0">Write Steering</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="113.13886"
+       y="74.574768"
+       id="text1293"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1291"
+         x="113.13886"
+         y="74.574768"
+         style="font-weight:bold;stroke-width:0.26458332">5.1</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="65.370331"
+       y="151.17924"
+       id="text1297"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1295"
+         x="65.370331"
+         y="151.17924"
+         style="stroke-width:0.26458332">Read Steering</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1303)"
+       d="M 72.38244,114.05952 72.004464,138.25"
+       id="path1299"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="74.083336"
+       y="129.55655"
+       id="text1307"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1305"
+         x="74.083336"
+         y="129.55655"
+         style="stroke-width:0.26458332">updates</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1317)"
+       d="m 20.312484,126.74931 c 0,0 1.870886,-16.30344 13.363476,-16.57071 11.49259,-0.26727 24.054257,-0.53454 24.054257,-0.53454"
+       id="path1309"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="26.994223"
+       y="107.77318"
+       id="text1313"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1311"
+         x="26.994223"
+         y="107.77318"
+         style="stroke-width:0.26458332">Writes</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1323)"
+       d="m 18.174328,133.96559 c 0,0 10.958051,8.81989 12.561667,10.15624 1.603618,1.33635 24.054257,1.33635 26.994222,1.33635"
+       id="path1319"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="26.459682"
+       y="155.07986"
+       id="text1327"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1325"
+         x="26.459682"
+         y="155.07986"
+         style="stroke-width:0.26458332">Reads</tspan></text>
+    <rect
+       style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:2.32091236;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect820-3-2-6"
+       width="118.40462"
+       height="103.16604"
+       x="145.5663"
+       y="61.909542"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="57.313889"
+       y="74.439941"
+       id="text843-9-2"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="57.313889"
+         y="74.439941"
+         style="stroke-width:0.26458332"
+         id="tspan1289-1">Op Caching</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="153.08037"
+       y="73.616066"
+       id="text1367"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="153.08037"
+         y="73.616066"
+         style="stroke-width:0.26458332"
+         id="tspan1369">QP Mapping</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="209.02083"
+       y="73.805061"
+       id="text1373"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="209.02083"
+         y="73.805061"
+         style="font-weight:bold;stroke-width:0.26458332"
+         id="tspan1375">5.2 &amp; 5.3</tspan></text>
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,83.404642,53.840392)"
+       id="g1500-9"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2">
+        <g
+           id="g1508-2">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+      </g>
+    </g>
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,83.579212,88.715816)"
+       id="g1500-9-3"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2-6">
+        <g
+           id="g1508-2-1">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8-0"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9-6"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7-3"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3-2"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6-0"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1-6"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+      </g>
+    </g>
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,294.26351,61.768791)"
+       id="g1500-9-1"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2-5"
+         transform="translate(-0.25670031,-0.25670031)">
+        <g
+           id="g1508-2-5"
+           transform="translate(-0.64175078,2.438653)">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8-4"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9-7"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7-6"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3-5"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6-6"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1-9"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-weight:normal;font-size:5.75008726px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.17969023"
+           x="-98.322372"
+           y="23.44803"
+           id="text1656"><tspan
+             sodipodi:role="line"
+             id="tspan1654"
+             x="-98.322372"
+             y="23.44803"
+             style="stroke-width:0.17969023">forward</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-weight:normal;font-size:5.75008678px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.17969021"
+           x="-100.67899"
+           y="48.309654"
+           id="text1656-0"><tspan
+             sodipodi:role="line"
+             id="tspan1654-7"
+             x="-100.67899"
+             y="48.309654"
+             style="stroke-width:0.17969021">backward</tspan></text>
+      </g>
+    </g>
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,293.69655,102.21224)"
+       id="g1500-9-37"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2-4">
+        <g
+           id="g1508-2-52">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8-5"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9-4"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7-7"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3-4"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6-4"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1-3"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+      </g>
+    </g>
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.20571174;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7-8"
+       width="21.357403"
+       height="29.712103"
+       x="99.412071"
+       y="-218.58521"
+       transform="rotate(90)"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="191.66226"
+       y="106.90542"
+       id="text1697"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1695"
+         x="191.66226"
+         y="106.90542"
+         style="stroke-width:0.26458332">map </tspan><tspan
+         sodipodi:role="line"
+         x="191.66226"
+         y="117.48875"
+         style="stroke-width:0.26458332"
+         id="tspan1737">policy</tspan></text>
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.21404782;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7-8-8"
+       width="21.357403"
+       height="32.168945"
+       x="99.223083"
+       y="-255.05992"
+       transform="rotate(90)"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="223.60126"
+       y="107.28339"
+       id="text1697-8"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="223.60126"
+         y="107.28339"
+         style="stroke-width:0.26458332"
+         id="tspan1737-3">atomic</tspan><tspan
+         sodipodi:role="line"
+         x="223.60126"
+         y="117.86672"
+         style="stroke-width:0.26458332"
+         id="tspan1765"> swap</tspan></text>
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.22146434;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7-8-1"
+       width="21.357403"
+       height="34.436802"
+       x="136.83171"
+       y="-222.36497"
+       transform="rotate(90)"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="189.01643"
+       y="145.08101"
+       id="text1697-4"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         id="tspan1695-9"
+         x="189.01643"
+         y="145.08101"
+         style="stroke-width:0.26458332">  anti </tspan><tspan
+         sodipodi:role="line"
+         x="189.01643"
+         y="155.66434"
+         style="stroke-width:0.26458332"
+         id="tspan1791">coalese </tspan><tspan
+         sodipodi:role="line"
+         x="189.01643"
+         y="166.24768"
+         style="stroke-width:0.26458332"
+         id="tspan1737-2" /></text>
+    <rect
+       style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.22146435;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect1151-7-8-1-0"
+       width="21.357403"
+       height="34.436802"
+       x="136.83171"
+       y="-261.01303"
+       transform="rotate(90)"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="227.66451"
+       y="145.08101"
+       id="text1697-4-6"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="227.66451"
+         y="145.08101"
+         style="stroke-width:0.26458332"
+         id="tspan1791-9"> revert</tspan><tspan
+         sodipodi:role="line"
+         x="227.66451"
+         y="155.66434"
+         style="stroke-width:0.26458332"
+         id="tspan1822">atomics </tspan><tspan
+         sodipodi:role="line"
+         x="227.66451"
+         y="166.24768"
+         style="stroke-width:0.26458332"
+         id="tspan1737-2-2" /></text>
+    <rect
+       style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:1.49699473;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect820-6"
+       width="43.912788"
+       height="115.7277"
+       x="268.54123"
+       y="49.571598"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,422.14621,61.796427)"
+       id="g1500-9-6"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2-49">
+        <g
+           id="g1508-2-50">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8-48"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9-71"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7-72"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3-7"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6-2"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1-2"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+      </g>
+    </g>
+    <g
+       transform="matrix(1.4724415,0,0,1.4724415,422.32078,96.671849)"
+       id="g1500-9-3-6"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300">
+      <g
+         id="g1438-2-6-1">
+        <g
+           id="g1508-2-1-0">
+          <ellipse
+             ry="9.396492"
+             rx="9.1241302"
+             cy="30.507288"
+             cx="-86.8992"
+             id="path847-8-8-0-6"
+             style="fill:#ffe6d5;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1409-9-6-1"
+             d="M -86.967291,21.076749 V 39.835688"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1411-7-3-5"
+             d="M -96.057375,30.371105 H -77.77507"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1413-3-2-9"
+             d="M -80.532736,23.800371 -93.640162,36.907796"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <path
+             inkscape:connector-curvature="0"
+             id="path1415-6-0-4"
+             d="m -93.333754,23.902506 13.056357,13.056358"
+             style="fill:none;stroke:#000000;stroke-width:0.13481236px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+          <ellipse
+             ry="4.4069567"
+             rx="4.2792196"
+             cy="30.507288"
+             cx="-86.967293"
+             id="path847-8-7-1-6-9"
+             style="fill:#8caff6;fill-opacity:1;stroke:#000000;stroke-width:0.15285811;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+        </g>
+      </g>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="268.51016"
+       y="59.69326"
+       id="text824-0"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
+         sodipodi:role="line"
+         x="268.51016"
+         y="59.69326"
+         style="stroke-width:0.26458332"
+         id="tspan1911"> Semantic</tspan><tspan
+         sodipodi:role="line"
+         x="268.51016"
+         y="70.276596"
+         style="stroke-width:0.26458332"
+         id="tspan1975">  ordering</tspan><tspan
+         sodipodi:role="line"
+         x="268.51016"
+         y="80.859924"
+         style="stroke-width:0.26458332"
+         id="tspan1913">      TX</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1923)"
+       d="m 127.80181,106.31101 23.59502,0.0783"
+       id="path1919"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1923-1)"
+       d="m 127.90064,146.9283 24.35704,0.004"
+       id="path1919-7"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1950)"
+       d="m 255.10876,106.97137 25.59858,-0.45527"
+       id="path1946"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1950-1)"
+       d="m 261.40135,142.30404 19.48056,-0.91252"
+       id="path1946-5"
+       inkscape:connector-curvature="0"
+       inkscape:transform-center-x="-5.490788"
+       inkscape:transform-center-y="-44.31365"
+       sodipodi:nodetypes="cc"
+       inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300" />
+  </g>
+</svg>
