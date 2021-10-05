@@ -10,14 +10,14 @@ The ycsb benchmark consists of varying read and write workloads which have been
 shown to emulate many common data center operations. We show a breakdown of our
 techniques, mainly read and write caching, QP mapping, and atomic replacement
 with respect to their effect to system performance on two YCSB benchmarks. We
-choose YCSB-B (95% read and 5% write) as our baseline, and YCSB-A (50% read and
-50% write) to demonstrate how our algorithm performs under high contention. We
-also show the performance boots obtained while running a 100% write workload
+choose YCSB-B (95\% read and 5\% write) as our baseline, and YCSB-A (50\% read and
+50\% write) to demonstrate how our algorithm performs under high contention. We
+also show the performance boots obtained while running a 100\% write workload
 which is intended to emulate other programmatic workloads such as accessing a
 lock in remote memory.
 
 \begin{figure*}
-    \includegraphics[width=0.95\textwidth]{fig/full_system_performance.jpg}
+    \includegraphics[width=0.95\textwidth]{fig/full_system_performance.pdf}
     \caption{{Performance increase of each technique using clover as a baseline on YCSB benchmarks.}}
     \label{fig:full_system_performance}
 \end{figure*}
