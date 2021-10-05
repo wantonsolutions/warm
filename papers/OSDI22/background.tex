@@ -47,10 +47,10 @@ runtimes\todo{\\cite}.
 There is a litany of prior work on making fast in memory key value stores using
 RDMA NICs. The main difference between most RDMA key value stores and solutions
 which are tailored for far memory is that RDMA key value stores rely on each
-machine to have a CPU co-resident with memory~\cite{herd,pilaf,storm,soNUMA,
+machine to have a CPU co-resident with memory~\cite{herd,pilaf,storm,sonuma,
 MemC3}~\todo{citemore}. In these systems clients make put and get requests to remote memory
 which are translated to RDMA verbs which read and write to remote memory. Much
-debate has been had over which verbs to use~\cite{storm, herd, eRPC} the
+debate has been had over which verbs to use~\cite{storm, herd, erpc} the
 relative performance of signaled and unsignaled verbs, and the reliability of
 the transports have been shown to have many tradeoffs. One constant property
 though, is that the CPUs on the memory side are used to serialize requests. This

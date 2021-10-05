@@ -8,16 +8,17 @@ this cost may seem prohibitive the benefits of resource disaggregation, mainly
 high memory utilization, arbitrarily flexible resource allocation, and energy
 efficiency~\cite{zombieland} make the architectural paradigm tantalizing. In
 response a variety of Protocols for accessing remote memory have been developed
-and productionized: RDMA~\cite{infiniband-spec}, CXL~\cite{cxl},
-GenZ~\cite{genz} and Omni-Path~\cite{omni-path}. Each protocol, while distinct,
-meets approximately the same requirements, reliable access to byte addressable
-remote memory with low latency and high throughput.
+and productionized: RDMA~\cite{infiniband-spec},GenZ~\cite{genz}, and
+CXL~\cite{cxl}.
+%% % and Omni-Path~\cite{omni-path}. // omni-path is dead now % 
+Each protocol, while distinct, meets approximately the same requirements,
+reliable access to byte addressable remote memory with low latency and high
+throughput.
 
 %% it would be nice to Cite SUPERNIC and CLIO here but I'm not sure it makes
 %sense untill it's published at a major venue
 %%Clio~\cite{clio-arxiv}
 %%todo ask alex about the archive reference
-
 %%todo do a quick read of how dma is delt with on the other interconnects
 Regardless of the memory transport technology the overarching scheme is the
 same, clients request remote addresses which is translated and transported via  

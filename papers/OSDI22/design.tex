@@ -214,19 +214,18 @@ in another way.
 
 
 Our solution here is simple, given that we have the key's for reads and writes
-~\ref{operation-caching}, all operations for the same key are mapped to the same
-QP. 
-This algorithm requires that a few pieces of state be maintained per connection.
-First the sending and response QP for each sender and receiver need to be
-tracked. Second the sequence number of each connection, and the original message
-sequence number offset must be maintained. Per client connection the pair of
-QP's require 48 bits, and the sequence + message sequence require an additional
-48 for a total of 12 bytes per connection. The storage requirement for mapped
-requests varies based on the algorithm. If clients are able to issue an
-unbounded number of async requests, then a buffer large enough to maintain
-backwards mappings for each request is required. In clover clients can issue up
-to 2 async requests, so we keep a two 6 byte mappings for each connection
-available to map back. 
+(Section ~\ref{sec:operation-caching}), all operations for the same key are
+mapped to the same QP.  This algorithm requires that a few pieces of state be
+maintained per connection.  First the sending and response QP for each sender
+and receiver need to be tracked. Second the sequence number of each connection,
+and the original message sequence number offset must be maintained. Per client
+connection the pair of QP's require 48 bits, and the sequence + message sequence
+require an additional 48 for a total of 12 bytes per connection. The storage
+requirement for mapped requests varies based on the algorithm. If clients are
+able to issue an unbounded number of async requests, then a buffer large enough
+to maintain backwards mappings for each request is required. In clover clients
+can issue up to 2 async requests, so we keep a two 6 byte mappings for each
+connection available to map back. 
 
 Depending on the algorithm and the QP mapping scheme requests from a single
 sender can be reordered. That is, if a client makes a read and write request to
