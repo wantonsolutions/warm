@@ -52,35 +52,46 @@ RDMA reliable connections to ensure safe and serialized operations.
 
 \subsection{Connection Remapping}
 
-While removing locking operations is a general principle here we consider a
-solution for RDMA. Different transports with different ordering guarantees would
-require bespoke solutions. RDMA ensures that operations performed on the same QP
-arrive in order~\cite{infiniband-spec}~\footnote{while IB allows for relaxed
-ordering here we rely on that feature being turned off on the receiver}. Our
-solution is to map all operations for the same shared state to the same QP to
-ensure ordering of operations in the absense of locks. Similar to TCP, RDMA RC
-ensures that all operations arrive in order. RDMA retransmits requests if
-reordering occurs using a go back n algorithm.
+RDMA operations made on a reliable connection (one server one client queue pair)
+are guaranteed to be executed in the same order as their sequence numbers
+similar to TCP transport ordering~\cite{infiniband-spec}~\footnote{while IB
+allows for relaxed ordering here we rely on that feature being turned off on the
+receiver} . That is operations on a single stream are totally ordered with
+respect to one another. This is not true across multiple connections in the
+where writes to shared state can easily corrupt one another, and reads can be
+torn without the use of locks.  Our insight is that if all operations across all
+connections which share state are steered to the same connection the default
+RDMA ordering mechanism will provide serialization.  The determination of which
+operations share state is application specific. It requires inspecting each
+packet, extracting the relevant pieces of meta data, and steering the packet to
+the correct connection. Here we focus on the example of Clover where requests to
+read and write the same key are shared state operations.
 
-Doing so requires care on the middlebox. Multiplexing requests onto a single
-connection means that the sequence numbers of memory operations must be updated
-so that the receiving NIC on the memory side sees monotonic sequence numbers. To
-achieve this we track a sequence number per QP and inject the updated sequence
-number into the packet after a mapping decision has been made. When a response
-comes back (in the form of an ACK, READ RESPONSE, or ATOMIC ACK) the packet must
-me demuliplexed back onto it's original connection. In addition to sequence
-numbers, a \textit{message sequence number}, is maintained on the recever NIC
-for each inbound connection, this value is transmitted as part of the RoCE BTH+
-header in the response. It's value corresponds to the highest request number the
-receiver has processed. If this value is wrong in the response packet from the
-perspective of the sender, the packet is retransmitted. We calculate the message
-sequence number a sender expects to see by counting the number of operations a
-sender has issued and adding it to the value of the original message sequence
-number for that connection. When requests are mutiplexed the QP and sequence
-number of the original request are stored in a per QP table. The sequence number
-of the response packet is used to perform an O(1) lookup for the original QP and
-sequence number.
+%%While removing locking operations is a general principle here we consider a
+%%solution for RDMA.  %Different transports with different ordering guarantees
+%%would require bespoke solutions.  
 
+Multiplexing and demultiplexing RDMA operations across established connections
+requires a significant amount of care. Requests on a single connection must have
+monotonic sequence numbers from the senders and receivers perspectives. If
+monotonicity is broken, the NIC will invoke an expensive go-back-n protocol or
+issue explicit congestion notifications. To achieve monotonic sequence numbers
+on shared connections we track a sequence number per memory QP and inject the
+updated sequence number into the packet after a state based mapping decision has
+been made. A stub for each mapped request is stored on the middlebox to aid in
+mapping the request back. The stub keeps track of the original requests sequence
+number, ip address, mac address, and queue pair. Stubs are stored in an array
+based on their sequence number \% $table size$ for an O(1) lookup when they are
+demultiplexed back to their original connections.
+%%
+In addition to sequence numbers, a \textit{message sequence number}, is used as
+an RDMA optimization by the memory side NIC. This value is transmitted as part
+of the RoCE BTH+ header in the response. It's value corresponds to the highest
+request number the receiver has processed. If this value is wrong in the
+response packet from the perspective of the sender, the packet is retransmitted.
+We calculate the message sequence number a sender expects to see by counting the
+number of operations a sender has issued and adding it to the value of the
+original message sequence number for that connection.
 
 \subsection{Instruction Coalescing} A final additional challenge in mapping
 requests, is that receving NIC's can coalesce acknowledgement messages. Given a
