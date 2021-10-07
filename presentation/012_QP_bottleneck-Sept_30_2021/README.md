@@ -35,7 +35,7 @@ Running with 64 client threads on two machines.
 
 ![exp0](QP_restriction.png "Memory QP vs Client QP")
 
-## Experiment 1 - CNS swapping off
+## Experiment 1 - ID QP mapping (still incomplete)
 
 In this second experiment I'm using a different mechanism to determine which QP
 the requests land on. The mapping is done entirely by the ID. Where as before
