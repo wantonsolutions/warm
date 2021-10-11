@@ -54,7 +54,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-#define CNS_TO_WRITE
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -187,7 +187,17 @@ uint32_t id_qp[TOTAL_ENTRY];
 //goes to the first qp, and the qp_id_counter + 1  key goes to the first qp.
 uint32_t key_to_qp(uint64_t key)
 {
-	uint32_t index = (key) % TOTAL_CLIENTS;
+	//int qp = 8;
+	int qp = 1;
+	//uint32_t index = (key) % TOTAL_CLIENTS;
+	uint32_t index = (key) % qp;
+	return id_qp[index];
+}
+
+uint32_t id_to_qp(uint32_t id) {
+
+	int qp = 48;
+	uint32_t index = (id) % qp;
 	return id_qp[index];
 }
 
@@ -430,11 +440,31 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 		//sequence number
 		if (unlikely(*bs.head == 0))
 		{
+			printf("setting head id: %d seq: %d\n",bs.id,seq);
 			*bs.head = seq;
 		}
+
+		if (unlikely(*bs.head > seq)) {
+			printf(
+				"This is a really bad situation\n"
+				"we got the initial conditions wrong so enqueue on the first packet\n"
+				"ie *bs.head == 0 did not work, in this case we need to move the head back a bit\n"
+				"the downside here is that if this is some sort of error we will not have contiguous\n"
+				"sequence numbers which could cause knock on proble3ms later\n"
+				"(( MOVING HEAD BACKWARDS!!))\n"
+				"Stewart Grant Oct 11 2021\n"
+				);
+				*bs.head=seq;
+				if(!contiguous_buffered_packets_2(bs)) {
+					printf("(ERROR) non congiguous after head step back\n");
+				}
+		}
+
+
 		//If the tail is the new latest sequence number than slide it forward
 		if (*bs.tail < seq)
 		{
+			printf("setting tail id: %d seq: %d\n",bs.id,seq);
 			*bs.tail = seq;
 		}
 	}
@@ -561,7 +591,6 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t q
 		*bs.head = *bs.tail + 1;
 	}
 	return mpr;
-
 }
 
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
@@ -619,6 +648,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 				//printf("found timestamp %"PRIu64" head %d tail %d\n",ts,*dequeue_bs.head,*dequeue_bs.tail);
 			}
 		}
+
 		if (found == 1) {
 			//printf("head %d tail %d\n",*dequeue_bs.head,*dequeue_bs.tail);
 			struct rte_mbuf *s_pkt = (*dequeue_bs.buf)[*(dequeue_bs.head) % PKT_REORDER_BUF];
@@ -633,6 +663,15 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 			{
 				//printf("[client %d] timestamp %"PRIu64" psn %d \n", dequeue_bs.id, min_timestamp, readable_seq(get_psn(s_pkt)));
 			}
+
+			//sort response
+			//printf("sorting packets\n");
+			//struct map_packet_response inserter;
+			//inserter.pkts[0]=s_pkt;
+			//inserter.timestamps[0]=min_timestamp;
+			//inserter.size=1;
+			//merge_mpr_ts(&mpr,&inserter);
+
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=min_timestamp;
 			mpr.size++;
@@ -655,13 +694,14 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	merge_mpr_ts(&mpr1,&mpr2);
 	merge_mpr_ts(&mpr1,&mpr3);
 	//printf("sending %d\n",mpr1.size);
-	/*
 	for (int i=0;i<mpr1.size;i++){
-		struct Buffer_State bs = get_buffer_state(mpr1.pkts[i]);
-		uint32_t msn = readable_seq(get_msn(get_roce_hdr(mpr1.pkts[i])));
+		printf("[TS: %"PRIu64"]",mpr1.timestamps[i]);
+		print_packet_lite(mpr1.pkts[i]);
+		//struct Buffer_State bs = get_buffer_state(mpr1.pkts[i]);
+		//uint32_t msn = readable_seq(get_msn(get_roce_hdr(mpr1.pkts[i])));
 		//printf("[id %d msn %d]\n",bs.id,msn);
 	}
-	*/
+	printf("\n\n\n");
 	rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
 	unlock_mem_qp();
 	return;
@@ -957,22 +997,15 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 	uint32_t index = mod_hash(vaddr);
 	if (cached_write_vaddr_mod[index] != 0) {
 		hash_collisons++;
-		printf("collissions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
+		printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
 
 	}
 	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
 
-	if(key == 0) {
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
-		printf("Key is equal to 0\n");
+	if(unlikely(key == 0)) {
+		printf("Writing Key 0 to cache, it's unlikely you want to do this as key 0 is special crashing so you are aware (Stewart Grant Sept 29 2021)\n");
 	}
 }
 
@@ -1080,6 +1113,8 @@ int get_key(struct rte_mbuf *pkt) {
 		uint64_t *key = (uint64_t *)&(wr->data);
 		return (int)*key;
 	} else if (roce_hdr->opcode == RC_ATOMIC_ACK || roce_hdr->opcode == RC_CNS) {
+		//!TODO this can cause mapped pacekts to print out the wrong id. Ie we
+		//!TODO don't know the key from the packet after mapping
 		return (int)get_latest_key(id);
 	} else if (roce_hdr->opcode == RC_READ_REQUEST) {
 		struct read_request *rr = (struct read_request *)clover_header;
@@ -1254,6 +1289,8 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 
 	//Keys are set to 0 when we are not going to map them. If the key is not
 	//equal to zero apply the mapping policy.
+
+	//Key to qp policy
 	if (key != 0)
 	{
 		n_qp = key_to_qp(key);
@@ -1262,6 +1299,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
+	//n_qp = id_to_qp(id);
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
@@ -1461,17 +1499,49 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
 	{
-		//printf("Found the write that was missing an ack... %d\n",missed_writes++);
+		//printf("[id %d] Found the write that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
 	{
-		//printf("Found the cns   that was missing an ack... %d\n",missed_writes++);
+		//printf("[id %d] Found the cns   that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	return NULL;
 }
 
+
+void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_request) {
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	int invalid = 0;
+	switch(roce_hdr->opcode){
+		case RC_ACK:
+			if ( (mapped_request->rdma_op != RC_WRITE_ONLY) &&
+				 (mapped_request->rdma_op != RC_CNS)
+			) {
+				invalid = 1;
+			}
+			break;
+		case RC_ATOMIC_ACK:
+			if (mapped_request->rdma_op != RC_CNS) {
+				invalid = 1;
+			}
+			break;
+		case RC_READ_RESPONSE:
+			if (mapped_request->rdma_op != RC_READ_REQUEST) {
+				invalid = 1;
+			}
+			break;
+		default:
+			break;
+	}
+	if (invalid) {
+		printf("INVALID MAPPING RESPONSE! OP is %s Original was %s\n",ib_print_op(roce_hdr->opcode),ib_print_op(mapped_request->rdma_op));
+		print_packet_lite(pkt);
+		print_packet(pkt);
+	}
+	return;
+}
 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
@@ -1519,6 +1589,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 					mpr.pkts[i] = mpr.pkts[i-1];
 				}
 				mpr.pkts[0] = coalesed_ack;
+				//printf("(gend)");
 				mpr.size++;
 
 				//subtract the sequence number by one and revert it back to roce header format
@@ -1528,6 +1599,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 				break;
 			}
 		}
+
+
+		sanity_check_mapping(pkt,mapped_request);
 
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
@@ -1828,8 +1902,8 @@ void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 		struct Buffer_State bs = get_buffer_state(pkt);
 		for (int i = 0; i < 20; i++)
 		{
-			printf("packet # %d id %d\n", packet_counter,bs.id);
-			printf("ecn\n");
+			printf("ECN packet # %d id %d\n", packet_counter,bs.id);
+			print_packet_lite(pkt);
 		}
 		print_packet(pkt);
 		//debug_start_printing_every_packet = 1;
@@ -1904,11 +1978,6 @@ void true_classify(struct rte_mbuf *pkt)
 		}
 
 		#ifdef READ_STEER
-		if(*key == 0) {
-			print_packet_lite(pkt);
-			print_packet(pkt);
-		}
-
 		update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
 		#endif
 
@@ -2284,7 +2353,8 @@ void print_packet_lite(struct rte_mbuf *buf)
 	int key = get_key(buf);
 
 	id_colorize(id);
-	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d][key %d](pkt %d)\n", rte_lcore_id(), id, op, roce_hdr->opcode, size, dest_qp, seq, msn, key,packet_counter);
+	//printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d][key %d](pkt %d)\n", rte_lcore_id(), id, op, roce_hdr->opcode, size, dest_qp, seq, msn, key,packet_counter);
+	printf("[core %d][id %3d][seq %5d][op:%19s][key %4d][msn %5d][size: %4d][dst: %d](pkt %d)\n", rte_lcore_id(), id, seq, op,key, msn, size, dest_qp, packet_counter);
 }
 
 struct rte_ipv4_hdr *ipv4_hdr_process(struct rte_ether_hdr *eth_hdr)
@@ -2452,12 +2522,14 @@ lcore_main(void)
 
 				#ifdef MAP_QP
 				struct map_packet_response mpr;
-				//print_packet_lite(rx_pkts[i]);
+				uint32_t id = find_id(rx_pkts[i]);
+
+				print_packet_lite(rx_pkts[i]);
 				mpr = map_qp(rx_pkts[i]);
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
-					print_packet_lite(tx_pkts[to_tx]);
+					//print_packet_lite(tx_pkts[to_tx]);
 					to_tx++;
 				}
 				//printf("\n");
@@ -2466,7 +2538,14 @@ lcore_main(void)
 				to_tx++;
 				#endif
 			}
+			printf("----------------------------------------------------\n");
 			//bulk sending
+
+			for (uint16_t i = 0; i< to_tx;i++){
+				print_packet_lite(tx_pkts[i]);
+			}
+			printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+
 			#ifdef SINGLE_CORE
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else

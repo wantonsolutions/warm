@@ -5,3 +5,6 @@ plot/sequence.pdf
 latency.pdf
 timeline.pdf
 sequence.pdf
+
+op_latencies.pdf
+op_latencies_per_thread.pdf

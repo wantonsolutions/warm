@@ -3,8 +3,8 @@
 
 #include <inttypes.h>
 
-#define TOTAL_PACKET_LATENCIES 10000
-#define TOTAL_PACKET_SEQUENCES 10000
+#define TOTAL_PACKET_LATENCIES 1000000
+#define TOTAL_PACKET_SEQUENCES 1000000
 #define TAKE_MEASUREMENTS
 
 int64_t timestamp(void);
