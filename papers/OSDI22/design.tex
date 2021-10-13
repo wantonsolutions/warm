@@ -93,7 +93,13 @@ We calculate the message sequence number a sender expects to see by counting the
 number of operations a sender has issued and adding it to the value of the
 original message sequence number for that connection.
 
-\subsection{Instruction Coalescing} A final additional challenge in mapping
+\subsection{Instruction Coalescing} RoCE coalesces some ACKs as an optimization.
+Multiple writes can be acknowledged by a single acknowledgement, in the form of
+either an ACK, ATOMIC ACK, or Read Response. This occurs when multiple RDMA
+request are processed concurrently. When mapping requests, some acknowledgements
+may be coalesced which are required from the senders perspetive.
+
+A final additional challenge in mapping
 requests, is that receving NIC's can coalesce acknowledgement messages. Given a
 single connection, if two concurrent writes are issued, it is perfectly valid
 for an RDMA NIC to only ack the second write. This is a challange when mapping

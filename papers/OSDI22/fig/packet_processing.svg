@@ -9,9 +9,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="373.39148mm"
-   height="115.7277mm"
-   viewBox="0 0 373.39148 115.7277"
+   width="372.94666mm"
+   height="114.89898mm"
+   viewBox="0 0 372.94666 114.89898"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)"
@@ -176,9 +176,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.35"
-     inkscape:cx="998.11242"
-     inkscape:cy="132.71178"
+     inkscape:zoom="0.7"
+     inkscape:cx="846.41983"
+     inkscape:cy="-34.429261"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -203,7 +203,7 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(60.937447,-49.571598)">
+     transform="translate(60.937447,-50.176598)">
     <rect
        style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:1.3340261;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect820"
@@ -335,7 +335,7 @@
          style="stroke-width:0.26458332">Yes</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1917)"
-       d="M 37.703125,83.915922 43.372768,63.599701 49.042411,58.969494 268.1741,57.552082"
+       d="M 37.703125,83.915922 43.561756,60.76488 48.853423,57.646577 268.1741,57.552082"
        id="path1183"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccc"
@@ -416,12 +416,13 @@
          style="stroke-width:0.26458332">Read Steering</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1303)"
-       d="M 72.38244,114.05952 72.004464,138.25"
+       d="m 72.38244,114.05952 -0.188988,21.35566"
        id="path1299"
        inkscape:connector-curvature="0"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
-       inkscape:export-ydpi="300" />
+       inkscape:export-ydpi="300"
+       sodipodi:nodetypes="cc" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
@@ -438,12 +439,13 @@
          style="stroke-width:0.26458332">updates</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1317)"
-       d="m 20.312484,126.74931 c 0,0 1.870886,-16.30344 13.363476,-16.57071 11.49259,-0.26727 24.054257,-0.53454 24.054257,-0.53454"
+       d="m 19.367544,125.61538 c 0,0 2.815826,-15.16951 14.308416,-15.43678 11.49259,-0.26727 24.054257,-0.53454 24.054257,-0.53454"
        id="path1309"
        inkscape:connector-curvature="0"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
-       inkscape:export-ydpi="300" />
+       inkscape:export-ydpi="300"
+       sodipodi:nodetypes="csc" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
@@ -460,12 +462,13 @@
          style="stroke-width:0.26458332">Writes</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1323)"
-       d="m 18.174328,133.96559 c 0,0 10.958051,8.81989 12.561667,10.15624 1.603618,1.33635 24.054257,1.33635 26.994222,1.33635"
+       d="m 19.308257,136.42244 c 0,0 9.824122,6.36304 11.427738,7.69939 1.603618,1.33635 24.054257,1.33635 26.994222,1.33635"
        id="path1319"
        inkscape:connector-curvature="0"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
-       inkscape:export-ydpi="300" />
+       inkscape:export-ydpi="300"
+       sodipodi:nodetypes="csc" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
@@ -627,7 +630,7 @@
       </g>
     </g>
     <g
-       transform="matrix(1.4724415,0,0,1.4724415,294.26351,61.768791)"
+       transform="matrix(1.4724415,0,0,1.4724415,300.14344,60.966982)"
        id="g1500-9-1"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
@@ -677,12 +680,12 @@
            xml:space="preserve"
            style="font-style:normal;font-weight:normal;font-size:5.75008726px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.17969023"
            x="-98.322372"
-           y="23.44803"
+           y="22.292879"
            id="text1656"><tspan
              sodipodi:role="line"
              id="tspan1654"
              x="-98.322372"
-             y="23.44803"
+             y="22.292879"
              style="stroke-width:0.17969023">forward</tspan></text>
         <text
            xml:space="preserve"
@@ -698,7 +701,7 @@
       </g>
     </g>
     <g
-       transform="matrix(1.4724415,0,0,1.4724415,293.69655,102.21224)"
+       transform="matrix(1.4724415,0,0,1.4724415,299.57648,101.41043)"
        id="g1500-9-37"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
@@ -747,10 +750,10 @@
     <rect
        style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.20571174;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect1151-7-8"
-       width="21.357403"
-       height="29.712103"
-       x="99.412071"
-       y="-218.58521"
+       width="21.357407"
+       height="34.058838"
+       x="97.287346"
+       y="-224.0793"
        transform="rotate(90)"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
@@ -758,50 +761,51 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="191.66226"
-       y="106.90542"
+       x="194.69951"
+       y="104.78069"
        id="text1697"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300"><tspan
          sodipodi:role="line"
          id="tspan1695"
-         x="191.66226"
-         y="106.90542"
+         x="194.69951"
+         y="104.78069"
          style="stroke-width:0.26458332">map </tspan><tspan
          sodipodi:role="line"
-         x="191.66226"
-         y="117.48875"
+         x="194.69951"
+         y="115.36403"
          style="stroke-width:0.26458332"
          id="tspan1737">policy</tspan></text>
     <rect
        style="fill:#e9afaf;fill-opacity:1;stroke:none;stroke-width:0.21404782;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect1151-7-8-8"
-       width="21.357403"
-       height="32.168945"
-       x="99.223083"
-       y="-255.05992"
+       width="21.357399"
+       height="33.638927"
+       x="97.098358"
+       y="-261.12097"
        transform="rotate(90)"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
-       inkscape:export-ydpi="300" />
+       inkscape:export-ydpi="300"
+       ry="0" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="223.60126"
-       y="107.28339"
+       x="230.86502"
+       y="104.89139"
        id="text1697-8"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300"><tspan
          sodipodi:role="line"
-         x="223.60126"
-         y="107.28339"
+         x="230.86502"
+         y="104.89139"
          style="stroke-width:0.26458332"
          id="tspan1737-3">atomic</tspan><tspan
          sodipodi:role="line"
-         x="223.60126"
-         y="117.86672"
+         x="230.86502"
+         y="115.47472"
          style="stroke-width:0.26458332"
          id="tspan1765"> swap</tspan></text>
     <rect
@@ -809,8 +813,8 @@
        id="rect1151-7-8-1"
        width="21.357403"
        height="34.436802"
-       x="136.83171"
-       y="-222.36497"
+       x="136.02991"
+       y="-224.0793"
        transform="rotate(90)"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
@@ -818,25 +822,25 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="189.01643"
-       y="145.08101"
+       x="190.73076"
+       y="144.27921"
        id="text1697-4"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300"><tspan
          sodipodi:role="line"
          id="tspan1695-9"
-         x="189.01643"
-         y="145.08101"
+         x="190.73076"
+         y="144.27921"
          style="stroke-width:0.26458332">  anti </tspan><tspan
          sodipodi:role="line"
-         x="189.01643"
-         y="155.66434"
+         x="190.73076"
+         y="154.86253"
          style="stroke-width:0.26458332"
          id="tspan1791">coalese </tspan><tspan
          sodipodi:role="line"
-         x="189.01643"
-         y="166.24768"
+         x="190.73076"
+         y="165.44588"
          style="stroke-width:0.26458332"
          id="tspan1737-2" /></text>
     <rect
@@ -844,8 +848,8 @@
        id="rect1151-7-8-1-0"
        width="21.357403"
        height="34.436802"
-       x="136.83171"
-       y="-261.01303"
+       x="136.02991"
+       y="-262.34937"
        transform="rotate(90)"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
@@ -853,34 +857,34 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:8.46666622px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="227.66451"
-       y="145.08101"
+       x="229.00085"
+       y="144.27921"
        id="text1697-4-6"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300"><tspan
          sodipodi:role="line"
-         x="227.66451"
-         y="145.08101"
+         x="229.00085"
+         y="144.27921"
          style="stroke-width:0.26458332"
          id="tspan1791-9"> revert</tspan><tspan
          sodipodi:role="line"
-         x="227.66451"
-         y="155.66434"
+         x="229.00085"
+         y="154.86253"
          style="stroke-width:0.26458332"
          id="tspan1822">atomics </tspan><tspan
          sodipodi:role="line"
-         x="227.66451"
-         y="166.24768"
+         x="229.00085"
+         y="165.44588"
          style="stroke-width:0.26458332"
          id="tspan1737-2-2" /></text>
     <rect
        style="fill:#8caff6;fill-opacity:1;stroke:none;stroke-width:1.49699473;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
        id="rect820-6"
-       width="43.912788"
-       height="115.7277"
+       width="43.467987"
+       height="114.73887"
        x="268.54123"
-       y="49.571598"
+       y="50.327549"
        inkscape:export-filename="/home/ena/warm/papers/OSDI22/fig/packet_processing.png"
        inkscape:export-xdpi="300"
        inkscape:export-ydpi="300" />
@@ -1004,7 +1008,7 @@
          id="tspan1913">      TX</tspan></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1923)"
-       d="m 127.80181,106.31101 23.59502,0.0783"
+       d="m 127.80181,106.31101 17.5474,0.0783"
        id="path1919"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cc"
@@ -1013,7 +1017,7 @@
        inkscape:export-ydpi="300" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1923-1)"
-       d="m 127.90064,146.9283 24.35704,0.004"
+       d="m 127.90064,146.9283 17.93144,0.004"
        id="path1919-7"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cc"
@@ -1022,7 +1026,7 @@
        inkscape:export-ydpi="300" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1950)"
-       d="m 255.10876,106.97137 25.59858,-0.45527"
+       d="m 263.93979,106.4989 16.76755,0.0172"
        id="path1946"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cc"
@@ -1031,7 +1035,7 @@
        inkscape:export-ydpi="300" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker1950-1)"
-       d="m 261.40135,142.30404 19.48056,-0.91252"
+       d="m 263.94991,141.3591 16.932,0.0324"
        id="path1946-5"
        inkscape:connector-curvature="0"
        inkscape:transform-center-x="-5.490788"
