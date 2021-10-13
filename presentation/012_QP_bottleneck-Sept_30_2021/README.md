@@ -81,7 +81,7 @@ The goal of this experiment is to determine the differences in performance when 
 
 as can be seen the load per qp is a function of the number of threads, not the distribution of the workload. My experiment usually fail when I fold more than one client into a single qp. This is actually relatively new behavior after I stabilized the dequeue mechanism. The point of this experiment is to see if there are any imergent patters now that my results are consistent.
 
-![exp2](Experiment_2-id-to-qp-vs-queues.png "Memory QP vs client threads")
+![exp2](Experiment_2-id-to-qp-vs-queues.svg "Memory QP vs client threads")
 
 The first key takeaway is that at least at this speed, the number of qp does not
 seem to have an apreciable effect on the performance. Each point is taken from a
