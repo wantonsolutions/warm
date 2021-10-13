@@ -1,0 +1,69 @@
+\section{Evaluation}
+
+Adding computation to the network increases latency and consumes memory. Our
+evaluation demonstrates that by applying our techniques we are able to see
+significant performance boots, while consuming only a small amount of memory.
+
+\subsection{YCSB Benchmarks}
+
+The ycsb benchmark consists of varying read and write workloads which have been
+shown to emulate many common data center operations. We show a breakdown of our
+techniques, mainly read and write caching, QP mapping, and atomic replacement
+with respect to their effect to system performance on two YCSB benchmarks. We
+choose YCSB-B (95\% read and 5\% write) as our baseline, and YCSB-A (50\% read and
+50\% write) to demonstrate how our algorithm performs under high contention. We
+also show the performance boots obtained while running a 100\% write workload
+which is intended to emulate other programmatic workloads such as accessing a
+lock in remote memory.
+
+\begin{figure*}
+    \includegraphics[width=0.95\textwidth]{fig/full_system_performance.pdf}
+    \caption{{Performance increase of each technique using clover as a baseline on YCSB benchmarks.}}
+    \label{fig:full_system_performance}
+\end{figure*}
+
+\todo{real takeaways}
+
+\subsection{Memory Utilization}
+
+Our techniques give a performance boots at the cost of in network memory. We
+took special care to design our algorithms so that they could 1) use only a
+small amount of network memory, 2) be scalable depending on the resources
+available. We show how our performance varies as a function of the available in
+network state.
+
+As seen in Figure~\ref{fig:cache} our write caching is able to provide a
+significant performance boost while only using a small number of cached
+addresses. In the following experiment we show the maximum performance boost we
+can provide as a function of the available in network memory. Specifically in
+the case of read and write caching this means shrinking the size of the
+available cache. In terms of QP mapping it restricts the number of connections
+which can have their connections mapped. Unmapped connections must use atomic
+operations for their requests to succeed.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/memory_util.jpg}
+    \caption{{Relative performance improvement of our techniques with restricted amounts of memory. Here a rightsized allocation implies that for the given number of connections we could support, all requests were mapped and reads and writes were cached.}}
+    \label{fig:memory_util}
+\end{figure}
+
+\todo{say something real about the the memory utilization takeaways}
+
+
+\subsection{Bandwidth Reduction}
+
+Placing memory operations in band with regular network traffic can be
+problematic as applications remote memory usage has the potential to vary
+dramatically per application. When under contention resources require additional
+packets which inflate the bandwidth necessary for a single operation. Our in
+network steering algorithm, removes the need for operations to retry.
+Figure~\ref{fig:bandwidth_reduction} shows the percentage of bandwidth reduced
+per operation when resources are contested under different workloads.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/bandwidth_reduction.jpg}
+    \caption{{Bandwidth reduction when in network steering is applied}}
+    \label{fig:bandwidth_reduction}
+\end{figure}
+
+\todo{real takeaways}

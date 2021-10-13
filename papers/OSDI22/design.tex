@@ -1,0 +1,304 @@
+\section{Solutions}
+
+
+\subsection{Atomic Replacement} 
+
+
+% atomic operations provided a serialized order on writes, and prevent torn
+% reads on the atomic region.
+
+In many disaggregated systems operation serialization is performed using RDMA
+atomic operations implemented on a NIC. These atomics are expensive because they
+can block many concurrent RDMA operations while they execute. The time required
+to complete an atomic is at minimum a PCIe round trip from the NIC to main
+memory, during which time a lock on the NIC guards the memory access. Lock
+implementation is both vendor and transport specific~\cite{design-guidelines}.
+In the worst case a barrier is placed on all operations resulting in complete
+head-of-line blocking, in the best case locking is per connection and only
+causes other operations to block when reads or writes occur on overlapping
+ranges virtual memory. Regardless of the implementation atomic operations are
+significantly slower than asynchronous non-blocking reads and writes.
+
+Because of their cost, we would like to replace atomic writes such as compare
+and swap (CAS) with non-blocking writes.  From a RoCE v2 perspective the per
+packet transformation from CAS to write can be applied easily in the datapath.
+RoCE v2 CAS and write headers only differ by a few fields. CAS can be though of
+as a special case where the write is conditional and the length is preset to 8
+bytes.
+%%
+To transform CAS headers to writes we switch the RDMA OP field from CAS to
+WRITE, copy the CAS value to the write payload location, set the DMA length of
+the write to 8, and shrink the IPV4 length by 4. Post modification the RoCE v2
+and IPv4 checksums are recalculated so the modified packet will not be rejected
+by the memory side NIC.
+
+%%
+On the memory server, the NIC processes the modified CAS as a WRITE and responds
+with an ACK once the operation is complete. Once the ACK reaches our middlebox
+we apply the inverse transformation from the ACK to an Atomic ACK which the
+sender expects to see. RDMA Atomic ACK headers are very similar to regular ACKs
+with the only difference being that the atomic contains the original data from
+the memory location of the CAS. This original data is missing due to the
+transformation so we inject a value which indicates success to the sender.
+%%
+This value is application specific; in Clovers case 64 zero bits indicate
+success. Transforming CAS to write does nothing to disturb the RDMA protocol,
+as both the sender and receiver side NIC are oblivious.  
+However, the guarantees the atomic provides, such as write serialization and the
+prevention of read tearing has been lost. To prevent arbitrary corruption of
+data the serialization point must be placed somewhere else. Our approach is to
+detect conflicts in network, and utilize the in order delivery guarantees of
+RDMA reliable connections to ensure safe and serialized operations.
+
+\subsection{Connection Remapping}
+
+RDMA operations made on a reliable connection (one server one client queue pair)
+are guaranteed to be executed in the same order as their sequence numbers
+similar to TCP transport ordering~\cite{infiniband-spec}~\footnote{while IB
+allows for relaxed ordering here we rely on that feature being turned off on the
+receiver} . That is operations on a single stream are totally ordered with
+respect to one another. This is not true across multiple connections in the
+where writes to shared state can easily corrupt one another, and reads can be
+torn without the use of locks.  Our insight is that if all operations across all
+connections which share state are steered to the same connection the default
+RDMA ordering mechanism will provide serialization.  The determination of which
+operations share state is application specific. It requires inspecting each
+packet, extracting the relevant pieces of meta data, and steering the packet to
+the correct connection. Here we focus on the example of Clover where requests to
+read and write the same key are shared state operations.
+
+%%While removing locking operations is a general principle here we consider a
+%%solution for RDMA.  %Different transports with different ordering guarantees
+%%would require bespoke solutions.  
+
+Multiplexing and demultiplexing RDMA operations across established connections
+requires a significant amount of care. Requests on a single connection must have
+monotonic sequence numbers from the senders and receivers perspectives. If
+monotonicity is broken, the NIC will invoke an expensive go-back-n protocol or
+issue explicit congestion notifications. To achieve monotonic sequence numbers
+on shared connections we track a sequence number per memory QP and inject the
+updated sequence number into the packet after a state based mapping decision has
+been made. A stub for each mapped request is stored on the middlebox to aid in
+mapping the request back. The stub keeps track of the original requests sequence
+number, ip address, mac address, and queue pair. Stubs are stored in an array
+based on their sequence number \% $table size$ for an O(1) lookup when they are
+demultiplexed back to their original connections.
+%%
+In addition to sequence numbers, a \textit{message sequence number}, is used as
+an RDMA optimization by the memory side NIC. This value is transmitted as part
+of the RoCE BTH+ header in the response. It's value corresponds to the highest
+request number the receiver has processed. If this value is wrong in the
+response packet from the perspective of the sender, the packet is retransmitted.
+We calculate the message sequence number a sender expects to see by counting the
+number of operations a sender has issued and adding it to the value of the
+original message sequence number for that connection.
+
+\subsection{Instruction Coalescing} RoCE coalesces some ACKs as an optimization.
+Multiple writes can be acknowledged by a single acknowledgement, in the form of
+either an ACK, ATOMIC ACK, or Read Response. This occurs when multiple RDMA
+request are processed concurrently. When mapping requests, some acknowledgements
+may be coalesced which are required from the senders perspetive.
+
+A final additional challenge in mapping
+requests, is that receving NIC's can coalesce acknowledgement messages. Given a
+single connection, if two concurrent writes are issued, it is perfectly valid
+for an RDMA NIC to only ack the second write. This is a challange when mapping
+requests as a coalesed message might have been for a different sender. In our
+scheme as all requests have mapping stubs stored in the middle box, when a
+request is coalessed a gap in the sequence number is observable. In this case we
+generate the coalesed request. While read, and CAS requests can not be
+coalessed, CAS requests mapped to writes can be. In the case of coalesed ATOMIC
+acks an atomic ACK is generated in place of the coalessed write ack.
+
+
+
+\section{Improving Clover performance}
+
+\todo{High level overview of system}
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/overview.pdf}
+%%
+    \caption{ System overview, Metadata, client, and Remote Memory
+    servers are Clover components. Our remote memory coordinator is
+    located on a centralized TOR interconnecting the clover components.
+    }
+%%
+    \label{fig:overview} 
+\end{figure}
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/packet_processing.pdf}
+    \caption{Our packet processing pipeline}
+    \label{fig:system}
+\end{figure}
+
+
+\subsection{Operation Caching}
+\label{sec:operation-caching}
+
+Any asynchronous data structure which allows for lockless reads and writes must
+have a mechanism in place to resolve conflicts. When memory is close, conflict
+resolution strategies can make many reads and writes quickly in the uncommon
+case of a conflict, the cost of which is typically amortized by the unlikelihood
+of the conflict itself. In the case of far memory the cost of a conflict is
+severe. In contrast to opportunistic algorithms in a shared cache architecture,
+in a disaggregated system with small amounts of in network compute conflicts can
+be detected and resolved in the data path. Our solution is to provide a general
+framework in which developers with knowledge of their remote structures can
+resolve their conflicts in network as the operations flow by serially to memory. 
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/throughput.pdf}
+    \caption{Default Clover throughput vs. Clover with write conflict
+    detection and correction turned on \todo{recompute with the read caching values (old)}}
+    \label{fig:throughput}
+    \vskip -1em
+\end{figure}
+
+\subsection{Implementing Atomic replacement}
+
+In the
+following subsections we describe the dangers of removing atomics, and present
+our solutions.
+
+A few assumptions must be made in order for this replacement of operations to be
+made. First and foremost all operation serialization must be made, and finalized
+at the point where the CAS is swapped out. More formally, all of the data
+structure invariants which required locking, must be satisfied at the time of
+transforming the packet. Further the order of operations must be maintained
+downstream from the checking of the invariant. These two requirements influence
+the design of any system which aims to make this performance improvement.
+
+\textbf{writes:} In the case of clover we cache the location of the latest writes to occur for
+each key. If a write occurs which is for a stale virtual address, our conflict
+detection algorithm first uses information about clovers algorithm to find the
+value of the key in each RDMA write packet. We find this value by checking the
+size of the write, and checking the location in the packet for specific clover
+data. Once the key from the write is extracted a table lookup is used to
+translate the key into the virtual address of the latest write for that key.
+This strategy uses 64 bytes per key, as each RDMA virtual address is 64 bytes.
+By performing this lookup in the data path all writes succeed regardless of how
+contested the memory address is. \todo{ref fig from words}.
+
+\textbf{reads:} Reads present a slightly more complicated case. Writes contain
+the key, which allows for a table lookup, while RDMA read requests only contain
+a virtual address and a size. When a read fails it must be retried, as mentioned
+earlier reads are performed iteratively until the tail of the list is reached,
+which in the case of highly contested keys could be arbitrarily long. Repeating
+reads does not destroy system performance as they are lockless, however in terms
+of client latency each retry adds serious latency. What makes handling reads
+hard is identifying the clover key for which the read is for, without additional
+data in the packet the value must be determined another way. As reads can be for
+arbitrarily old virtual addresses a naieve solution would be to store the entire
+lineage of each key, which would require caching all of clovers meta data in the
+network. Our solution is to hash the address of each write into an array
+~\todo{2x} the size of the keyspace. When writes occur their virtual address and
+key value are stored in the array. New writes simply overwrite old values in the
+table. This allows keys with higher hit rates to maintain longer histories in
+the table. When reads occur their address is looked up in the table, if the
+address has a hit the read is steered to the tail of the list. If a miss occurs
+the read is left to flow through, clovers default mechanism kicks in and
+performs a lookup to the meta data server for the last known address and the
+process repeats. We found that by using an array size of 8x the ~\todo{vast
+majority of reads succeed first try.} While the number of reads that require a
+second try is ~\todo{a number}. ~\todo{insert the CDF of read retries}.
+
+\begin{figure}
+    \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
+    \caption{Performance as a function of keys cached. Caching a few
+    of the top-$N$ keys provides the greatest marginal throughput
+    benefits.}
+    \label{fig:cache}
+\end{figure}
+
+\textbf{reduced cache size} we show that if hot keys are known we require only a
+small amount of in network state~\ref{fig:cache} we have considered dynamic
+approaches such as LRU which would allows for a finite amount of space and an
+arbitrary number of keys to be serviced.
+
+ 
+
+\textbf{1) metadata required} The first requirement, that the structural invariants
+of the data structure be maintained at the point of transformation demands that
+all of the state required to check the structural invariant be present at the
+point in the network at which the swap is made. This fact increases the memory
+cost on a switch, however with intelligent data structure design the cost of the
+required metadata can be mitigated. In the case of Clover, while each key has
+an entire linked list history that can potentially span megabytes, the only
+required metadata to make the change from CAS to write is the location of the
+tail pointer. In this case the metadata cost is O(n) as it grows linearly with
+the keyspace.
+
+\textbf{2) reordering} The second requirement, that operations not be reordered
+after the invariant has been checked requires more care in real systems. For
+instance in an RDMA system with two clients, both could have contesting CAS
+operations swapped with writes. As the two clients are transmitting operations on
+separate QP, and the receiving NIC makes no guarantees about ordering between QP,
+the operations could easily be reordered. In the case with CAS, the order could
+be forced by ensuring that if one write was to succeed the second would fail.
+Without this guarantee the preservation of operation ordering must be maintained
+in another way.
+
+\subsection{Connection Remapping}
+
+
+Our solution here is simple, given that we have the key's for reads and writes
+(Section ~\ref{sec:operation-caching}), all operations for the same key are
+mapped to the same QP.  This algorithm requires that a few pieces of state be
+maintained per connection.  First the sending and response QP for each sender
+and receiver need to be tracked. Second the sequence number of each connection,
+and the original message sequence number offset must be maintained. Per client
+connection the pair of QP's require 48 bits, and the sequence + message sequence
+require an additional 48 for a total of 12 bytes per connection. The storage
+requirement for mapped requests varies based on the algorithm. If clients are
+able to issue an unbounded number of async requests, then a buffer large enough
+to maintain backwards mappings for each request is required. In clover clients
+can issue up to 2 async requests, so we keep a two 6 byte mappings for each
+connection available to map back. 
+
+Depending on the algorithm and the QP mapping scheme requests from a single
+sender can be reordered. That is, if a client makes a read and write request to
+different locations in memory, and they are mapped to different QP, they may be
+returned out of order. Infiniband allows for out of order operations on
+receivers~\cite{infiniband-spec}, which pushes operation ordering to client
+side user space. Roce does not allow for out of order operations. In this case
+the receiving NIC will retransmit if requests are delivered out of order. Here
+we buffer requests in network, as we have application knowledge the size of the
+buffer is bounded (to the size of a single read packet in clovers case). We
+suggest that given the tight memory restrictions on middleboxes algorithms which
+have an unbounded number of async requests leave the ordering of remapped
+requests to client side user space using IB verbs or a different transport layer
+entirely.
+
+\todo{these sections may not be nessisary}
+
+\subsection{Traffic Identification} Depending on the design of a disaggregated
+rack memory traffic might be coresident with regular network traffic.
+Additionally some of the traffic on the memory bus may not require tracking or
+manipulation. In the case of clover we do not modify any traffic to the metadata
+server as it is not in the read/write path. The first stage of our packet
+processing pipeline is to match requests for manipulation. In our design users
+submit a filter as part of their program to allow traffic which does not need to
+be modified to flow freely.
+
+\subsection{Dynamic enable/disable of connections, and epochs} A key goal in our
+design is to not require the existence of a middle box in the data structures
+algorithm. Clover for instance is designed to deal with memory operations made
+to the wrong location via iterative pointer chasing. We strongly suggest that
+disaggregated algorithms take this approach as our middlebox solution only acts
+to acclerate operations in the common case. We add and subtract connections
+based on the send and receipt of a single CAS operation. The QP and sequence
+number for the CAS are stored on send, and the ATOMIC ACK is used to retreive
+the other recevers QP. As this approach requires only a single packet requests
+can be added and removed from our algorithm dynamically with little effort. As
+some state may be dependent on the number of connections (such as the key to QP
+mappings), state transitions either require a lock, or the coping of current
+state over to a new epoch when new connections are added. In all of our
+experiments only one such transition is made. We begin our mapping after a
+specific number of clients for the experiment have connected. Once the total
+number of clients have connected, a switch is flipped, and the QP multiplexing
+algorithm begins. Requests which do not have mappings stored, but were in flight
+during the flip have their sequence numbers, and MSN values applied to the
+connection state of the new epoch.
+

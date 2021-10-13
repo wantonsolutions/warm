@@ -1,0 +1,14 @@
+\section{Implementation}
+
+Our prototype is implemented in a software switch using DPDK, but is designed to
+have low memory and computational overhead making it ideal for network devices
+such as programmable switches.  RDMA packets are not intended to be modified in
+flight, and care must be taken not to corrupt them. RDMA invariant CRCs (ICRC)
+are calculated at the time of sending and are designed to ensure the integrity
+of the payload. When we modify \texttt{c\&s} packets their ICRC must be
+recalculated or the packet will be rejected by the receiving NIC. FPGA
+implementations of RDMA ICRC have been built in the past~\cite{Mansour_2019};
+the required CRC calculation is identical to Ethernet CRC, with some additional
+header components and field masking.  Our DPDK solution uses \texttt{zlib}'s
+\texttt{crc32} for the calculation.  We believe that this algorithm can also be
+implemented efficiently on a programmable switch.

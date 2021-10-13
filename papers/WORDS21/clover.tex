@@ -25,7 +25,8 @@ clients as atomic append operations to the end of the chain, the structure of
 which is illustrated in Figure~\ref{fig:overview}. Each entry in the chain
 contains a pointer to the next entry with the pointer at the tail of the
 chain set to \texttt{NULL}. Clients keep cached pointers to the current tail of the
-chain for each key allowing them to issue lock-free RDMA reads directly to
+chain for each key allowing them to issue locf-free RDMA reads directly to
+
 passive remote memory servers using the address they believe to be the
 current tail. Clients can independently confirm their reads are
 fresh by ensuring the value returned has a \texttt{NULL} next-update pointer.
