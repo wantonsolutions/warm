@@ -9,7 +9,7 @@ def cdf(data):
     norm = matplotlib.colors.Normalize(low,high)
 
     #print(data)
-    count, bins_count = np.histogram(data, bins = 10000 )
+    count, bins_count = np.histogram(data, bins = 1000000)
     pdf = count / sum(count)
     
     y = np.cumsum(pdf)
@@ -57,7 +57,6 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     x, y = cdf(gap)
     #x =x.astype(int)
     print(x)
-
     plt.ylim(0, 1)
     plt.plot(x,y, label="sequence_steps")
     plt.savefig(sequence_output_filename)
@@ -75,6 +74,69 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     plt.ylabel("threads id")
     plt.xlabel("Seconds")
     plt.savefig(timeline_output_filename)
+    plt.clf()
+
+
+    print(individual_timestamps[0])
+    index=0
+    op_diffs=[]
+    per_thread_diffs=[]
+    for thread in individual_timestamps:
+        per_thread_diffs.append([])
+        operation_timestamps=individual_timestamps[index]
+        if(len(operation_timestamps)==0):
+            print("no operations for thread " + str(index))
+            index=index+1
+            continue
+        
+        last_op_time=operation_timestamps[0]
+        operation_index=1
+
+        for op_time in operation_timestamps[1:]:
+            diff=op_time-last_op_time
+            print(diff)
+            op_diffs.append(diff)
+            per_thread_diffs[index].append(diff)
+            last_op_time=op_time
+
+        index=index+1
+    
+    x, y = cdf(op_diffs)
+    print(x)
+    plt.ylim(0, 1)
+    plt.plot(x,y, label="Op Completion Latencies")
+    plt.title("Operation Interval")
+    plt.xscale('log')
+    plt.xlabel("seconds")
+    plt.tight_layout()
+    plt.savefig("op_latencies.pdf")
+    plt.clf()
+
+    thread_index=0
+    for thread_diff in per_thread_diffs:
+        if(len(thread_diff) == 0):
+            thread_index=thread_index+1
+            continue
+
+        x, y = cdf(thread_diff)
+        plt.plot(x,y, label=str(thread_index))
+        thread_index=thread_index+1
+
+    plt.ylim(0, 1)
+    plt.plot(x,y, label="Per Thread Operation Interval")
+    plt.title("Operation Interval Per Thread")
+    plt.xscale('log')
+    plt.xlabel("seconds")
+    plt.tight_layout()
+    plt.savefig("op_latencies_per_thread.pdf")
+    plt.clf()
+    
+
+
+
+
+
+
 
 plot_charts('/tmp/sequence_order.dat','sequence.pdf','timeline.pdf')
 

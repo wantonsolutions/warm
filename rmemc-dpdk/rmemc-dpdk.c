@@ -33,11 +33,12 @@
 
 #include <endian.h>
 
+//#define PRINT_PACKET_BUFFERING
+
 #define KEYSPACE 1024
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
-int MAP_QP = 1;
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
@@ -51,9 +52,14 @@ static int has_mapped_qp = 0;
 static int packet_counter = 0;
 static int hash_collisons=0;
 
-#define READ_STEER
-#define WRITE_VADDR_CACHE_SIZE 16
 //#define SINGLE_CORE
+#define WRITE_STEER
+#define READ_STEER
+#define MAP_QP
+//#define CNS_TO_WRITE
+
+#define WRITE_VADDR_CACHE_SIZE 16
+
 
 uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
 uint32_t writes_per_key[KEYSPACE];
@@ -183,7 +189,16 @@ uint32_t id_qp[TOTAL_ENTRY];
 //goes to the first qp, and the qp_id_counter + 1  key goes to the first qp.
 uint32_t key_to_qp(uint64_t key)
 {
-	uint32_t index = (key) % TOTAL_CLIENTS;
+	//int qp = 8;
+	int qp = 1;
+	//uint32_t index = (key) % TOTAL_CLIENTS;
+	uint32_t index = (key) % qp;
+	return id_qp[index];
+}
+
+uint32_t id_to_qp(uint32_t id) {
+	int qp = 64;
+	uint32_t index = (id) % qp;
 	return id_qp[index];
 }
 
@@ -353,14 +368,14 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	//TODO use qp_id as a shortcut later
 	//for (uint32_t i = 0; i < qp_id_counter; i++)
 	if (has_mapped_qp == 0) {
-		//printf("ect");
+		//printf("ect (buf)\n");
 		return bs;
 	}
 	for (uint32_t i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		if (Connection_States[i].ctsqp == roce_hdr->dest_qp)
 		{
-			//printf("mem");
+			//printf("mem (buf)\n");
 			bs.id = Connection_States[i].id;
 			bs.head = &mem_qp_buf_head[bs.id];
 			bs.tail = &mem_qp_buf_tail[bs.id];
@@ -370,7 +385,7 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 		}
 		if (Connection_States[i].receiver_init == 1 && Connection_States[i].stcqp == roce_hdr->dest_qp)
 		{
-			//printf("client");
+			//printf("client (buf)\n");
 			bs.id = Connection_States[i].id;
 			bs.head = &client_qp_buf_head[bs.id];
 			bs.tail = &client_qp_buf_tail[bs.id];
@@ -379,6 +394,13 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 			break;
 		}
 	}
+
+	/*
+	if (bs.head == &ect_qp_buf_head[bs.id]) {
+		printf("etc (buf)\n");
+	}
+	*/
+	
 
 	return bs;
 }
@@ -419,18 +441,59 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 		}
 		*/
 		(*bs.buf)[entry] = pkt;
-		(*bs.timestamps)[entry] = timestamp();
+
+		int64_t ts = timestamp();
+		//printf("Packet Timestamp %"PRId64"\n",ts);
+		(*bs.timestamps)[entry] = ts;
+
+
+		//printf("[TS: %"PRIu64"]",(*bs.timestamps)[entry]);
+		//print_packet_lite(pkt);
+
+		/*
+		if(bs.head == ect_qp_buf_head) {
+				printf("etc head %"PRId64"\n",ts);
+		} else if (bs.head == mem_qp_buf_head) {
+				printf("mem head %"PRId64"\n",ts);
+		} else if (bs.head == client_qp_buf_head) {
+				printf("client head %"PRId64" \n",ts);
+		} else {
+				printf("WAT NO HEAD!\n");
+			}
+		*/
 
 		//On the first call the sequence numbers are going to start somewhere
 		//random. In this case just move the head of the buffer to the current
 		//sequence number
 		if (unlikely(*bs.head == 0))
 		{
-			*bs.head = seq;
+			printf("setting head id: %d seq: %d\n",bs.id,seq);
+			*bs.head = (uint64_t)seq;
 		}
+
+
+		if (unlikely(*bs.head > seq)) {
+			printf(
+				"This is a really bad situation\n"
+				"we got the initial conditions wrong so enqueue on the first packet\n"
+				"ie *bs.head == 0 did not work, in this case we need to move the head back a bit\n"
+				"the downside here is that if this is some sort of error we will not have contiguous\n"
+				"sequence numbers which could cause knock on proble3ms later\n"
+				"(( MOVING HEAD BACKWARDS!!))\n"
+				"Stewart Grant Oct 11 2021\n"
+				);
+				printf("ID %d SEQ = %d (ptr %p)\n", bs.id, seq,bs.head);
+				*bs.head=seq;
+				if(!contiguous_buffered_packets_2(bs)) {
+					printf("(ERROR) non congiguous after head step back\n");
+				}
+		}
+
+
 		//If the tail is the new latest sequence number than slide it forward
 		if (*bs.tail < seq)
 		{
+			//printf("setting tail id: %d seq: %d\n",bs.id,seq);
 			*bs.tail = seq;
 		}
 	}
@@ -449,13 +512,22 @@ int contiguous_buffered_packets_2(struct Buffer_State bs) {
 	return 1;
 }
 
-void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source) {
-	for (int i=0;i<source->size;i++) {
-		dest->pkts[dest->size] = source->pkts[i];
-		dest->size++;
+void print_mpr(struct map_packet_response* mpr) {
+	printf("MPR size: %d\n",mpr->size);
+	for (int i=0;i<mpr->size;i++) {
+		printf("[TS: %"PRIu64"]",mpr->timestamps[i]);
+		print_packet_lite(mpr->pkts[i]);
 	}
 }
 
+void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source) {
+	for (int i=0;i<source->size;i++) {
+		dest->pkts[dest->size] = source->pkts[i];
+		dest->timestamps[dest->size] = source->timestamps[i];
+		dest->size++;
+	}
+}
+//!TODO STARTY HERE WHEN WE GET BACK FROM LUNCH!!
 void copy_over_mpr_index(struct map_packet_response *dest, struct map_packet_response *source, uint32_t *source_index) {
 	dest->pkts[dest->size] = source->pkts[*source_index];
 	dest->timestamps[dest->size] = source->timestamps[*source_index];
@@ -477,6 +549,7 @@ void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *
 	merged.size=0;
 
 	while (dst_index < dest->size && src_index < source->size) {
+		//printf("(size %d) dest ts: %"PRId64" (size %d) src ts: %"PRId64"\n",dest->size, dest->timestamps[dst_index],source->size,source->timestamps[src_index]);
 		if (dest->timestamps[dst_index] < source->timestamps[src_index]) {
 			copy_over_mpr_index(&merged,dest,&dst_index);
 		} else {
@@ -484,80 +557,20 @@ void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *
 		}
 	}
 
+	//printf("midway merge!\n");
+	//print_mpr(&merged);
+
 	//copy_left
 	copy_from_index(&merged,dest,&dst_index);
+	//printf("midway merge left!\n");
+	//print_mpr(&merged);
 	//copy_right
 	copy_from_index(&merged,source,&src_index);
+	//printf("midway merge right!\n");
+	//print_mpr(&merged);
 	//full copy back
 	dest->size=0;
 	merge_mpr(dest,&merged);
-}
-
-struct map_packet_response dequeue_finish_mem_pkt_bulk(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
-	struct map_packet_response mpr;
-	mpr.pkts[0] = NULL;
-	mpr.size = 0;
-	int loop_max = 0;
-
-
-	if (id_buf == ect_qp_buf) {
-		loop_max = 1;
-	} else {
-		loop_max = TOTAL_CLIENTS;
-	}
-
-	for (int id=0;id<loop_max;id++) {
-
-		struct Buffer_State bs;
-		bs.id = id;
-		bs.head = &head_list[bs.id];
-		bs.tail = &tail_list[bs.id];
-		bs.buf = &id_buf[bs.id];
-		bs.timestamps = &id_timestamps[bs.id];
-
-
-		//If the head is currently higher than the tail, this means that it's not
-		//time to send anyhting. We are eitheir going to enqueue (the usual case) or
-		//there is nothing to do.
-		if (*bs.head > *bs.tail)
-		{
-			continue;
-		}
-;
-		if(contiguous_buffered_packets_2(bs) == 0) {
-			continue;
-		}
-
-		//make sure that all of the entries from the head to the tail are not equal
-		//to null. If any are then we have non-contigous sequence numbers i.e a gap,
-		//and need to move forward without sending anything.
-		//If we made it here it's time to send
-		for (uint32_t i = *bs.head; i <= *bs.tail; i++)
-		{
-			struct rte_mbuf *s_pkt = (*bs.buf)[i % PKT_REORDER_BUF];
-			uint64_t ts = (*bs.timestamps)[i % PKT_REORDER_BUF];
-			if(s_pkt == NULL) {
-				printf("null dequeue packet, we are in the error zone(should probably exit) Check PKT_REORDER_BUF SIZE = %d (tail - head) = %d\n", PKT_REORDER_BUF, *bs.tail - *bs.head);
-			}
-	#ifdef TAKE_MEASUREMENTS
-			if (bs.buf == &mem_qp_buf[bs.id])
-			{
-				append_sequence_number(bs.id, get_psn(s_pkt));
-			}
-			if (bs.buf == &client_qp_buf[bs.id])
-			{
-				printf("[client %d]\t timestamp %"PRIu64" psn %d \n", bs.id, ts, readable_seq(get_psn(s_pkt)));
-			}
-	#endif
-
-			mpr.pkts[mpr.size]=s_pkt;
-			mpr.size++;
-			(*bs.buf)[i % PKT_REORDER_BUF] = NULL;
-		}
-		*bs.head = *bs.tail + 1;
-	}
-	return mpr;
-
 }
 
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
@@ -600,13 +613,16 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 				continue;
 			}
 
-			uint64_t ts = (*bs.timestamps)[*bs.head % PKT_REORDER_BUF];
+			uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
 			struct rte_mbuf *t_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
 
 			//copy the min timestamp
 			if (t_pkt != NULL && ts < min_timestamp) {
 				found = 1;
 				min_timestamp = ts;
+				if(ts == 0) {
+					printf("time stamp equals 0\n");
+				}
 				dequeue_bs.id = id;
 				dequeue_bs.head = bs.head;
 				dequeue_bs.tail = bs.tail;
@@ -615,7 +631,24 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 				//printf("found timestamp %"PRIu64" head %d tail %d\n",ts,*dequeue_bs.head,*dequeue_bs.tail);
 			}
 		}
+
+
 		if (found == 1) {
+
+			int64_t ts = min_timestamp;
+
+			/*
+			if(head_list == ect_qp_buf_head) {
+					printf("etc head %"PRId64"\n",ts);
+			} else if (head_list == mem_qp_buf_head) {
+					printf("mem head %"PRId64"\n",ts);
+			} else if (head_list == client_qp_buf_head) {
+					printf("client head %"PRId64" \n",ts);
+			} else {
+					printf("WAT NO HEAD!\n");
+			}
+			*/
+
 			//printf("head %d tail %d\n",*dequeue_bs.head,*dequeue_bs.tail);
 			struct rte_mbuf *s_pkt = (*dequeue_bs.buf)[*(dequeue_bs.head) % PKT_REORDER_BUF];
 			if(s_pkt == NULL) {
@@ -623,12 +656,14 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 			}
 			if (dequeue_bs.buf == &mem_qp_buf[dequeue_bs.id])
 			{
+
 				append_sequence_number(dequeue_bs.id, get_psn(s_pkt));
 			}
 			if (dequeue_bs.buf == &client_qp_buf[dequeue_bs.id])
 			{
 				//printf("[client %d] timestamp %"PRIu64" psn %d \n", dequeue_bs.id, min_timestamp, readable_seq(get_psn(s_pkt)));
 			}
+
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=min_timestamp;
 			mpr.size++;
@@ -646,16 +681,26 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	struct map_packet_response mpr2;
 	struct map_packet_response mpr3;
 	mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
+	//printf("mpr 1 raw\n");
+	//print_mpr(&mpr1);
 	mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
+	//printf("mpr 2 raw\n");
+	//print_mpr(&mpr2);
 	mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
+	//printf("mpr 3 raw\n");
+	//print_mpr(&mpr3);
 	merge_mpr_ts(&mpr1,&mpr2);
+	//printf("mpr 1 + 2 raw\n");
+	//print_mpr(&mpr1);
 	merge_mpr_ts(&mpr1,&mpr3);
+	//printf("mpr 1 + 2 + 3 raw\n");
+	//print_mpr(&mpr1);
+
 	//printf("sending %d\n",mpr1.size);
-	for (int i=0;i<mpr1.size;i++){
-		struct Buffer_State bs = get_buffer_state(mpr1.pkts[i]);
-		uint32_t msn = readable_seq(get_msn(get_roce_hdr(mpr1.pkts[i])));
-		//printf("[id %d msn %d]\n",bs.id,msn);
-	}
+	#ifdef PRINT_PACKET_BUFFERING
+	print_mpr(&mpr1);
+	printf("\n\n\n");
+	#endif
 	rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
 	unlock_mem_qp();
 	return;
@@ -951,28 +996,16 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 	uint32_t index = mod_hash(vaddr);
 	if (cached_write_vaddr_mod[index] != 0) {
 		hash_collisons++;
-		printf("collissions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
+		printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
 
 	}
 	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
 
-	/*
-	if (key == 90) {
-		printf("vaddr key 90 %"PRIx64"\n",vaddr);
+	if(unlikely(key == 0)) {
+		printf("Writing Key 0 to cache, it's unlikely you want to do this as key 0 is special crashing so you are aware (Stewart Grant Sept 29 2021)\n");
 	}
-	*/
-
-	//dumb test
-	/*
-	int test_index = mod_hash(0xedaf6d76550000);
-	printf("text index 1 %d\n",test_index);
-	test_index = mod_hash(0xf9ef09cb550000);
-	printf("text index 2 %d\n",test_index);
-	test_index = mod_hash(0xf98f2f0e560000);
-	printf("text index 3 %d\n",test_index);
-	*/
 }
 
 void closest_address(uint64_t vaddr) {
@@ -1002,10 +1035,12 @@ int does_read_have_cached_write_mod(uint64_t vaddr)
 	uint32_t index = mod_hash(vaddr);
 	if (cached_write_vaddr_mod[index] == vaddr)
 	{
-		//printf("   (hit)\n");
+		//printf("(hit) key = %d\n",cached_write_vaddr_mod_lookup[index]);
 		return cached_write_vaddr_mod_lookup[index];
+	} else if (cached_write_vaddr_mod[index] == 0) {
+		//printf("raw miss on read cache\n");
 	} else {
-		//closest_address(vaddr);
+		printf("collision miss (search) %"PRIx64" (existing) %"PRIx64"\n",vaddr, cached_write_vaddr_mod[index]);
 	}
 	//printf("\n");
 	return 0;
@@ -1077,6 +1112,8 @@ int get_key(struct rte_mbuf *pkt) {
 		uint64_t *key = (uint64_t *)&(wr->data);
 		return (int)*key;
 	} else if (roce_hdr->opcode == RC_ATOMIC_ACK || roce_hdr->opcode == RC_CNS) {
+		//!TODO this can cause mapped pacekts to print out the wrong id. Ie we
+		//!TODO don't know the key from the packet after mapping
 		return (int)get_latest_key(id);
 	} else if (roce_hdr->opcode == RC_READ_REQUEST) {
 		struct read_request *rr = (struct read_request *)clover_header;
@@ -1156,7 +1193,6 @@ struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 	return slot;
 }
 
-#define CNS_TO_WRITE
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 
 	static int print_counter;
@@ -1252,6 +1288,9 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 
 	//Keys are set to 0 when we are not going to map them. If the key is not
 	//equal to zero apply the mapping policy.
+
+	//Key to qp policy
+	/*
 	if (key != 0)
 	{
 		n_qp = key_to_qp(key);
@@ -1260,6 +1299,8 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
+	*/
+	n_qp = id_to_qp(id);
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
@@ -1459,17 +1500,51 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
 	{
-		//printf("Found the write that was missing an ack... %d\n",missed_writes++);
+		//printf("[id %d] Found the write that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
 	{
-		//printf("Found the cns   that was missing an ack... %d\n",missed_writes++);
+		//printf("[id %d] Found the cns   that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	return NULL;
 }
 
+
+void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_request) {
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	int invalid = 0;
+	switch(roce_hdr->opcode){
+		case RC_ACK:
+			if ( (mapped_request->rdma_op != RC_WRITE_ONLY) &&
+				 (mapped_request->rdma_op != RC_CNS)
+			) {
+				invalid = 1;
+			}
+			break;
+		case RC_ATOMIC_ACK:
+			if (mapped_request->rdma_op != RC_CNS) {
+				invalid = 1;
+			}
+			break;
+		case RC_READ_RESPONSE:
+			if (mapped_request->rdma_op != RC_READ_REQUEST) {
+				invalid = 1;
+			}
+			break;
+		default:
+			break;
+	}
+	if (invalid) {
+		printf("INVALID MAPPING RESPONSE! OP is %s Original was %s\n",ib_print_op(roce_hdr->opcode),ib_print_op(mapped_request->rdma_op));
+		print_packet_lite(pkt);
+		print_packet(pkt);
+
+		printf("BECN %d FECN %d\n",roce_hdr->bcen,roce_hdr->fecn);
+	}
+	return;
+}
 
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
@@ -1498,38 +1573,14 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	}
 
 	lock_connection_state(source_connection);
+
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
-
-	
-
-
 	//struct Request_Map *
 	if (mapped_request != NULL)
 	{
 
-		#define GAP_TRIGGER_COALESE
-		#ifdef GAP_TRIGGER_COALESE
-
-		//Single shot (does not take multiple coaleses into account)
-		/*
-		struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
-		if (missing_write){
-			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
-			if (coalesed_ack != NULL) {
-				mpr.pkts[1] = mpr.pkts[0];
-				mpr.pkts[0] = coalesed_ack;
-				mpr.size++;
-			}
-		}
-		*/
-
-		//Recursive version
-		//TODO TODO Start here tomorro
-		//TODO The issue is that when more than one packet is coalesed I'm not recovering it.
-		//TODO I need to detect the scenarios recursivly to generate more acks.
-		//TODO The code below is wrong, becuase I'm generating a mapped ack, not the one I would receive from memory
-		//TODO Because of this every itterative call to find missing write is failing.
-		//TODO I just need a version of find_missing_write, that generates all the missing writes
+		//Itterativly search for coalesed packets
+		//TODO move this to it's own function
 		uint32_t search_sequence_number = get_psn(pkt);
 		struct Request_Map *missing_write = find_missing_write(source_connection, search_sequence_number);
 		while(missing_write) {
@@ -1541,6 +1592,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 					mpr.pkts[i] = mpr.pkts[i-1];
 				}
 				mpr.pkts[0] = coalesed_ack;
+				//printf("(gend)");
 				mpr.size++;
 
 				//subtract the sequence number by one and revert it back to roce header format
@@ -1551,7 +1603,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			}
 		}
 
-		#endif
+
+		sanity_check_mapping(pkt,mapped_request);
 
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
@@ -1587,59 +1640,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		#endif
 
 		recalculate_rdma_checksum(pkt);
-
-
-		//is there another mapped request for this id with a lower sequence
-		//number This function makes sure that each packet is delivered in
-		//order. It works very similar to the other coalese algorithm, except
-		//that it is only triggered when the following packet arrives.
-		//#define DELIVER_TRIGGER_COALESE
-		#ifdef DELIVER_TRIGGER_COALESE
-		printf("Dont reach here\n");
-		id = mapped_request->id;
-		uint32_t seq = readable_seq(mapped_request->original_sequence);
-		for(int i=0;i<TOTAL_ENTRY;i++) {
-			struct Connection_State *search_connection = &Connection_States[i];
-			for(int j=0;j<CS_SLOTS;j++) {
-				struct Request_Map *search_request = &search_connection->Outstanding_Requests[j];
-				if(
-					(search_request->id == id) &&
-					(!slot_is_open(search_request)) &&
-					(readable_seq(search_request->original_sequence) <seq) &&
-					(search_request->rdma_op == RC_WRITE_ONLY || search_request->rdma_op == RC_CNS)
-				) {
-					//printf("I think that this is a coalesed packet\n");
-					print_request_map(search_request);
-					//This is a good place to start to detect if there is a missing write. If there is then we want to generate an ACK here.
-					//struct Request_Map *missing_write = find_missing_write(source_connection, pkt);
-					struct Request_Map *missing_write = search_request;
-					if (missing_write){
-						struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write);
-						if (coalesed_ack != NULL) {
-							mpr.pkts[1] = mpr.pkts[0];
-							mpr.pkts[0] = coalesed_ack;
-							mpr.size++;
-
-							print_packet_lite(mpr.pkts[0]);
-							print_packet_lite(mpr.pkts[1]);
-							//printf("send a new ack\n");
-						}
-					}
-				}
-
-			}
-		}
-		#endif
-		//!TODO this is the danger zone end
-
-
-
 		open_slot(mapped_request);
-
-
 		unlock_connection_state(source_connection);
 
-		//THis is a good place to inject the transition from a write to a CNS.
 		return mpr;
 	}
 
@@ -1668,13 +1671,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	mpr.pkts[0] = pkt;
 	mpr.size = 1;
 
-	if (MAP_QP == 0)
-	{
-		return mpr;
-	}
-
 	track_qp(pkt);
-
 	//Not mapping yet
 	if (has_mapped_qp == 0)
 	{
@@ -1709,13 +1706,16 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 
 #ifdef READ_STEER
 		struct read_request *rr = (struct read_request *)clover_header;
-		key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (size == 1024) {
 			uint32_t id = get_id(roce_hdr->dest_qp);
+			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+			increment_read_counter();
 			if (key == 0) {
-				//printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
-				//print_packet(pkt);
+				printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
+				print_packet_lite(pkt);
+				print_packet(pkt);
+				exit(0);
 				read_not_cached();
 			} else {
 				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
@@ -1819,7 +1819,7 @@ void track_qp(struct rte_mbuf *pkt)
 		return;
 	}
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
-	if (likely(has_mapped_qp != 0) || MAP_QP == 0)
+	if (likely(has_mapped_qp != 0))
 	{
 		return;
 	}
@@ -1905,12 +1905,15 @@ void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 		struct Buffer_State bs = get_buffer_state(pkt);
 		for (int i = 0; i < 20; i++)
 		{
-			printf("packet # %d id %d\n", packet_counter,bs.id);
-			printf("ecn\n");
+			printf("ECN packet # %d id %d\n", packet_counter,bs.id);
+			print_packet_lite(pkt);
 		}
 		print_packet(pkt);
 		//debug_start_printing_every_packet = 1;
-		exit(1);
+#ifdef TAKE_MEASUREMENTS
+		write_run_data();
+#endif
+		exit(0);
 	}
 #endif
 }
@@ -2356,7 +2359,8 @@ void print_packet_lite(struct rte_mbuf *buf)
 	int key = get_key(buf);
 
 	id_colorize(id);
-	printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d][key %d](pkt %d)\n", rte_lcore_id(), id, op, roce_hdr->opcode, size, dest_qp, seq, msn, key,packet_counter);
+	//printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d][key %d](pkt %d)\n", rte_lcore_id(), id, op, roce_hdr->opcode, size, dest_qp, seq, msn, key,packet_counter);
+	printf("[core %d][id %3d][seq %5d][op:%19s][key %4d][msn %5d][size: %4d][dst: %d](pkt %d)\n", rte_lcore_id(), id, seq, op,key, msn, size, dest_qp, packet_counter);
 }
 
 struct rte_ipv4_hdr *ipv4_hdr_process(struct rte_ether_hdr *eth_hdr)
@@ -2517,20 +2521,19 @@ lcore_main(void)
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
 				packet_counter++;
+
+				#ifdef WRITE_STEER
 				true_classify(rx_pkts[i]);
-				/*
-				if (packet_counter < PRINT_COUNT) {
-					struct rte_mbuf * pkt = rx_pkts[i];
-					struct roce_v2_header * rh = get_roce_hdr(pkt);
-					struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-					uint32_t size = ntohs(ipv4_hdr->total_length);
-					int id = find_id(pkt);
-				}*/
+				#endif
 
+				#ifdef MAP_QP
 				struct map_packet_response mpr;
-				//print_packet_lite(rx_pkts[i]);
-				mpr = map_qp(rx_pkts[i]);
+				uint32_t id = find_id(rx_pkts[i]);
 
+				#ifdef PRINT_PACKET_BUFFERING
+				print_packet_lite(rx_pkts[i]);
+				#endif
+				mpr = map_qp(rx_pkts[i]);
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
@@ -2538,8 +2541,21 @@ lcore_main(void)
 					to_tx++;
 				}
 				//printf("\n");
+				#else
+				tx_pkts[i]=rx_pkts[i];
+				to_tx++;
+				#endif
 			}
+
+			#ifdef PRINT_PACKET_BUFFERING
+			printf("----------------------------------------------------\n");
 			//bulk sending
+
+			for (uint16_t i = 0; i< to_tx;i++){
+				print_packet_lite(tx_pkts[i]);
+			}
+			printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+			#endif
 			#ifdef SINGLE_CORE
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
