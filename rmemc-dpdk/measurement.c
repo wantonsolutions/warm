@@ -122,6 +122,7 @@ void write_general_stats_to_known_file(void)
 
 void write_run_data(void)
 {
+    printf("WRITING OUT DATA!!\n");
     write_packet_latencies_to_known_file();
     write_sequence_order_to_known_file();
     write_general_stats_to_known_file();

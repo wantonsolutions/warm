@@ -33,7 +33,7 @@
 
 #include <endian.h>
 
-#define PRINT_PACKET_BUFFERING
+//#define PRINT_PACKET_BUFFERING
 
 #define KEYSPACE 1024
 #define CACHE_KEYSPACE 1024
@@ -197,8 +197,7 @@ uint32_t key_to_qp(uint64_t key)
 }
 
 uint32_t id_to_qp(uint32_t id) {
-
-	int qp = 48;
+	int qp = 64;
 	uint32_t index = (id) % qp;
 	return id_qp[index];
 }
@@ -472,6 +471,7 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 			*bs.head = (uint64_t)seq;
 		}
 
+
 		if (unlikely(*bs.head > seq)) {
 			printf(
 				"This is a really bad situation\n"
@@ -656,6 +656,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 			}
 			if (dequeue_bs.buf == &mem_qp_buf[dequeue_bs.id])
 			{
+
 				append_sequence_number(dequeue_bs.id, get_psn(s_pkt));
 			}
 			if (dequeue_bs.buf == &client_qp_buf[dequeue_bs.id])
@@ -1289,6 +1290,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//equal to zero apply the mapping policy.
 
 	//Key to qp policy
+	/*
 	if (key != 0)
 	{
 		n_qp = key_to_qp(key);
@@ -1297,7 +1299,8 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
-	//n_qp = id_to_qp(id);
+	*/
+	n_qp = id_to_qp(id);
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
@@ -1907,7 +1910,10 @@ void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 		}
 		print_packet(pkt);
 		//debug_start_printing_every_packet = 1;
-		exit(1);
+#ifdef TAKE_MEASUREMENTS
+		write_run_data();
+#endif
+		exit(0);
 	}
 #endif
 }
