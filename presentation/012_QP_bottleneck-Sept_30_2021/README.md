@@ -51,3 +51,50 @@ measurment especially when I perform it using powers of 2.
 This experiment is currently incomplete, however I hypothesize that we will not
 see much of a performance degradation here as the absolute value of the ops/s is
 not in the range noted by prior work.
+
+## Experiment 2 - ID QP mapping queue pair restrictions
+
+The goal of this experiment is to determine the differences in performance when I funnel multiple threads into a subset of queue pairs. Here I have CAS turned on, there are no atomic replacements, and I'm using queue pairs as identifiers, not keys to steer requests. In each experiment I set the number of queue pairs to be static, each one is given a separate line, and I increase the load by adding client threads. An example of the mapping would be thus
+
+4 threads, 4 qp
+
+1 --> 1 <br>
+2 --> 2<br>
+3 --> 3<br>
+4 --> 4<br>
+
+4 threads, 2 qp
+
+1 --> 1<br>
+2 --> 2<br>
+3 --> 1<br>
+4 --> 2<br>
+
+6 threads, 4 qp
+
+1 --> 1<br>
+2 --> 2<br>
+3 --> 3<br>
+4 --> 4<br>
+5 --> 1<br>
+6 --> 2<br>
+
+as can be seen the load per qp is a function of the number of threads, not the distribution of the workload. My experiment usually fail when I fold more than one client into a single qp. This is actually relatively new behavior after I stabilized the dequeue mechanism. The point of this experiment is to see if there are any imergent patters now that my results are consistent.
+
+![exp2](Experiment_2-id-to-qp-vs-queues.png "Memory QP vs client threads")
+
+The first key takeaway is that at least at this speed, the number of qp does not
+seem to have an apreciable effect on the performance. Each point is taken from a
+single run, and they all seem to be within the variance of each other. I've
+placed a skull where each theread dies. In most cases it's when I fold at least
+2x the number of clients into it. Each skull is the last valid measurement, not
+the point of failure. For instance the Green skull at 12 clients shows that the next measurement at 14 failed. 
+
+## results
+
+The number of qp does not seem to make a difference at low speeds, however
+folding multiple clients into a single qp is often, but not always a failure
+with this current setup. Note that 48 qp is sufficient for 64 threads with no
+trouble, but 12 qp is not enough for 14. This is very likely to do with an error
+in my code, and not a fundamental issue with the NICs.
+
