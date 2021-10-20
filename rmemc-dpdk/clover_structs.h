@@ -36,9 +36,9 @@ typedef struct __attribute__ ((__packed__)) roce_v2_header {
     unsigned int transport_header_version:4;
     uint16_t partition_key;
     //Reserved
-    unsigned int fecn:1;
-    unsigned int bcen:1;
     unsigned int reserverd:6;
+    unsigned int bcen:1;
+    unsigned int fecn:1;
     //end reserved
     unsigned int dest_qp:24;
     unsigned int ack:1;

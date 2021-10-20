@@ -38,12 +38,10 @@
 #define KEYSPACE 1024
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
-#define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
-#define COLLECT_GARBAGE
 #define CATCH_ECN
 
 uint32_t debug_start_printing_every_packet = 0;
@@ -56,7 +54,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-//#define CNS_TO_WRITE
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -197,7 +195,7 @@ uint32_t key_to_qp(uint64_t key)
 }
 
 uint32_t id_to_qp(uint32_t id) {
-	int qp = 64;
+	int qp = 2;
 	uint32_t index = (id) % qp;
 	return id_qp[index];
 }
@@ -355,10 +353,10 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 
 	//Assign to the etc buffer by default
 	bs.id = 0;
-	bs.head = &ect_qp_buf_head[bs.id];
-	bs.tail = &ect_qp_buf_tail[bs.id];
-	bs.buf = &ect_qp_buf[bs.id];
-	bs.timestamps = &ect_qp_timestamp[bs.id];
+	bs.head = &(ect_qp_buf_head[bs.id]);
+	bs.tail = &(ect_qp_buf_tail[bs.id]);
+	bs.buf = &(ect_qp_buf[bs.id]);
+	bs.timestamps = &(ect_qp_timestamp[bs.id]);
 
 	//Find the ID of the packet We are using generic head and tail pointers here
 	//for both directions of queueing.  The memory direction has a queue and so
@@ -368,7 +366,9 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	//TODO use qp_id as a shortcut later
 	//for (uint32_t i = 0; i < qp_id_counter; i++)
 	if (has_mapped_qp == 0) {
-		//printf("ect (buf)\n");
+		if(*(bs.head) == 0) {
+			printf("[id %d] etc head = 0\n",bs.id);
+		}
 		return bs;
 	}
 	for (uint32_t i = 0; i < TOTAL_CLIENTS; i++)
@@ -377,11 +377,14 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 		{
 			//printf("mem (buf)\n");
 			bs.id = Connection_States[i].id;
-			bs.head = &mem_qp_buf_head[bs.id];
-			bs.tail = &mem_qp_buf_tail[bs.id];
-			bs.buf = &mem_qp_buf[bs.id];
-			bs.timestamps = &mem_qp_timestamp[bs.id];
-			break;
+			bs.head = &(mem_qp_buf_head[bs.id]);
+			bs.tail = &(mem_qp_buf_tail[bs.id]);
+			bs.buf = &(mem_qp_buf[bs.id]);
+			bs.timestamps = &(mem_qp_timestamp[bs.id]);
+			if(*bs.head == 0) {
+				printf("[id %d] memory head = 0\n",bs.id);
+			}
+			return bs;
 		}
 		if (Connection_States[i].receiver_init == 1 && Connection_States[i].stcqp == roce_hdr->dest_qp)
 		{
@@ -391,7 +394,10 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 			bs.tail = &client_qp_buf_tail[bs.id];
 			bs.buf = &client_qp_buf[bs.id];
 			bs.timestamps = &client_qp_timestamp[bs.id];
-			break;
+			if(*bs.head == 0) {
+				printf("[id %d] client head = 0\n",bs.id);
+			}
+			return bs;
 		}
 	}
 
@@ -401,7 +407,9 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	}
 	*/
 	
-
+	if(*bs.head == 0) {
+		printf("[id %d] etc head = 0\n",bs.id);
+	}
 	return bs;
 }
 
@@ -1041,6 +1049,7 @@ int does_read_have_cached_write_mod(uint64_t vaddr)
 		//printf("raw miss on read cache\n");
 	} else {
 		printf("collision miss (search) %"PRIx64" (existing) %"PRIx64"\n",vaddr, cached_write_vaddr_mod[index]);
+		printf("key in that location %"PRIu64"\n",cached_write_vaddr_mod_lookup[index]);
 	}
 	//printf("\n");
 	return 0;
@@ -1290,7 +1299,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//equal to zero apply the mapping policy.
 
 	//Key to qp policy
-	/*
+	
 	if (key != 0)
 	{
 		n_qp = key_to_qp(key);
@@ -1299,8 +1308,9 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
-	*/
+/*
 	n_qp = id_to_qp(id);
+	*/
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
@@ -1657,8 +1667,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			printf("How did we get here?\n");
 		}
 
-		struct Buffer_State	bs = get_buffer_state(pkt);
-		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id %d\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp, bs.id);
+		//struct Buffer_State	bs = get_buffer_state(pkt);
+		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
 		recalculate_rdma_checksum(pkt);
 	}
@@ -1899,9 +1909,19 @@ void check_and_cache_predicted_shift(uint32_t rdma_size)
 
 void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 {
+
 #ifdef CATCH_ECN
+
 	if (opcode == ECN_OPCODE)
 	{
+			printf("The ecn packets are usually being issued from Yak1, it's very hard to tell this\n"
+			"though because there are not really any performance counters that you can read. The command to turn ECN off is\n"
+			"> cd /sys/class/net/enp129s0/ecn/roce_np/enable\n"
+			"> sudo su\n"
+			"> echo 0 > 0\n"
+			"> for i in $(seq 0 7); do echo 0>$i; cat $i; done\n"
+			"I would automate this but its a pain to ssh and sudo (Stewart Grant Oc13 2021)"
+			);
 		struct Buffer_State bs = get_buffer_state(pkt);
 		for (int i = 0; i < 20; i++)
 		{
@@ -1916,6 +1936,11 @@ void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 		exit(0);
 	}
 #endif
+	if (opcode == ECN_OPCODE)
+	{
+		printf("ECN Found, but continuing to run as normal\n");
+	}
+
 }
 
 //in the case of regular operation where all of the writes are
@@ -2512,24 +2537,25 @@ lcore_main(void)
 				continue;
 
 
-
 			#define PRINT_COUNT 10000
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
+				uint64_t start=timestamp();
 				if (likely(i < nb_rx - 1))
 				{
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
 				packet_counter++;
+				sum_processed_data(rx_pkts[i]);
 
 				#ifdef WRITE_STEER
 				true_classify(rx_pkts[i]);
 				#endif
 
+				uint64_t middle=timestamp();
 				#ifdef MAP_QP
 				struct map_packet_response mpr;
 				uint32_t id = find_id(rx_pkts[i]);
-
 				#ifdef PRINT_PACKET_BUFFERING
 				print_packet_lite(rx_pkts[i]);
 				#endif
@@ -2545,6 +2571,8 @@ lcore_main(void)
 				tx_pkts[i]=rx_pkts[i];
 				to_tx++;
 				#endif
+				uint64_t end=timestamp();
+				//printf("start %"PRIu64" middle %"PRIu64" end %"PRIu64"\n",start, middle, end);
 			}
 
 			#ifdef PRINT_PACKET_BUFFERING
@@ -2555,12 +2583,20 @@ lcore_main(void)
 				print_packet_lite(tx_pkts[i]);
 			}
 			printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
+
+
 			#endif
 			#ifdef SINGLE_CORE
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
 			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx,port,queue);
 			dequeue_finish_mem_pkt_bulk_full(port,queue);
+			#endif
+
+			#ifdef TAKE_MEASUREMENTS
+			if(has_mapped_qp){
+				calculate_in_flight(&Connection_States);
+			}
 			#endif
 
 			if (unlikely((has_mapped_qp ==0) && fully_qp_init()))

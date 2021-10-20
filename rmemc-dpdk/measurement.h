@@ -2,6 +2,7 @@
 #define MEASUREMENT_H
 
 #include <inttypes.h>
+#include "rmemc-dpdk.h"
 
 #define TOTAL_PACKET_LATENCIES 1000000
 #define TOTAL_PACKET_SEQUENCES 1000000
@@ -14,6 +15,7 @@ void write_packet_latencies_to_known_file(void);
 void write_sequence_order_to_known_file(void);
 void write_general_stats_to_known_file(void);
 void write_run_data(void);
+void sum_processed_data(struct rte_mbuf * pkt);
 void increment_read_counter(void);
 void read_redirected(void);
 void read_not_cached(void);

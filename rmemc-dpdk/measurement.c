@@ -1,5 +1,6 @@
 #include "measurement.h"
 #include "rmemc-dpdk.h"
+#include "print_helpers.h"
 #include <signal.h>
 
 #include <stdio.h>
@@ -7,6 +8,100 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+
+
+#define TOTAL_IN_FLIGHT_TIMESTAMPS 10000
+#define TOTAL_MSG_TYPES 4
+
+#define SEND 0
+#define CAS 1
+#define WRITE 2
+#define READ 3
+
+uint32_t rdma_msg_type_index_map(uint8_t opcode) {
+	switch (opcode)
+	{
+	case RC_SEND:
+		return SEND;
+	case RC_WRITE_ONLY:
+		return WRITE;
+	case RC_READ_REQUEST:
+		return READ;
+	case RC_CNS:
+		return CAS;
+	default:
+        printf("ERROR (EXITING) Simplified message type not accounted for\n");
+        exit(1);
+		return TOTAL_MSG_TYPES + 1;
+	}
+}
+
+uint32_t inverse_rdma_msg_type_index_map(uint8_t opcode) {
+	switch (opcode)
+	{
+	case SEND:
+		return RC_SEND;
+	case WRITE:
+		return RC_WRITE_ONLY;
+	case READ:
+		return RC_READ_REQUEST;
+	case CAS:
+		return RC_CNS;
+	default:
+        printf("ERROR (EXITING) Simplified message type not accounted for\n");
+        exit(1);
+		return 666;
+	}
+}
+
+uint32_t in_flight_measurement[TOTAL_IN_FLIGHT_TIMESTAMPS][TOTAL_CLIENTS][TOTAL_MSG_TYPES];
+uint64_t in_flight_timestamps[TOTAL_IN_FLIGHT_TIMESTAMPS];
+uint64_t in_flight_count=0;
+
+void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]) {
+    if (in_flight_count >= TOTAL_IN_FLIGHT_TIMESTAMPS) {
+        return;
+    }
+    uint64_t ts = timestamp();
+    in_flight_timestamps[in_flight_count]=ts;
+    for (int i=0;i<TOTAL_CLIENTS;i++){
+        struct Connection_State *cs = &(*states)[i];
+        uint32_t in_flight[TOTAL_MSG_TYPES];
+        for(int j=0;j<CS_SLOTS;j++) {
+            struct Request_Map * slot = &(cs->Outstanding_Requests[j]);
+            if(!slot_is_open(slot)) {
+                in_flight_measurement[in_flight_count][i][rdma_msg_type_index_map(slot->rdma_op)]++;
+            }
+        }
+    }
+    in_flight_count++;
+}
+
+void write_in_flight_to_known_file(void)
+{
+    const char *filename = "/tmp/in_flight.dat";
+    printf("Writing a total of %" PRIu64 " in flight measuremnts to %s\n", in_flight_count, filename);
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL)
+    {
+        printf("Unable to write file out, fopen has failed\n");
+        perror("Failed: ");
+        return;
+    }
+    for (uint32_t i=0; i<in_flight_count; i++){
+        for(uint32_t j =0; j<TOTAL_CLIENTS;j++) {
+            for(uint32_t k=0;k<TOTAL_MSG_TYPES;k++) {
+                //timestamp,id,msg_type,count
+                //printf("%"PRIu64",%d,%s,%d\n", in_flight_timestamps[i],j, ib_print_op(inverse_rdma_msg_type_index_map(k)), in_flight_measurement[i][j][k]);
+                fprintf(fp, "%"PRIu64",%d,%s,%d\n", in_flight_timestamps[i],j, ib_print_op(inverse_rdma_msg_type_index_map(k)), in_flight_measurement[i][j][k]);
+            }
+        }
+    }
+    fclose(fp);
+}
+
+
 
 //Measurement for getting end host latencies
 //rdma calls counts the number of calls for each RDMA op code
@@ -20,6 +115,8 @@ uint32_t request_count_id[TOTAL_ENTRY];
 uint64_t read_redirections = 0;
 uint64_t reads = 0;
 uint64_t read_misses = 0;
+
+uint64_t bytes_processed = 0;
 
 static __inline__ int64_t rdtsc_s(void)
 {
@@ -39,6 +136,13 @@ static __inline__ int64_t rdtsc_e(void)
     asm volatile("cpuid" ::
                      : "%rax", "%rbx", "%rcx", "%rdx");
     return ((unsigned long)a) | (((unsigned long)d) << 32);
+}
+
+void sum_processed_data(struct rte_mbuf * pkt){
+	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	uint64_t size = ntohs(ipv4_hdr->total_length);
+    bytes_processed += size;
 }
 
 int64_t timestamp(void) {
@@ -117,6 +221,7 @@ void write_general_stats_to_known_file(void)
     fprintf(fp, "READ REDIRECTIONS %" PRIu64 "\n", read_redirections);
     fprintf(fp, "READ MISSES %" PRIu64 "\n", read_misses);
     fprintf(fp, "READ HITS %" PRIu64 "\n", reads - read_misses);
+    fprintf(fp, "Data Processed %"PRIu64"\n", bytes_processed);
     fclose(fp);
 }
 
@@ -126,6 +231,7 @@ void write_run_data(void)
     write_packet_latencies_to_known_file();
     write_sequence_order_to_known_file();
     write_general_stats_to_known_file();
+    write_in_flight_to_known_file();
 }
 
 void increment_read_counter(void) {
@@ -172,6 +278,7 @@ void register_handler(void)
 {
     signal(SIGSEGV, stk_trc_handler);   // install our handler
     signal(SIGINT, kill_signal_handler);
+    signal(SIGTERM, kill_signal_handler);
 }
 
 void init_measurements(void)
@@ -181,4 +288,6 @@ void init_measurements(void)
     bzero(sequence_order, TOTAL_ENTRY * TOTAL_PACKET_SEQUENCES * sizeof(uint32_t));
     bzero(sequence_order_timestamp, TOTAL_ENTRY * TOTAL_PACKET_SEQUENCES * sizeof(uint64_t));
     bzero(request_count_id, TOTAL_ENTRY * sizeof(uint32_t));
+    bzero(in_flight_measurement, TOTAL_IN_FLIGHT_TIMESTAMPS*TOTAL_CLIENTS*TOTAL_MSG_TYPES*sizeof(uint32_t));
+    bzero(in_flight_timestamps, TOTAL_IN_FLIGHT_TIMESTAMPS*sizeof(uint64_t));
 }
