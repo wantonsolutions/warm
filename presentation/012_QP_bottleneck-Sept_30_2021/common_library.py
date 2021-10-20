@@ -7,6 +7,7 @@ def save(plt_local):
     figure_name, ext = os.path.splitext(sys.argv[0])
     plt_local.savefig(figure_name+'.pdf')
     plt_local.savefig(figure_name+'.png')
+    plt_local.savefig(figure_name+'.svg')
 
 def div_thousand (list):
     return [val /1000.0 for val in list]

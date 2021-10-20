@@ -81,7 +81,7 @@ The goal of this experiment is to determine the differences in performance when 
 
 as can be seen the load per qp is a function of the number of threads, not the distribution of the workload. My experiment usually fail when I fold more than one client into a single qp. This is actually relatively new behavior after I stabilized the dequeue mechanism. The point of this experiment is to see if there are any imergent patters now that my results are consistent.
 
-![exp2](Experiment_2-id-to-qp-vs-queues.png "Memory QP vs client threads")
+![exp2](Experiment_2-id-to-qp-vs-queues.svg "Memory QP vs client threads")
 
 The first key takeaway is that at least at this speed, the number of qp does not
 seem to have an apreciable effect on the performance. Each point is taken from a
@@ -97,4 +97,41 @@ folding multiple clients into a single qp is often, but not always a failure
 with this current setup. Note that 48 qp is sufficient for 64 threads with no
 trouble, but 12 qp is not enough for 14. This is very likely to do with an error
 in my code, and not a fundamental issue with the NICs.
+
+
+## Experiment 3 ID QP mapping queue pair smaller burst
+
+I think that I worked through most of the bugs, however I still have issues
+preparing the desired result. One small aside is that I've made a chart for
+checking the number of in flight messages, and done this on a per operation
+basis. In this directory I've included the debugging charts for 4 clients going
+into a single QP with the number of outstanding requests [All operations
+together](4_clients_in_flight.pdf) [Separte
+Operations](4_clients_in_flight_ops.pdf). I can't embed the PDF, nor recreate
+these so I'll just leave them as links. This small debugging result suggested
+that the implementation was correct. I decided to change the burst size to see
+if that was causing an issue on the receiver side.
+
+The setup for this experiment is almost identical as Experiment 2 with the
+exception that the burst size has changed.
+
+![exp3](Experiment_3-id-toq-small-burst.svg)
+
+## results
+Due to the smaller burst size the average latency of operations increase,
+therefore the single threaded runs get a higher throughput than the burst size
+32 experiment. Note that this time around there is a significant hit in the
+performance after we go above a certain offered load.
+
+I'm not 100% sure how to interpret these results at the moment. There is a
+possibility that the reduction in performance after 4 threads is simply due to
+me not being able to process requests at a sufficient rate. Essentially the drop
+might be my fault. However it could also be due to the CAS running. The way to
+know this is to replace them. Either way the next two experiments using the key
+to qp mapping are obvious. I must test how the CAS vs atomic replacement works
+at this stage.
+
+My strong feeling at this point though is that it is my fault as I've hit
+numbers higher than this with similar configurations.
+
 
