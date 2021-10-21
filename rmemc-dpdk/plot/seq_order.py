@@ -26,13 +26,14 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     timestamps = [ (a - minimum) / clocks_to_seconds  for a in timestamps]
 
     last_seq=0
-    current_id=-1
+    current_id=0
     index=0
     gap = []
     individual_gap = []
     individual_gap_single = []
     individual_timestamps = []
     individual_timestamps_single = []
+    print(id)
 
     for i in id:
         if current_id != i:
@@ -43,20 +44,21 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
             individual_timestamps.append(individual_timestamps_single)
             individual_timestamps_single = []
 
-        else:
-            diff=sequences[index] - last_seq
-            gap.append(diff)
-            individual_gap_single.append(diff)
-            individual_timestamps_single.append(timestamps[index])
-            last_seq = sequences[index]
+        diff=sequences[index] - last_seq
+        gap.append(diff)
+        individual_gap_single.append(diff)
+        individual_timestamps_single.append(timestamps[index])
+        last_seq = sequences[index]
 
         index=index+1
+
+    individual_gap.append(individual_gap_single)
+    individual_timestamps.append(individual_timestamps_single)
         
-    print(len(gap))
+    print("single timestamps ", len(individual_timestamps))
 
     x, y = cdf(gap)
     #x =x.astype(int)
-    print(x)
     plt.ylim(0, 1)
     plt.plot(x,y, label="sequence_steps")
     plt.savefig(sequence_output_filename)
@@ -67,17 +69,20 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
     for thread in individual_gap:
         #x = range(len(thread))
         x = individual_timestamps[index]
+        print(index, len(x))
         #y = thread
         y = np.full(len(x),index)
+        print(y)
         plt.plot(x,y, label=str(index), marker='x')
         index=index+1
     plt.ylabel("threads id")
     plt.xlabel("Seconds")
+    plt.legend(ncol=3)
     plt.savefig(timeline_output_filename)
     plt.clf()
 
 
-    print(individual_timestamps[0])
+    #print(individual_timestamps[0])
     index=0
     op_diffs=[]
     per_thread_diffs=[]
@@ -94,7 +99,6 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
 
         for op_time in operation_timestamps[1:]:
             diff=op_time-last_op_time
-            print(diff)
             op_diffs.append(diff)
             per_thread_diffs[index].append(diff)
             last_op_time=op_time
@@ -102,7 +106,6 @@ def plot_charts(source_filename, sequence_output_filename, timeline_output_filen
         index=index+1
     
     x, y = cdf(op_diffs)
-    print(x)
     plt.ylim(0, 1)
     plt.plot(x,y, label="Op Completion Latencies")
     plt.title("Operation Interval")
