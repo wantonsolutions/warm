@@ -88,7 +88,7 @@ Clover is a key value store designed for disaggreated persistent memory. While
 it targets persistant storage it is also a prototypical example of a key value
 store for remote DRAM. It's design makes the assumption that there are no remote
 CPU's coresident with memory. All of Clovers remote memory accesses are made
-with one sided RDMA operations. Reads, Writes, and CNS. Clover's design moves
+with one sided RDMA operations. Reads, Writes, and CAS. Clover's design moves
 metadata storage off of the data path. In the data path reads are writes are
 made to an append only linked list stored in remote memory. All operations are
 made to the tail of the list. A client may not know the location of the tail as
@@ -99,9 +99,9 @@ heavy case concurrent clients all eventually reach the end of the list. To speed
 up operations clients keep caches of a pointer to the end of each keys linked
 list to avoid traversals. When writes are heavy, and when single keys are hot,
 clovers performane degrades substantially. In order to make writes serialized
-Clover uses RDMA CNS operations which when used frequently on the same location
-lead to abysmal performance. In cases when CNS's fail, clover performs a read
-for the tail and then retries the CNS. Therfore this number inflates as the
+Clover uses RDMA CAS operations which when used frequently on the same location
+lead to abysmal performance. In cases when CAS's fail, clover performs a read
+for the tail and then retries the CAS. Therfore this number inflates as the
 number of clients and conflicts increase without guaranteing fair forward
 progress.
 
