@@ -280,10 +280,16 @@ uint64_t ect_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
 
 uint64_t mem_qp_buf_head[TOTAL_ENTRY];
 uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
+
 uint64_t client_qp_buf_head[TOTAL_ENTRY];
 uint64_t client_qp_buf_tail[TOTAL_ENTRY];
+
 uint64_t ect_qp_buf_head[TOTAL_ENTRY];
 uint64_t ect_qp_buf_tail[TOTAL_ENTRY];
+
+uint8_t mem_qp_dequeuable[TOTAL_ENTRY];
+uint8_t client_qp_dequeuable[TOTAL_ENTRY];
+uint8_t ect_qp_dequeuable[TOTAL_ENTRY];
 
 void init_reorder_buf(void)
 {
@@ -294,6 +300,10 @@ void init_reorder_buf(void)
 	bzero(client_qp_buf_tail, TOTAL_ENTRY * sizeof(uint64_t));
 	bzero(ect_qp_buf_head, TOTAL_ENTRY * sizeof(uint64_t));
 	bzero(ect_qp_buf_tail, TOTAL_ENTRY * sizeof(uint64_t));
+
+	bzero(mem_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
+	bzero(client_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
+	bzero(ect_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)
@@ -346,6 +356,7 @@ int track_sequential_receipt(struct rte_mbuf* pkt) {
 }
 
 struct Buffer_State {
+	uint8_t *dequeable;
 	int id;
 	uint64_t *head;
 	uint64_t *tail;
@@ -360,6 +371,7 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 
 	//Assign to the etc buffer by default
 	bs.id = 0;
+	bs.dequeable = &(ect_qp_dequeuable[bs.id]);
 	bs.head = &(ect_qp_buf_head[bs.id]);
 	bs.tail = &(ect_qp_buf_tail[bs.id]);
 	bs.buf = &(ect_qp_buf[bs.id]);
@@ -372,51 +384,41 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 
 	//TODO use qp_id as a shortcut later
 	//for (uint32_t i = 0; i < qp_id_counter; i++)
-	if (has_mapped_qp == 0) {
-		if(*(bs.head) == 0) {
-			printf("[id %d] etc head = 0\n",bs.id);
-		}
+	if (unlikely(has_mapped_qp == 0)) {
 		return bs;
 	}
+
 	for (uint32_t i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		if (Connection_States[i].ctsqp == roce_hdr->dest_qp)
 		{
 			//printf("mem (buf)\n");
 			bs.id = Connection_States[i].id;
+			bs.dequeable = &(mem_qp_dequeuable[bs.id]);
 			bs.head = &(mem_qp_buf_head[bs.id]);
 			bs.tail = &(mem_qp_buf_tail[bs.id]);
 			bs.buf = &(mem_qp_buf[bs.id]);
 			bs.timestamps = &(mem_qp_timestamp[bs.id]);
-			if(*bs.head == 0) {
-				printf("[id %d] memory head = 0\n",bs.id);
-			}
 			return bs;
 		}
 		if (Connection_States[i].receiver_init == 1 && Connection_States[i].stcqp == roce_hdr->dest_qp)
 		{
 			//printf("client (buf)\n");
 			bs.id = Connection_States[i].id;
+			bs.dequeable = &(client_qp_dequeuable[bs.id]);
 			bs.head = &client_qp_buf_head[bs.id];
 			bs.tail = &client_qp_buf_tail[bs.id];
 			bs.buf = &client_qp_buf[bs.id];
 			bs.timestamps = &client_qp_timestamp[bs.id];
-			if(*bs.head == 0) {
-				printf("[id %d] client head = 0\n",bs.id);
-			}
 			return bs;
 		}
 	}
 
 	/*
-	if (bs.head == &ect_qp_buf_head[bs.id]) {
-		printf("etc (buf)\n");
-	}
-	*/
-	
 	if(*bs.head == 0) {
 		printf("[id %d] etc head = 0\n",bs.id);
 	}
+	*/
 	return bs;
 }
 
@@ -512,6 +514,12 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 			//printf("setting tail id: %d seq: %d\n",bs.id,seq);
 			*bs.tail = seq;
 		}
+
+		if (likely(contiguous_buffered_packets_2(bs))) {
+			*bs.dequeable = 1;
+		} else {
+			*bs.dequeable = 0;
+		}
 	}
 	unlock_mem_qp();
 }
@@ -519,8 +527,7 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 int contiguous_buffered_packets_2(struct Buffer_State bs) {
 	for (uint32_t i = *bs.head; i <= *bs.tail; i++)
 	{
-		struct rte_mbuf *s_pkt = (*bs.buf)[i % PKT_REORDER_BUF];
-		if(s_pkt == NULL) {
+		if((*bs.buf)[i % PKT_REORDER_BUF] == NULL) {
 			return 0;
 		}
 	}
@@ -610,10 +617,8 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 
 			struct Buffer_State bs;
 			bs.id = id;
-			bs.head = &head_list[bs.id];
-			bs.tail = &tail_list[bs.id];
-			bs.buf = &id_buf[bs.id];
-			bs.timestamps = &id_timestamps[bs.id];
+			bs.head = &head_list[id];
+			bs.tail = &tail_list[id];
 
 
 			//If the head is currently higher than the tail, this means that it's not
@@ -623,7 +628,10 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 			{
 				continue;
 			}
-	;
+
+			bs.buf = &id_buf[id];
+			bs.timestamps = &id_timestamps[id];
+
 			if(contiguous_buffered_packets_2(bs) == 0) {
 				continue;
 			}
@@ -648,7 +656,6 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 		if (found == 1) {
 
 			int64_t ts = min_timestamp;
-
 			struct rte_mbuf *s_pkt = (*dequeue_bs.buf)[*(dequeue_bs.head) % PKT_REORDER_BUF];
 			/*
 			if(s_pkt == NULL) {
@@ -677,14 +684,64 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 
 }
 
+struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uint32_t queue, uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
+	struct map_packet_response mpr;
+	mpr.pkts[0] = NULL;
+	mpr.size = 0;
+	uint32_t loop_max;
+
+
+	if (id_buf == ect_qp_buf) {
+		loop_max = 1;
+	} else {
+		loop_max = TOTAL_CLIENTS;
+	}
+
+	struct Buffer_State bs;
+	struct map_packet_response mpr_sub;
+	for (int id=0;id<loop_max;id++) {
+		if(dequeue_list[id]) {
+			//Small list for the individual dequeue
+			mpr_sub.size = 0;
+
+			//printf("dequeueing %d\n",id);
+			bs.id = id;
+			bs.head = &head_list[id];
+			bs.tail = &tail_list[id];
+			bs.buf = &id_buf[id];
+			bs.timestamps = &id_timestamps[id];
+
+			//printf("dequeue loop\n");
+			while (*bs.head <= *bs.tail)
+			{
+				//printf("loop\n");
+				struct rte_mbuf *s_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
+				uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
+				mpr_sub.pkts[mpr_sub.size]=s_pkt;
+				mpr_sub.timestamps[mpr_sub.size]=ts;
+				mpr_sub.size++;
+				(*bs.buf)[*bs.head % PKT_REORDER_BUF] = NULL;
+				*bs.head += 1;
+			}
+			//printf("copmplete_loop\n");
+			merge_mpr_ts(&mpr,&mpr_sub);
+			dequeue_list[id]=0;
+		}
+	}
+	return mpr;
+}
+
 void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	lock_mem_qp();
 	struct map_packet_response mpr1;
 	struct map_packet_response mpr2;
 	struct map_packet_response mpr3;
-	mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
-	mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
-	mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
+	//mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
+	//mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
+	//mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
+	mpr1 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,ect_qp_dequeuable,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
+	mpr2 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,mem_qp_dequeuable,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
+	mpr3 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,client_qp_dequeuable,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
 	merge_mpr_ts(&mpr1,&mpr2);
 	merge_mpr_ts(&mpr1,&mpr3);
 
