@@ -141,6 +141,12 @@ void unlock_next(void)
 	//rte_smp_mb();
 }
 
+uint64_t pkt_timestamp_monotonic=0;
+uint64_t pkt_timestamp_not_thread_safe(void)
+{
+	return pkt_timestamp_monotonic++;
+}
+
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
 	.entries = TOTAL_ENTRY,
@@ -227,6 +233,7 @@ uint32_t get_id(uint32_t qp)
 {
 	uint32_t *return_value;
 	uint32_t id;
+
 	int ret = rte_hash_lookup_data(qp2id_table, &qp, (void **)&return_value);
 	if (ret < 0)
 	{
@@ -450,7 +457,8 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 		*/
 		(*bs.buf)[entry] = pkt;
 
-		int64_t ts = timestamp();
+		//int64_t ts = timestamp();
+		int64_t ts = pkt_timestamp_not_thread_safe();
 		//printf("Packet Timestamp %"PRId64"\n",ts);
 		(*bs.timestamps)[entry] = ts;
 
@@ -513,7 +521,6 @@ int contiguous_buffered_packets_2(struct Buffer_State bs) {
 	{
 		struct rte_mbuf *s_pkt = (*bs.buf)[i % PKT_REORDER_BUF];
 		if(s_pkt == NULL) {
-			//printf("entry %d gap\n", i % PKT_REORDER_BUF);
 			return 0;
 		}
 	}
@@ -628,9 +635,6 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 			if (t_pkt != NULL && ts < min_timestamp) {
 				found = 1;
 				min_timestamp = ts;
-				if(ts == 0) {
-					printf("time stamp equals 0\n");
-				}
 				dequeue_bs.id = id;
 				dequeue_bs.head = bs.head;
 				dequeue_bs.tail = bs.tail;
@@ -645,32 +649,22 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint
 
 			int64_t ts = min_timestamp;
 
-			/*
-			if(head_list == ect_qp_buf_head) {
-					printf("etc head %"PRId64"\n",ts);
-			} else if (head_list == mem_qp_buf_head) {
-					printf("mem head %"PRId64"\n",ts);
-			} else if (head_list == client_qp_buf_head) {
-					printf("client head %"PRId64" \n",ts);
-			} else {
-					printf("WAT NO HEAD!\n");
-			}
-			*/
-
-			//printf("head %d tail %d\n",*dequeue_bs.head,*dequeue_bs.tail);
 			struct rte_mbuf *s_pkt = (*dequeue_bs.buf)[*(dequeue_bs.head) % PKT_REORDER_BUF];
+			/*
 			if(s_pkt == NULL) {
 				printf("null dequeue packet, we are in the error zone(should probably exit) Check PKT_REORDER_BUF SIZE = %d (tail - head) = %d\n", PKT_REORDER_BUF, *dequeue_bs.tail - *dequeue_bs.head);
 			}
 			if (dequeue_bs.buf == &mem_qp_buf[dequeue_bs.id])
 			{
-
-				append_sequence_number(dequeue_bs.id, get_psn(s_pkt));
+				#ifdef TAME_MEASUREMENTS
+				//append_sequence_number(dequeue_bs.id, get_psn(s_pkt));
+				#endif
 			}
 			if (dequeue_bs.buf == &client_qp_buf[dequeue_bs.id])
 			{
 				//printf("[client %d] timestamp %"PRIu64" psn %d \n", dequeue_bs.id, min_timestamp, readable_seq(get_psn(s_pkt)));
 			}
+			*/
 
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=min_timestamp;
@@ -689,20 +683,10 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	struct map_packet_response mpr2;
 	struct map_packet_response mpr3;
 	mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
-	//printf("mpr 1 raw\n");
-	//print_mpr(&mpr1);
 	mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
-	//printf("mpr 2 raw\n");
-	//print_mpr(&mpr2);
 	mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
-	//printf("mpr 3 raw\n");
-	//print_mpr(&mpr3);
 	merge_mpr_ts(&mpr1,&mpr2);
-	//printf("mpr 1 + 2 raw\n");
-	//print_mpr(&mpr1);
 	merge_mpr_ts(&mpr1,&mpr3);
-	//printf("mpr 1 + 2 + 3 raw\n");
-	//print_mpr(&mpr1);
 
 	//printf("sending %d\n",mpr1.size);
 	#ifdef PRINT_PACKET_BUFFERING
@@ -1004,7 +988,9 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 	uint32_t index = mod_hash(vaddr);
 	if (cached_write_vaddr_mod[index] != 0) {
 		hash_collisons++;
-		printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
+		if(unlikely(hash_collisons % 1000 == 0)) {
+			printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
+		}
 
 	}
 	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
@@ -1292,7 +1278,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
 	uint32_t r_qp = roce_hdr->dest_qp;
-	uint32_t id = get_id(r_qp);
+	uint32_t id = find_id(pkt);
 	uint32_t n_qp = 0;
 
 	//Keys are set to 0 when we are not going to map them. If the key is not
@@ -1314,7 +1300,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
-	destination_connection = &Connection_States[get_id(n_qp)];
+	destination_connection = &Connection_States[find_id_qp(n_qp)];
 	if (destination_connection == NULL)
 	{
 		printf("I did not want to end up here\n");
@@ -2349,19 +2335,23 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	return 0;
 }
 
-int find_id(struct rte_mbuf *buf) {
+int find_id_qp(uint32_t qp) {
 	int id = -1;
-	struct roce_v2_header * rh = get_roce_hdr(buf);
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
-		if (Connection_States[i].ctsqp == rh->dest_qp ||
-			Connection_States[i].stcqp == rh->dest_qp)
+		if (Connection_States[i].ctsqp == qp ||
+			Connection_States[i].stcqp == qp)
 		{
 			id = Connection_States[i].id;
 			break;
 		}
 	}
 	return id;
+}
+
+int find_id(struct rte_mbuf *buf) {
+	struct roce_v2_header * rh = get_roce_hdr(buf);
+	return find_id_qp(rh->dest_qp);
 }
 
 void print_packet_lite(struct rte_mbuf *buf)
@@ -2540,7 +2530,6 @@ lcore_main(void)
 			#define PRINT_COUNT 10000
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
-				uint64_t start=timestamp();
 				if (likely(i < nb_rx - 1))
 				{
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
@@ -2552,7 +2541,7 @@ lcore_main(void)
 				true_classify(rx_pkts[i]);
 				#endif
 
-				uint64_t middle=timestamp();
+
 				#ifdef MAP_QP
 				struct map_packet_response mpr;
 				uint32_t id = find_id(rx_pkts[i]);
@@ -2571,8 +2560,6 @@ lcore_main(void)
 				tx_pkts[i]=rx_pkts[i];
 				to_tx++;
 				#endif
-				uint64_t end=timestamp();
-				//printf("start %"PRIu64" middle %"PRIu64" end %"PRIu64"\n",start, middle, end);
 			}
 
 			#ifdef PRINT_PACKET_BUFFERING
@@ -2594,9 +2581,9 @@ lcore_main(void)
 			#endif
 
 			#ifdef TAKE_MEASUREMENTS
-			if(has_mapped_qp){
-				calculate_in_flight(&Connection_States);
-			}
+			//if(has_mapped_qp){
+			//	calculate_in_flight(&Connection_States);
+			//}
 			#endif
 
 			if (unlikely((has_mapped_qp ==0) && fully_qp_init()))

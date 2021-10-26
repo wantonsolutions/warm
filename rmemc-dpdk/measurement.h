@@ -6,7 +6,7 @@
 
 #define TOTAL_PACKET_LATENCIES 1000000
 #define TOTAL_PACKET_SEQUENCES 1000000
-#define TAKE_MEASUREMENTS
+//#define TAKE_MEASUREMENTS
 
 int64_t timestamp(void);
 void append_packet_latency(uint64_t clock_cycles);

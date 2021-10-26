@@ -6,6 +6,8 @@
 #include "rte_ip.h"
 #include <rte_udp.h>
 
+#define NOCOLOR
+
 int log_printf(int level, const char *format, ...)
 {
 	va_list args;
@@ -76,6 +78,9 @@ void reset(void) { printf("\033[0m"); }
 
 void id_colorize(uint32_t id)
 {
+	#ifdef NOCOLOR
+	return;
+	#endif
 	//if we are outputing to a terminal
 	if (isatty(1)) {
 		switch (id)

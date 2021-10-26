@@ -54,13 +54,15 @@ ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
 endif
 
+$(info $$RTE_SDK is [${RTE_SDK}])
+
 # Default target, detect a build directory, by looking for a path with a .config
 RTE_TARGET ?= $(notdir $(abspath $(dir $(firstword $(wildcard $(RTE_SDK)/*/.config)))))
 
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
-EXTRA_CFLAGS += -O3 -g -Wfatal-errors $(STEWFLAGS)
+EXTRA_CFLAGS += -O3 -g -DNDEBUG -Wfatal-errors $(STEWFLAGS)
 #EXTRA_CFLAGS+=-O0 -ggdb  -Wfatal-errors
 EXTRA_LDFLAGS+=-lz
 
