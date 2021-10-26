@@ -5,8 +5,11 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include "print_helpers.h"
+
 #include "rmemc-dpdk.h"
-#include <zlib.h>
+#include <rte_hash_crc.h>
+//#include <zlib.h>
+#include "zlib/zlib.h"
 
 uint32_t get_psn(struct rte_mbuf *pkt)
 {
@@ -86,23 +89,13 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
     uint8_t *start = (uint8_t *)(ipv4_hdr);
     uint32_t len = ntohs(ipv4_hdr->total_length) - 4;
 
-    uint32_t crc_check;
-    uint8_t buf[1500];
 
-    void *current = (uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4;
-    uint8_t current_val[4];
-    memcpy(current_val, current, 4);
-    uint8_t test_buf[] = {0xff, 0xff, 0xff, 0xff};
+    ulong crcstart = 0x2144df1c;
+    ulong crc;
+    crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
 
-    //TODO debug to prevent needing this bzero
-    bzero(buf, 1500);
-    memcpy(buf, start, len);
-    ulong crc = crc32(0xFFFFFFFF, test_buf, 4);
-
-    //Now lets test with the dummy bytes
-    crc = crc32(crc, buf, len) & 0xFFFFFFFF;
-    crc_check = crc;
-    //check_sums_wrap("zlib_crc",current_val, &crc_check);
+    //ulong crc_2 = rte_hash_crc(start,len,(uint32_t)crcstart) & 0xFFFFFFFF;
+    //printf("crc %x crc2 %x\n",crc,crc_2);
 
     //Restore header values post masking
     ipv4_hdr->time_to_live = ttl;
@@ -113,7 +106,7 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
     roce_hdr->fecn = fecn;
     roce_hdr->bcen = bcen;
 
-    return crc_check;
+    return (uint32_t)crc;
 }
 
 void recalculate_rdma_checksum(struct rte_mbuf *pkt)

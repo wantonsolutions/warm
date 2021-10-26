@@ -571,118 +571,18 @@ void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *
 	merged.size=0;
 
 	while (dst_index < dest->size && src_index < source->size) {
-		//printf("(size %d) dest ts: %"PRId64" (size %d) src ts: %"PRId64"\n",dest->size, dest->timestamps[dst_index],source->size,source->timestamps[src_index]);
 		if (dest->timestamps[dst_index] < source->timestamps[src_index]) {
 			copy_over_mpr_index(&merged,dest,&dst_index);
 		} else {
 			copy_over_mpr_index(&merged,source,&src_index);
 		}
 	}
-
-	//printf("midway merge!\n");
-	//print_mpr(&merged);
-
-	//copy_left
 	copy_from_index(&merged,dest,&dst_index);
-	//printf("midway merge left!\n");
-	//print_mpr(&merged);
-	//copy_right
 	copy_from_index(&merged,source,&src_index);
-	//printf("midway merge right!\n");
-	//print_mpr(&merged);
-	//full copy back
 	dest->size=0;
 	merge_mpr(dest,&merged);
 }
 
-struct map_packet_response dequeue_finish_mem_pkt_bulk_merge(uint16_t port, uint32_t queue, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
-	struct map_packet_response mpr;
-	mpr.pkts[0] = NULL;
-	mpr.size = 0;
-	int loop_max = 0;
-
-
-	if (id_buf == ect_qp_buf) {
-		loop_max = 1;
-	} else {
-		loop_max = TOTAL_CLIENTS;
-	}
-
-	int found = 1;
-	while (found ==1) {
-		found = 0;	
-		uint64_t min_timestamp = 0xFFFFFFFFFFFFFFFF;
-		struct Buffer_State dequeue_bs;
-		for (int id=0;id<loop_max;id++) {
-
-			struct Buffer_State bs;
-			bs.id = id;
-			bs.head = &head_list[id];
-			bs.tail = &tail_list[id];
-
-
-			//If the head is currently higher than the tail, this means that it's not
-			//time to send anyhting. We are eitheir going to enqueue (the usual case) or
-			//there is nothing to do.
-			if (*bs.head > *bs.tail)
-			{
-				continue;
-			}
-
-			bs.buf = &id_buf[id];
-			bs.timestamps = &id_timestamps[id];
-
-			if(contiguous_buffered_packets_2(bs) == 0) {
-				continue;
-			}
-
-			uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
-			struct rte_mbuf *t_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
-
-			//copy the min timestamp
-			if (t_pkt != NULL && ts < min_timestamp) {
-				found = 1;
-				min_timestamp = ts;
-				dequeue_bs.id = id;
-				dequeue_bs.head = bs.head;
-				dequeue_bs.tail = bs.tail;
-				dequeue_bs.buf = bs.buf;
-				dequeue_bs.timestamps = bs.timestamps;
-				//printf("found timestamp %"PRIu64" head %d tail %d\n",ts,*dequeue_bs.head,*dequeue_bs.tail);
-			}
-		}
-
-
-		if (found == 1) {
-
-			int64_t ts = min_timestamp;
-			struct rte_mbuf *s_pkt = (*dequeue_bs.buf)[*(dequeue_bs.head) % PKT_REORDER_BUF];
-			/*
-			if(s_pkt == NULL) {
-				printf("null dequeue packet, we are in the error zone(should probably exit) Check PKT_REORDER_BUF SIZE = %d (tail - head) = %d\n", PKT_REORDER_BUF, *dequeue_bs.tail - *dequeue_bs.head);
-			}
-			if (dequeue_bs.buf == &mem_qp_buf[dequeue_bs.id])
-			{
-				#ifdef TAME_MEASUREMENTS
-				//append_sequence_number(dequeue_bs.id, get_psn(s_pkt));
-				#endif
-			}
-			if (dequeue_bs.buf == &client_qp_buf[dequeue_bs.id])
-			{
-				//printf("[client %d] timestamp %"PRIu64" psn %d \n", dequeue_bs.id, min_timestamp, readable_seq(get_psn(s_pkt)));
-			}
-			*/
-
-			mpr.pkts[mpr.size]=s_pkt;
-			mpr.timestamps[mpr.size]=min_timestamp;
-			mpr.size++;
-			(*dequeue_bs.buf)[*dequeue_bs.head % PKT_REORDER_BUF] = NULL;
-			*dequeue_bs.head += 1;
-		}
-	}
-	return mpr;
-
-}
 
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uint32_t queue, uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
 	struct map_packet_response mpr;
@@ -697,15 +597,24 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uin
 		loop_max = TOTAL_CLIENTS;
 	}
 
+	//Prep dequeue list
+	uint8_t dequeue_ids[TOTAL_CLIENTS];
+	uint8_t total_dequeue;
+	for (int id=0;id<loop_max;id++) {
+		if(dequeue_list[id]) {
+			dequeue_ids[total_dequeue]=id;
+			total_dequeue++;
+		}
+	}
+
 	struct Buffer_State bs;
 	struct map_packet_response mpr_sub;
-	for (int id=0;id<loop_max;id++) {
+	for (int i=0;i<total_dequeue;i++) {
+		uint32_t id = dequeue_ids[i];
 		if(dequeue_list[id]) {
 			//Small list for the individual dequeue
 			mpr_sub.size = 0;
 
-			//printf("dequeueing %d\n",id);
-			bs.id = id;
 			bs.head = &head_list[id];
 			bs.tail = &tail_list[id];
 			bs.buf = &id_buf[id];
@@ -723,7 +632,6 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uin
 				(*bs.buf)[*bs.head % PKT_REORDER_BUF] = NULL;
 				*bs.head += 1;
 			}
-			//printf("copmplete_loop\n");
 			merge_mpr_ts(&mpr,&mpr_sub);
 			dequeue_list[id]=0;
 		}
@@ -1275,12 +1183,7 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 		//printf("size diff %d\n",size_diff);
 		udp_hdr->dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
-		//printf("CNS - forward\n");
-		//TODO remove the this part
-		ipv4_hdr->hdr_checksum = 0;
-		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-		recalculate_rdma_checksum(pkt);
-		//print_packet(pkt);
+		//We are going to checksum later anyways so we don't need to here
 	}
 }
 
@@ -1319,9 +1222,9 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
 		//printf("CNS - forward\n");
 		//TODO remove the this part
-		ipv4_hdr->hdr_checksum = 0;
-		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-		recalculate_rdma_checksum(pkt);
+		//ipv4_hdr->hdr_checksum = 0;
+		//ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+		//recalculate_rdma_checksum(pkt);
 		//print_packet(pkt);
 	} 
 	
@@ -1522,7 +1425,6 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 		#ifdef CNS_TO_WRITE
 		map_write_ack_to_atomic_ack(pkt,missing_write);
-		//print_packet(pkt);
 		#endif
 
 		//Ip mapping recalculate the ip checksum
@@ -1684,14 +1586,14 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n", rte_lcore_id(), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 #endif
 
-		//Ip mapping recalculate the ip checksum
-		ipv4_hdr->hdr_checksum = 0;
-		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
 		#ifdef CNS_TO_WRITE
 		map_write_ack_to_atomic_ack(pkt,mapped_request);
 		#endif
 
+		//Ip mapping recalculate the ip checksum
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		recalculate_rdma_checksum(pkt);
 		open_slot(mapped_request);
 		unlock_connection_state(source_connection);
@@ -1761,9 +1663,11 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (size == 1024) {
-			uint32_t id = get_id(roce_hdr->dest_qp);
+			uint32_t id = find_id_qp(roce_hdr->dest_qp);
 			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+			#ifdef TAKE_MEASUREMENTS
 			increment_read_counter();
+			#endif
 			if (key == 0) {
 				printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
 				print_packet_lite(pkt);
