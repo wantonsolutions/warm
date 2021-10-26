@@ -62,8 +62,7 @@ RTE_TARGET ?= $(notdir $(abspath $(dir $(firstword $(wildcard $(RTE_SDK)/*/.conf
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
-EXTRA_CFLAGS += -O3 -g -DNDEBUG -Wfatal-errors $(STEWFLAGS)
-#EXTRA_CFLAGS+=-O0 -ggdb  -Wfatal-errors
+EXTRA_CFLAGS += -O3 -Wfatal-errors $(STEWFLAGS)
 EXTRA_LDFLAGS+=-lz
 
 STEWFLAGS := -DMITSUME_BENCHMARK_THREAD_NUM=${CLOVER_THREADS} \
