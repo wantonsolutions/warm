@@ -73,34 +73,34 @@ rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
 struct rte_mempool *mbuf_pool_ack;
+#define IPV4_OFFSET 14
+#define UDP_OFFSET 34
+#define ROCE_OFFSET 42
+#define CLOVER_OFFSET 54
 
-struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
+inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 {
 	return rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 }
 
-struct rte_ipv4_hdr *get_ipv4_hdr(struct rte_mbuf *pkt)
+inline struct rte_ipv4_hdr *get_ipv4_hdr(struct rte_mbuf *pkt)
 {
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
-	return (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
+	return (uint8_t*)get_eth_hdr(pkt) + IPV4_OFFSET;
 }
 
-struct rte_udp_hdr *get_udp_hdr(struct rte_mbuf *pkt)
+inline struct rte_udp_hdr *get_udp_hdr(struct rte_mbuf *pkt)
 {
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	return (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
+	return (uint8_t*)get_eth_hdr(pkt) + UDP_OFFSET;
 }
 
-struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
+inline struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 {
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-	return (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
+	return (uint8_t*)get_eth_hdr(pkt) + ROCE_OFFSET;
 }
 
-struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
+inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 {
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	return (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
 }
 
 void lock_qp(void)
@@ -234,8 +234,16 @@ int set_id(uint32_t qp, uint32_t id)
 uint32_t get_id(uint32_t qp)
 {
 	uint32_t *return_value;
-	uint32_t id;
+	int32_t id;
 
+	//first try to go fast
+	id = fast_find_id_qp(qp);
+	if (id != -1) {
+		return id;
+	}
+
+	//if the id was equal to -1 then it's not initalized and we need to do the hash lookup
+	//TODO remove the hash table all together its too slow
 	int ret = rte_hash_lookup_data(qp2id_table, &qp, (void **)&return_value);
 	if (ret < 0)
 	{
@@ -321,59 +329,50 @@ void init_reorder_buf(void)
 }
 
 struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	struct Buffer_State bs;
 
-	//Assign to the etc buffer by default
-	bs.id = 0;
-	bs.dequeable = &(ect_qp_dequeuable[bs.id]);
-	bs.head = &(ect_qp_buf_head[bs.id]);
-	bs.tail = &(ect_qp_buf_tail[bs.id]);
-	bs.buf = &(ect_qp_buf[bs.id]);
-	bs.timestamps = &(ect_qp_timestamp[bs.id]);
+	int id = fast_find_id(pkt);
+	if (unlikely(has_mapped_qp == 0) || id == -1) {
+		bs.id = 0;
+		bs.dequeable = &(ect_qp_dequeuable[bs.id]);
+		bs.head = &(ect_qp_buf_head[bs.id]);
+		bs.tail = &(ect_qp_buf_tail[bs.id]);
+		bs.buf = &(ect_qp_buf[bs.id]);
+		bs.timestamps = &(ect_qp_timestamp[bs.id]);
+		return bs;
+	}
 
 	//Find the ID of the packet We are using generic head and tail pointers here
 	//for both directions of queueing.  The memory direction has a queue and so
 	//does the client.  If the requests are arriving out of order in either
 	//direction they will be queued.
 
-	//TODO use qp_id as a shortcut later
-	//for (uint32_t i = 0; i < qp_id_counter; i++)
-	if (unlikely(has_mapped_qp == 0)) {
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	//Assign to the etc buffer by default
+	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
+	{
+		bs.id = Connection_States[id].id;
+		bs.dequeable = &(mem_qp_dequeuable[id]);
+		bs.head = &(mem_qp_buf_head[id]);
+		bs.tail = &(mem_qp_buf_tail[id]);
+		bs.buf = &(mem_qp_buf[id]);
+		bs.timestamps = &(mem_qp_timestamp[id]);
+		return bs;
+	}
+	if (Connection_States[id].receiver_init == 1 && Connection_States[id].stcqp == roce_hdr->dest_qp)
+	{
+		bs.id = Connection_States[id].id;
+		bs.dequeable = &(client_qp_dequeuable[id]);
+		bs.head = &client_qp_buf_head[id];
+		bs.tail = &client_qp_buf_tail[id];
+		bs.buf = &client_qp_buf[id];
+		bs.timestamps = &client_qp_timestamp[id];
 		return bs;
 	}
 
-	for (uint32_t i = 0; i < TOTAL_CLIENTS; i++)
-	{
-		if (Connection_States[i].ctsqp == roce_hdr->dest_qp)
-		{
-			//printf("mem (buf)\n");
-			bs.id = Connection_States[i].id;
-			bs.dequeable = &(mem_qp_dequeuable[bs.id]);
-			bs.head = &(mem_qp_buf_head[bs.id]);
-			bs.tail = &(mem_qp_buf_tail[bs.id]);
-			bs.buf = &(mem_qp_buf[bs.id]);
-			bs.timestamps = &(mem_qp_timestamp[bs.id]);
-			return bs;
-		}
-		if (Connection_States[i].receiver_init == 1 && Connection_States[i].stcqp == roce_hdr->dest_qp)
-		{
-			//printf("client (buf)\n");
-			bs.id = Connection_States[i].id;
-			bs.dequeable = &(client_qp_dequeuable[bs.id]);
-			bs.head = &client_qp_buf_head[bs.id];
-			bs.tail = &client_qp_buf_tail[bs.id];
-			bs.buf = &client_qp_buf[bs.id];
-			bs.timestamps = &client_qp_timestamp[bs.id];
-			return bs;
-		}
-	}
+	printf("something is weird here unable to get the buffer state\n");
+	exit(0);
 
-	/*
-	if(*bs.head == 0) {
-		printf("[id %d] etc head = 0\n",bs.id);
-	}
-	*/
 	return bs;
 }
 
@@ -406,34 +405,10 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 		}
 
 		uint32_t entry = seq % PKT_REORDER_BUF;
-		//Write the packet to the buffer (direction independent)
-		/*
-		if(*bs.buf[entry] != NULL) {
-			printf("[id: %d] we are in serious danger here, the buffer needs expanding PKT_REORDER_BUF = %d\n",bs.id,PKT_REORDER_BUF);
-		}
-		*/
 		(*bs.buf)[entry] = pkt;
 
-		//int64_t ts = timestamp();
 		int64_t ts = pkt_timestamp_not_thread_safe();
-		//printf("Packet Timestamp %"PRId64"\n",ts);
 		(*bs.timestamps)[entry] = ts;
-
-
-		//printf("[TS: %"PRIu64"]",(*bs.timestamps)[entry]);
-		//print_packet_lite(pkt);
-
-		/*
-		if(bs.head == ect_qp_buf_head) {
-				printf("etc head %"PRId64"\n",ts);
-		} else if (bs.head == mem_qp_buf_head) {
-				printf("mem head %"PRId64"\n",ts);
-		} else if (bs.head == client_qp_buf_head) {
-				printf("client head %"PRId64" \n",ts);
-		} else {
-				printf("WAT NO HEAD!\n");
-			}
-		*/
 
 		//On the first call the sequence numbers are going to start somewhere
 		//random. In this case just move the head of the buffer to the current
@@ -443,7 +418,6 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 			//printf("setting head id: %d seq: %d\n",bs.id,seq);
 			*bs.head = (uint64_t)seq;
 		}
-
 
 		if (unlikely(*bs.head > seq)) {
 			printf(
@@ -1192,7 +1166,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 
 	//Key to qp policy
 	
-	if (key != 0)
+	if (likely(key != 0))
 	{
 		n_qp = key_to_qp(key);
 	}
@@ -1200,14 +1174,14 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
-/*
+	/*
 	n_qp = id_to_qp(id);
 	*/
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
 	destination_connection = &Connection_States[fast_find_id_qp(n_qp)];
-	if (destination_connection == NULL)
+	if (unlikely(destination_connection == NULL))
 	{
 		printf("I did not want to end up here\n");
 		return;
@@ -1301,9 +1275,6 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 	return NULL;
 }
 
-
-
-
 struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
 	//printf("Generating Ack\n");
 	struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
@@ -1371,10 +1342,8 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 	struct Request_Map *mapped_request_0 = &(source_connection->Outstanding_Requests[slot_num_0]);
 	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num_1]);
 
-	if (mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST)
+	if (!(mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST))
 	{
-		//printf("write might be followd by a coalesed ack\n");
-	} else {
 		return NULL;
 	}
 
@@ -1482,7 +1451,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		}
 
 
-		sanity_check_mapping(pkt,mapped_request);
+		//sanity_check_mapping(pkt,mapped_request);
 
 		//Set the packety headers to that of the mapped request
 		roce_hdr->dest_qp = mapped_request->server_to_client_qp;

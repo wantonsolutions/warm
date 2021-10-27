@@ -17,14 +17,15 @@ uint32_t get_psn(struct rte_mbuf *pkt)
     return roce_hdr->packet_sequence_number;
 }
 
-uint32_t readable_seq(uint32_t seq)
+inline uint32_t readable_seq(uint32_t seq)
 {
-    return ntohl(seq) / 256;
+    //return ntohl(seq) / 256;
+    return ntohl(seq) >> 8;
 }
 
-uint32_t revert_seq(uint32_t seq)
+inline uint32_t revert_seq(uint32_t seq)
 {
-    return htonl(seq *256);
+    return htonl(seq << 8);
 }
 
 uint32_t check_sums(const char *method, void *known, void *test, int try)
