@@ -53,8 +53,8 @@ static int hash_collisons=0;
 //#define SINGLE_CORE
 #define WRITE_STEER
 #define READ_STEER
-//#define MAP_QP
-//#define CNS_TO_WRITE
+#define MAP_QP
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -927,7 +927,7 @@ uint64_t murmur3(uint64_t k) {
 uint32_t mod_hash(uint64_t vaddr)
 {
 	//uint32_t index = ((uint32_t)crc32(0xFFFFFFFF, &vaddr, 8)) % HASHSPACE;
-	uint32_t index = murmur3(vaddr) % HASHSPACE;
+	uint32_t index = (uint32_t)murmur3(vaddr) % HASHSPACE;
 	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
 	//uint32_t index = (ntohl(vaddr >> 33) % HASHSPACE);
 	//uint64_t value = (ntohl(vaddr >> 42));
@@ -1595,9 +1595,9 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
 				uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 				printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
-				print_packet_lite(pkt);
-				print_packet(pkt);
-				exit(0);
+				//print_packet_lite(pkt);
+				//print_packet(pkt);
+				//exit(0);
 				read_not_cached();
 			}
 		} 
@@ -1852,8 +1852,11 @@ void true_classify(struct rte_mbuf *pkt)
 	catch_ecn(pkt, opcode);
 	catch_nack(clover_header, opcode);
 
-	
+//insert if we are doing read steering, but not qp_mapping.
+//TODO this should exist here reguardless of MAP_QP, 
+//TODO mapqp should depend on read steering and not the other way around	
 #ifdef READ_STEER
+#ifndef MAP_QP
 	if (opcode == RC_READ_REQUEST){
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
@@ -1871,6 +1874,7 @@ void true_classify(struct rte_mbuf *pkt)
 			}
 		}
 	} 
+#endif
 #endif
 
 	if (opcode == RC_WRITE_ONLY)
