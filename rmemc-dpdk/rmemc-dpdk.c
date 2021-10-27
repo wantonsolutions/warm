@@ -53,8 +53,8 @@ static int hash_collisons=0;
 //#define SINGLE_CORE
 #define WRITE_STEER
 #define READ_STEER
-//#define MAP_QP
-//#define CNS_TO_WRITE
+#define MAP_QP
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -957,6 +957,9 @@ void init_connection_states(void)
 	}
 }
 
+//I'm using a bit mixer instead of a hash
+//hashes are slow as AF
+//http://jonkagstrom.com/bit-mixer-construction/
 uint64_t murmur3(uint64_t k) {
   k ^= k >> 33;
   k *= 0xff51afd7ed558ccdull;
