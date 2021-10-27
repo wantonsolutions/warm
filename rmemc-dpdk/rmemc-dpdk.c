@@ -300,6 +300,41 @@ uint8_t mem_qp_dequeuable[TOTAL_ENTRY];
 uint8_t client_qp_dequeuable[TOTAL_ENTRY];
 uint8_t ect_qp_dequeuable[TOTAL_ENTRY];
 
+struct Buffer_State mem_buffer_states[TOTAL_ENTRY];
+struct Buffer_State client_buffer_states[TOTAL_ENTRY];
+struct Buffer_State ect_buffer_states[TOTAL_ENTRY];
+
+void init_buffer_states(void) {
+	for(int i=0;i<TOTAL_ENTRY;i++) {
+		//ect
+		struct Buffer_State * bs = &ect_buffer_states[i];
+		bs->id = i;
+		bs->dequeable = &(ect_qp_dequeuable[i]);
+		bs->head = &(ect_qp_buf_head[i]);
+		bs->tail = &(ect_qp_buf_tail[i]);
+		bs->buf = &(ect_qp_buf[i]);
+		bs->timestamps = &(ect_qp_timestamp[i]);
+
+		//client
+		bs = &client_buffer_states[i];
+		bs->id = i;
+		bs->dequeable = &(client_qp_dequeuable[i]);
+		bs->head = &client_qp_buf_head[i];
+		bs->tail = &client_qp_buf_tail[i];
+		bs->buf = &client_qp_buf[i];
+		bs->timestamps = &client_qp_timestamp[i];
+
+		//memory
+		bs = &mem_buffer_states[i];
+		bs->id = Connection_States[i].id;
+		bs->dequeable = &(mem_qp_dequeuable[i]);
+		bs->head = &(mem_qp_buf_head[i]);
+		bs->tail = &(mem_qp_buf_tail[i]);
+		bs->buf = &(mem_qp_buf[i]);
+		bs->timestamps = &(mem_qp_timestamp[i]);
+	}
+}
+
 void init_reorder_buf(void)
 {
 	printf("initalizing reorder buffs");
@@ -326,7 +361,9 @@ void init_reorder_buf(void)
 			ect_qp_timestamp[i][j] = 0;
 		}
 	}
+	init_buffer_states();
 }
+
 
 struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	struct Buffer_State bs;
@@ -621,10 +658,12 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 
 void copy_eth_addr(uint8_t *src, uint8_t *dst)
 {
-	for (int i = 0; i < 6; i++)
-	{
-		dst[i] = src[i];
-	}
+		dst[0] = src[0];
+		dst[1] = src[1];
+		dst[2] = src[2];
+		dst[3] = src[3];
+		dst[4] = src[4];
+		dst[5] = src[5];
 }
 
 void init_connection_state(struct rte_mbuf *pkt)
@@ -1277,22 +1316,19 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 
 struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
 	//printf("Generating Ack\n");
-	struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
-
-	rte_pktmbuf_append(pkt,ACK_PKT_LEN);
-
-	//do I need to expand the packet here?
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
-	//copy over the template ack (can't remember exactly what this is doing)
-	memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
-
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
 	//struct Request_Map *
 	if (missing_write)
 	{
+		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
+		rte_pktmbuf_append(pkt,ACK_PKT_LEN);
+		//do I need to expand the packet here?
+		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+		rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
 		//copy over the connection state info
 		copy_eth_addr(cs->stc_eth_addr,eth_hdr->s_addr.addr_bytes);
@@ -1413,9 +1449,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	}
 
 	struct Connection_State *source_connection = find_connection(pkt);
-	if (source_connection == NULL)
+	//This packet might not be part of any active connection
+	if (unlikely(source_connection == NULL))
 	{
-		//This packet is not part of an activly mapped connection
 		return mpr;
 	}
 
@@ -1423,7 +1459,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
-	if (mapped_request != NULL)
+	if (likely(mapped_request != NULL))
 	{
 
 		//Itterativly search for coalesed packets
@@ -1432,14 +1468,12 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		struct Request_Map *missing_write = find_missing_write(source_connection, search_sequence_number);
 		while(missing_write) {
 			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
-			//print_packet_lite(coalesed_ack);
 			if (coalesed_ack != NULL) {
 				//Shuffle packets back
 				for(int i=mpr.size;i>0;i--) {
 					mpr.pkts[i] = mpr.pkts[i-1];
 				}
 				mpr.pkts[0] = coalesed_ack;
-				//printf("(gend)");
 				mpr.size++;
 
 				//subtract the sequence number by one and revert it back to roce header format

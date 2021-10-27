@@ -11,7 +11,7 @@
 //#include <zlib.h>
 #include "zlib/zlib.h"
 
-uint32_t get_psn(struct rte_mbuf *pkt)
+inline uint32_t get_psn(struct rte_mbuf *pkt)
 {
     struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
     return roce_hdr->packet_sequence_number;
