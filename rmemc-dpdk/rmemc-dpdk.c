@@ -53,8 +53,8 @@ static int hash_collisons=0;
 //#define SINGLE_CORE
 #define WRITE_STEER
 #define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -73,8 +73,6 @@ rte_rwlock_t qp_init_lock;
 rte_rwlock_t mem_qp_lock;
 
 struct rte_mempool *mbuf_pool_ack;
-
-
 
 struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 {
@@ -550,8 +548,8 @@ void merge_mpr(struct map_packet_response *dest, struct map_packet_response *sou
 		dest->size++;
 	}
 }
-//!TODO STARTY HERE WHEN WE GET BACK FROM LUNCH!!
-void copy_over_mpr_index(struct map_packet_response *dest, struct map_packet_response *source, uint32_t *source_index) {
+
+inline void copy_over_mpr_index(struct map_packet_response *dest, struct map_packet_response *source, uint32_t *source_index) {
 	dest->pkts[dest->size] = source->pkts[*source_index];
 	dest->timestamps[dest->size] = source->timestamps[*source_index];
 	dest->size++;
@@ -582,6 +580,22 @@ void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *
 	copy_from_index(&merged,source,&src_index);
 	dest->size=0;
 	merge_mpr(dest,&merged);
+}
+
+void merge_mpr_ts_2(struct map_packet_response * output, struct map_packet_response *left, struct map_packet_response *right) {
+	uint32_t left_index, right_index;
+	left_index=0;
+	right_index=0;
+
+	while (left_index < left->size && right_index < right->size) {
+		if (left->timestamps[left_index] < right->timestamps[right_index]) {
+			copy_over_mpr_index(output,left,&left_index);
+		} else {
+			copy_over_mpr_index(output,right,&right_index);
+		}
+	}
+	copy_from_index(output,left,&left_index);
+	copy_from_index(output,right,&right_index);
 }
 
 
@@ -645,21 +659,32 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	struct map_packet_response mpr1;
 	struct map_packet_response mpr2;
 	struct map_packet_response mpr3;
+
+	struct map_packet_response output_1;
+	struct map_packet_response output_2;
+
 	//mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
 	//mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
 	//mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
 	mpr1 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,ect_qp_dequeuable,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
 	mpr2 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,mem_qp_dequeuable,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
 	mpr3 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,client_qp_dequeuable,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
-	merge_mpr_ts(&mpr1,&mpr2);
-	merge_mpr_ts(&mpr1,&mpr3);
+	//merge_mpr_ts(&mpr1,&mpr2);
+	//merge_mpr_ts(&mpr1,&mpr3);
+	output_1.size=0;
+	output_2.size=0;
+	merge_mpr_ts_2(&output_1,&mpr1,&mpr2);
+	merge_mpr_ts_2(&output_2,&output_1,&mpr3);
 
 	//printf("sending %d\n",mpr1.size);
 	#ifdef PRINT_PACKET_BUFFERING
 	print_mpr(&mpr1);
 	printf("\n\n\n");
 	#endif
-	rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
+	//rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
+	if (output_2.size > 0) {
+		rte_eth_tx_burst(port, queue, &output_2.pkts, output_2.size);
+	}
 	unlock_mem_qp();
 	return;
 }
@@ -932,9 +957,19 @@ void init_connection_states(void)
 	}
 }
 
+uint64_t murmur3(uint64_t k) {
+  k ^= k >> 33;
+  k *= 0xff51afd7ed558ccdull;
+  k ^= k >> 33;
+  k *= 0xc4ceb9fe1a85ec53ull;
+  k ^= k >> 33;
+  return k;
+}
+
 uint32_t mod_hash(uint64_t vaddr)
 {
-	uint32_t index = ((uint32_t)crc32(0xFFFFFFFF, &vaddr, 8)) % HASHSPACE;
+	//uint32_t index = ((uint32_t)crc32(0xFFFFFFFF, &vaddr, 8)) % HASHSPACE;
+	uint32_t index = murmur3(vaddr) % HASHSPACE;
 	//uint32_t index = ((vaddr >> 36) % HASHSPACE);
 	//uint32_t index = (ntohl(vaddr >> 33) % HASHSPACE);
 	//uint64_t value = (ntohl(vaddr >> 42));
@@ -945,7 +980,7 @@ uint32_t mod_hash(uint64_t vaddr)
 	return index;
 }
 
-void update_read_tail(uint64_t key, uint64_t vaddr) {
+inline void update_read_tail(uint64_t key, uint64_t vaddr) {
 	cached_write_vaddr_mod_latest[key] = vaddr;
 }
 
@@ -1029,26 +1064,18 @@ uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
 
 void steer_read(struct rte_mbuf *pkt, uint32_t key)
 {
-	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr *clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	struct read_request *rr = (struct read_request *)clover_header;
 
 	uint64_t vaddr = get_latest_vaddr(key);
-
 	if (vaddr == 0)
 	{
 		return;
 	}
-
 	//Set the current address to the cached address of the latest write if it is old
 	if (rr->rdma_extended_header.vaddr != vaddr)
 	{
 		rr->rdma_extended_header.vaddr = vaddr;
-		//printf("Re routing key %d for cached index %d\n",key,cache_index);
-		//With the vaddr updated redo the checksum
 		recalculate_rdma_checksum(pkt);
 #ifdef TAKE_MEASUREMENTS
 		read_redirected();
@@ -1324,30 +1351,6 @@ struct Connection_State *find_connection(struct rte_mbuf *pkt)
 		return NULL;
 	}
 	return &Connection_States[id];
-
-	//slow find connection
-	/*
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-
-	//We have very little information on the demultiplex side. We need to search
-	//through the entire list in order to determine if this sequence number was
-	//cached. We don't know the key, or the original sender so we can't do the
-	//reverse lookup. In this case we have to pass over the whole list of
-	//connections, then we have to look through each entry in each connection to
-	//determine if there is an outstanding request.
-	struct Connection_State *source_connection = NULL;
-	for (uint32_t i = 0; i < TOTAL_CLIENTS; i++)
-	{
-		source_connection = &Connection_States[i];
-		if (source_connection->stcqp == roce_hdr->dest_qp && source_connection->ip_addr_client == ipv4_hdr->dst_addr)
-		{
-			break;
-		}
-		source_connection = NULL;
-	}
-	return source_connection;
-	*/
 }
 
 struct Request_Map *find_slot_mod(struct Connection_State *source_connection, struct rte_mbuf *pkt)
@@ -1647,25 +1650,24 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	if (opcode == RC_READ_REQUEST)
 	{
 		int key = 0;
-
 #ifdef READ_STEER
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (size == 1024) {
-			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 			#ifdef TAKE_MEASUREMENTS
 			increment_read_counter();
 			#endif
-			if (key == 0) {
+			if (likely(key != 0)) {
+				steer_read(pkt, key);
+			} else {
+				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
+				uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 				printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
 				print_packet_lite(pkt);
 				print_packet(pkt);
 				exit(0);
 				read_not_cached();
-			} else {
-				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
-				steer_read(pkt, key);
 			}
 		} 
 #endif
@@ -1919,6 +1921,27 @@ void true_classify(struct rte_mbuf *pkt)
 	catch_ecn(pkt, opcode);
 	catch_nack(clover_header, opcode);
 
+	
+#ifdef READ_STEER
+	if (opcode == RC_READ_REQUEST){
+		struct read_request *rr = (struct read_request *)clover_header;
+		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
+		if (size == 1024) {
+			uint32_t key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+			if (likely(key != 0)) {
+				steer_read(pkt, key);
+			} else {
+				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
+				printf("READ MISS %"PRIx64"\n", rr->rdma_extended_header.vaddr);
+				//print_packet_lite(pkt);
+				//print_packet(pkt);
+				//exit(0);
+				//read_not_cached();
+			}
+		}
+	} 
+#endif
+
 	if (opcode == RC_WRITE_ONLY)
 	{
 		if (size == 252 || size == 68)
@@ -1976,14 +1999,6 @@ void true_classify(struct rte_mbuf *pkt)
 				next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
 				outstanding_write_predicts[id][*key] = 1;
 				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-
-				/*
-				#ifdef READ_STEER
-							//TODO SKETCHY!!
-							//update_write_vaddr_cache(key, cs->atomic_req.vaddr);
-							update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
-				#endif
-				*/
 			}
 			else
 			{
@@ -2042,12 +2057,10 @@ void true_classify(struct rte_mbuf *pkt)
 				}
 			}
 			//Return and forward the packet if this is the first cns
-
 			#ifdef READ_STEER
-						//TODO SUS
-						//update_write_vaddr_cache(key, cs->atomic_req.vaddr);
 						update_read_tail(key, *next_vaddr_p);
 			#endif
+
 			unlock_next();
 			return;
 		}
@@ -2524,7 +2537,10 @@ lcore_main(void)
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
 				packet_counter++;
+
+				#ifdef TAKE_MEASUREMENTS
 				sum_processed_data(rx_pkts[i]);
+				#endif
 
 				#ifdef WRITE_STEER
 				true_classify(rx_pkts[i]);
@@ -2560,7 +2576,7 @@ lcore_main(void)
 
 
 			#endif
-			#ifdef SINGLE_CORE
+			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
 			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx,port,queue);
