@@ -364,6 +364,26 @@ void init_reorder_buf(void)
 	init_buffer_states();
 }
 
+struct Buffer_State * get_buffer_state2(struct rte_mbuf *pkt) {
+	int id = fast_find_id(pkt);
+	if (unlikely(has_mapped_qp == 0) || id == -1) {
+		return &ect_buffer_states[0];
+	}
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
+	{
+		return &mem_buffer_states[id];
+	}
+	if (Connection_States[id].stcqp == roce_hdr->dest_qp)
+	{
+		return &client_buffer_states[id];
+	}
+
+	printf("something is weird here unable to get the buffer state\n");
+	exit(0);
+
+}
+
 
 struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	struct Buffer_State bs;
@@ -411,6 +431,84 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	exit(0);
 
 	return bs;
+}
+
+void enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
+
+	struct Buffer_State * buffer_states[BURST_SIZE*BURST_SIZE];
+	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
+	lock_mem_qp();
+
+	lock_qp();
+	//Gather Buffer States
+	//TODO take them as arguments
+	for (uint32_t i=0;i<size;i++) {
+		buffer_states[i] = get_buffer_state2(pkts[i]);
+		struct roce_v2_header *roce_hdr = get_roce_hdr(pkts[i]);
+		sequence_numbers[i] = readable_seq(roce_hdr->packet_sequence_number);
+	}
+	unlock_qp();
+	//Here the buffer states have been collected
+	uint32_t seq;
+	struct Buffer_State *bs;
+	struct rte_mbuf *pkt;
+	for (uint32_t i=0;i<size;i++) {
+
+		seq = sequence_numbers[i];
+		bs = buffer_states[i];
+		pkt = pkts[i];
+
+		//If it's going in the etc buffer then just throw it on fifo
+		if (bs->buf == &ect_qp_buf[bs->id])
+		{
+			seq = *(bs->tail) + 1;
+		}
+
+		//put the packet in the buffer
+		uint32_t entry = seq % PKT_REORDER_BUF;
+		(*bs->buf)[entry] = pkt;
+
+		//atomically timestamp the packet for global ordering
+		int64_t ts = pkt_timestamp_not_thread_safe();
+		(*bs->timestamps)[entry] = ts;
+
+		//On the first call the sequence numbers are going to start somewhere
+		//random. In this case just move the head of the buffer to the current
+		//sequence number
+		if (unlikely(*bs->head == 0))
+		{
+			//printf("setting head id: %d seq: %d\n",bs.id,seq);
+			*bs->head = (uint64_t)seq;
+		}
+
+		if (unlikely(*bs->head > seq)) {
+			/*
+			printf(
+				"This is a really bad situation\n"
+				"we got the initial conditions wrong so enqueue on the first packet\n"
+				"ie *bs.head == 0 did not work, in this case we need to move the head back a bit\n"
+				"the downside here is that if this is some sort of error we will not have contiguous\n"
+				"sequence numbers which could cause knock on proble3ms later\n"
+				"(( MOVING HEAD BACKWARDS!!))\n"
+				"Stewart Grant Oct 11 2021\n"
+				*/
+				*bs->head=seq;
+		}
+
+
+		//If the tail is the new latest sequence number than slide it forward
+		if (likely(*bs->tail < seq))
+		{
+			*bs->tail = seq;
+		}
+
+		if (likely(contiguous_buffered_packets_2(bs))) {
+			*bs->dequeable = 1;
+		} else {
+			*bs->dequeable = 0;
+		}
+	}
+	unlock_mem_qp();
 }
 
 void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
@@ -468,7 +566,7 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 				);
 				printf("ID %d SEQ = %d (ptr %p)\n", bs.id, seq,bs.head);
 				*bs.head=seq;
-				if(!contiguous_buffered_packets_2(bs)) {
+				if(!contiguous_buffered_packets_2(&bs)) {
 					printf("(ERROR) non congiguous after head step back\n");
 				}
 		}
@@ -481,7 +579,7 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 			*bs.tail = seq;
 		}
 
-		if (likely(contiguous_buffered_packets_2(bs))) {
+		if (likely(contiguous_buffered_packets_2(&bs))) {
 			*bs.dequeable = 1;
 		} else {
 			*bs.dequeable = 0;
@@ -490,10 +588,10 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 	unlock_mem_qp();
 }
 
-int contiguous_buffered_packets_2(struct Buffer_State bs) {
-	for (uint32_t i = *bs.head; i <= *bs.tail; i++)
+int contiguous_buffered_packets_2(struct Buffer_State * bs) {
+	for (uint32_t i = *bs->head; i <= *bs->tail; i++)
 	{
-		if((*bs.buf)[i % PKT_REORDER_BUF] == NULL) {
+		if((*bs->buf)[i % PKT_REORDER_BUF] == NULL) {
 			return 0;
 		}
 	}
@@ -958,13 +1056,16 @@ inline void update_read_tail(uint64_t key, uint64_t vaddr) {
 void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 {
 	uint32_t index = mod_hash(vaddr);
+	/*
 	if (cached_write_vaddr_mod[index] != 0) {
 		hash_collisons++;
+		/*
 		if(unlikely(hash_collisons % 1000 == 0)) {
 			printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
 		}
 
 	}
+	*/
 	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
@@ -986,8 +1087,8 @@ int does_read_have_cached_write_mod(uint64_t vaddr)
 	} else if (cached_write_vaddr_mod[index] == 0) {
 		//printf("raw miss on read cache\n");
 	} else {
-		printf("collision miss (search) %"PRIx64" (existing) %"PRIx64"\n",vaddr, cached_write_vaddr_mod[index]);
-		printf("key in that location %"PRIu64"\n",cached_write_vaddr_mod_lookup[index]);
+		//printf("collision miss (search) %"PRIx64" (existing) %"PRIx64"\n",vaddr, cached_write_vaddr_mod[index]);
+		//printf("key in that location %"PRIu64"\n",cached_write_vaddr_mod_lookup[index]);
 	}
 	//printf("\n");
 	return 0;
@@ -1528,18 +1629,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	}
 
 	unlock_connection_state(source_connection);
-	printf("[debug] find and update stc tracebasck on untracked packet\n");
+	//printf("[debug] find and update stc tracebasck on untracked packet\n");
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
 		int packet_msn = get_msn(roce_hdr);
-		if (packet_msn == -1)
-		{
-			printf("How did we get here?\n");
-		}
-
 		//struct Buffer_State	bs = get_buffer_state(pkt);
-		printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
+		//printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
 		recalculate_rdma_checksum(pkt);
 	}
@@ -1597,11 +1693,13 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 			} else {
 				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
 				uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
-				printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
+				//printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
 				//print_packet_lite(pkt);
 				//print_packet(pkt);
 				//exit(0);
+				#ifdef TAKE_MEASUREMENT
 				read_not_cached();
+				#endif
 			}
 		} 
 #endif
@@ -2285,13 +2383,11 @@ void init_fast_find_id(void) {
 }
 
 void populate_fast_find_id(void) {
-	printf("start populate\n");
 	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		set_fast_id(Connection_States[i].ctsqp,i);
 		set_fast_id(Connection_States[i].stcqp,i);
 	}
-	printf("end populate\n");
 }
 
 void print_packet_lite(struct rte_mbuf *buf)
@@ -2517,7 +2613,7 @@ lcore_main(void)
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
-			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx);
+			enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full(port,queue);
 			#endif
 
@@ -2531,9 +2627,9 @@ lcore_main(void)
 			{
 				all_thread_barrier(&thread_barrier);
 				lock_qp();
-				printf("core %d is flipping the switch\n",rte_lcore_id());
+				//printf("core %d is flipping the switch\n",rte_lcore_id());
 				//flip the switch
-				print_first_mapping();
+				//print_first_mapping();
 
 				//start doing fast operations now
 				populate_fast_find_id();

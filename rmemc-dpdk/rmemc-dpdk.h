@@ -255,6 +255,6 @@ void print_mpr(struct map_packet_response* mpr);
 void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source);
 void copy_from_index(struct map_packet_response *dest, struct map_packet_response * source, uint32_t *source_index);
 
-int contiguous_buffered_packets_2(struct Buffer_State bs);
+int contiguous_buffered_packets_2(struct Buffer_State *bs);
 uint64_t pkt_timestamp_not_thread_safe(void);
 #endif
