@@ -41,6 +41,8 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
+#define PKT_REORDER_BUF 1024
+
 //checksum
 
 struct Request_Map
@@ -91,6 +93,16 @@ struct map_packet_response
   uint64_t timestamps[BURST_SIZE*BURST_SIZE];
 } map_packet_response;
 
+
+struct Buffer_State {
+	uint8_t *dequeable;
+	int id;
+	uint64_t *head;
+	uint64_t *tail;
+	struct rte_mbuf *(*buf)[PKT_REORDER_BUF];
+	uint64_t (*timestamps)[PKT_REORDER_BUF];
+} Buffer_State;
+
 //Locking
 void lock_qp(void);
 void unlock_qp(void);
@@ -98,6 +110,10 @@ void lock_mem_qp(void);
 void unlock_mem_qp(void);
 void lock_next(void);
 void unlock_next(void);
+
+void lock_connection_state(struct Connection_State *cs);
+void unlock_connection_state(struct Connection_State *cs);
+
 
 uint32_t check_sums(const char *method, void *known, void *test, int try);
 uint32_t check_sums_wrap(const char *method, void *know, void *test);
@@ -193,7 +209,52 @@ struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt);
 struct rte_ipv4_hdr *get_ipv4_hdr(struct rte_mbuf *pkt);
 struct rte_udp_hdr *get_udp_hdr(struct rte_mbuf *pkt);
 struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt);
+struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt);
 
 
+void create_ack_mem_pool(void);
+void error_switch(void);
+void all_thread_barrier(rte_atomic16_t *barrier);
 
+
+uint64_t murmur3(uint64_t k);
+
+void populate_fast_find_id(void);
+void set_fast_id(uint32_t qp, uint32_t id);
+int fast_find_id_qp(uint32_t qp);
+int fast_find_id(struct rte_mbuf * buf);
+void init_fast_find_id(void);
+
+
+uint32_t id_to_qp(uint32_t id);
+int find_id_qp(uint32_t qp);
+int find_id(struct rte_mbuf *buf);
+
+
+int get_key(struct rte_mbuf *pkt);
+
+void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_request);
+struct Request_Map *find_missing_write(struct Connection_State * source_connection, uint32_t search_sequence_number);
+struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs);
+void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot);
+void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot);
+
+
+void print_cache_population(void);
+uint64_t murmur3(uint64_t k);
+
+struct Buffer_State get_buffer_state(struct rte_mbuf *pkt);
+void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size);
+
+void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue);
+struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list);
+void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *source);
+void merge_mpr_ts_2(struct map_packet_response * output, struct map_packet_response *left, struct map_packet_response *right);
+
+void print_mpr(struct map_packet_response* mpr);
+void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source);
+void copy_from_index(struct map_packet_response *dest, struct map_packet_response * source, uint32_t *source_index);
+
+int contiguous_buffered_packets_2(struct Buffer_State bs);
+uint64_t pkt_timestamp_not_thread_safe(void);
 #endif

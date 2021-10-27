@@ -23,4 +23,9 @@ void kill_signal_handler(int sig);
 void register_handler(void);
 void init_measurements(void);
 
+void stk_trc_handler(int sig);
+void write_in_flight_to_known_file(void);
+void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]);
+uint32_t inverse_rdma_msg_type_index_map(uint8_t opcode);
+uint32_t rdma_msg_type_index_map(uint8_t opcode);
 #endif

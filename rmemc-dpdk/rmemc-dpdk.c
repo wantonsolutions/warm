@@ -53,8 +53,8 @@ static int hash_collisons=0;
 //#define SINGLE_CORE
 #define WRITE_STEER
 #define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -99,7 +99,7 @@ struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 
 struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 {
-	struct roce_v2_hdr *roce_hdr = get_roce_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	return (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
 }
 
@@ -156,12 +156,15 @@ static struct rte_hash_parameters qp2id_params = {
 
 void lock_connection_state(struct Connection_State *cs) {
 	//printf("lock %d\n",cs->id);
+	//just to remove compiler errors
+	cs->id = cs->id;
 	//rte_rwlock_write_lock(&(cs->cs_lock));
 	//rte_smp_mb();
 }
 
 void unlock_connection_state(struct Connection_State *cs) {
 	//printf("unlock %d\n",cs->id);
+	cs->id = cs->id;
 	//rte_rwlock_write_unlock(&(cs->cs_lock));
 	//rte_smp_mb();
 }
@@ -268,7 +271,6 @@ int fully_qp_init(void)
 	return 1;
 }
 
-#define PKT_REORDER_BUF 1024
 struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
 struct rte_mbuf *client_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
 struct rte_mbuf *ect_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
@@ -317,52 +319,6 @@ void init_reorder_buf(void)
 		}
 	}
 }
-
-
-uint32_t seq_counter[TOTAL_ENTRY];
-int track_sequential_receipt(struct rte_mbuf* pkt) {
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	if(!roce_hdr) {
-		return 1;
-	}
-	uint32_t seq = readable_seq(roce_hdr->packet_sequence_number);
-	uint32_t id = fast_find_id(pkt);
-
-	if(id == -1) {
-		return 1;
-	}
-
-//only track response packets
-	if(
-		(roce_hdr->opcode == RC_ATOMIC_ACK) ||
-		(roce_hdr->opcode == RC_ACK) ||
-		(roce_hdr->opcode == RC_READ_RESPONSE)
-	) {
-		//monotonic case
-		if(seq_counter[id] == seq - 1) {
-			seq_counter[id] = seq;
-			return 1;
-		} else {
-			printf("Current Sequence Number %d Last Seq %d (%s) \n",seq,seq_counter[id],ib_print_op(roce_hdr->opcode));
-			if(seq_counter[id] == 0) {
-				seq_counter[id]=seq;
-			}
-			return 0;
-		}
-	} else {
-		printf("opcode %s\n",ib_print_op(roce_hdr->opcode));
-	}
-}
-
-struct Buffer_State {
-	uint8_t *dequeable;
-	int id;
-	uint64_t *head;
-	uint64_t *tail;
-	struct rte_mbuf *(*buf)[PKT_REORDER_BUF];
-	uint64_t (*timestamps)[PKT_REORDER_BUF];
-} Buffer_State;
-
 
 struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
@@ -421,14 +377,14 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	return bs;
 }
 
-void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t port, uint32_t queue) {
+void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
 
 	struct Buffer_State buffer_states[BURST_SIZE*BURST_SIZE];
 	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
 	lock_mem_qp();
 
 	lock_qp();
-	for (int i=0;i<size;i++) {
+	for (uint32_t i=0;i<size;i++) {
 		buffer_states[i] = get_buffer_state(pkts[i]);
 		struct roce_v2_header *roce_hdr = get_roce_hdr(pkts[i]);
 		sequence_numbers[i] = readable_seq(roce_hdr->packet_sequence_number);
@@ -438,7 +394,7 @@ void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size, uint16_t
 	uint32_t seq;
 	struct Buffer_State bs;
 	struct rte_mbuf *pkt;
-	for (int i=0;i<size;i++) {
+	for (uint32_t i=0;i<size;i++) {
 		//set loop locals
 		seq = sequence_numbers[i];
 		bs = buffer_states[i];
@@ -535,14 +491,14 @@ int contiguous_buffered_packets_2(struct Buffer_State bs) {
 
 void print_mpr(struct map_packet_response* mpr) {
 	printf("MPR size: %d\n",mpr->size);
-	for (int i=0;i<mpr->size;i++) {
+	for (uint32_t i=0;i<mpr->size;i++) {
 		printf("[TS: %"PRIu64"]",mpr->timestamps[i]);
 		print_packet_lite(mpr->pkts[i]);
 	}
 }
 
 void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source) {
-	for (int i=0;i<source->size;i++) {
+	for (uint32_t i=0;i<source->size;i++) {
 		dest->pkts[dest->size] = source->pkts[i];
 		dest->timestamps[dest->size] = source->timestamps[i];
 		dest->size++;
@@ -557,14 +513,14 @@ inline void copy_over_mpr_index(struct map_packet_response *dest, struct map_pac
 }
 
 void copy_from_index(struct map_packet_response *dest, struct map_packet_response * source, uint32_t *source_index){
-	for (int i=*source_index;i<source->size;i++){
+	for (uint32_t i=*source_index;i<source->size;i++){
 		copy_over_mpr_index(dest,source,source_index);
 	}
 }
 
 void merge_mpr_ts(struct map_packet_response *dest, struct map_packet_response *source) {
 	struct map_packet_response merged;
-	uint32_t mrg_index, dst_index, src_index;
+	uint32_t dst_index, src_index;
 	dst_index=0;
 	src_index=0;
 	merged.size=0;
@@ -599,7 +555,7 @@ void merge_mpr_ts_2(struct map_packet_response * output, struct map_packet_respo
 }
 
 
-struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uint32_t queue, uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
+struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
 	struct map_packet_response mpr;
 	mpr.pkts[0] = NULL;
 	mpr.size = 0;
@@ -614,8 +570,8 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint16_t port, uin
 
 	//Prep dequeue list
 	uint8_t dequeue_ids[TOTAL_CLIENTS];
-	uint8_t total_dequeue;
-	for (int id=0;id<loop_max;id++) {
+	uint8_t total_dequeue = 0;
+	for (uint32_t id=0;id<loop_max;id++) {
 		if(dequeue_list[id]) {
 			dequeue_ids[total_dequeue]=id;
 			total_dequeue++;
@@ -666,9 +622,9 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	//mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
 	//mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
 	//mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
-	mpr1 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,ect_qp_dequeuable,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
-	mpr2 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,mem_qp_dequeuable,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
-	mpr3 = dequeue_finish_mem_pkt_bulk_merge2(port,queue,client_qp_dequeuable,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
+	mpr1 = dequeue_finish_mem_pkt_bulk_merge2(ect_qp_dequeuable,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
+	mpr2 = dequeue_finish_mem_pkt_bulk_merge2(mem_qp_dequeuable,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
+	mpr3 = dequeue_finish_mem_pkt_bulk_merge2(client_qp_dequeuable,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
 	//merge_mpr_ts(&mpr1,&mpr2);
 	//merge_mpr_ts(&mpr1,&mpr3);
 	output_1.size=0;
@@ -683,7 +639,7 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	#endif
 	//rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
 	if (output_2.size > 0) {
-		rte_eth_tx_burst(port, queue, &output_2.pkts, output_2.size);
+		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&output_2.pkts, output_2.size);
 	}
 	unlock_mem_qp();
 	return;
@@ -921,7 +877,6 @@ static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE];   //outstanding
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
 
-static uint64_t missed_writes = 0;
 static uint64_t overwitten_writes = 0;
 
 uint64_t get_latest_key(uint32_t id)
@@ -1006,26 +961,6 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 	}
 }
 
-void closest_address(uint64_t vaddr) {
-	int64_t closest = 0;
-	int64_t closest_diff = 0xFFFFFFFF;
-	vaddr = be64toh(vaddr);
-	for(int i=0;i<HASHSPACE;i++) {
-		if (cached_write_vaddr_mod[i] == 0) {
-			continue;
-		}
-		int64_t diff = be64toh(cached_write_vaddr_mod[i]) - vaddr;
-		//printf("(diff) %"PRIx64"\n",diff);
-		if (diff < 0) {
-			diff *= -1;
-		}
-		if(diff < closest_diff){
-			closest_diff = diff;
-			closest = be64toh(cached_write_vaddr_mod[i]);
-		}
-	}
-	//printf("Addr: %"PRIx64" Closest %"PRIx64" Diff %"PRIx64"\n",vaddr,closest,closest_diff);
-}
 
 int does_read_have_cached_write_mod(uint64_t vaddr)
 {
@@ -1045,7 +980,7 @@ int does_read_have_cached_write_mod(uint64_t vaddr)
 	return 0;
 }
 
-void print_cache_population() {
+void print_cache_population(void) {
 	int populated = 0;
 	for(int i=0;i<HASHSPACE;i++) {
 		if (cached_write_vaddr_mod[i] != 0) {
@@ -1099,7 +1034,7 @@ int get_key(struct rte_mbuf *pkt) {
 
 	if (roce_hdr->opcode == RC_WRITE_ONLY && size == 1084) {
 
-		struct write_request *wr = (struct wriee_request *)clover_header;
+		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
 		return (int)*key;
 	} else if (roce_hdr->opcode == RC_ATOMIC_ACK || roce_hdr->opcode == RC_CNS) {
@@ -1163,16 +1098,13 @@ struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 	struct Request_Map *slot = &(cs->Outstanding_Requests[slot_num]);
 	if (unlikely(!slot_is_open(slot)))
 	{
-		printf("CLOSED SLOT, this is really bad [overwitten op %s] (#%d)!!\n",ib_print_op(slot->rdma_op),overwitten_writes++);
+		printf("CLOSED SLOT, this is really bad [overwitten op %s] (#%"PRIu64")!!\n",ib_print_op(slot->rdma_op),overwitten_writes++);
 		open_slot(slot);
 	}
 	return slot;
 }
 
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
-
-	static int print_counter;
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
@@ -1203,7 +1135,6 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 }
 
 void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot) {
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
@@ -1213,7 +1144,6 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 		//printf("converting missing ack to atomic-ack\n");
 		//printf("converting write-ack to cns-ack\n");
 		struct cs_response *cs = (struct cs_response *)clover_header;
-		struct rdma_ack *ack = (struct rdma_ack *)clover_header;
 		if(roce_hdr->opcode != RC_ACK) {
 			printf("This was a safty check, we should not reach here with CNS_TO_WRITE turned on");
 		}
@@ -1252,7 +1182,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
-	uint32_t r_qp = roce_hdr->dest_qp;
+	//uint32_t r_qp = roce_hdr->dest_qp;
 	//uint32_t id = fast_find_id(pkt);
 	uint32_t id = fast_find_id(pkt);
 	uint32_t n_qp = 0;
@@ -1450,12 +1380,10 @@ struct Request_Map *find_missing_write(struct Connection_State * source_connecti
 
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
 	{
-		//printf("[id %d] Found the write that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
 	{
-		//printf("[id %d] Found the cns   that was missing an ack... %d\n",mapped_request_1->id, missed_writes++);
 		return mapped_request_1;
 	}
 	return NULL;
@@ -1751,7 +1679,7 @@ int should_track(struct rte_mbuf *pkt)
 	{
 		//printf("GENERAL RC ATOMIC_ACK\n");
 		//print_packet(pkt);
-		struct cs_response * cs = (struct cs_response *) get_clover_hdr(pkt);
+		//struct cs_response * cs = (struct cs_response *) get_clover_hdr(pkt);
 		//print_cs_request(&cs);
 		//printf("%"PRIu64" ,_original data\n",cs->atomc_ack_extended.original_remote_data);
 		return 1;
@@ -2474,7 +2402,7 @@ rte_atomic16_t thread_barrier2;
 void all_thread_barrier(rte_atomic16_t *barrier) {
 	printf("stalling on thread %d\n",rte_lcore_id());
 	rte_atomic16_add(barrier,1);
-	while(barrier->cnt < rte_lcore_count()) {}
+	while(barrier->cnt < (int16_t)rte_lcore_count()) {}
 }
 
 /*
@@ -2582,7 +2510,7 @@ lcore_main(void)
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
-			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx,port,queue);
+			enqueue_finish_mem_pkt_bulk(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full(port,queue);
 			#endif
 
@@ -2630,7 +2558,7 @@ void fork_lcores(void)
 	}
 }
 
-void error_switch() {
+void error_switch(void) {
 	switch (rte_errno) {
 		case E_RTE_NO_CONFIG:
 			printf("no config\n");
@@ -2663,7 +2591,6 @@ void create_ack_mem_pool(void) {
 	#define ACK_CACHE_SIZE 64
 	mbuf_pool_ack = rte_pktmbuf_pool_create("MBUF_POOL_ACK", ACK_POOL_SIZE,
 										ACK_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-
 
 	printf("ack create error %d\n",rte_errno);
 	error_switch();
@@ -2726,7 +2653,6 @@ int main(int argc, char *argv[])
 		bzero(outstanding_write_predicts, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
-		bzero(seq_counter, TOTAL_ENTRY *sizeof(uint32_t));
 
 #ifdef TAKE_MEASUREMENTS
 		init_measurements();
