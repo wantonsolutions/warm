@@ -663,6 +663,63 @@ void merge_mpr_ts_2(struct map_packet_response * output, struct map_packet_respo
 	copy_from_index(output,right,&right_index);
 }
 
+//TODO start here tomorrow I'm trying to take an array of buffer states in as an arguement so that I don't need to loop
+/*
+struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_States *states[TOTAL_ENTRY]) {
+	struct map_packet_response mpr;
+	mpr.pkts[0] = NULL;
+	mpr.size = 0;
+	uint32_t loop_max;
+
+
+	if (id_buf == ect_qp_buf) {
+		loop_max = 1;
+	} else {
+		loop_max = TOTAL_CLIENTS;
+	}
+
+	//Prep dequeue list
+	uint8_t dequeue_ids[TOTAL_CLIENTS];
+	uint8_t total_dequeue = 0;
+	for (uint32_t id=0;id<loop_max;id++) {
+		if(dequeue_list[id]) {
+			dequeue_ids[total_dequeue]=id;
+			total_dequeue++;
+		}
+	}
+
+	struct Buffer_State bs;
+	struct map_packet_response mpr_sub;
+	for (int i=0;i<total_dequeue;i++) {
+		uint32_t id = dequeue_ids[i];
+		if(dequeue_list[id]) {
+			//Small list for the individual dequeue
+			mpr_sub.size = 0;
+
+			bs.head = &head_list[id];
+			bs.tail = &tail_list[id];
+			bs.buf = &id_buf[id];
+			bs.timestamps = &id_timestamps[id];
+
+			//printf("dequeue loop\n");
+			while (*bs.head <= *bs.tail)
+			{
+				//printf("loop\n");
+				struct rte_mbuf *s_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
+				uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
+				mpr_sub.pkts[mpr_sub.size]=s_pkt;
+				mpr_sub.timestamps[mpr_sub.size]=ts;
+				mpr_sub.size++;
+				(*bs.buf)[*bs.head % PKT_REORDER_BUF] = NULL;
+				*bs.head += 1;
+			}
+			merge_mpr_ts(&mpr,&mpr_sub);
+			dequeue_list[id]=0;
+		}
+	}
+	return mpr;
+}
+*/
 
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
 	struct map_packet_response mpr;
