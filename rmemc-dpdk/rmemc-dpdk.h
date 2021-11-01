@@ -103,6 +103,13 @@ struct Buffer_State {
 	uint64_t (*timestamps)[PKT_REORDER_BUF];
 } Buffer_State;
 
+struct Buffer_State_Tracker 
+{
+	uint32_t size;
+	struct Buffer_State *buffer_states[BURST_SIZE * BURST_SIZE];
+} Buffer_State_Tracker;
+
+
 //Locking
 void lock_qp(void);
 void unlock_qp(void);

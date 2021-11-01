@@ -195,7 +195,7 @@ uint32_t id_qp[TOTAL_ENTRY];
 uint32_t key_to_qp(uint64_t key)
 {
 	//int qp = 8;
-	int qp = 1;
+	int qp = TOTAL_CLIENTS;
 	//uint32_t index = (key) % TOTAL_CLIENTS;
 	uint32_t index = (key) % qp;
 	return id_qp[index];
@@ -433,11 +433,15 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 	return bs;
 }
 
-void enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
+
+struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 
 	struct Buffer_State * buffer_states[BURST_SIZE*BURST_SIZE];
 	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
 	lock_mem_qp();
+
+	struct Buffer_State_Tracker bst;
+	bst.size=0;
 
 	lock_qp();
 	//Gather Buffer States
@@ -467,6 +471,10 @@ void enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 		//put the packet in the buffer
 		uint32_t entry = seq % PKT_REORDER_BUF;
 		(*bs->buf)[entry] = pkt;
+
+		//Do the buffer state thing
+		bst.buffer_states[bst.size] = bs;
+		bst.size++;
 
 		//atomically timestamp the packet for global ordering
 		int64_t ts = pkt_timestamp_not_thread_safe();
@@ -507,8 +515,11 @@ void enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 		} else {
 			*bs->dequeable = 0;
 		}
+
 	}
 	unlock_mem_qp();
+
+	return bst;
 }
 
 void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
@@ -776,6 +787,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint8_t *dequeue_l
 	return mpr;
 }
 
+
 void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 	lock_mem_qp();
 	struct map_packet_response mpr1;
@@ -808,6 +820,62 @@ void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&output_2.pkts, output_2.size);
 	}
 	unlock_mem_qp();
+	return;
+}
+
+struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
+	//printf("Starting %s\n",__FUNCTION__);
+	struct map_packet_response mpr;
+	mpr.pkts[0] = NULL;
+	mpr.size = 0;
+
+	for (int i=0;i<bst->size;i++) {
+		struct Buffer_State *bs = bst->buffer_states[i];
+		if (unlikely(!(*bs->dequeable))) {
+			continue;
+		} else {
+			//only dequeue once
+			*bs->dequeable = 0;
+		}
+		//printf("bs.id %d\n",bs->id);
+
+		while (*bs->head <= *bs->tail)
+		{
+			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
+			if(s_pkt == NULL) {
+				printf("wtf it's null head = %d\n",*bs->head);
+			}
+			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
+			mpr.pkts[mpr.size]=s_pkt;
+			mpr.timestamps[mpr.size]=ts;
+			mpr.size++;
+			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
+			*bs->head += 1;
+			//printf("+1\n");
+		}
+		//merge here if everything breaks
+	}
+	//printf("ENDING %s\n",__FUNCTION__);
+	return mpr;
+}
+
+void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
+	//printf("Starting %s\n",__FUNCTION__);
+	lock_mem_qp();
+	struct map_packet_response mpr = dequeue_finish_mem_pkt_bulk_merge3(bst);
+	//printf("sending %d\n",mpr1.size);
+	#ifdef PRINT_PACKET_BUFFERING
+	print_mpr(&mpr1);
+	printf("\n\n\n");
+	#endif
+	//rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
+	//printf("burst_start size %d\n",mpr.size);
+	if (mpr.size > 0) {
+		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+	}
+	//printf("burst_end\n");
+	unlock_mem_qp();
+	//printf("ENDING %s\n",__FUNCTION__);
 	return;
 }
 
@@ -1177,7 +1245,7 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key)
 	struct read_request *rr = (struct read_request *)clover_header;
 
 	uint64_t vaddr = get_latest_vaddr(key);
-	if (vaddr == 0)
+	if (unlikely(vaddr == 0))
 	{
 		return;
 	}
@@ -1622,7 +1690,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 		//Itterativly search for coalesed packets
 		//TODO move this to it's own function
-		uint32_t search_sequence_number = get_psn(pkt);
+		uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 		struct Request_Map *missing_write = find_missing_write(source_connection, search_sequence_number);
 		while(missing_write) {
 			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
@@ -1712,14 +1780,18 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr *clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp = roce_hdr->dest_qp;
+
+	if (qp_is_mapped(r_qp) == 0)
+	{
+		//This is not a packet we should map forward
+		return mpr;
+	}
 
 	//backward path requires little checking
 	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE)
@@ -1728,11 +1800,6 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-	if (qp_is_mapped(r_qp) == 0)
-	{
-		//This is not a packet we should map forward
-		return mpr;
-	}
 
 	if (opcode == RC_READ_REQUEST)
 	{
@@ -1782,7 +1849,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 
 		Jun 15 2021 - Stewart Grant
 		*/
-		if (size == 68)
+		if (unlikely(size == 68))
 		{
 			uint32_t id = get_id(roce_hdr->dest_qp);
 			*key = get_latest_key(id);
@@ -1835,11 +1902,6 @@ int should_track(struct rte_mbuf *pkt)
 	}
 	if (opcode == RC_ATOMIC_ACK)
 	{
-		//printf("GENERAL RC ATOMIC_ACK\n");
-		//print_packet(pkt);
-		//struct cs_response * cs = (struct cs_response *) get_clover_hdr(pkt);
-		//print_cs_request(&cs);
-		//printf("%"PRIu64" ,_original data\n",cs->atomc_ack_extended.original_remote_data);
 		return 1;
 	}
 	if (size == 72 && opcode == RC_CNS)
@@ -1851,33 +1913,20 @@ int should_track(struct rte_mbuf *pkt)
 
 void track_qp(struct rte_mbuf *pkt)
 {
-	if (!should_track(pkt))
-	{
-		return;
-	}
 	//Return if not mapping QP !!!THIS FEATURE SHOULD TURN ON AND OFF EASILY!!!
 	if (likely(has_mapped_qp != 0))
 	{
 		return;
 	}
 
-
-	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-
-	/*
-	if (unlikely(roce_hdr->opcode == RC_WRITE_ONLY && fully_qp_init()))
+	if (!should_track(pkt))
 	{
-		//flip the switch
-		print_first_mapping();
-		lock_qp();
-		has_mapped_qp = 1;
-		unlock_qp();
 		return;
 	}
-	*/
+
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+
 
 	switch (roce_hdr->opcode)
 	{
@@ -1997,18 +2046,17 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode)
 void true_classify(struct rte_mbuf *pkt)
 {
 	//void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
-	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-	struct clover_hdr *clover_header = (struct clover_hdr *)((uint8_t *)roce_hdr + sizeof(roce_v2_header));
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
 	uint32_t size = ntohs(ipv4_hdr->total_length);
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp = roce_hdr->dest_qp;
 
-	catch_ecn(pkt, opcode);
-	catch_nack(clover_header, opcode);
+	//catch_ecn(pkt, opcode);
+	//catch_nack(clover_header, opcode);
 
 //insert if we are doing read steering, but not qp_mapping.
 //TODO this should exist here reguardless of MAP_QP, 
@@ -2024,7 +2072,7 @@ void true_classify(struct rte_mbuf *pkt)
 				steer_read(pkt, key);
 			} else {
 				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
-				printf("READ MISS %"PRIx64"\n", rr->rdma_extended_header.vaddr);
+				//printf("READ MISS %"PRIx64"\n", rr->rdma_extended_header.vaddr);
 				//print_packet_lite(pkt);
 				//print_packet(pkt);
 				//exit(0);
@@ -2054,7 +2102,7 @@ void true_classify(struct rte_mbuf *pkt)
 
 		//Experimentatiopn for working with restricted cache keyspaces. Return
 		//from here if the key is out of the cache range.
-		if (*key > CACHE_KEYSPACE)
+		if (unlikely(*key > CACHE_KEYSPACE))
 		{
 			unlock_next();
 			return;
@@ -2068,7 +2116,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//Write 0;
 		//Write 1;
 		//Cn wNS 1 (write 1 - > write 2)
-		if (first_write[*key] != 0 && first_cns[*key] != 0)
+		if (likely(first_write[*key] != 0 && first_cns[*key] != 0))
 		{
 			predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
 			outstanding_write_predicts[id][*key] = predict_address[*key];
@@ -2132,7 +2180,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//This is the first time we are seeking this key. We can't make a
 		//prediction for it so we are just going to store the address so that we
 		//can use is as an offset for performing redirections later.
-		if (*first_cns_p == 0)
+		if (unlikely(*first_cns_p == 0))
 		{
 			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
 			*first_cns_p = swap;
@@ -2670,8 +2718,8 @@ lcore_main(void)
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
-			enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
-			dequeue_finish_mem_pkt_bulk_full(port,queue);
+			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
+			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
 			#endif
 
 			#ifdef TAKE_MEASUREMENTS
