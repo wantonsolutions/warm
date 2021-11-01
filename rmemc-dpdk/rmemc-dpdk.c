@@ -140,7 +140,7 @@ void unlock_next(void)
 }
 
 uint64_t pkt_timestamp_monotonic=0;
-uint64_t pkt_timestamp_not_thread_safe(void)
+inline uint64_t pkt_timestamp_not_thread_safe(void)
 {
 	return pkt_timestamp_monotonic++;
 }
@@ -485,22 +485,12 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		//sequence number
 		if (unlikely(*bs->head == 0))
 		{
-			//printf("setting head id: %d seq: %d\n",bs.id,seq);
 			*bs->head = (uint64_t)seq;
+
 		}
 
 		if (unlikely(*bs->head > seq)) {
-			/*
-			printf(
-				"This is a really bad situation\n"
-				"we got the initial conditions wrong so enqueue on the first packet\n"
-				"ie *bs.head == 0 did not work, in this case we need to move the head back a bit\n"
-				"the downside here is that if this is some sort of error we will not have contiguous\n"
-				"sequence numbers which could cause knock on proble3ms later\n"
-				"(( MOVING HEAD BACKWARDS!!))\n"
-				"Stewart Grant Oct 11 2021\n"
-				*/
-				*bs->head=seq;
+			*bs->head=seq;
 		}
 
 
