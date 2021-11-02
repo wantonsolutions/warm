@@ -57,7 +57,7 @@ static int hash_collisons=0;
 
 //#define SINGLE_CORE
 #define WRITE_STEER
-//#define READ_STEER
+#define READ_STEER
 //#define MAP_QP
 //#define CNS_TO_WRITE
 
