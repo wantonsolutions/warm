@@ -53,11 +53,13 @@ static int has_mapped_qp = 0;
 static int packet_counter = 0;
 static int hash_collisons=0;
 
+#define MULTI_CORE
+
 //#define SINGLE_CORE
 #define WRITE_STEER
-#define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define READ_STEER
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -131,16 +133,18 @@ void unlock_mem_qp(void)
 	//rte_smp_mb();
 }
 
-void lock_next(void)
+void lock_write_steering(void)
 {
-	//rte_rwlock_write_lock(&next_lock);
-	//rte_smp_mb();
+	#ifdef MULTI_CORE
+	rte_rwlock_write_lock(&next_lock);
+	#endif
 }
 
-void unlock_next(void)
+void unlock_write_steering(void)
 {
-	//rte_rwlock_write_unlock(&next_lock);
-	//rte_smp_mb();
+	#ifdef MULTI_CORE
+	rte_rwlock_write_unlock(&next_lock);
+	#endif
 }
 
 uint64_t pkt_timestamp_monotonic=0;
@@ -1953,7 +1957,7 @@ void true_classify(struct rte_mbuf *pkt)
 		{
 			return;
 		}
-		lock_next();
+		lock_write_steering();
 
 		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
@@ -1968,7 +1972,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//from here if the key is out of the cache range.
 		if (unlikely(*key > CACHE_KEYSPACE))
 		{
-			unlock_next();
+			unlock_write_steering();
 			return;
 		}
 
@@ -2013,12 +2017,12 @@ void true_classify(struct rte_mbuf *pkt)
 			}
 		}
 
-		unlock_next();
+		unlock_write_steering();
 	}
 
 	if (size == 72 && opcode == RC_CNS)
 	{
-		lock_next();
+		lock_write_steering();
 
 
 		//Find value of the clover pointer. This is the value we are going to potentially swap out.
@@ -2037,7 +2041,7 @@ void true_classify(struct rte_mbuf *pkt)
 		if (key > CACHE_KEYSPACE)
 		{
 			//this key is not being tracked, return
-			unlock_next();
+			unlock_write_steering();
 			return;
 		}
 
@@ -2066,7 +2070,7 @@ void true_classify(struct rte_mbuf *pkt)
 						update_read_tail(key, *next_vaddr_p);
 			#endif
 
-			unlock_next();
+			unlock_write_steering();
 			return;
 		}
 
@@ -2143,7 +2147,7 @@ void true_classify(struct rte_mbuf *pkt)
 			print_packet(pkt);
 			exit(0);
 		}
-		unlock_next();
+		unlock_write_steering();
 	}
 	return;
 }
