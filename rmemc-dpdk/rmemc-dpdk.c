@@ -1938,14 +1938,7 @@ void true_classify(struct rte_mbuf *pkt)
 			uint32_t key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 			if (likely(key != 0)) {
 				steer_read(pkt, key);
-			} else {
-				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
-				//printf("READ MISS %"PRIx64"\n", rr->rdma_extended_header.vaddr);
-				//print_packet_lite(pkt);
-				//print_packet(pkt);
-				//exit(0);
-				//read_not_cached();
-			}
+			} 
 		}
 	} 
 #endif
@@ -2055,8 +2048,7 @@ void true_classify(struct rte_mbuf *pkt)
 			*first_write_p = *outstanding_write_vaddr_p;
 			*next_vaddr_p = *outstanding_write_vaddr_p;
 
-			// TODO TOTAL ENTRY is overkill here 
-			for (uint i = 0; i < TOTAL_ENTRY; i++)
+			for (uint i = 0; i < TOTAL_CLIENTS; i++)
 			{
 				if (outstanding_write_predicts[i][key] == 1)
 				{
@@ -2067,7 +2059,7 @@ void true_classify(struct rte_mbuf *pkt)
 			}
 			//Return and forward the packet if this is the first cns
 			#ifdef READ_STEER
-						update_read_tail(key, *next_vaddr_p);
+			update_read_tail(key, *next_vaddr_p);
 			#endif
 
 			unlock_write_steering();
@@ -2159,7 +2151,8 @@ static const struct rte_eth_conf port_conf_default = {
 };
 
 #define RSS_HASH_KEY_LENGTH 40				// for mlx5
-uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+//uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
 	0x6D,
@@ -2238,6 +2231,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	if (nb_rxq > 1)
 	{
 		//STW: use sym_hash_key for RSS
+		printf("Configuring RSS for a total of %d cores\n",core_count);
 		port_conf.rx_adv_conf.rss_conf.rss_key = sym_hash_key;
 		port_conf.rx_adv_conf.rss_conf.rss_key_len = RSS_HASH_KEY_LENGTH;
 		port_conf.rx_adv_conf.rss_conf.rss_hf =
@@ -2248,8 +2242,10 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		port_conf.rx_adv_conf.rss_conf.rss_key = NULL;
 		port_conf.rx_adv_conf.rss_conf.rss_hf = 0;
 	}
+
 	if (port_conf.rx_adv_conf.rss_conf.rss_hf != 0)
 	{
+		printf("configuring multi queue rss ETH_MQ_RX_RSS\n");
 		port_conf.rxmode.mq_mode = (enum rte_eth_rx_mq_mode)ETH_MQ_RX_RSS;
 	}
 	else
@@ -2521,6 +2517,8 @@ lcore_main(void)
 	printf("Keyspace %d\n", KEYSPACE);
 
 	/* Run until the application is quit or killed. */
+
+	uint64_t lcore_pkt_count = 0;
 	for (;;)
 	{
 		/*
@@ -2542,6 +2540,7 @@ lcore_main(void)
 			//}
 
 
+
 			if (unlikely(nb_rx == 0))
 				continue;
 
@@ -2549,11 +2548,16 @@ lcore_main(void)
 			#define PRINT_COUNT 10000
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
+
+				if(unlikely(lcore_pkt_count++%1000000 == 0)) {
+					printf("[Core %d] Pkts %"PRIu64"\n",rte_lcore_id(),lcore_pkt_count);
+				}
+
 				if (likely(i < nb_rx - 1))
 				{
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
-				packet_counter++;
+				//packet_counter++;
 
 				#ifdef TAKE_MEASUREMENTS
 				sum_processed_data(rx_pkts[i]);
