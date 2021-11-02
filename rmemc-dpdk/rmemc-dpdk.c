@@ -38,11 +38,14 @@
 #define KEYSPACE 1024
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
+
+
 int MOD_SLOT = 1;
 
 //#define DATA_PATH_PRINT
 //#define MAP_PRINT
 #define CATCH_ECN
+#define DEQUEUE_CHECKSUM
 
 uint32_t debug_start_printing_every_packet = 0;
 
@@ -691,6 +694,19 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	print_mpr(&mpr1);
 	printf("\n\n\n");
 	#endif
+
+	#ifdef DEQUEUE_CHECKSUM
+	for (int i=0;i<mpr.size;i++) {
+		if (likely(i < mpr.size - 1))
+		{
+			rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[i + 1], void *));
+		}
+		if(packet_is_marked(mpr.pkts[i])) {
+			recalculate_rdma_checksum(mpr.pkts[i]);
+		}
+	}
+	#endif
+
 	if (mpr.size > 0) {
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 	}
@@ -1072,7 +1088,16 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key)
 	if (rr->rdma_extended_header.vaddr != vaddr)
 	{
 		rr->rdma_extended_header.vaddr = vaddr;
-		recalculate_rdma_checksum(pkt);
+		#ifdef MAP_QP
+			#ifdef DEQUEUE_CHECKSUM
+			mark_pkt_rdma_checksum(pkt);
+			#else
+			recalculate_rdma_checksum(pkt);
+			#endif
+			#else
+			recalculate_rdma_checksum(pkt);
+		#endif
+		//recalculate_rdma_checksum(pkt);
 #ifdef TAKE_MEASUREMENTS
 		read_redirected();
 #endif
@@ -1223,12 +1248,6 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 
 
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
-		//printf("CNS - forward\n");
-		//TODO remove the this part
-		//ipv4_hdr->hdr_checksum = 0;
-		//ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-		//recalculate_rdma_checksum(pkt);
-		//print_packet(pkt);
 	} 
 	
 }
@@ -1331,7 +1350,12 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//checksumming
 	ipv4_hdr->hdr_checksum = 0;
 	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
+	#ifdef DEQUEUE_CHECKSUM
+	mark_pkt_rdma_checksum(pkt);
+	#else
 	recalculate_rdma_checksum(pkt);
+	#endif
 }
 
 struct Connection_State *find_connection(struct rte_mbuf *pkt)
@@ -1407,7 +1431,13 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 		//Ip mapping recalculate the ip checksum
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
+		#ifdef DEQUEUE_CHECKSUM
+		mark_pkt_rdma_checksum(pkt);
+		#else
 		recalculate_rdma_checksum(pkt);
+		#endif
+
 
 		//print_packet(pkt);
 
@@ -1565,7 +1595,15 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//Ip mapping recalculate the ip checksum
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
+		#ifdef DEQUEUE_CHECKSUM
+		mark_pkt_rdma_checksum(pkt);
+		#else
 		recalculate_rdma_checksum(pkt);
+		#endif
+
+
+		
 		open_slot(mapped_request);
 		unlock_connection_state(source_connection);
 
@@ -1581,7 +1619,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//struct Buffer_State	bs = get_buffer_state(pkt);
 		//printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
+
+		#ifdef DEQUEUE_CHECKSUM
+		mark_pkt_rdma_checksum(pkt);
+		#else
 		recalculate_rdma_checksum(pkt);
+		#endif
+		//recalculate_rdma_checksum(pkt);
 	}
 	return mpr;
 }
@@ -2035,7 +2079,17 @@ void true_classify(struct rte_mbuf *pkt)
 		if (*next_vaddr_p != cs->atomic_req.vaddr)
 		{
 			cs->atomic_req.vaddr = *next_vaddr_p; //We can add this once we can predict with confidence
-			recalculate_rdma_checksum(pkt);
+
+			#ifdef MAP_QP
+				#ifdef DEQUEUE_CHECKSUM
+				mark_pkt_rdma_checksum(pkt);
+				#else
+				recalculate_rdma_checksum(pkt);
+				#endif
+				#else
+				recalculate_rdma_checksum(pkt);
+			#endif
+
 		}
 
 		//given that a cns has been determined move the next address for this
