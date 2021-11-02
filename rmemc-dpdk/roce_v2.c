@@ -8,6 +8,7 @@
 
 #include "rmemc-dpdk.h"
 #include <rte_hash_crc.h>
+//#include "crc32_gold.c"
 //#include <zlib.h>
 #include "zlib/zlib.h"
 
@@ -95,8 +96,13 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
     ulong crc;
     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
 
+    //uint32_t crc2= option_13_golden_intel(start,len,crcstart) & 0xFFFFFFFF;
+    //uint32_t crc3= option_13_golden_intel(start,len,crcstart);
+    //uint32_t crc4= ippsCRC32_8u(start,len,crcstart);
+        //const void* M, uint32_t bytes, uint32_t prev/* = 0*/)
+
     //ulong crc_2 = rte_hash_crc(start,len,(uint32_t)crcstart) & 0xFFFFFFFF;
-    //printf("crc %x crc2 %x\n",crc,crc_2);
+   // printf("crc %x crc2 %x crc3 %x\n",crc,crc2,crc3);
 
     //Restore header values post masking
     ipv4_hdr->time_to_live = ttl;
@@ -114,6 +120,13 @@ void recalculate_rdma_checksum(struct rte_mbuf *pkt)
 {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
     uint32_t crc_check = csum_pkt_fast(pkt); //This need to be added before we can validate packets
+    void *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+    rte_memcpy(current_checksum, &crc_check, 4);
+}
+
+inline void mark_pkt_rdma_checksum(struct rte_mbuf *pkt) {
+    struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+    uint32_t crc_check = 0;
     void *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
     rte_memcpy(current_checksum, &crc_check, 4);
 }

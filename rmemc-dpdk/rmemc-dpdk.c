@@ -78,6 +78,7 @@ struct rte_mempool *mbuf_pool_ack;
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
+
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 {
 	return rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -436,30 +437,18 @@ struct Buffer_State get_buffer_state(struct rte_mbuf *pkt) {
 
 struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 
-	struct Buffer_State * buffer_states[BURST_SIZE*BURST_SIZE];
-	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
-	lock_mem_qp();
-
 	struct Buffer_State_Tracker bst;
 	bst.size=0;
 
-	lock_qp();
-	//Gather Buffer States
-	//TODO take them as arguments
-	for (uint32_t i=0;i<size;i++) {
-		buffer_states[i] = get_buffer_state2(pkts[i]);
-		struct roce_v2_header *roce_hdr = get_roce_hdr(pkts[i]);
-		sequence_numbers[i] = readable_seq(roce_hdr->packet_sequence_number);
-	}
-	unlock_qp();
 	//Here the buffer states have been collected
-	uint32_t seq;
+	uint64_t seq;
 	struct Buffer_State *bs;
 	struct rte_mbuf *pkt;
+
 	for (uint32_t i=0;i<size;i++) {
 
-		seq = sequence_numbers[i];
-		bs = buffer_states[i];
+		bs = get_buffer_state2(pkts[i]);
+		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
 		//If it's going in the etc buffer then just throw it on fifo
@@ -485,8 +474,7 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		//sequence number
 		if (unlikely(*bs->head == 0))
 		{
-			*bs->head = (uint64_t)seq;
-
+			*bs->head = seq;
 		}
 
 		if (unlikely(*bs->head > seq)) {
@@ -500,14 +488,16 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 			*bs->tail = seq;
 		}
 
-		if (likely(contiguous_buffered_packets_2(bs))) {
+		if(likely(*bs->head == *bs->tail)) {
 			*bs->dequeable = 1;
 		} else {
-			*bs->dequeable = 0;
+			if (likely(contiguous_buffered_packets_2(bs))) {
+				*bs->dequeable = 1;
+			} else {
+				*bs->dequeable = 0;
+			}
 		}
-
 	}
-	unlock_mem_qp();
 
 	return bst;
 }
@@ -664,154 +654,6 @@ void merge_mpr_ts_2(struct map_packet_response * output, struct map_packet_respo
 	copy_from_index(output,right,&right_index);
 }
 
-//TODO start here tomorrow I'm trying to take an array of buffer states in as an arguement so that I don't need to loop
-/*
-struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_States *states[TOTAL_ENTRY]) {
-	struct map_packet_response mpr;
-	mpr.pkts[0] = NULL;
-	mpr.size = 0;
-	uint32_t loop_max;
-
-
-	if (id_buf == ect_qp_buf) {
-		loop_max = 1;
-	} else {
-		loop_max = TOTAL_CLIENTS;
-	}
-
-	//Prep dequeue list
-	uint8_t dequeue_ids[TOTAL_CLIENTS];
-	uint8_t total_dequeue = 0;
-	for (uint32_t id=0;id<loop_max;id++) {
-		if(dequeue_list[id]) {
-			dequeue_ids[total_dequeue]=id;
-			total_dequeue++;
-		}
-	}
-
-	struct Buffer_State bs;
-	struct map_packet_response mpr_sub;
-	for (int i=0;i<total_dequeue;i++) {
-		uint32_t id = dequeue_ids[i];
-		if(dequeue_list[id]) {
-			//Small list for the individual dequeue
-			mpr_sub.size = 0;
-
-			bs.head = &head_list[id];
-			bs.tail = &tail_list[id];
-			bs.buf = &id_buf[id];
-			bs.timestamps = &id_timestamps[id];
-
-			//printf("dequeue loop\n");
-			while (*bs.head <= *bs.tail)
-			{
-				//printf("loop\n");
-				struct rte_mbuf *s_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
-				uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
-				mpr_sub.pkts[mpr_sub.size]=s_pkt;
-				mpr_sub.timestamps[mpr_sub.size]=ts;
-				mpr_sub.size++;
-				(*bs.buf)[*bs.head % PKT_REORDER_BUF] = NULL;
-				*bs.head += 1;
-			}
-			merge_mpr_ts(&mpr,&mpr_sub);
-			dequeue_list[id]=0;
-		}
-	}
-	return mpr;
-}
-*/
-
-struct map_packet_response dequeue_finish_mem_pkt_bulk_merge2(uint8_t *dequeue_list, struct rte_mbuf *id_buf[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t id_timestamps[TOTAL_ENTRY][PKT_REORDER_BUF], uint64_t *head_list, uint64_t *tail_list) {
-	struct map_packet_response mpr;
-	mpr.pkts[0] = NULL;
-	mpr.size = 0;
-	uint32_t loop_max;
-
-
-	if (id_buf == ect_qp_buf) {
-		loop_max = 1;
-	} else {
-		loop_max = TOTAL_CLIENTS;
-	}
-
-	//Prep dequeue list
-	uint8_t dequeue_ids[TOTAL_CLIENTS];
-	uint8_t total_dequeue = 0;
-	for (uint32_t id=0;id<loop_max;id++) {
-		if(dequeue_list[id]) {
-			dequeue_ids[total_dequeue]=id;
-			total_dequeue++;
-		}
-	}
-
-	struct Buffer_State bs;
-	struct map_packet_response mpr_sub;
-	for (int i=0;i<total_dequeue;i++) {
-		uint32_t id = dequeue_ids[i];
-		if(dequeue_list[id]) {
-			//Small list for the individual dequeue
-			mpr_sub.size = 0;
-
-			bs.head = &head_list[id];
-			bs.tail = &tail_list[id];
-			bs.buf = &id_buf[id];
-			bs.timestamps = &id_timestamps[id];
-
-			//printf("dequeue loop\n");
-			while (*bs.head <= *bs.tail)
-			{
-				//printf("loop\n");
-				struct rte_mbuf *s_pkt = (*bs.buf)[*(bs.head) % PKT_REORDER_BUF];
-				uint64_t ts = (*bs.timestamps)[*(bs.head) % PKT_REORDER_BUF];
-				mpr_sub.pkts[mpr_sub.size]=s_pkt;
-				mpr_sub.timestamps[mpr_sub.size]=ts;
-				mpr_sub.size++;
-				(*bs.buf)[*bs.head % PKT_REORDER_BUF] = NULL;
-				*bs.head += 1;
-			}
-			merge_mpr_ts(&mpr,&mpr_sub);
-			dequeue_list[id]=0;
-		}
-	}
-	return mpr;
-}
-
-
-void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue) {
-	lock_mem_qp();
-	struct map_packet_response mpr1;
-	struct map_packet_response mpr2;
-	struct map_packet_response mpr3;
-
-	struct map_packet_response output_1;
-	struct map_packet_response output_2;
-
-	//mpr1 = dequeue_finish_mem_pkt_bulk_merge(port,queue,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
-	//mpr2 = dequeue_finish_mem_pkt_bulk_merge(port,queue,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
-	//mpr3 = dequeue_finish_mem_pkt_bulk_merge(port,queue,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
-	mpr1 = dequeue_finish_mem_pkt_bulk_merge2(ect_qp_dequeuable,ect_qp_buf,ect_qp_timestamp,ect_qp_buf_head,ect_qp_buf_tail);
-	mpr2 = dequeue_finish_mem_pkt_bulk_merge2(mem_qp_dequeuable,mem_qp_buf,mem_qp_timestamp,mem_qp_buf_head,mem_qp_buf_tail);
-	mpr3 = dequeue_finish_mem_pkt_bulk_merge2(client_qp_dequeuable,client_qp_buf,client_qp_timestamp,client_qp_buf_head,client_qp_buf_tail);
-	//merge_mpr_ts(&mpr1,&mpr2);
-	//merge_mpr_ts(&mpr1,&mpr3);
-	output_1.size=0;
-	output_2.size=0;
-	merge_mpr_ts_2(&output_1,&mpr1,&mpr2);
-	merge_mpr_ts_2(&output_2,&output_1,&mpr3);
-
-	//printf("sending %d\n",mpr1.size);
-	#ifdef PRINT_PACKET_BUFFERING
-	print_mpr(&mpr1);
-	printf("\n\n\n");
-	#endif
-	//rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
-	if (output_2.size > 0) {
-		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&output_2.pkts, output_2.size);
-	}
-	unlock_mem_qp();
-	return;
-}
 
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
@@ -827,45 +669,32 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			//only dequeue once
 			*bs->dequeable = 0;
 		}
-		//printf("bs.id %d\n",bs->id);
 
 		while (*bs->head <= *bs->tail)
 		{
 			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
-			if(s_pkt == NULL) {
-				printf("wtf it's null head = %d\n",*bs->head);
-			}
 			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=ts;
 			mpr.size++;
 			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
 			*bs->head += 1;
-			//printf("+1\n");
 		}
-		//merge here if everything breaks
 	}
-	//printf("ENDING %s\n",__FUNCTION__);
 	return mpr;
 }
 
 void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
-	//printf("Starting %s\n",__FUNCTION__);
 	lock_mem_qp();
 	struct map_packet_response mpr = dequeue_finish_mem_pkt_bulk_merge3(bst);
-	//printf("sending %d\n",mpr1.size);
 	#ifdef PRINT_PACKET_BUFFERING
 	print_mpr(&mpr1);
 	printf("\n\n\n");
 	#endif
-	//rte_eth_tx_burst(port, queue, &mpr1.pkts, mpr1.size);
-	//printf("burst_start size %d\n",mpr.size);
 	if (mpr.size > 0) {
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 	}
-	//printf("burst_end\n");
 	unlock_mem_qp();
-	//printf("ENDING %s\n",__FUNCTION__);
 	return;
 }
 
