@@ -11,6 +11,7 @@ uint32_t check_sums_wrap(const char *method, void *know, void *test);
 uint32_t csum_pkt_fast(struct rte_mbuf *pkt);
 void recalculate_rdma_checksum(struct rte_mbuf *pkt);
 void mark_pkt_rdma_checksum(struct rte_mbuf *pkt);
+int packet_is_marked(struct rte_mbuf *pkt);
 
 uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr);
 void set_rkey_rdma_packet(struct roce_v2_header *roce_hdr, uint32_t rkey);
