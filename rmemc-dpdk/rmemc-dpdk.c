@@ -67,7 +67,7 @@ static int hash_collisons=0;
 uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
 uint32_t writes_per_key[KEYSPACE];
 
-#define HASHSPACE (1 << 23)
+#define HASHSPACE (1 << 24)
 uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
@@ -82,6 +82,9 @@ struct rte_mempool *mbuf_pool_ack;
 #define UDP_OFFSET 34
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
+
+
+#define MEMPOOLS 12
 
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -155,7 +158,7 @@ inline uint64_t pkt_timestamp_not_thread_safe(void)
 
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
-	.entries = TOTAL_ENTRY,
+	.entries = TOTAL_CLIENTS*2,
 	.key_len = sizeof(uint32_t),
 	.hash_func = rte_jhash,
 	.hash_func_init_val = 0,
@@ -287,9 +290,12 @@ int fully_qp_init(void)
 	return 1;
 }
 
-struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+//struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
 struct rte_mbuf *client_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
 struct rte_mbuf *ect_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+//struct rte_mbuf ***client_qp_buf;
+//struct rte_mbuf ***ect_qp_buf;
 
 uint64_t mem_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
 uint64_t client_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
@@ -313,6 +319,8 @@ struct Buffer_State client_buffer_states[TOTAL_ENTRY];
 struct Buffer_State ect_buffer_states[TOTAL_ENTRY];
 
 void init_buffer_states(void) {
+
+
 	for(int i=0;i<TOTAL_ENTRY;i++) {
 		//ect
 		struct Buffer_State * bs = &ect_buffer_states[i];
@@ -345,6 +353,10 @@ void init_buffer_states(void) {
 
 void init_reorder_buf(void)
 {
+	//printf("mallocing mem_qp_buf\n");
+	//mem_qp_buf = rte_malloc(NULL, sizeof(struct rte_mbuf*) * TOTAL_ENTRY * PKT_REORDER_BUF, 0);
+	//printf("malloced mem_qp_buf\n");
+
 	printf("initalizing reorder buffs");
 	bzero(mem_qp_buf_head, TOTAL_ENTRY * sizeof(uint64_t));
 	bzero(mem_qp_buf_tail, TOTAL_ENTRY * sizeof(uint64_t));
@@ -360,7 +372,9 @@ void init_reorder_buf(void)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)
 		{
+			printf("setting mem qp buf\n");
 			mem_qp_buf[i][j] = NULL;
+			printf("set mem qp buf\n");
 			client_qp_buf[i][j] = NULL;
 			ect_qp_buf[i][j] = NULL;
 
@@ -1673,19 +1687,18 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	{
 		int key = 0;
 #ifdef READ_STEER
+		//lock_write_steering();
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (size == 1024) {
 			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
+			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			#ifdef TAKE_MEASUREMENTS
 			increment_read_counter();
 			#endif
 			if (likely(key != 0)) {
 				steer_read(pkt, key);
 			} else {
-				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
-				uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
-				//printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
 				//print_packet_lite(pkt);
 				//print_packet(pkt);
 				//exit(0);
@@ -1694,6 +1707,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 				#endif
 			}
 		} 
+		//unlock_write_steering();
 #endif
 		map_qp_forward(pkt, key);
 	}
@@ -1931,16 +1945,23 @@ void true_classify(struct rte_mbuf *pkt)
 //TODO mapqp should depend on read steering and not the other way around	
 #ifdef READ_STEER
 #ifndef MAP_QP
+
+	//lock_write_steering();
 	if (opcode == RC_READ_REQUEST){
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
+		uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 		if (size == 1024) {
 			uint32_t key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 			if (likely(key != 0)) {
+				//printf("READ HIT  (%d) %"PRIx64" Key: %"PRIu64"\n",id, rr->rdma_extended_header.vaddr,key);
 				steer_read(pkt, key);
-			} 
+			} else {
+				//printf("READ MISS (%d) %"PRIx64"\n",id, rr->rdma_extended_header.vaddr);
+			}
 		}
 	} 
+	//unlock_write_steering();
 #endif
 #endif
 
@@ -2204,7 +2225,7 @@ uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
  * coming from the mbuf_pool passed as a parameter.
  */
 static inline int
-port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
+port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
 	const uint16_t rx_rings = core_count, tx_rings = core_count;
@@ -2227,6 +2248,13 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		return retval;
 	}
 
+
+
+	port_conf.rxmode.split_hdr_size=0;
+	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_CHECKSUM;
+	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
+
+/*
 	//STW RSS
 	if (nb_rxq > 1)
 	{
@@ -2257,8 +2285,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-
+*/
 	/* Configure the Ethernet device. */
+	printf("configuring %d rx rings %d tx rings\n",rx_rings,tx_rings);
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
 	if (retval != 0)
 		return retval;
@@ -2267,14 +2296,18 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	if (retval != 0)
 		return retval;
 
+	printf("RX desc %d, TX desc %d\n",nb_rxd,nb_txd);
 	/* Allocate and set up 1 RX queue per Ethernet port. */
 	for (q = 0; q < rx_rings; q++)
 	{
+		printf("allocating queue %d (cores %d)\n",q,core_count);
 		retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
-										rte_eth_dev_socket_id(port), NULL, mbuf_pool);
+										rte_eth_dev_socket_id(port), NULL, mbuf_pool[q]);
 		if (retval < 0)
 			return retval;
 	}
+
+	printf("RX queues %d, TX queues %d\n",dev_info.nb_rx_queues,dev_info.nb_tx_queues);
 
 	txconf = dev_info.default_txconf;
 	txconf.offloads = port_conf.txmode.offloads;
@@ -2534,6 +2567,8 @@ lcore_main(void)
 			uint32_t to_tx = 0;
 
 			uint32_t queue = rte_lcore_id() / 2;
+			//printf("core %d using queue %d\n",rte_lcore_id(),queue);
+			//const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			//if (nb_rx > 0) {
 			//	printf("[core %d] rx %d\n",rte_lcore_id(),nb_rx);
@@ -2549,9 +2584,12 @@ lcore_main(void)
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
 
+
+/*
 				if(unlikely(lcore_pkt_count++%1000000 == 0)) {
-					printf("[Core %d] Pkts %"PRIu64"\n",rte_lcore_id(),lcore_pkt_count);
+					printf("[Core %d] Pkts %"PRIu64" queue %d\n",rte_lcore_id(),lcore_pkt_count, queue);
 				}
+*/
 
 				if (likely(i < nb_rx - 1))
 				{
@@ -2610,19 +2648,23 @@ lcore_main(void)
 			//}
 			#endif
 
-			if (unlikely((has_mapped_qp ==0) && fully_qp_init()))
-			{
-				all_thread_barrier(&thread_barrier);
-				lock_qp();
-				//printf("core %d is flipping the switch\n",rte_lcore_id());
-				//flip the switch
-				//print_first_mapping();
+			#ifdef MAP_QP
+			if (unlikely((has_mapped_qp ==0))){
+				if(unlikely(fully_qp_init())) {
+				
+					all_thread_barrier(&thread_barrier);
+					lock_qp();
+					//printf("core %d is flipping the switch\n",rte_lcore_id());
+					//flip the switch
+					//print_first_mapping();
 
-				//start doing fast operations now
-				populate_fast_find_id();
-				has_mapped_qp=1;
-				unlock_qp();
+					//start doing fast operations now
+					populate_fast_find_id();
+					has_mapped_qp=1;
+					unlock_qp();
+				}
 			}
+			#endif
 
 
 		}
@@ -2689,13 +2731,15 @@ void create_ack_mem_pool(void) {
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf ack pool\n");
 }
 
+const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
+
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
  */
 int main(int argc, char *argv[])
 {
-	struct rte_mempool *mbuf_pool;
+	struct rte_mempool *mbuf_pool[MEMPOOLS];
 	unsigned nb_ports;
 	uint16_t portid;
 
@@ -2712,13 +2756,24 @@ int main(int argc, char *argv[])
 	printf("num ports:%u\n", nb_ports);
 
 	/* Creates a new mempool in memory to hold the mbufs. */
-	//TODO create an mbuf pool per core
+
+	/*
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+										*/
+	for(int i=0;i<rte_lcore_count();i++) {
+		mbuf_pool[i] = rte_pktmbuf_pool_create(mpool_names[i], NUM_MBUFS * nb_ports,
+											MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+		if (mbuf_pool[i] == NULL)
+			rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
+		printf("Created MBUF_POOL %d\n",i);
+	}
 
-	if (mbuf_pool == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
+
+
+
+	printf("initalizing ports with %d cores\n",rte_lcore_count());
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
 	if (port_init(portid, mbuf_pool, rte_lcore_count()) != 0)
@@ -2731,6 +2786,15 @@ int main(int argc, char *argv[])
 	create_ack_mem_pool();
 
 	printf("master core %d\n", rte_get_master_lcore());
+
+	//dome debugging
+	struct rte_eth_link link;
+	RTE_ETH_FOREACH_DEV(portid)
+	rte_eth_link_get(0,&link);
+	if (link.link_duplex == ETH_LINK_FULL_DUPLEX) {
+		printf("FULL DUPLEX ON\n");
+	}
+	printf("link speed %d duplex %d\n",link.link_speed,link.link_duplex);
 
 	if (init == 0)
 	{
