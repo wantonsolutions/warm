@@ -298,9 +298,12 @@ struct rte_mbuf ***mem_qp_buf;
 struct rte_mbuf ***client_qp_buf;
 struct rte_mbuf ***ect_qp_buf;
 
-uint64_t mem_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
-uint64_t client_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
-uint64_t ect_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
+//uint64_t mem_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
+//uint64_t client_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
+//uint64_t ect_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
+uint64_t **mem_qp_timestamp;
+uint64_t **client_qp_timestamp;
+uint64_t **ect_qp_timestamp;
 
 uint64_t mem_qp_buf_head[TOTAL_ENTRY];
 uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
@@ -360,6 +363,14 @@ struct rte_mbuf *** dynamicly_allocate_buffer_state_pkt_buf(void) {
 	return buf;
 }
 
+uint64_t ** dynamicly_allocate_pkt_timestamps(void) {
+	uint64_t ** buf = (uint64_t **) rte_malloc(NULL, sizeof(uint64_t *) * TOTAL_ENTRY,0);
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		buf[i] = (uint64_t *)rte_malloc(NULL, sizeof(uint64_t) *PKT_REORDER_BUF,0);
+	}
+	return buf;
+}
+
 
 void init_reorder_buf(void)
 {
@@ -368,6 +379,10 @@ void init_reorder_buf(void)
 	mem_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
 	client_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
 	ect_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
+
+	ect_qp_timestamp=dynamicly_allocate_pkt_timestamps();
+	client_qp_timestamp=dynamicly_allocate_pkt_timestamps();
+	mem_qp_timestamp=dynamicly_allocate_pkt_timestamps();
 	/*
 	mem_qp_buf = (struct rte_mbuf *** )malloc(sizeof(struct rte_mbuf **) * TOTAL_ENTRY);
 	for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -397,6 +412,7 @@ void init_reorder_buf(void)
 	bzero(mem_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
 	bzero(client_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
 	bzero(ect_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
+
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)

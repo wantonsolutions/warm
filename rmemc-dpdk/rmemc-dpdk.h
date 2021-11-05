@@ -108,7 +108,7 @@ struct Buffer_State {
 	uint64_t *head;
 	uint64_t *tail;
 	struct rte_mbuf *** buf;
-	uint64_t (*timestamps)[PKT_REORDER_BUF];
+	uint64_t **timestamps;
 } Buffer_State;
 
 struct Buffer_State_Tracker 
