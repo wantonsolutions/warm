@@ -107,7 +107,7 @@ struct Buffer_State {
 	int id;
 	uint64_t *head;
 	uint64_t *tail;
-	struct rte_mbuf *(*buf)[PKT_REORDER_BUF];
+	struct rte_mbuf *** buf;
 	uint64_t (*timestamps)[PKT_REORDER_BUF];
 } Buffer_State;
 

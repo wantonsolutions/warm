@@ -23,6 +23,7 @@
 #include "measurement.h"
 #include "packet_templates.h"
 #include <arpa/inet.h>
+#include <rte_malloc.h>
 
 #include <rte_jhash.h>
 #include <rte_hash.h>
@@ -58,7 +59,7 @@ static int hash_collisons=0;
 //#define SINGLE_CORE
 #define WRITE_STEER
 #define READ_STEER
-//#define MAP_QP
+#define MAP_QP
 //#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
@@ -291,11 +292,11 @@ int fully_qp_init(void)
 }
 
 //struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
-struct rte_mbuf *client_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
-struct rte_mbuf *ect_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
-struct rte_mbuf *mem_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
-//struct rte_mbuf ***client_qp_buf;
-//struct rte_mbuf ***ect_qp_buf;
+//struct rte_mbuf *client_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+//struct rte_mbuf *ect_qp_buf[TOTAL_ENTRY][PKT_REORDER_BUF];
+struct rte_mbuf ***mem_qp_buf;
+struct rte_mbuf ***client_qp_buf;
+struct rte_mbuf ***ect_qp_buf;
 
 uint64_t mem_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
 uint64_t client_qp_timestamp[TOTAL_ENTRY][PKT_REORDER_BUF];
@@ -351,11 +352,39 @@ void init_buffer_states(void) {
 	}
 }
 
+struct rte_mbuf *** dynamicly_allocate_buffer_state_pkt_buf(void) {
+	struct rte_mbuf*** buf = (struct rte_mbuf ***)rte_malloc(NULL, sizeof(struct rte_mbuf **) * TOTAL_ENTRY,0);
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		buf[i] = (struct rte_mbuf **)rte_malloc(NULL, sizeof(struct rte_mbuf*) *PKT_REORDER_BUF,0);
+	}
+	return buf;
+}
+
+
 void init_reorder_buf(void)
 {
 	//printf("mallocing mem_qp_buf\n");
-	//mem_qp_buf = rte_malloc(NULL, sizeof(struct rte_mbuf*) * TOTAL_ENTRY * PKT_REORDER_BUF, 0);
+	//dynamicly_allocate_buffer_state_pkt_buf(mem_qp_buf);
+	mem_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
+	client_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
+	ect_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
+	/*
+	mem_qp_buf = (struct rte_mbuf *** )malloc(sizeof(struct rte_mbuf **) * TOTAL_ENTRY);
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		mem_qp_buf[i] = (struct rte_mbuf **)malloc(NULL, sizeof(struct rte_mbuf*) * PKT_REORDER_BUF);
+	}
+	*/
+	//dynamicly_allocate_buffer_state_pkt_buf(client_qp_buf);
+	//dynamicly_allocate_buffer_state_pkt_buf(ect_qp_buf);
+	/*
+	mem_qp_buf = (struct rte_mbuf **)rte_malloc(NULL, sizeof(struct rte_mbuf **) * TOTAL_ENTRY,0);
+	for (int i=0;i<TOTAL_ENTRY;i++) {
+		mem_qp_buf[i] = (struct rte_mbuf *)rte_malloc(NULL, sizeof(struct rte_mbuf*) *PKT_REORDER_BUF,0);
+	}
+	*/
 	//printf("malloced mem_qp_buf\n");
+
+
 
 	printf("initalizing reorder buffs");
 	bzero(mem_qp_buf_head, TOTAL_ENTRY * sizeof(uint64_t));
@@ -372,9 +401,7 @@ void init_reorder_buf(void)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)
 		{
-			printf("setting mem qp buf\n");
 			mem_qp_buf[i][j] = NULL;
-			printf("set mem qp buf\n");
 			client_qp_buf[i][j] = NULL;
 			ect_qp_buf[i][j] = NULL;
 
@@ -383,6 +410,7 @@ void init_reorder_buf(void)
 			ect_qp_timestamp[i][j] = 0;
 		}
 	}
+	printf("done setting\n");
 	init_buffer_states();
 }
 
@@ -522,83 +550,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 
 
 	return bst;
-}
-
-void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size) {
-
-	struct Buffer_State buffer_states[BURST_SIZE*BURST_SIZE];
-	uint32_t sequence_numbers[BURST_SIZE*BURST_SIZE];
-	lock_mem_qp();
-
-	lock_qp();
-	for (uint32_t i=0;i<size;i++) {
-		buffer_states[i] = get_buffer_state(pkts[i]);
-		struct roce_v2_header *roce_hdr = get_roce_hdr(pkts[i]);
-		sequence_numbers[i] = readable_seq(roce_hdr->packet_sequence_number);
-	}
-	unlock_qp();
-	//Here the buffer states have been collected
-	uint32_t seq;
-	struct Buffer_State bs;
-	struct rte_mbuf *pkt;
-	for (uint32_t i=0;i<size;i++) {
-		//set loop locals
-		seq = sequence_numbers[i];
-		bs = buffer_states[i];
-		pkt = pkts[i];
-		//If it's going in the etc buffer then just throw it on fifo
-		if (bs.buf == &ect_qp_buf[bs.id])
-		{
-			seq = *(bs.tail) + 1;
-		}
-
-		uint32_t entry = seq % PKT_REORDER_BUF;
-		(*bs.buf)[entry] = pkt;
-
-		int64_t ts = pkt_timestamp_not_thread_safe();
-		(*bs.timestamps)[entry] = ts;
-
-		//On the first call the sequence numbers are going to start somewhere
-		//random. In this case just move the head of the buffer to the current
-		//sequence number
-		if (unlikely(*bs.head == 0))
-		{
-			//printf("setting head id: %d seq: %d\n",bs.id,seq);
-			*bs.head = (uint64_t)seq;
-		}
-
-		if (unlikely(*bs.head > seq)) {
-			printf(
-				"This is a really bad situation\n"
-				"we got the initial conditions wrong so enqueue on the first packet\n"
-				"ie *bs.head == 0 did not work, in this case we need to move the head back a bit\n"
-				"the downside here is that if this is some sort of error we will not have contiguous\n"
-				"sequence numbers which could cause knock on proble3ms later\n"
-				"(( MOVING HEAD BACKWARDS!!))\n"
-				"Stewart Grant Oct 11 2021\n"
-				);
-				printf("ID %d SEQ = %d (ptr %p)\n", bs.id, seq,bs.head);
-				*bs.head=seq;
-				if(!contiguous_buffered_packets_2(&bs)) {
-					printf("(ERROR) non congiguous after head step back\n");
-				}
-		}
-
-
-		//If the tail is the new latest sequence number than slide it forward
-		if (*bs.tail < seq)
-		{
-			//printf("setting tail id: %d seq: %d\n",bs.id,seq);
-			*bs.tail = seq;
-		}
-
-		if (likely(contiguous_buffered_packets_2(&bs))) {
-			*bs.dequeable = 1;
-		} else {
-			*bs.dequeable = 0;
-		}
-	}
-	unlock_mem_qp();
 }
 
 int contiguous_buffered_packets_2(struct Buffer_State * bs) {
