@@ -60,7 +60,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-//#define CNS_TO_WRITE
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -159,7 +159,7 @@ inline uint64_t pkt_timestamp_not_thread_safe(void)
 
 static struct rte_hash_parameters qp2id_params = {
 	.name = "qp2id",
-	.entries = TOTAL_CLIENTS*2,
+	.entries = TOTAL_ENTRY*2,
 	.key_len = sizeof(uint32_t),
 	.hash_func = rte_jhash,
 	.hash_func_init_val = 0,
@@ -401,7 +401,6 @@ void init_reorder_buf(void)
 
 
 
-	printf("initalizing reorder buffs");
 	bzero(mem_qp_buf_head, TOTAL_ENTRY * sizeof(uint64_t));
 	bzero(mem_qp_buf_tail, TOTAL_ENTRY * sizeof(uint64_t));
 	bzero(client_qp_buf_head, TOTAL_ENTRY * sizeof(uint64_t));
@@ -421,12 +420,12 @@ void init_reorder_buf(void)
 			client_qp_buf[i][j] = NULL;
 			ect_qp_buf[i][j] = NULL;
 
+
 			mem_qp_timestamp[i][j] = 0;
 			client_qp_timestamp[i][j] = 0;
 			ect_qp_timestamp[i][j] = 0;
 		}
 	}
-	printf("done setting\n");
 	init_buffer_states();
 }
 
@@ -2684,7 +2683,6 @@ void error_switch(void) {
 }
 
 void create_ack_mem_pool(void) {
-	//TODO create an mbuf pool per core
 
 	#define ACK_POOL_SIZE 128
 	#define ACK_CACHE_SIZE 64
@@ -2765,6 +2763,7 @@ int main(int argc, char *argv[])
 
 	if (init == 0)
 	{
+		printf("bzeroing\n");
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
 		bzero(second_write, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
@@ -2792,6 +2791,7 @@ int main(int argc, char *argv[])
 		rte_rwlock_init(&qp_init_lock);
 		rte_rwlock_init(&mem_qp_lock);
 
+		printf("init structs\n");
 		init_reorder_buf();
 		init_connection_states();
 		init_hash();
@@ -2800,6 +2800,7 @@ int main(int argc, char *argv[])
 		predict_shift_value = 0;
 		has_mapped_qp = 0;
 		init = 1;
+		printf("done init\n");
 	}
 
 	fork_lcores();

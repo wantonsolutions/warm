@@ -10,43 +10,6 @@ SRCS-y := rmemc-dpdk.c roce_v2.c measurement.c print_helpers.c packet_templates.
 # Build using pkg-config variables if possible
 ifeq ($(shell pkg-config --exists libdpdk && echo 0),0)
 
-all: shared
-.PHONY: shared static
-shared: build/$(APP)-shared
-	ln -sf $(APP)-shared build/$(APP)
-static: build/$(APP)-static
-	ln -sf $(APP)-static build/$(APP)
-
-PKGCONF ?= pkg-config
-
-PC_FILE := $(shell $(PKGCONF) --path libdpdk 2>/dev/null)
-CFLAGS += -O3 -v $(shell $(PKGCONF) --cflags libdpdk)
-#CFLAGS += -O0 -ggdb -v $(shell $(PKGCONF) --cflags libdpdk)
-#EXTRA_CFLAGS += -O0 -ggdb  -Wfatal-errors $(STEWFLAGS)
-LDFLAGS_SHARED = $(shell $(PKGCONF) --libs libdpdk)
-LDFLAGS_STATIC = -Wl,-Bstatic $(shell $(PKGCONF) --static --libs libdpdk)
-
-STEWFLAGS := -DMITSUME_BENCHMARK_THREAD_NUM=${CLOVER_THREADS} \
-		-DMITSUME_YCSB_KEY_RANGE=${CLOVER_KEY_RANGE} \
-   		-DMITSUME_YCSB_OP_MODE=${CLOVER_YCSB_OP_MODE} \
-		-DMITSUME_BENCHMARK_SIZE=${CLOVER_PAYLOAD_SIZE} \
-
-build/$(APP)-shared: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CC) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_SHARED) $(STEWFLAGS)
-
-build/$(APP)-static: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CC) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_STATIC) $(STEWFLAGS)
-
-build:
-	@mkdir -p $@
-
-.PHONY: clean
-
-clean:
-	echo "cleaning"
-	rm -f build/$(APP) build/$(APP)-static build/$(APP)-shared
-	rm -fr build
-	test -d build && rmdir -p build || true
 
 else # Build using legacy build system
 
