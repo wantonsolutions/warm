@@ -76,7 +76,8 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
 rte_rwlock_t qp_init_lock;
-rte_rwlock_t mem_qp_lock;
+rte_rwlock_t tx_lock;
+rte_rwlock_t qp_mapping_lock;
 
 struct rte_mempool *mbuf_pool_ack;
 #define IPV4_OFFSET 14
@@ -115,26 +116,36 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 
 void lock_qp(void)
 {
-	//rte_rwlock_write_lock(&qp_lock);
+	#ifdef MULTI_CORE
+	rte_rwlock_write_lock(&qp_lock);
 	//rte_smp_mb();
+	#endif
 }
 
 void unlock_qp(void)
 {
-	//rte_rwlock_write_unlock(&qp_lock);
+	#ifdef MULTI_CORE
+	rte_rwlock_write_unlock(&qp_lock);
 	//rte_smp_mb();
+	#endif
 }
 
-void lock_mem_qp(void)
+void lock_tx(void)
 {
-	//rte_rwlock_write_lock(&mem_qp_lock);
+	#ifdef MULTI_CORE
+	rte_rwlock_write_lock(&tx_lock);
+	//printf("[core %d] lock tx\n",rte_lcore_id());
 	//rte_smp_mb();
+	#endif
 }
 
-void unlock_mem_qp(void)
+void unlock_tx(void)
 {
-	//rte_rwlock_write_unlock(&mem_qp_lock);
+	#ifdef MULTI_CORE
+	//printf("[core %d] unlock tx\n",rte_lcore_id());
+	rte_rwlock_write_unlock(&tx_lock);
 	//rte_smp_mb();
+	#endif
 }
 
 void lock_write_steering(void)
@@ -150,6 +161,21 @@ void unlock_write_steering(void)
 	rte_rwlock_write_unlock(&next_lock);
 	#endif
 }
+
+void lock_qp_mapping(void) {
+	#ifdef MULTI_CORE
+	rte_rwlock_write_lock(&qp_mapping_lock);
+	//printf("[core %d] lock qp map\n",rte_lcore_id());
+	#endif
+}
+
+void unlock_qp_mapping(void) {
+	#ifdef MULTI_CORE
+	//printf("[core %d] unlock qp map\n",rte_lcore_id());
+	rte_rwlock_write_unlock(&qp_mapping_lock);
+	#endif
+}
+
 
 uint64_t pkt_timestamp_monotonic=0;
 inline uint64_t pkt_timestamp_not_thread_safe(void)
@@ -167,18 +193,25 @@ static struct rte_hash_parameters qp2id_params = {
 };
 
 void lock_connection_state(struct Connection_State *cs) {
-	//printf("lock %d\n",cs->id);
+	#ifdef MULTI_CORE
 	//just to remove compiler errors
 	cs->id = cs->id;
-	//rte_rwlock_write_lock(&(cs->cs_lock));
+	//printf("[core %d] try lock cs %d\n",rte_lcore_id(),cs->id);
+	rte_rwlock_write_lock(&(cs->cs_lock));
+	//printf("[core %d] locked cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
+	#endif
 }
 
 void unlock_connection_state(struct Connection_State *cs) {
+	#ifdef MULTI_CORE
 	//printf("unlock %d\n",cs->id);
 	cs->id = cs->id;
-	//rte_rwlock_write_unlock(&(cs->cs_lock));
+	//printf("[core %d] try unlock cs %d\n",rte_lcore_id(),cs->id);
+	rte_rwlock_write_unlock(&(cs->cs_lock));
+	//printf("[core %d] unlock cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
+	#endif
 }
 
 
@@ -276,6 +309,7 @@ uint32_t get_id(uint32_t qp)
 
 int fully_qp_init(void)
 {
+	//printf("core %d qp_fully_init\n",rte_lcore_id());
 	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		struct Connection_State * cs = &Connection_States[i];
@@ -284,10 +318,12 @@ int fully_qp_init(void)
 		if (!cs->sender_init || !cs->receiver_init)
 		{
 			unlock_connection_state(cs);
+			//printf("qp_fully_init_0\n");
 			return 0;
 		}
 		unlock_connection_state(cs);
 	}
+	//printf("qp_fully_init_1\n");
 	return 1;
 }
 
@@ -673,7 +709,6 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 }
 
 void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
-	lock_mem_qp();
 	struct map_packet_response mpr = dequeue_finish_mem_pkt_bulk_merge3(bst);
 	#ifdef PRINT_PACKET_BUFFERING
 	print_mpr(&mpr1);
@@ -693,9 +728,15 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	#endif
 
 	if (mpr.size > 0) {
-		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+
+		/*
+		for (uint16_t i = 0; i<mpr.size;i++){
+			print_packet_lite(mpr.pkts[i]);
+		}
+		*/
+		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+		rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 	}
-	unlock_mem_qp();
 	return;
 }
 
@@ -744,7 +785,7 @@ void init_connection_state(struct rte_mbuf *pkt)
 	copy_eth_addr((uint8_t *)eth_hdr->d_addr.addr_bytes, (uint8_t *)cs.stc_eth_addr);
 	cs.sender_init = 1;
 	Connection_States[cs.id] = cs;
-	rte_smp_mb();
+	//rte_smp_mb();
 }
 
 void init_cs_wrapper(struct rte_mbuf *pkt)
@@ -773,8 +814,9 @@ uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connecti
 	{
 		cs->mseq_current = msn;
 	}
+	msn = cs->mseq_current;
 	unlock_connection_state(cs);
-	return cs->mseq_current;
+	return msn;
 }
 
 //Update the server to clinet connection state based on roce and udp header.
@@ -886,12 +928,14 @@ void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq)
 {
 	uint32_t id = get_id(stc_dest_qp);
 	struct Connection_State *cs = &Connection_States[id];
+	lock_connection_state(cs);
 	if (cs->sender_init == 0)
 	{
 		printf("Attempting to set sequence number for non existant connection (exiting)");
 		exit(0);
 	}
 	cs->seq_current = seq;
+	unlock_connection_state(cs);
 #ifdef DATA_PATH_PRINT
 	printf("Updated connection state based on sequence number\n");
 	print_connection_state(cs);
@@ -910,14 +954,14 @@ void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr)
 
 void cts_track_connection_state(struct rte_mbuf *pkt)
 {
+	if (has_mapped_qp != 0)
+	{
+		return;
+	}
 	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
 	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
 	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
 	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
-	if (has_mapped_qp == 1)
-	{
-		return;
-	}
 	init_cs_wrapper(pkt);
 	update_cs_seq_wrapper(roce_hdr);
 }
@@ -1515,7 +1559,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-	lock_connection_state(source_connection);
 
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
@@ -1544,6 +1587,8 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			}
 		}
 
+		lock_connection_state(source_connection);
+
 
 		//sanity_check_mapping(pkt,mapped_request);
 
@@ -1556,6 +1601,10 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//make a local copy of the id before unlocking
 		uint32_t id = mapped_request->id;
 		//open up the mapped request
+
+
+		open_slot(mapped_request);
+		unlock_connection_state(source_connection);
 
 		//Update the tracked msn this requires adding to it, and then storing
 		//back to the connection states To do this we need to take a look at
@@ -1589,8 +1638,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 
 		
-		open_slot(mapped_request);
-		unlock_connection_state(source_connection);
 
 		return mpr;
 	}
@@ -1903,8 +1950,8 @@ void true_classify(struct rte_mbuf *pkt)
 	uint8_t opcode = roce_hdr->opcode;
 	uint32_t r_qp = roce_hdr->dest_qp;
 
-	//catch_ecn(pkt, opcode);
-	//catch_nack(clover_header, opcode);
+	catch_ecn(pkt, opcode);
+	catch_nack(clover_header, opcode);
 
 //insert if we are doing read steering, but not qp_mapping.
 //TODO this should exist here reguardless of MAP_QP, 
@@ -2220,7 +2267,6 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_CHECKSUM;
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
 
-/*
 	//STW RSS
 	if (nb_rxq > 1)
 	{
@@ -2251,7 +2297,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
-*/
+
 	/* Configure the Ethernet device. */
 	printf("configuring %d rx rings %d tx rings\n",rx_rings,tx_rings);
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
@@ -2533,6 +2579,31 @@ lcore_main(void)
 			uint32_t to_tx = 0;
 
 			uint32_t queue = rte_lcore_id() / 2;
+
+
+
+			#ifdef MAP_QP
+			if (unlikely((has_mapped_qp ==0))){
+				if(unlikely(fully_qp_init())) {
+				
+					all_thread_barrier(&thread_barrier);
+					if (rte_lcore_id() == 0) {
+						lock_qp();
+						printf("core %d is flipping the switch\n",rte_lcore_id());
+						//flip the switch
+						//print_first_mapping();
+
+						//start doing fast operations now
+						populate_fast_find_id();
+						has_mapped_qp=1;
+						unlock_qp();
+					}
+					all_thread_barrier(&thread_barrier);
+				}
+			}
+			#endif
+
+
 			//printf("core %d using queue %d\n",rte_lcore_id(),queue);
 			//const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
@@ -2540,10 +2611,11 @@ lcore_main(void)
 			//	printf("[core %d] rx %d\n",rte_lcore_id(),nb_rx);
 			//}
 
-
-
-			if (unlikely(nb_rx == 0))
+			if (unlikely(nb_rx == 0)) {
 				continue;
+			}
+			lock_qp_mapping();
+			//printf("core %d - processing\n",rte_lcore_id());
 
 
 			#define PRINT_COUNT 10000
@@ -2552,9 +2624,6 @@ lcore_main(void)
 
 
 /*
-				if(unlikely(lcore_pkt_count++%1000000 == 0)) {
-					printf("[Core %d] Pkts %"PRIu64" queue %d\n",rte_lcore_id(),lcore_pkt_count, queue);
-				}
 */
 
 				if (likely(i < nb_rx - 1))
@@ -2574,9 +2643,9 @@ lcore_main(void)
 
 				#ifdef MAP_QP
 				struct map_packet_response mpr;
-				#ifdef PRINT_PACKET_BUFFERING
-				print_packet_lite(rx_pkts[i]);
-				#endif
+
+				//print_packet_lite(rx_pkts[i]);
+
 				mpr = map_qp(rx_pkts[i]);
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
@@ -2590,22 +2659,17 @@ lcore_main(void)
 				#endif
 			}
 
-			#ifdef PRINT_PACKET_BUFFERING
-			printf("----------------------------------------------------\n");
-			//bulk sending
-
-			for (uint16_t i = 0; i< to_tx;i++){
-				print_packet_lite(tx_pkts[i]);
-			}
-			printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
-
-
-			#endif
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
+
+			lock_tx();
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
+			unlock_tx();
+			//rte_smp_mb();
+			unlock_qp_mapping();
+
 			#endif
 
 			#ifdef TAKE_MEASUREMENTS
@@ -2613,27 +2677,10 @@ lcore_main(void)
 			//	calculate_in_flight(&Connection_States);
 			//}
 			#endif
-
-			#ifdef MAP_QP
-			if (unlikely((has_mapped_qp ==0))){
-				if(unlikely(fully_qp_init())) {
-				
-					all_thread_barrier(&thread_barrier);
-					lock_qp();
-					//printf("core %d is flipping the switch\n",rte_lcore_id());
-					//flip the switch
-					//print_first_mapping();
-
-					//start doing fast operations now
-					populate_fast_find_id();
-					has_mapped_qp=1;
-					unlock_qp();
-				}
-			}
-			#endif
-
+			//printf("core %d - done processing\n",rte_lcore_id());
 
 		}
+
 	}
 }
 
@@ -2789,7 +2836,8 @@ int main(int argc, char *argv[])
 		rte_rwlock_init(&next_lock);
 		rte_rwlock_init(&qp_lock);
 		rte_rwlock_init(&qp_init_lock);
-		rte_rwlock_init(&mem_qp_lock);
+		rte_rwlock_init(&tx_lock);
+		rte_rwlock_init(&qp_mapping_lock);
 
 		printf("init structs\n");
 		init_reorder_buf();
