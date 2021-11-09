@@ -87,6 +87,8 @@ struct rte_mempool *mbuf_pool_ack;
 
 
 #define MEMPOOLS 12
+const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
+struct rte_mempool *mbuf_pool[MEMPOOLS];
 
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -1418,7 +1420,13 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 	//struct Request_Map *
 	if (missing_write)
 	{
-		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
+		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
+		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool[0]);
+
+		if (pkt == NULL) {
+			printf("NULL PACKET ack generation\n");
+		}
+
 		rte_pktmbuf_append(pkt,ACK_PKT_LEN);
 		//do I need to expand the packet here?
 		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
@@ -1565,6 +1573,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	if (likely(mapped_request != NULL))
 	{
 
+
 		//Itterativly search for coalesed packets
 		//TODO move this to it's own function
 		uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
@@ -1581,6 +1590,10 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 				//subtract the sequence number by one and revert it back to roce header format
 				search_sequence_number = revert_seq(readable_seq(search_sequence_number) - 1);
+
+				//close the missing write
+				open_slot(missing_write);
+
 				missing_write = find_missing_write(source_connection, search_sequence_number);
 			} else {
 				break;
@@ -2527,7 +2540,7 @@ int accept_packet(struct rte_mbuf *pkt)
 rte_atomic16_t thread_barrier;
 rte_atomic16_t thread_barrier2;
 void all_thread_barrier(rte_atomic16_t *barrier) {
-	printf("stalling on thread %d\n",rte_lcore_id());
+	//printf("stalling on thread %d\n",rte_lcore_id());
 	rte_atomic16_add(barrier,1);
 	while(barrier->cnt < (int16_t)rte_lcore_count()) {}
 }
@@ -2583,6 +2596,7 @@ lcore_main(void)
 
 
 			#ifdef MAP_QP
+
 			if (unlikely((has_mapped_qp ==0))){
 				if(unlikely(fully_qp_init())) {
 				
@@ -2598,7 +2612,7 @@ lcore_main(void)
 						has_mapped_qp=1;
 						unlock_qp();
 					}
-					all_thread_barrier(&thread_barrier);
+					all_thread_barrier(&thread_barrier2);
 				}
 			}
 			#endif
@@ -2645,7 +2659,6 @@ lcore_main(void)
 				struct map_packet_response mpr;
 
 				//print_packet_lite(rx_pkts[i]);
-
 				mpr = map_qp(rx_pkts[i]);
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
@@ -2729,6 +2742,7 @@ void error_switch(void) {
 	}
 }
 
+	//TODO remove this ack pool
 void create_ack_mem_pool(void) {
 
 	#define ACK_POOL_SIZE 128
@@ -2743,7 +2757,6 @@ void create_ack_mem_pool(void) {
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf ack pool\n");
 }
 
-const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 
 /*
  * The main function, which does initialization and calls the per-lcore
@@ -2751,7 +2764,6 @@ const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "ME
  */
 int main(int argc, char *argv[])
 {
-	struct rte_mempool *mbuf_pool[MEMPOOLS];
 	unsigned nb_ports;
 	uint16_t portid;
 
