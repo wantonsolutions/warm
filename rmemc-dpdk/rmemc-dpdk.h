@@ -135,9 +135,7 @@ uint32_t check_sums_wrap(const char *method, void *know, void *test);
 uint32_t csum_pkt_fast(struct rte_mbuf *pkt);
 uint32_t csum_pkt(struct rte_mbuf *pkt);
 
-int init_hash(void);
-int set_id(uint32_t qp, uint32_t id);
-uint32_t get_id(uint32_t qp);
+uint32_t get_or_create_id(uint32_t qp);
 uint32_t readable_seq(uint32_t seq);
 
 void count_values(uint64_t *index, uint32_t *count, uint32_t size, uint64_t value);

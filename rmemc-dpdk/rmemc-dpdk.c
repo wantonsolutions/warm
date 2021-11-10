@@ -54,7 +54,7 @@ static int has_mapped_qp = 0;
 static int packet_counter = 0;
 static int hash_collisons=0;
 
-#define MULTI_CORE
+//#define MULTI_CORE
 
 //#define SINGLE_CORE
 #define WRITE_STEER
@@ -73,11 +73,6 @@ uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 
-rte_rwlock_t next_lock;
-rte_rwlock_t qp_lock;
-rte_rwlock_t qp_init_lock;
-rte_rwlock_t tx_lock;
-rte_rwlock_t qp_mapping_lock;
 
 struct rte_mempool *mbuf_pool_ack;
 #define IPV4_OFFSET 14
@@ -89,6 +84,12 @@ struct rte_mempool *mbuf_pool_ack;
 #define MEMPOOLS 12
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 struct rte_mempool *mbuf_pool[MEMPOOLS];
+
+uint64_t pkt_timestamp_monotonic=0;
+inline uint64_t pkt_timestamp_not_thread_safe(void)
+{
+	return pkt_timestamp_monotonic++;
+}
 
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -116,7 +117,14 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
 }
 
-void lock_qp(void)
+
+rte_rwlock_t next_lock;
+rte_rwlock_t qp_lock;
+rte_rwlock_t qp_init_lock;
+rte_rwlock_t tx_lock;
+rte_rwlock_t qp_mapping_lock;
+
+inline void lock_qp(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_lock(&qp_lock);
@@ -124,7 +132,7 @@ void lock_qp(void)
 	#endif
 }
 
-void unlock_qp(void)
+inline void unlock_qp(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_unlock(&qp_lock);
@@ -132,7 +140,7 @@ void unlock_qp(void)
 	#endif
 }
 
-void lock_tx(void)
+inline void lock_tx(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_lock(&tx_lock);
@@ -141,7 +149,7 @@ void lock_tx(void)
 	#endif
 }
 
-void unlock_tx(void)
+inline void unlock_tx(void)
 {
 	#ifdef MULTI_CORE
 	//printf("[core %d] unlock tx\n",rte_lcore_id());
@@ -150,28 +158,28 @@ void unlock_tx(void)
 	#endif
 }
 
-void lock_write_steering(void)
+inline void lock_write_steering(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_lock(&next_lock);
 	#endif
 }
 
-void unlock_write_steering(void)
+inline void unlock_write_steering(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_unlock(&next_lock);
 	#endif
 }
 
-void lock_qp_mapping(void) {
+inline void lock_qp_mapping(void) {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_lock(&qp_mapping_lock);
 	//printf("[core %d] lock qp map\n",rte_lcore_id());
 	#endif
 }
 
-void unlock_qp_mapping(void) {
+inline void unlock_qp_mapping(void) {
 	#ifdef MULTI_CORE
 	//printf("[core %d] unlock qp map\n",rte_lcore_id());
 	rte_rwlock_write_unlock(&qp_mapping_lock);
@@ -179,22 +187,10 @@ void unlock_qp_mapping(void) {
 }
 
 
-uint64_t pkt_timestamp_monotonic=0;
-inline uint64_t pkt_timestamp_not_thread_safe(void)
-{
-	return pkt_timestamp_monotonic++;
-}
 
-static struct rte_hash_parameters qp2id_params = {
-	.name = "qp2id",
-	.entries = TOTAL_ENTRY*2,
-	.key_len = sizeof(uint32_t),
-	.hash_func = rte_jhash,
-	.hash_func_init_val = 0,
-	.socket_id = 0,
-};
+struct Connection_State Connection_States[TOTAL_ENTRY];
 
-void lock_connection_state(struct Connection_State *cs) {
+inline void lock_connection_state(struct Connection_State *cs) {
 	#ifdef MULTI_CORE
 	//just to remove compiler errors
 	cs->id = cs->id;
@@ -205,7 +201,7 @@ void lock_connection_state(struct Connection_State *cs) {
 	#endif
 }
 
-void unlock_connection_state(struct Connection_State *cs) {
+inline void unlock_connection_state(struct Connection_State *cs) {
 	#ifdef MULTI_CORE
 	//printf("unlock %d\n",cs->id);
 	cs->id = cs->id;
@@ -216,24 +212,9 @@ void unlock_connection_state(struct Connection_State *cs) {
 	#endif
 }
 
-
-struct Connection_State Connection_States[TOTAL_ENTRY];
-struct rte_hash *qp2id_table;
 static uint32_t qp_id_counter = 0;
 uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
-
-#define HASH_RETURN_IF_ERROR(handle, cond, str, ...)                     \
-	do                                                                   \
-	{                                                                    \
-		if (cond)                                                        \
-		{                                                                \
-			printf("ERROR line %d: " str "\n", __LINE__, ##__VA_ARGS__); \
-			if (handle)                                                  \
-				rte_hash_free(handle);                                   \
-			return -1;                                                   \
-		}                                                                \
-	} while (0)
 
 //Keys start at 1, so I'm subtracting 1 to make the first key equal to index
 //zero.  qp_id_counter is the total number of qp that can be written to. So here
@@ -241,9 +222,7 @@ uint32_t id_qp[TOTAL_ENTRY];
 //goes to the first qp, and the qp_id_counter + 1  key goes to the first qp.
 uint32_t key_to_qp(uint64_t key)
 {
-	//int qp = 8;
 	int qp = TOTAL_CLIENTS;
-	//uint32_t index = (key) % TOTAL_CLIENTS;
 	uint32_t index = (key) % qp;
 	return id_qp[index];
 }
@@ -254,31 +233,11 @@ uint32_t id_to_qp(uint32_t id) {
 	return id_qp[index];
 }
 
-int init_hash(void)
-{
-	qp2id_table = rte_hash_create(&qp2id_params);
-	HASH_RETURN_IF_ERROR(qp2id_table, qp2id_table == NULL, "qp2id_table creation failed");
-	return 0;
-}
-
-int set_id(uint32_t qp, uint32_t id)
-{
-#ifdef DATA_PATH_PRINT
-	log_printf(DEBUG, "adding (%d,%d) to hash table\n", qp, id);
-	printf("adding (%d,%d) to hash table\n", qp, id);
-#endif
-	qp_values[id] = id;
-	id_qp[id] = qp;
-	int ret = rte_hash_add_key_data(qp2id_table, &qp, &qp_values[id]);
-	HASH_RETURN_IF_ERROR(qp2id_table, ret < 0, "unable to add new qp id (%d,%d)\n", qp, id);
-	set_fast_id(qp,id);
-	return ret;
-}
 
 //Warning this is a very unsafe function. Only call it when you know that a
 //packet corresponds to an ID that has an established QP. If the ID is not set,
 //this will set it. Otherwise the ID is returned.
-uint32_t get_id(uint32_t qp)
+uint32_t get_or_create_id(uint32_t qp)
 {
 	uint32_t *return_value;
 	int32_t id;
@@ -290,23 +249,15 @@ uint32_t get_id(uint32_t qp)
 	}
 
 	lock_qp();
+	id = qp_id_counter;
+	set_fast_id(qp,id);
 
-	//if the id was equal to -1 then it's not initalized and we need to do the hash lookup
-	//TODO remove the hash table all together its too slow
-	int ret = rte_hash_lookup_data(qp2id_table, &qp, (void **)&return_value);
-	if (ret < 0)
-	{
-		id = qp_id_counter;
-		printf("no such id exists yet adding qp id pq: %d id: %d\n", qp, id);
-		set_id(qp, id);
-		qp_id_counter++;
-	}
-	else
-	{
-		id = *return_value;
-	}
-	id_colorize(id);
+	//Set globals
+	qp_values[id] = id;
+	id_qp[id] = qp;
+	qp_id_counter++;
 	unlock_qp();
+
 	return id;
 }
 
@@ -770,7 +721,7 @@ void init_connection_state(struct rte_mbuf *pkt)
 
 	//Find the connection state if it exists
 	struct Connection_State cs;
-	int id = get_id(cts_dest_qp);
+	int id = get_or_create_id(cts_dest_qp);
 	cs = Connection_States[id];
 
 	//Connection State allready initalized for this qp
@@ -933,7 +884,7 @@ void find_and_set_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hd
 
 void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq)
 {
-	uint32_t id = get_id(stc_dest_qp);
+	uint32_t id = get_or_create_id(stc_dest_qp);
 	struct Connection_State *cs = &Connection_States[id];
 	lock_connection_state(cs);
 	if (cs->sender_init == 0)
@@ -1764,7 +1715,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		*/
 		if (unlikely(size == 68))
 		{
-			uint32_t id = get_id(roce_hdr->dest_qp);
+			uint32_t id = get_or_create_id(roce_hdr->dest_qp);
 			*key = get_latest_key(id);
 			if (*key < 1 || *key > KEYSPACE)
 			{
@@ -1776,7 +1727,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	}
 	else if (opcode == RC_CNS)
 	{
-		uint32_t id = get_id(roce_hdr->dest_qp);
+		uint32_t id = get_or_create_id(roce_hdr->dest_qp);
 		map_qp_forward(pkt, get_latest_key(id));
 	}
 	return mpr;
@@ -2006,7 +1957,7 @@ void true_classify(struct rte_mbuf *pkt)
 
 		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
-		uint32_t id = get_id(r_qp);
+		uint32_t id = get_or_create_id(r_qp);
 		set_latest_key(id, *key);
 
 		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
@@ -2073,7 +2024,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//Find value of the clover pointer. This is the value we are going to potentially swap out.
 		struct cs_request *cs = (struct cs_request *)clover_header;
 		uint64_t swap = htobe64(MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add)));
-		uint32_t id = get_id(r_qp);
+		uint32_t id = get_or_create_id(r_qp);
 		uint64_t key = get_latest_key(id);
 		uint64_t *first_cns_p = &first_cns[key];
 		uint64_t *first_write_p = &first_write[key];
@@ -2407,6 +2358,8 @@ inline uint32_t qp_id_hash(uint32_t qp) {
 
 void set_fast_id(uint32_t qp, uint32_t id) {
 	fast_id_lookup[qp_id_hash(qp)] = id;
+
+
 }
 
 int fast_find_id_qp(uint32_t qp) {
@@ -2860,7 +2813,6 @@ int main(int argc, char *argv[])
 		printf("init structs\n");
 		init_reorder_buf();
 		init_connection_states();
-		init_hash();
 		init_fast_find_id();
 		write_value_packet_size = 0;
 		predict_shift_value = 0;
