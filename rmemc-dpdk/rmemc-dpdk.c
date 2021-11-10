@@ -289,23 +289,24 @@ uint32_t get_id(uint32_t qp)
 		return id;
 	}
 
+	lock_qp();
+
 	//if the id was equal to -1 then it's not initalized and we need to do the hash lookup
 	//TODO remove the hash table all together its too slow
 	int ret = rte_hash_lookup_data(qp2id_table, &qp, (void **)&return_value);
 	if (ret < 0)
 	{
-		lock_qp();
 		id = qp_id_counter;
 		printf("no such id exists yet adding qp id pq: %d id: %d\n", qp, id);
 		set_id(qp, id);
 		qp_id_counter++;
-		unlock_qp();
 	}
 	else
 	{
 		id = *return_value;
 	}
 	id_colorize(id);
+	unlock_qp();
 	return id;
 }
 
@@ -732,8 +733,10 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	if (mpr.size > 0) {
 
 		/*
-		for (uint16_t i = 0; i<mpr.size;i++){
-			print_packet_lite(mpr.pkts[i]);
+		if (qp_is_mapped) {
+			for (uint16_t i = 0; i<mpr.size;i++){
+				print_packet_lite(mpr.pkts[i]);
+			}
 		}
 		*/
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
@@ -787,6 +790,7 @@ void init_connection_state(struct rte_mbuf *pkt)
 	copy_eth_addr((uint8_t *)eth_hdr->d_addr.addr_bytes, (uint8_t *)cs.stc_eth_addr);
 	cs.sender_init = 1;
 	Connection_States[cs.id] = cs;
+	printf("init sender Connection State %d\n",id);
 	//rte_smp_mb();
 }
 
@@ -911,6 +915,7 @@ void find_and_set_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_h
 		cs->mseq_current = get_msn(roce_hdr);
 		cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
 		cs->receiver_init = 1;
+		printf("Receiver init %d\n",cs->id);
 	}
 	unlock_connection_state(cs);
 	return;
@@ -2597,9 +2602,10 @@ lcore_main(void)
 
 			#ifdef MAP_QP
 
-			if (unlikely((has_mapped_qp ==0))){
+			if (unlikely((has_mapped_qp==0))){
 				if(unlikely(fully_qp_init())) {
 				
+					printf("--BARRIER [core %d]\n",rte_lcore_id());
 					all_thread_barrier(&thread_barrier);
 					if (rte_lcore_id() == 0) {
 						lock_qp();
@@ -2671,6 +2677,7 @@ lcore_main(void)
 				to_tx++;
 				#endif
 			}
+			unlock_qp_mapping();
 
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
@@ -2681,7 +2688,6 @@ lcore_main(void)
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
 			unlock_tx();
 			//rte_smp_mb();
-			unlock_qp_mapping();
 
 			#endif
 
