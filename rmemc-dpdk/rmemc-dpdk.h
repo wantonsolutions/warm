@@ -157,7 +157,6 @@ void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue);
 
 //qp tracking
 uint32_t key_to_qp(uint64_t key);
-void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq);
 void cts_track_connection_state(struct rte_mbuf *pkt);
 void find_and_set_stc_qp(uint32_t stc_dest_qp, uint32_t seq);
 void find_and_set_stc_qp_wrapper(struct roce_v2_header *roce_hdr);
@@ -173,14 +172,13 @@ void init_connection_state(struct rte_mbuf *pkt);
 void init_cs_wrapper(struct rte_mbuf *pkt);
 uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connection_State *cs);
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr);
-void init_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr);
-void init_stc_wrapper(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr);
-void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq);
-void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr);
+void find_and_set_stc(struct rte_mbuf *pkt);
+void update_cs_seq(struct rte_mbuf *pkt);
 void cts_track_connection_state(struct rte_mbuf *pkt);
 uint64_t get_latest_key(uint32_t id);
 void set_latest_key(uint32_t id, uint64_t key);
 void init_connection_states(void);
+void init_stc(struct rte_mbuf * pkt);
 
 //Read Caching
 uint32_t mod_hash(uint64_t vaddr);

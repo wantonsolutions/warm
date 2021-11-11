@@ -187,6 +187,14 @@ inline void unlock_qp_mapping(void) {
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
 
+void print_connection_state_status(void) {
+	struct Connection_State *cs;
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		cs=&Connection_States[i];
+		printf("id %3d SI=%d RI=%d seq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
+	}
+} 
+
 inline void lock_connection_state(struct Connection_State *cs) {
 	#ifdef MULTI_CORE
 	//just to remove compiler errors
@@ -247,7 +255,11 @@ uint32_t get_or_create_id(uint32_t qp)
 
 	lock_qp();
 	id = qp_id_counter;
+
+
+	rte_mb();
 	set_fast_id(qp,id);
+	rte_mb();
 
 	//Set globals
 	qp_values[id] = id;
@@ -260,21 +272,14 @@ uint32_t get_or_create_id(uint32_t qp)
 
 int fully_qp_init(void)
 {
-	//printf("core %d qp_fully_init\n",rte_lcore_id());
 	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		struct Connection_State * cs = &Connection_States[i];
-		//print("testing id %d\n",cs->id)
-		lock_connection_state(cs);
 		if (!(cs->sender_init && cs->receiver_init))
 		{
-			unlock_connection_state(cs);
-			//printf("qp_fully_init_0\n");
 			return 0;
 		}
-		unlock_connection_state(cs);
 	}
-	//printf("qp_fully_init_1\n");
 	return 1;
 }
 
@@ -408,6 +413,24 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	exit(0);
 }
 
+int32_t count_held_packets() {
+	return 0;
+	int32_t total=0;
+	for(int i=0;i<TOTAL_CLIENTS;i++){
+		struct Buffer_State* bs;
+		bs=&ect_buffer_states[i];
+		total += *(bs->tail) - *(bs->head);
+		bs=&client_buffer_states[i];
+		total += *(bs->tail) - *(bs->head);
+		bs=&mem_buffer_states[i];
+		total += *(bs->tail) - *(bs->head);
+	}
+	if (total > 0) {
+		printf("TOTAL HELD %d\n",total);
+	}
+	return total;
+}
+
 struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 
 	struct Buffer_State_Tracker bst;
@@ -494,28 +517,6 @@ void print_mpr(struct map_packet_response* mpr) {
 	}
 }
 
-void merge_mpr(struct map_packet_response *dest, struct map_packet_response *source) {
-	for (uint32_t i=0;i<source->size;i++) {
-		dest->pkts[dest->size] = source->pkts[i];
-		dest->timestamps[dest->size] = source->timestamps[i];
-		dest->size++;
-	}
-}
-
-inline void copy_over_mpr_index(struct map_packet_response *dest, struct map_packet_response *source, uint32_t *source_index) {
-	dest->pkts[dest->size] = source->pkts[*source_index];
-	dest->timestamps[dest->size] = source->timestamps[*source_index];
-	dest->size++;
-	*source_index = *source_index + 1;
-}
-
-void copy_from_index(struct map_packet_response *dest, struct map_packet_response * source, uint32_t *source_index){
-	for (uint32_t i=*source_index;i<source->size;i++){
-		copy_over_mpr_index(dest,source,source_index);
-	}
-}
-
-
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
 	struct map_packet_response mpr;
@@ -542,6 +543,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			*bs->head += 1;
 		}
 	}
+	count_held_packets();
 	return mpr;
 }
 
@@ -621,7 +623,7 @@ void init_connection_state(struct rte_mbuf *pkt)
 	copy_eth_addr((uint8_t *)eth_hdr->s_addr.addr_bytes, (uint8_t *)cs->cts_eth_addr);
 	copy_eth_addr((uint8_t *)eth_hdr->d_addr.addr_bytes, (uint8_t *)cs->stc_eth_addr);
 	cs->sender_init = 1;
-	printf("init sender Connection State %d\n",id);
+	//printf("init sender Connection State %d\n",id);
 
 	unlock_connection_state(cs);
 }
@@ -663,39 +665,25 @@ uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connecti
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr)
 {
 	struct Connection_State *cs;
-	uint32_t found = 0;
 
-	//check to see if this value has allready been set
-	//Find the coonection
-	for (int i = 0; i < TOTAL_ENTRY; i++)
-	{
-		cs = &Connection_States[i];
-		//if (cs.seq_current == roce_hdr->packet_sequence_number) {
-		lock_connection_state(cs);
-		if (cs->stcqp == roce_hdr->dest_qp && cs->receiver_init == 1)
-		{
-			unlock_connection_state(cs);
-			id_colorize(cs->id);
-			found = 1;
-			break;
-		}
-		unlock_connection_state(cs);
-	}
-	if (found == 0)
-	{
+	int32_t id = fast_find_id_qp(roce_hdr->dest_qp);
+	if (id == -1) {
 		return 0;
 	}
+	cs = &Connection_States[id];
 
 	//at this point we have the correct cs
-	uint32_t msn = produce_and_update_msn(roce_hdr, cs);
-	return msn;
+	return produce_and_update_msn(roce_hdr, cs);
 }
 
-void init_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr)
+void init_stc(struct rte_mbuf * pkt)
 {
 	struct Connection_State *cs;
 	int32_t matching_id = -1;
 	uint32_t total_matches = 0;
+
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 
 	//Everything has been initlaized, return
 	if (likely(has_mapped_qp != 0))
@@ -709,82 +697,98 @@ void init_stc(struct roce_v2_header *roce_hdr, struct rte_udp_hdr *udp_hdr)
 		return;
 	}
 
+
+	//If the qp allready has an entry	
 	if(fast_find_id_qp(roce_hdr->dest_qp) != -1) {
+		return;
+	}
+
+	//!todo absolute fucking magic, I think therer are issues when the sequence numbers are too close.
+	//I'm just moving them up a bit to try TRY and prevent a conflict, this is a dirty dirty fix
+	//if(readable_seq(roce_hdr->packet_sequence_number) < 3195) {
+	if(readable_seq(roce_hdr->packet_sequence_number) < 3250) {
 		return;
 	}
 
 	//If we are here then the connection should not be initlaized yet	/ /
 	//Find the coonection
-	for (int i = 0; i < TOTAL_ENTRY; i++)
+	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		cs = &Connection_States[i];
 		lock_connection_state(cs);
-		if (cs->sender_init != 0 && cs->seq_current == roce_hdr->packet_sequence_number)
+		//rte_smp_mb();
+		//printf("seq current %d packet_seq %d\n",readable_seq(cs->seq_current), readable_seq(roce_hdr->packet_sequence_number));
+
+
+		if (cs->receiver_init == 0 && cs->sender_init != 0 && cs->seq_current == roce_hdr->packet_sequence_number)
 		{
 			matching_id = i;
+			//printf("matching id %d\n",i);
 			total_matches++;
 		}
 		unlock_connection_state(cs);
 	}
 
-	//Safty to prevent colisions when the sequence numbers align
-	if (total_matches > 1)
-	{
-		//printf("find and set STC collision, wait another round\n");
-		return;
-	}
 	//Return if nothing is found
 	if (total_matches != 1)
 	{
-		//printf("not able to find a running connection to update\n");
+		//printf("not able to find a running connection to update total matches %d last id %d\n",total_matches, matching_id);
+		//printf("cant seem to get id from fast find ID %d\n",fast_find_id_qp(roce_hdr->dest_qp));
+		//print_connection_state_status();
+		//print_packet_lite(pkt);
 		return;
 	}
 
+
 	//initalize the first time
 	cs = &Connection_States[matching_id];
+
+	if (cs->receiver_init == 1 && cs->sender_init == 1) {
+		//If the qp allready has an entry	
+		if(fast_find_id_qp(cs->stcqp) != -1) {
+			printf("failed both receiver init and not in the fast find id qp\n");
+			exit(0);
+			return;
+		}
+	}
 	lock_qp();
 	lock_connection_state(cs);
-	if (cs->receiver_init == 0)
+	if (cs->receiver_init == 0 && cs->sender_init !=0)
 	{
 		cs->stcqp = roce_hdr->dest_qp;
 		cs->udp_src_port_server = udp_hdr->src_port;
 		cs->mseq_current = get_msn(roce_hdr);
 		cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
-		set_fast_id(roce_hdr->dest_qp,matching_id);
+		//rte_smp_mb();
+		set_fast_id(roce_hdr->dest_qp,cs->id);
+		//rte_smp_mb();
 		cs->receiver_init = 1;
-		printf("Receiver init %d\n",cs->id);
+		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
+		//print_connection_state_status();
 	}
 	unlock_connection_state(cs);
 	unlock_qp();
+	//printf("---end init_stc\n");
 	return;
 }
 
-void update_cs_seq(uint32_t stc_dest_qp, uint32_t seq)
-{
-	uint32_t id = get_or_create_id(stc_dest_qp);
-	struct Connection_State *cs = &Connection_States[id];
-	lock_connection_state(cs);
-	if (cs->sender_init == 0)
-	{
-		printf("Attempting to set sequence number for non existant connection (exiting)");
-		exit(0);
-	}
-	cs->seq_current = seq;
-	unlock_connection_state(cs);
-#ifdef DATA_PATH_PRINT
-	printf("Updated connection state based on sequence number\n");
-	print_connection_state(cs);
-#endif
-}
-
-void update_cs_seq_wrapper(struct roce_v2_header *roce_hdr)
-{
+void update_cs_seq(struct rte_mbuf * pkt) {
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS && roce_hdr->opcode != RC_READ_REQUEST)
 	{
 		printf("only update connection states for writers either WRITE_ONLY or CNS (and only for data path) exiting for safty");
 		exit(0);
 	}
-	update_cs_seq(roce_hdr->dest_qp, roce_hdr->packet_sequence_number);
+
+	uint32_t id = get_or_create_id(roce_hdr->dest_qp);
+	struct Connection_State *cs = &Connection_States[id];
+
+	lock_connection_state(cs);
+	rte_smp_mb();
+	cs->seq_current = roce_hdr->packet_sequence_number;
+	rte_smp_mb();
+	unlock_connection_state(cs);
+
 }
 
 void cts_track_connection_state(struct rte_mbuf *pkt)
@@ -793,12 +797,8 @@ void cts_track_connection_state(struct rte_mbuf *pkt)
 	{
 		return;
 	}
-	struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-	struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((uint8_t *)eth_hdr + sizeof(struct rte_ether_hdr));
-	struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)((uint8_t *)ipv4_hdr + sizeof(struct rte_ipv4_hdr));
-	struct roce_v2_header *roce_hdr = (struct roce_v2_header *)((uint8_t *)udp_hdr + sizeof(struct rte_udp_hdr));
 	init_cs_wrapper(pkt);
-	update_cs_seq_wrapper(roce_hdr);
+	update_cs_seq(pkt);
 }
 
 static uint64_t first_write[KEYSPACE];
@@ -893,10 +893,6 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
-
-	if(unlikely(key == 0)) {
-		printf("Writing Key 0 to cache, it's unlikely you want to do this as key 0 is special crashing so you are aware (Stewart Grant Sept 29 2021)\n");
-	}
 }
 
 
@@ -1004,7 +1000,6 @@ int get_key(struct rte_mbuf *pkt) {
 	}
 	return -1;
 }
-
 
 inline uint32_t slot_is_open(struct Request_Map *rm)
 {
@@ -1493,8 +1488,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
-		int packet_msn = get_msn(roce_hdr);
-		//struct Buffer_State	bs = get_buffer_state(pkt);
+		//int packet_msn = get_msn(roce_hdr);
 		//printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
 
@@ -1503,7 +1497,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		#else
 		recalculate_rdma_checksum(pkt);
 		#endif
-		//recalculate_rdma_checksum(pkt);
 	}
 	return mpr;
 }
@@ -1675,7 +1668,7 @@ void track_qp(struct rte_mbuf *pkt)
 	case RC_READ_RESPONSE:
 		break;
 	case RC_ATOMIC_ACK:
-		init_stc(roce_hdr, udp_hdr);
+		init_stc(pkt);
 		break;
 	case RC_READ_REQUEST:
 	case RC_CNS:
@@ -2378,10 +2371,8 @@ lcore_main(void)
 	log_printf(INFO, "\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 			   rte_lcore_id());
 
-	printf("Running lcore main\n");
-	printf("Client Threads %d\n", TOTAL_CLIENTS);
-	printf("Keyspace %d\n", KEYSPACE);
 
+	printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
 	/* Run until the application is quit or killed. */
 
 	uint64_t lcore_pkt_count = 0;
@@ -2408,11 +2399,10 @@ lcore_main(void)
 			if (unlikely((has_mapped_qp==0))){
 				if(unlikely(fully_qp_init())) {
 				
-					printf("--BARRIER [core %d]\n",rte_lcore_id());
 					all_thread_barrier(&thread_barrier);
 					if (rte_lcore_id() == 0) {
 						lock_qp();
-						printf("core %d is flipping the switch\n",rte_lcore_id());
+						printf("\n$$ Queue Pair Multiplexing On $$\n");
 						//flip the switch
 						//print_first_mapping();
 
@@ -2443,10 +2433,6 @@ lcore_main(void)
 			#define PRINT_COUNT 10000
 			for (uint16_t i = 0; i < nb_rx; i++)
 			{
-
-
-/*
-*/
 
 				if (likely(i < nb_rx - 1))
 				{
@@ -2479,7 +2465,6 @@ lcore_main(void)
 				to_tx++;
 				#endif
 			}
-			unlock_qp_mapping();
 
 			#ifndef MAP_QP
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
@@ -2488,7 +2473,9 @@ lcore_main(void)
 			lock_tx();
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
+			rte_mb();
 			unlock_tx();
+			unlock_qp_mapping();
 			//rte_smp_mb();
 
 			#endif
@@ -2508,18 +2495,15 @@ lcore_main(void)
 
 int coretest(__attribute__((unused)) void *arg)
 {
-	printf("I'm actually running on core %d\n", rte_lcore_id());
 	lcore_main();
 	return 1;
 }
 
 void fork_lcores(void)
 {
-	printf("Running on #%d cores\n", rte_lcore_count());
 	int lcore;
 	RTE_LCORE_FOREACH_SLAVE(lcore)
 	{
-		printf("running core %d\n", lcore);
 		rte_eal_remote_launch(coretest, NULL, lcore);
 	}
 }
@@ -2550,22 +2534,34 @@ void error_switch(void) {
 	}
 }
 
-	//TODO remove this ack pool
-void create_ack_mem_pool(void) {
+void mode_print(){
 
-	#define ACK_POOL_SIZE 128
-	#define ACK_CACHE_SIZE 64
-	mbuf_pool_ack = rte_pktmbuf_pool_create("MBUF_POOL_ACK", ACK_POOL_SIZE,
-										ACK_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+	#ifdef WRITE_STEER
+		printf("WRITE STEERING: ON\n");
+	#else
+		printf("WRITE STEERING: OFF\n");
+	#endif
 
-	printf("ack create error %d\n",rte_errno);
-	error_switch();
+	#ifdef READ_STEER
+		printf("READ STEERING: ON\n");
+	#else
+		printf("READ STEERING: OFF\n");
+	#endif
 
-	if (mbuf_pool_ack == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot create mbuf ack pool\n");
+	#ifdef MAP_QP
+		printf("QP MAPPING: ON\n");
+	#else
+		printf("QP MAPPING: OFF\n");
+	#endif
+
+	#ifdef CNS_TO_WRITE
+		printf("CNS TO WRITE: ON\n");
+	#else
+		printf("CNS TO WRITE: OFF\n");
+	#endif
+
+
 }
-
-
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -2615,22 +2611,26 @@ int main(int argc, char *argv[])
 	if (rte_lcore_count() > 1)
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
-	create_ack_mem_pool();
 
-	printf("master core %d\n", rte_get_master_lcore());
 
 	//dome debugging
 	struct rte_eth_link link;
 	RTE_ETH_FOREACH_DEV(portid)
 	rte_eth_link_get(0,&link);
+	printf("Link Speed %d MBPS\n",link.link_speed);
 	if (link.link_duplex == ETH_LINK_FULL_DUPLEX) {
 		printf("FULL DUPLEX ON\n");
+	} else {
+		printf("NOT FULL DUPLEX\n");
 	}
-	printf("link speed %d duplex %d\n",link.link_speed,link.link_duplex);
+
+	printf("Client Threads %d\n", TOTAL_CLIENTS);
+	printf("Keyspace %d\n", KEYSPACE);
+
+	mode_print();
 
 	if (init == 0)
 	{
-		printf("bzeroing\n");
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
 		bzero(second_write, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
@@ -2659,7 +2659,6 @@ int main(int argc, char *argv[])
 		rte_rwlock_init(&tx_lock);
 		rte_rwlock_init(&qp_mapping_lock);
 
-		printf("init structs\n");
 		init_reorder_buf();
 		init_connection_states();
 		init_fast_find_id();
@@ -2667,7 +2666,7 @@ int main(int argc, char *argv[])
 		predict_shift_value = 0;
 		has_mapped_qp = 0;
 		init = 1;
-		printf("done init\n");
+		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}
 
 	fork_lcores();

@@ -12,8 +12,10 @@ if [[ $1 == -b ]]; then
     echo "about to clean"
     make clean
 
-    echo "setting RTE_SDK to vtune"
+    #echo "setting RTE_SDK to vtune"
     export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/vtune_install/share/dpdk
+    #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/myinstall/share/dpdk
+    #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/fastinstall/share/dpdk
     echo "RTE_SDK=$RTE_SDK"
 
     make -j 30
@@ -24,15 +26,20 @@ pushd build
 
 
 #sudo -E ./basicfwd -l 0,2,4,6,8,10,12,14,16,18,20,22,24 -n 18
-#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 2
-echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6 -n 4
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12,14 -n 8
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 4
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6 -n 4
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12,14,16,18,20,22,24 -n 18
-#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
 #gdb --args rmemc-dpdk -l 0 -n 1
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
-#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8 -n 5
+#echo "iwicbV15" | sudo -S -E catchsegv ./rmemc-dpdk -l 0,2,4 -n 3
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
+echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8 -n 5
 popd
 
 echo "completed running the switch"

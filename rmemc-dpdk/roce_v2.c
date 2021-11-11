@@ -20,7 +20,6 @@ inline uint32_t get_psn(struct rte_mbuf *pkt)
 
 inline uint32_t readable_seq(uint32_t seq)
 {
-    //return ntohl(seq) / 256;
     return ntohl(seq) >> 8;
 }
 
