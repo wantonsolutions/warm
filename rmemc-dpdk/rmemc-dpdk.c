@@ -116,6 +116,36 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
 }
 
+//fast id finder
+#define ID_SPACE 1<<24
+int32_t fast_id_lookup[ID_SPACE];
+
+inline uint32_t qp_id_hash(uint32_t qp) {
+	return ntohl(qp)>>8;
+}
+
+void set_fast_id(uint32_t qp, uint32_t id) {
+	if(fast_id_lookup[qp_id_hash(qp)] != -1){
+		printf("curses I've hit a collision in the ID space");
+		exit(0);
+	}
+	fast_id_lookup[qp_id_hash(qp)] = id;
+}
+
+int fast_find_id_qp(uint32_t qp) {
+	return fast_id_lookup[qp_id_hash(qp)];
+}
+
+int fast_find_id(struct rte_mbuf * buf) {
+	struct roce_v2_header * rh = get_roce_hdr(buf);
+	return fast_find_id_qp(rh->dest_qp);
+}
+
+void init_fast_find_id(void) {
+	for (int i=0;i<ID_SPACE;i++){
+		fast_id_lookup[i]=-1;
+	}
+}
 
 rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
@@ -1585,7 +1615,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		*/
 		if (unlikely(size == 68))
 		{
-			uint32_t id = get_or_create_id(roce_hdr->dest_qp);
+			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			*key = get_latest_key(id);
 			if (*key < 1 || *key > KEYSPACE)
 			{
@@ -1597,7 +1627,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	}
 	else if (opcode == RC_CNS)
 	{
-		uint32_t id = get_or_create_id(roce_hdr->dest_qp);
+		int id = fast_find_id_qp(roce_hdr->dest_qp);
 		map_qp_forward(pkt, get_latest_key(id));
 	}
 	return mpr;
@@ -2197,36 +2227,6 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_
 	return 0;
 }
 
-//fast id finder
-#define ID_SPACE 1<<24
-int32_t fast_id_lookup[ID_SPACE];
-
-inline uint32_t qp_id_hash(uint32_t qp) {
-	return ntohl(qp)>>8;
-}
-
-void set_fast_id(uint32_t qp, uint32_t id) {
-	if(fast_id_lookup[qp_id_hash(qp)] != -1){
-		printf("curses I've hit a collision in the ID space");
-		exit(0);
-	}
-	fast_id_lookup[qp_id_hash(qp)] = id;
-}
-
-int fast_find_id_qp(uint32_t qp) {
-	return fast_id_lookup[qp_id_hash(qp)];
-}
-
-int fast_find_id(struct rte_mbuf * buf) {
-	struct roce_v2_header * rh = get_roce_hdr(buf);
-	return fast_find_id_qp(rh->dest_qp);
-}
-
-void init_fast_find_id(void) {
-	for (int i=0;i<ID_SPACE;i++){
-		fast_id_lookup[i]=-1;
-	}
-}
 
 void print_packet_lite(struct rte_mbuf *buf)
 {
