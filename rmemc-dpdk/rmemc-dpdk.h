@@ -39,7 +39,7 @@
 #define CS_SLOTS 1024
 
 //#define MITSUME_BENCHMARK_THREAD_DEFAULT 64
-#define MITSUME_BENCHMARK_THREAD_DEFAULT 16
+#define MITSUME_BENCHMARK_THREAD_DEFAULT 32
 #if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
 
 //Only here if MYVARIABLE is not defined
@@ -90,6 +90,7 @@ struct Connection_State
   rte_rwlock_t cs_lock;
   uint32_t seq_current;  // Packet sequence number
   uint32_t mseq_current; // message sequence number (for acks/cns acks/reads in ATEH header)
+  uint32_t last_atomic_seq;
   //Slot for storing outstanding requests on this connection
   struct Request_Map Outstanding_Requests[CS_SLOTS];
 } Connection_State;

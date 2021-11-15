@@ -117,14 +117,25 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 }
 
 //fast id finder
-#define ID_SPACE 1<<24
+//#define ID_SPACE 1<<24
+#define ID_SPACE 1024
 int32_t fast_id_lookup[ID_SPACE];
 
-inline uint32_t qp_id_hash(uint32_t qp) {
-	return ntohl(qp)>>8;
+uint32_t qp_id_hash(uint32_t qp) {
+	//return ntohl(qp)>>8;
+	/*
+	for(int i=0;i<20;i++) {
+		printf("%"PRIu64"\n",murmur3(i));
+	}
+	*/
+	uint32_t val = (uint32_t) murmur3(qp) % (ID_SPACE);
+	//printf("value %d qp %d\n",val, qp);
+	//return ntohl(qp)>>8;
+	return val;
 }
 
 void set_fast_id(uint32_t qp, uint32_t id) {
+	//printf("setting fast ID: %d QP: %d\n",id,qp);
 	if(fast_id_lookup[qp_id_hash(qp)] != -1){
 		printf("curses I've hit a collision in the ID space");
 		exit(0);
@@ -133,7 +144,10 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 }
 
 int fast_find_id_qp(uint32_t qp) {
-	return fast_id_lookup[qp_id_hash(qp)];
+	lock_qp();
+	int id = fast_id_lookup[qp_id_hash(qp)];
+	unlock_qp();
+	return id;
 }
 
 int fast_find_id(struct rte_mbuf * buf) {
@@ -142,7 +156,7 @@ int fast_find_id(struct rte_mbuf * buf) {
 }
 
 void init_fast_find_id(void) {
-	for (int i=0;i<ID_SPACE;i++){
+	for (int i=0;i<(ID_SPACE);i++){
 		fast_id_lookup[i]=-1;
 	}
 }
@@ -221,7 +235,7 @@ void print_connection_state_status(void) {
 	struct Connection_State *cs;
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		cs=&Connection_States[i];
-		printf("id %3d SI=%d RI=%d seq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
+		printf("id %3d SI=%d RI=%d seq %d atomic-seq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),readable_seq(cs->last_atomic_seq),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
 	}
 } 
 
@@ -430,6 +444,7 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	if (unlikely(has_mapped_qp == 0) || id == -1) {
 		return &ect_buffer_states[0];
 	}
+
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
 	{
@@ -689,6 +704,19 @@ uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connecti
 	return msn;
 }
 
+//Calculate the MSN of the packet based on the offset. If the msn of the
+//connection state is behind, update that as well.
+uint32_t produce_and_update_msn_lockless(struct roce_v2_header *roce_hdr, struct Connection_State *cs)
+{
+	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
+	if (ntohl(msn) > ntohl(cs->mseq_current))
+	{
+		cs->mseq_current = msn;
+	}
+	msn = cs->mseq_current;
+	return msn;
+}
+
 //Update the server to clinet connection state based on roce and udp header.
 //Search for the connection state first. If it's not found, just return.
 //Otherwise update the MSN.
@@ -721,39 +749,84 @@ void init_stc(struct rte_mbuf * pkt)
 		return;
 	}
 
+    //Try to perform a basic update
+    if (find_and_update_stc(roce_hdr) > 0)
+    {
+        return;
+    }
+
 	if (roce_hdr->opcode != RC_ATOMIC_ACK)
 	{
 		printf("Only find and set stc on atomic ACKS");
 		return;
 	}
 
+	print_packet_lite(pkt);
 
-	//If the qp allready has an entry	
-	if(fast_find_id_qp(roce_hdr->dest_qp) != -1) {
-		return;
-	}
 
-	//!todo absolute fucking magic, I think therer are issues when the sequence numbers are too close.
-	//I'm just moving them up a bit to try TRY and prevent a conflict, this is a dirty dirty fix
-	//if(readable_seq(roce_hdr->packet_sequence_number) < 3195) {
-	if(readable_seq(roce_hdr->packet_sequence_number) < 3250) {
-		return;
-	}
-
-	//If we are here then the connection should not be initlaized yet	/ /
-	//Find the coonection
+	//Perform sanity check
+	/*
+	uint32_t found=0;
 	for (int i = 0; i < TOTAL_CLIENTS; i++)
 	{
 		cs = &Connection_States[i];
 		lock_connection_state(cs);
-		//rte_smp_mb();
 		//printf("seq current %d packet_seq %d\n",readable_seq(cs->seq_current), readable_seq(roce_hdr->packet_sequence_number));
 
+		//if (cs->receiver_init == 0 && cs->sender_init != 0 && cs->seq_current == roce_hdr->packet_sequence_number)
+		if (cs->stcqp == roce_hdr->dest_qp)
+		{
+			found=1;
+		}
+		unlock_connection_state(cs);
+	}
 
-		if (cs->receiver_init == 0 && cs->sender_init != 0 && cs->seq_current == roce_hdr->packet_sequence_number)
+	if (found == 0 && fast_find_id_qp(roce_hdr->dest_qp) != -1) {
+		printf("QP collision PANIC!!!");
+		printf("packet qp %d id %d index %d\n", roce_hdr->packet_sequence_number, fast_find_id_qp(roce_hdr->dest_qp),qp_id_hash(roce_hdr->dest_qp));
+		print_connection_state_status();
+
+		exit(0);
+	}
+	*/
+
+
+	//If the qp allready has an entry	
+	/*
+	if(fast_find_id_qp(roce_hdr->dest_qp) != -1) {
+		return;
+	}
+	*/
+
+	
+
+	//print_connection_state_status();
+	//print_packet_lite(pkt);
+
+
+	//!todo absolute fucking magic, I think therer are issues when the sequence numbers are too close.
+	//I'm just moving them up a bit to try TRY and prevent a conflict, this is a dirty dirty fix
+	/*
+	if(readable_seq(roce_hdr->packet_sequence_number) < 3500) {
+	//if(readable_seq(roce_hdr->packet_sequence_number) < 3500) {
+		return;
+	}
+	*/
+
+	//If we are here then the connection should not be initlaized yet	/ /
+	//Find the coonection
+
+	for (int i = 0; i < TOTAL_CLIENTS; i++)
+	{
+		cs = &Connection_States[i];
+		lock_connection_state(cs);
+		//printf("seq current %d packet_seq %d\n",readable_seq(cs->seq_current), readable_seq(roce_hdr->packet_sequence_number));
+
+		//if (cs->receiver_init == 0 && cs->sender_init != 0 && cs->seq_current == roce_hdr->packet_sequence_number)
+		//if (cs->receiver_init == 0 && cs->sender_init != 0 && cs->last_atomic_seq == roce_hdr->packet_sequence_number)
+		if (cs->sender_init != 0 && cs->last_atomic_seq == roce_hdr->packet_sequence_number)
 		{
 			matching_id = i;
-			//printf("matching id %d\n",i);
 			total_matches++;
 		}
 		unlock_connection_state(cs);
@@ -762,10 +835,7 @@ void init_stc(struct rte_mbuf * pkt)
 	//Return if nothing is found
 	if (total_matches != 1)
 	{
-		//printf("not able to find a running connection to update total matches %d last id %d\n",total_matches, matching_id);
-		//printf("cant seem to get id from fast find ID %d\n",fast_find_id_qp(roce_hdr->dest_qp));
-		//print_connection_state_status();
-		//print_packet_lite(pkt);
+		//printf("init collision\n");
 		return;
 	}
 
@@ -781,23 +851,25 @@ void init_stc(struct rte_mbuf * pkt)
 			return;
 		}
 	}
-	lock_qp();
+	//lock_qp();
 	lock_connection_state(cs);
 	if (cs->receiver_init == 0 && cs->sender_init !=0)
 	{
 		cs->stcqp = roce_hdr->dest_qp;
 		cs->udp_src_port_server = udp_hdr->src_port;
+		set_fast_id(roce_hdr->dest_qp,cs->id);
 		cs->mseq_current = get_msn(roce_hdr);
 		cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
 		//rte_smp_mb();
-		set_fast_id(roce_hdr->dest_qp,cs->id);
 		//rte_smp_mb();
 		cs->receiver_init = 1;
 		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
+		print_connection_state_status();
 		//print_connection_state_status();
 	}
+	print_packet_lite(pkt);
 	unlock_connection_state(cs);
-	unlock_qp();
+	//unlock_qp();
 	//printf("---end init_stc\n");
 	return;
 }
@@ -814,9 +886,14 @@ void update_cs_seq(struct rte_mbuf * pkt) {
 	struct Connection_State *cs = &Connection_States[id];
 
 	lock_connection_state(cs);
-	rte_smp_mb();
+	//rte_smp_mb();
 	cs->seq_current = roce_hdr->packet_sequence_number;
-	rte_smp_mb();
+
+	if (roce_hdr->opcode == RC_CNS) {
+		cs->last_atomic_seq = roce_hdr->packet_sequence_number;
+	}
+
+	//rte_smp_mb();
 	unlock_connection_state(cs);
 
 }
@@ -1228,13 +1305,14 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	roce_hdr->packet_sequence_number = destination_connection->seq_current;
 	udp_hdr->src_port = destination_connection->udp_src_port_client;
 	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
-	unlock_connection_state(destination_connection);
 
 
 	//Transform CNS to WRITES
 	#ifdef CNS_TO_WRITE
 	map_cns_to_write(pkt,slot);
 	#endif
+	rte_smp_mb();
+	unlock_connection_state(destination_connection);
 
 	//checksumming
 	ipv4_hdr->hdr_checksum = 0;
@@ -1316,7 +1394,14 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 		//This is must be done after the unlock
 		struct Connection_State *destination_cs = &Connection_States[id];
-		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
+		uint32_t msn;
+		//Avoid double locking
+		if (destination_cs == cs) {
+			msn = produce_and_update_msn_lockless(roce_hdr, destination_cs);
+		} else {
+			msn = produce_and_update_msn(roce_hdr, destination_cs);
+		}
+
 		set_msn(roce_hdr, msn);
 
 		#ifdef CNS_TO_WRITE
@@ -1426,6 +1511,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	}
 
 
+	lock_connection_state(source_connection);
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
 	if (likely(mapped_request != NULL))
@@ -1458,7 +1544,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			}
 		}
 
-		lock_connection_state(source_connection);
+		//lock_connection_state(source_connection);
 
 
 		//sanity_check_mapping(pkt,mapped_request);
@@ -1470,8 +1556,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		ipv4_hdr->dst_addr = mapped_request->original_src_ip;
 		copy_eth_addr(mapped_request->original_eth_addr, eth_hdr->d_addr.addr_bytes);
 		//make a local copy of the id before unlocking
-		uint32_t id = mapped_request->id;
+		uint32_t original_id = mapped_request->id;
 		//open up the mapped request
+
+
+		#ifdef CNS_TO_WRITE
+		map_write_ack_to_atomic_ack(pkt,mapped_request);
+		#endif
 
 
 		open_slot(mapped_request);
@@ -1482,7 +1573,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//what the original connection was so that we can update it accordingly.
 
 		//This is must be done after the unlock
-		struct Connection_State *destination_cs = &Connection_States[id];
+		struct Connection_State *destination_cs = &Connection_States[original_id];
 		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
 		set_msn(roce_hdr, msn);
 
@@ -1493,9 +1584,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 #endif
 
 
-		#ifdef CNS_TO_WRITE
-		map_write_ack_to_atomic_ack(pkt,mapped_request);
-		#endif
 
 		//Ip mapping recalculate the ip checksum
 		ipv4_hdr->hdr_checksum = 0;
@@ -1515,6 +1603,9 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 	unlock_connection_state(source_connection);
 	//printf("[debug] find and update stc tracebasck on untracked packet\n");
+
+	//!I think that this can be simplified to just update the MSN there should not be a time when that is not set
+
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
@@ -1573,6 +1664,7 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		struct read_request *rr = (struct read_request *)clover_header;
 		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (size == 1024) {
+			//!todo check to see how we can make the does read have cached write safe
 			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
 			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			#ifdef TAKE_MEASUREMENTS
@@ -1581,9 +1673,6 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 			if (likely(key != 0)) {
 				steer_read(pkt, key);
 			} else {
-				//print_packet_lite(pkt);
-				//print_packet(pkt);
-				//exit(0);
 				#ifdef TAKE_MEASUREMENT
 				read_not_cached();
 				#endif
@@ -2401,12 +2490,14 @@ lcore_main(void)
 				
 					all_thread_barrier(&thread_barrier);
 					if (rte_lcore_id() == 0) {
-						lock_qp();
 						printf("\n$$ Queue Pair Multiplexing On $$\n");
+
+						print_connection_state_status();
 						//flip the switch
 						//print_first_mapping();
 
 						//start doing fast operations now
+						lock_qp();
 						has_mapped_qp=1;
 						unlock_qp();
 					}
@@ -2414,6 +2505,7 @@ lcore_main(void)
 				}
 			}
 			#endif
+
 
 
 			//printf("core %d using queue %d\n",rte_lcore_id(),queue);
@@ -2426,7 +2518,6 @@ lcore_main(void)
 			if (unlikely(nb_rx == 0)) {
 				continue;
 			}
-			lock_qp_mapping();
 			//printf("core %d - processing\n",rte_lcore_id());
 
 
@@ -2438,7 +2529,7 @@ lcore_main(void)
 				{
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
-				//packet_counter++;
+				packet_counter++;
 
 				#ifdef TAKE_MEASUREMENTS
 				sum_processed_data(rx_pkts[i]);
@@ -2453,7 +2544,11 @@ lcore_main(void)
 				struct map_packet_response mpr;
 
 				//print_packet_lite(rx_pkts[i]);
+
+				//!TODO START HERE TOMORROW, we are going to pull out the lock_qp_mapping locks
+				lock_qp_mapping();
 				mpr = map_qp(rx_pkts[i]);
+				unlock_qp_mapping();
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
@@ -2473,14 +2568,12 @@ lcore_main(void)
 			lock_tx();
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
-			rte_mb();
 			unlock_tx();
-			unlock_qp_mapping();
 			//rte_smp_mb();
 
 			#endif
 
-			#ifdef TAKE_MEASUREMENTS
+		#ifdef TAKE_MEASUREMENTS
 			//if(has_mapped_qp){
 			//	calculate_in_flight(&Connection_States);
 			//}
