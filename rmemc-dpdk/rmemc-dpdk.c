@@ -60,7 +60,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-#define CNS_TO_WRITE
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -118,8 +118,9 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 
 //fast id finder
 //#define ID_SPACE 1<<24
-#define ID_SPACE 1024
+#define ID_SPACE 1<<24
 int32_t fast_id_lookup[ID_SPACE];
+int32_t fast_qp_lookup[TOTAL_CLIENTS];
 
 uint32_t qp_id_hash(uint32_t qp) {
 	//return ntohl(qp)>>8;
@@ -141,6 +142,7 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 		exit(0);
 	}
 	fast_id_lookup[qp_id_hash(qp)] = id;
+
 }
 
 int fast_find_id_qp(uint32_t qp) {
@@ -158,6 +160,14 @@ int fast_find_id(struct rte_mbuf * buf) {
 void init_fast_find_id(void) {
 	for (int i=0;i<(ID_SPACE);i++){
 		fast_id_lookup[i]=-1;
+	}
+}
+
+void check_id_mapping(void) {
+	for (int i=0;i<ID_SPACE;i++) {
+		if(fast_id_lookup[i] != -1) {
+			printf("index[%d]=%d\n",i,fast_id_lookup[i]);
+		}
 	}
 }
 
@@ -261,7 +271,8 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 	#endif
 }
 
-static uint32_t qp_id_counter = 0;
+rte_atomic16_t atomic_qp_id_counter;
+
 uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
 
@@ -294,21 +305,28 @@ uint32_t get_or_create_id(uint32_t qp)
 	//first try to go fast
 	id = fast_find_id_qp(qp);
 	if (id != -1) {
+		if(fast_qp_lookup[id] != qp) {
+			printf("QP COLLISION\n");
+			exit(0);
+		}
 		return id;
 	}
 
 	lock_qp();
-	id = qp_id_counter;
-
-
 	rte_mb();
+
+	int16_t new_id = rte_atomic16_add_return(&atomic_qp_id_counter,1);
+	printf("new id %d\n",new_id);
+	id = (int32_t)new_id;
+
+
 	set_fast_id(qp,id);
-	rte_mb();
+	fast_qp_lookup[id]=qp;
 
 	//Set globals
 	qp_values[id] = id;
 	id_qp[id] = qp;
-	qp_id_counter++;
+	rte_mb();
 	unlock_qp();
 
 	return id;
@@ -2101,6 +2119,8 @@ void true_classify(struct rte_mbuf *pkt)
 			//This is the crash condtion
 			//Fatal, unable to find the next key
 			printf("Crashing on (CNS PREDICT) ID: %d psn %d\n", id, readable_seq(roce_hdr->packet_sequence_number));
+			check_id_mapping();
+			print_packet_lite(pkt);
 			printf("predicted: %" PRIu64 "\n", be64toh(predict));
 			printf("actual:    %" PRIu64 "\n", be64toh(swap));
 			print_address(&predict);
@@ -2562,10 +2582,20 @@ lcore_main(void)
 			}
 
 			#ifndef MAP_QP
+
+			/*
+			for (int i=0;i<to_tx;i++) {
+				print_packet_lite(tx_pkts[i]);
+			}
+			*/
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
 
 			lock_tx();
+
+			if (unlikely(to_tx > (BURST_SIZE * PACKET_INFLATION))) {
+				printf("I think this is going to cause stack smashing\n");
+			}
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
 			unlock_tx();
@@ -2759,6 +2789,8 @@ int main(int argc, char *argv[])
 		predict_shift_value = 0;
 		has_mapped_qp = 0;
 		init = 1;
+		rte_atomic16_init(&atomic_qp_id_counter);
+		rte_atomic16_set(&atomic_qp_id_counter,-1);
 		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}
 
