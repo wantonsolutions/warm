@@ -313,10 +313,10 @@ uint32_t get_or_create_id(uint32_t qp)
 	}
 
 	lock_qp();
-	rte_mb();
+	//rte_mb();
 
 	int16_t new_id = rte_atomic16_add_return(&atomic_qp_id_counter,1);
-	printf("new id %d\n",new_id);
+	//printf("new id %d\n",new_id);
 	id = (int32_t)new_id;
 
 
@@ -326,7 +326,7 @@ uint32_t get_or_create_id(uint32_t qp)
 	//Set globals
 	qp_values[id] = id;
 	id_qp[id] = qp;
-	rte_mb();
+	//rte_mb();
 	unlock_qp();
 
 	return id;
@@ -606,7 +606,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			*bs->head += 1;
 		}
 	}
-	count_held_packets();
+	//count_held_packets();
 	return mpr;
 }
 
@@ -779,7 +779,7 @@ void init_stc(struct rte_mbuf * pkt)
 		return;
 	}
 
-	print_packet_lite(pkt);
+	//print_packet_lite(pkt);
 
 
 	//Perform sanity check
@@ -882,10 +882,9 @@ void init_stc(struct rte_mbuf * pkt)
 		//rte_smp_mb();
 		cs->receiver_init = 1;
 		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
-		print_connection_state_status();
+		//print_connection_state_status();
 		//print_connection_state_status();
 	}
-	print_packet_lite(pkt);
 	unlock_connection_state(cs);
 	//unlock_qp();
 	//printf("---end init_stc\n");
@@ -2595,6 +2594,7 @@ lcore_main(void)
 
 			if (unlikely(to_tx > (BURST_SIZE * PACKET_INFLATION))) {
 				printf("I think this is going to cause stack smashing\n");
+				exit(0);
 			}
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
