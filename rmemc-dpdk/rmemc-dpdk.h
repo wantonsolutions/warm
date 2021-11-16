@@ -255,6 +255,7 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot);
 void print_cache_population(void);
 uint64_t murmur3(uint64_t k);
 
+void flush_buffers(uint16_t port);
 struct Buffer_State *get_buffer_state(struct rte_mbuf *pkt);
 void enqueue_finish_mem_pkt_bulk(struct rte_mbuf **pkts, uint32_t size);
 void dequeue_finish_mem_pkt_bulk_full(uint16_t port, uint32_t queue);

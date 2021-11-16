@@ -60,7 +60,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-//#define CNS_TO_WRITE
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -585,6 +585,25 @@ void print_mpr(struct map_packet_response* mpr) {
 	}
 }
 
+void flush_buffers(uint16_t port) {
+	printf("&& FLUSHING BUFFERS\n");
+	struct Buffer_State_Tracker bst;
+	struct Buffer_State *bs =  &ect_buffer_states[0];
+	bst.size=1;
+	bst.buffer_states[0]=bs;
+	dequeue_finish_mem_pkt_bulk_full2(port, 0, &bst);
+	printf("&& FLUSHING BUFFERS COMPLETE\n");
+	printf("setting buffer states to current\n");
+
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		struct Connection_State *cs = &Connection_States[i];
+		struct Buffer_State *bs = &mem_buffer_states[i];
+		(*bs->head) = readable_seq(cs->seq_current) + 1;
+		(*bs->tail) = readable_seq(cs->seq_current);
+		
+	}
+}
+
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
 	struct map_packet_response mpr;
@@ -637,14 +656,20 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	#endif
 
 	if (mpr.size > 0) {
-		/*
-		if (qp_is_mapped) {
-			for (uint16_t i = 0; i<mpr.size;i++){
-				print_packet_lite(mpr.pkts[i]);
-			}
-		}*/
+		for (uint16_t i = 0; i<mpr.size;i++){
+			//print_packet_lite(mpr.pkts[i]);
+		}
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
-		rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+		for(int i=0;i<mpr.size;i+=BURST_SIZE) {
+			int to_send=0;	
+			if (i + BURST_SIZE <= mpr.size) {
+				to_send=BURST_SIZE;
+			} else {
+				to_send = mpr.size - i;
+			}
+			rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
+		}
+		//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 	}
 	return;
 }
@@ -2527,6 +2552,7 @@ lcore_main(void)
 						//print_first_mapping();
 
 						//start doing fast operations now
+						flush_buffers(port);
 						lock_qp();
 						has_mapped_qp=1;
 						unlock_qp();
