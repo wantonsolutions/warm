@@ -60,7 +60,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-//#define CNS_TO_WRITE
+#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -597,7 +597,9 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 
 		while (*bs->head <= *bs->tail)
 		{
+			//printf("(dq) core %3d, id %3d seq %6d\n",rte_lcore_id(),bs->id,*bs->head);
 			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
+			//print_packet_lite(s_pkt);
 			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=ts;
@@ -630,14 +632,12 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	#endif
 
 	if (mpr.size > 0) {
-
 		/*
 		if (qp_is_mapped) {
 			for (uint16_t i = 0; i<mpr.size;i++){
 				print_packet_lite(mpr.pkts[i]);
 			}
-		}
-		*/
+		}*/
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 		rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 	}
@@ -882,8 +882,7 @@ void init_stc(struct rte_mbuf * pkt)
 		//rte_smp_mb();
 		cs->receiver_init = 1;
 		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
-		//print_connection_state_status();
-		//print_connection_state_status();
+		print_connection_state_status();
 	}
 	unlock_connection_state(cs);
 	//unlock_qp();
