@@ -515,7 +515,7 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
-		print_packet_lite(pkt);
+		//print_packet_lite(pkt);
 
 		//If it's going in the etc buffer then just throw it on fifo
 		if (bs->buf == &ect_qp_buf[bs->id])
