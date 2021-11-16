@@ -146,14 +146,14 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 }
 
 int fast_find_id_qp(uint32_t qp) {
-	lock_qp();
+	//lock_qp();
 	int id = fast_id_lookup[qp_id_hash(qp)];
 	if(fast_qp_lookup[qp_id_hash(qp)] != qp && id != -1) {
 		printf("FAILeD\n");
 		printf("fast_qp_lookup[%d]=%d qp =%d fast_id_lookup=%d\n",id,fast_qp_lookup[qp_id_hash(qp)],qp,qp_id_hash(qp),fast_id_lookup[qp_id_hash(qp)]);
 		exit(0);
 	}
-	unlock_qp();
+	//unlock_qp();
 	return id;
 }
 
@@ -2159,6 +2159,7 @@ void true_classify(struct rte_mbuf *pkt)
 			printf("actual:    %" PRIu64 "\n", be64toh(swap));
 			print_address(&predict);
 			print_address(&swap);
+			/*
 			print_binary_address(&predict);
 			print_binary_address(&swap);
 			uint64_t diff = be64toh(swap) - be64toh(predict);
@@ -2174,6 +2175,7 @@ void true_classify(struct rte_mbuf *pkt)
 			print_binary_address(&first_cns[key]);
 			uint64_t fcns = first_cns[key];
 			print_binary_address(&fcns);
+			*/
 
 			printf("unable to find the next oustanding write, how can this be? SWAP: %" PRIu64 " latest_key[id = %d]=%" PRIu64 ", first cns[key = %" PRIu64 "]=%" PRIu64 "\n", swap, id, latest_key[id], latest_key[id], first_cns[latest_key[id]]);
 			printf("we should stop here and fail, but for now lets keep going\n");
@@ -2602,9 +2604,9 @@ lcore_main(void)
 				//print_packet_lite(rx_pkts[i]);
 
 				//!TODO START HERE TOMORROW, we are going to pull out the lock_qp_mapping locks
-				lock_qp_mapping();
+				//lock_qp_mapping();
 				mpr = map_qp(rx_pkts[i]);
-				unlock_qp_mapping();
+				//unlock_qp_mapping();
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
