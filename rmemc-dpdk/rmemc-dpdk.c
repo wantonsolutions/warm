@@ -250,7 +250,7 @@ void print_connection_state_status(void) {
 	struct Connection_State *cs;
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		cs=&Connection_States[i];
-		printf("id %3d SI=%d RI=%d seq %d atomic-seq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),readable_seq(cs->last_atomic_seq),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
+		printf("id %3d SI=%d RI=%d seq %d mseq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),readable_seq(cs->mseq_current),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
 	}
 } 
 
@@ -482,9 +482,9 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 }
 
 int32_t count_held_packets() {
-	return 0;
-	int32_t total=0;
+
 	for(int i=0;i<TOTAL_CLIENTS;i++){
+		int32_t total=0;
 		struct Buffer_State* bs;
 		bs=&ect_buffer_states[i];
 		total += *(bs->tail) - *(bs->head);
@@ -492,11 +492,11 @@ int32_t count_held_packets() {
 		total += *(bs->tail) - *(bs->head);
 		bs=&mem_buffer_states[i];
 		total += *(bs->tail) - *(bs->head);
+		if (total > 0) {
+			printf("TOTAL HELD %d ID %d\n",total,i);
+		}
 	}
-	if (total > 0) {
-		printf("TOTAL HELD %d\n",total);
-	}
-	return total;
+	return 0;
 }
 
 struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
@@ -514,6 +514,8 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		bs = get_buffer_state(pkts[i]);
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
+
+		print_packet_lite(pkt);
 
 		//If it's going in the etc buffer then just throw it on fifo
 		if (bs->buf == &ect_qp_buf[bs->id])
@@ -601,6 +603,15 @@ void flush_buffers(uint16_t port) {
 		(*bs->head) = readable_seq(cs->seq_current) + 1;
 		(*bs->tail) = readable_seq(cs->seq_current);
 		
+		bs = &client_buffer_states[i];
+		//msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
+		printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
+		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
+		printf("id: %d rec seq %d\n",bs->id, rec_seq);
+		(*bs->head) = rec_seq + 1;
+		(*bs->tail) = rec_seq;
+
+		
 	}
 }
 
@@ -656,9 +667,11 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 	#endif
 
 	if (mpr.size > 0) {
+		/*
 		for (uint16_t i = 0; i<mpr.size;i++){
-			//print_packet_lite(mpr.pkts[i]);
+			print_packet_lite(mpr.pkts[i]);
 		}
+		*/
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 		for(int i=0;i<mpr.size;i+=BURST_SIZE) {
 			int to_send=0;	
@@ -1838,6 +1851,7 @@ void track_qp(struct rte_mbuf *pkt)
 	{
 	case RC_ACK:
 	case RC_READ_RESPONSE:
+		find_and_update_stc(roce_hdr);
 		break;
 	case RC_ATOMIC_ACK:
 		init_stc(pkt);
@@ -2180,6 +2194,7 @@ void true_classify(struct rte_mbuf *pkt)
 			printf("unable to find the next oustanding write, how can this be? SWAP: %" PRIu64 " latest_key[id = %d]=%" PRIu64 ", first cns[key = %" PRIu64 "]=%" PRIu64 "\n", swap, id, latest_key[id], latest_key[id], first_cns[latest_key[id]]);
 			printf("we should stop here and fail, but for now lets keep going\n");
 			print_packet_lite(pkt);
+			count_held_packets();
 
 #ifdef TAKE_MEASUREMENTS
 			write_run_data();
@@ -2395,7 +2410,7 @@ void print_packet_lite(struct rte_mbuf *buf)
 
 	id_colorize(id);
 	//printf("[core %d][id %d][op:%s (%d)][size: %d][dst: %d][seq %d][msn %d][key %d](pkt %d)\n", rte_lcore_id(), id, op, roce_hdr->opcode, size, dest_qp, seq, msn, key,packet_counter);
-	printf("[core %d][id %3d][seq %5d][op:%19s][key %4d][msn %5d][size: %4d][dst: %d](pkt %d)\n", rte_lcore_id(), id, seq, op,key, msn, size, dest_qp, packet_counter);
+	printf("[core %2d][id %3d][seq %5d][op:%19s][key %4d][msn %5d][size: %4d][dst: %d][dst-readable %d](pkt %d)\n", rte_lcore_id(), id, seq, op,key, msn, size, dest_qp, ntohl(dest_qp) >> 8, packet_counter);
 }
 
 struct rte_ipv4_hdr *ipv4_hdr_process(struct rte_ether_hdr *eth_hdr)
