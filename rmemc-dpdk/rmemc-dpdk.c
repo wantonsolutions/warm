@@ -60,7 +60,7 @@ static int hash_collisons=0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-#define CNS_TO_WRITE
+//#define CNS_TO_WRITE
 
 #define WRITE_VADDR_CACHE_SIZE 16
 
@@ -120,7 +120,7 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 //#define ID_SPACE 1<<24
 #define ID_SPACE 1<<24
 int32_t fast_id_lookup[ID_SPACE];
-int32_t fast_qp_lookup[TOTAL_CLIENTS];
+int32_t fast_qp_lookup[ID_SPACE];
 
 uint32_t qp_id_hash(uint32_t qp) {
 	//return ntohl(qp)>>8;
@@ -148,6 +148,11 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 int fast_find_id_qp(uint32_t qp) {
 	lock_qp();
 	int id = fast_id_lookup[qp_id_hash(qp)];
+	if(fast_qp_lookup[qp_id_hash(qp)] != qp && id != -1) {
+		printf("FAILeD\n");
+		printf("fast_qp_lookup[%d]=%d qp =%d fast_id_lookup=%d\n",id,fast_qp_lookup[qp_id_hash(qp)],qp,qp_id_hash(qp),fast_id_lookup[qp_id_hash(qp)]);
+		exit(0);
+	}
 	unlock_qp();
 	return id;
 }
@@ -166,7 +171,7 @@ void init_fast_find_id(void) {
 void check_id_mapping(void) {
 	for (int i=0;i<ID_SPACE;i++) {
 		if(fast_id_lookup[i] != -1) {
-			printf("index[%d]=%d\n",i,fast_id_lookup[i]);
+			printf("index[%d]=%d qp %d\n",i,fast_id_lookup[i],fast_qp_lookup[i]);
 		}
 	}
 }
@@ -305,7 +310,7 @@ uint32_t get_or_create_id(uint32_t qp)
 	//first try to go fast
 	id = fast_find_id_qp(qp);
 	if (id != -1) {
-		if(fast_qp_lookup[id] != qp) {
+		if(fast_qp_lookup[qp_id_hash(qp)] != qp) {
 			printf("QP COLLISION\n");
 			exit(0);
 		}
@@ -321,7 +326,7 @@ uint32_t get_or_create_id(uint32_t qp)
 
 
 	set_fast_id(qp,id);
-	fast_qp_lookup[id]=qp;
+	fast_qp_lookup[qp_id_hash(qp)]=qp;
 
 	//Set globals
 	qp_values[id] = id;
@@ -764,12 +769,18 @@ void init_stc(struct rte_mbuf * pkt)
 	//Everything has been initlaized, return
 	if (likely(has_mapped_qp != 0))
 	{
+		printf("mapped\n");
 		return;
 	}
 
     //Try to perform a basic update
     if (find_and_update_stc(roce_hdr) > 0)
     {
+		cs =&Connection_States[fast_find_id_qp(roce_hdr->dest_qp)];
+		if (cs->receiver_init == 0) {
+			printf("what the fuck\n");
+			exit(0);
+		}
         return;
     }
 
@@ -853,7 +864,6 @@ void init_stc(struct rte_mbuf * pkt)
 	//Return if nothing is found
 	if (total_matches != 1)
 	{
-		//printf("init collision\n");
 		return;
 	}
 
@@ -876,13 +886,15 @@ void init_stc(struct rte_mbuf * pkt)
 		cs->stcqp = roce_hdr->dest_qp;
 		cs->udp_src_port_server = udp_hdr->src_port;
 		set_fast_id(roce_hdr->dest_qp,cs->id);
+		fast_qp_lookup[qp_id_hash(roce_hdr->dest_qp)]=roce_hdr->dest_qp;
 		cs->mseq_current = get_msn(roce_hdr);
 		cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
 		//rte_smp_mb();
 		//rte_smp_mb();
 		cs->receiver_init = 1;
 		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
-		print_connection_state_status();
+		//check_id_mapping();
+		//print_connection_state_status();
 	}
 	unlock_connection_state(cs);
 	//unlock_qp();
@@ -2117,8 +2129,7 @@ void true_classify(struct rte_mbuf *pkt)
 			//This is the crash condtion
 			//Fatal, unable to find the next key
 			printf("Crashing on (CNS PREDICT) ID: %d psn %d\n", id, readable_seq(roce_hdr->packet_sequence_number));
-			check_id_mapping();
-			print_packet_lite(pkt);
+			//check_id_mapping();
 			printf("predicted: %" PRIu64 "\n", be64toh(predict));
 			printf("actual:    %" PRIu64 "\n", be64toh(swap));
 			print_address(&predict);
@@ -2141,6 +2152,7 @@ void true_classify(struct rte_mbuf *pkt)
 
 			printf("unable to find the next oustanding write, how can this be? SWAP: %" PRIu64 " latest_key[id = %d]=%" PRIu64 ", first cns[key = %" PRIu64 "]=%" PRIu64 "\n", swap, id, latest_key[id], latest_key[id], first_cns[latest_key[id]]);
 			printf("we should stop here and fail, but for now lets keep going\n");
+			print_packet_lite(pkt);
 
 #ifdef TAKE_MEASUREMENTS
 			write_run_data();
