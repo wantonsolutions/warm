@@ -277,6 +277,16 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 	#endif
 }
 
+inline void lock_buffer_state(struct Buffer_State *bs) {
+	rte_rwlock_write_lock(&(bs->bs_lock));
+	printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
+}
+
+inline void unlock_buffer_state(struct Buffer_State *bs) {
+	printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
+	rte_rwlock_write_unlock(&(bs->bs_lock));
+}
+
 rte_atomic16_t atomic_qp_id_counter;
 
 uint32_t qp_values[TOTAL_ENTRY];
@@ -397,6 +407,7 @@ void init_buffer_states(void) {
 		bs->tail = &(ect_qp_buf_tail[i]);
 		bs->buf = &(ect_qp_buf[i]);
 		bs->timestamps = &(ect_qp_timestamp[i]);
+		rte_rwlock_init(&bs->bs_lock);
 
 		//client
 		bs = &client_buffer_states[i];
@@ -406,6 +417,7 @@ void init_buffer_states(void) {
 		bs->tail = &client_qp_buf_tail[i];
 		bs->buf = &client_qp_buf[i];
 		bs->timestamps = &client_qp_timestamp[i];
+		rte_rwlock_init(&bs->bs_lock);
 
 		//memory
 		bs = &mem_buffer_states[i];
@@ -415,6 +427,7 @@ void init_buffer_states(void) {
 		bs->tail = &(mem_qp_buf_tail[i]);
 		bs->buf = &(mem_qp_buf[i]);
 		bs->timestamps = &(mem_qp_timestamp[i]);
+		rte_rwlock_init(&bs->bs_lock);
 	}
 }
 
@@ -517,8 +530,10 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
-		//print_packet_lite(pkt);
+		printf("enqueue\n");
+		lock_buffer_state(bs);
 
+		//print_packet_lite(pkt);
 		//If it's going in the etc buffer then just throw it on fifo
 		if (bs->buf == &ect_qp_buf[bs->id])
 		{
@@ -565,6 +580,9 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 				*bs->dequeable = 0;
 			}
 		}
+
+		printf("--enqueue\n");
+		unlock_buffer_state(bs);
 	}
 
 
@@ -602,6 +620,7 @@ void flush_buffers(uint16_t port) {
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State *cs = &Connection_States[i];
 		struct Buffer_State *bs = &mem_buffer_states[i];
+		lock_buffer_state(bs);
 		(*bs->head) = readable_seq(cs->seq_current) + 1;
 		(*bs->tail) = readable_seq(cs->seq_current);
 		
@@ -612,8 +631,7 @@ void flush_buffers(uint16_t port) {
 		//printf("id: %d rec seq %d\n",bs->id, rec_seq);
 		(*bs->head) = rec_seq + 1;
 		(*bs->tail) = rec_seq;
-
-		
+		unlock_buffer_state(bs);
 	}
 }
 
@@ -625,7 +643,9 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 
 	for (int i=0;i<bst->size;i++) {
 		struct Buffer_State *bs = bst->buffer_states[i];
+		lock_buffer_state(bs);
 		if (unlikely(!(*bs->dequeable))) {
+			unlock_buffer_state(bs);
 			continue;
 		} else {
 			//only dequeue once
@@ -644,6 +664,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
 			*bs->head += 1;
 		}
+		unlock_buffer_state(bs);
 	}
 	//count_held_packets();
 	return mpr;
@@ -2655,15 +2676,16 @@ lcore_main(void)
 			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
 
-			lock_tx();
-
 			if (unlikely(to_tx > (BURST_SIZE * PACKET_INFLATION))) {
 				printf("I think this is going to cause stack smashing\n");
 				exit(0);
 			}
+			//lock_tx();
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
+			//unlock_tx();
+			//lock_tx();
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
-			unlock_tx();
+			//unlock_tx();
 			//rte_smp_mb();
 
 			#endif

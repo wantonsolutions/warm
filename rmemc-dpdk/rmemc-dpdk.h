@@ -110,6 +110,7 @@ struct Buffer_State {
 	uint64_t *tail;
 	struct rte_mbuf *** buf;
 	uint64_t **timestamps;
+  rte_rwlock_t bs_lock;
 } Buffer_State;
 
 struct Buffer_State_Tracker 
