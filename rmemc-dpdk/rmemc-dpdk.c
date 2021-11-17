@@ -310,7 +310,7 @@ uint32_t get_or_create_id(uint32_t qp)
 	//first try to go fast
 	id = fast_find_id_qp(qp);
 	if (id != -1) {
-		if(fast_qp_lookup[qp_id_hash(qp)] != qp) {
+		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != qp)) {
 			printf("QP COLLISION\n");
 			exit(0);
 		}
@@ -318,12 +318,8 @@ uint32_t get_or_create_id(uint32_t qp)
 	}
 
 	lock_qp();
-	//rte_mb();
-
 	int16_t new_id = rte_atomic16_add_return(&atomic_qp_id_counter,1);
-	//printf("new id %d\n",new_id);
 	id = (int32_t)new_id;
-
 
 	set_fast_id(qp,id);
 	fast_qp_lookup[qp_id_hash(qp)]=qp;
@@ -331,7 +327,6 @@ uint32_t get_or_create_id(uint32_t qp)
 	//Set globals
 	qp_values[id] = id;
 	id_qp[id] = qp;
-	//rte_mb();
 	unlock_qp();
 
 	return id;
@@ -611,9 +606,9 @@ void flush_buffers(uint16_t port) {
 		
 		bs = &client_buffer_states[i];
 		//msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
-		printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
+		//printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
 		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
-		printf("id: %d rec seq %d\n",bs->id, rec_seq);
+		//printf("id: %d rec seq %d\n",bs->id, rec_seq);
 		(*bs->head) = rec_seq + 1;
 		(*bs->tail) = rec_seq;
 
@@ -1385,7 +1380,7 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	#ifdef CNS_TO_WRITE
 	map_cns_to_write(pkt,slot);
 	#endif
-	rte_smp_mb();
+	//rte_smp_mb();
 	unlock_connection_state(destination_connection);
 
 	//checksumming

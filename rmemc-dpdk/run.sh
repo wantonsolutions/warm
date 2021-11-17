@@ -38,8 +38,8 @@ pushd build
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
 #echo "iwicbV15" | sudo -S -E catchsegv ./rmemc-dpdk -l 0,2,4 -n 3
-#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
-echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8 -n 5
+echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6 -n 4
 popd
 
 echo "completed running the switch"
