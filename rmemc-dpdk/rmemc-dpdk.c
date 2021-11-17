@@ -83,7 +83,8 @@ struct rte_mempool *mbuf_pool_ack;
 
 #define MEMPOOLS 12
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
-struct rte_mempool *mbuf_pool[MEMPOOLS];
+//struct rte_mempool *mbuf_pool[MEMPOOLS];
+struct rte_mempool *mbuf_pool;
 
 uint64_t pkt_timestamp_monotonic=0;
 inline uint64_t pkt_timestamp_not_thread_safe(void)
@@ -1426,7 +1427,8 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 	if (missing_write)
 	{
 		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
-		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool[0]);
+		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool[0]);
+		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
 
 		if (pkt == NULL) {
 			printf("NULL PACKET ack generation\n");
@@ -2271,7 +2273,8 @@ uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
  * coming from the mbuf_pool passed as a parameter.
  */
 static inline int
-port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_count)
+//port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_count)
+port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
 	const uint16_t rx_rings = core_count, tx_rings = core_count;
@@ -2340,14 +2343,19 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool[MEMPOOLS], uint32_t core_
 	retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
 	if (retval != 0)
 		return retval;
-
-	printf("RX desc %d, TX desc %d\n",nb_rxd,nb_txd);
 	/* Allocate and set up 1 RX queue per Ethernet port. */
+	/*
+	printf("RX desc %d, TX desc %d\n",nb_rxd,nb_txd);
+	retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
+									rte_eth_dev_socket_id(port), NULL, mbuf_pool);
+	if (retval < 0)
+		return retval;
+		*/
 	for (q = 0; q < rx_rings; q++)
 	{
 		printf("allocating queue %d (cores %d)\n",q,core_count);
 		retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
-										rte_eth_dev_socket_id(port), NULL, mbuf_pool[q]);
+										rte_eth_dev_socket_id(port), NULL, mbuf_pool);
 		if (retval < 0)
 			return retval;
 	}
@@ -2765,17 +2773,21 @@ int main(int argc, char *argv[])
 
 	/* Creates a new mempool in memory to hold the mbufs. */
 
-	/*
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-										*/
+	if (mbuf_pool == NULL)
+		rte_exit(EXIT_FAILURE, "cannot create mbuf pool\n");
+	printf("created mbuf_pool %d\n");
+
+	//This is the unnessisary multipool setup
+	/*
 	for(int i=0;i<rte_lcore_count();i++) {
-		mbuf_pool[i] = rte_pktmbuf_pool_create(mpool_names[i], NUM_MBUFS * nb_ports,
-											MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-		if (mbuf_pool[i] == NULL)
-			rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
-		printf("Created MBUF_POOL %d\n",i);
-	}
+		mbuf_pool[i] = rte_pktmbuf_pool_create(mpool_names[i], num_mbufs * nb_ports,
+											mbuf_cache_size, 0, rte_mbuf_default_buf_size, rte_socket_id());
+		if (mbuf_pool[i] == null)
+			rte_exit(exit_failure, "cannot create mbuf pool\n");
+		printf("created mbuf_pool %d\n",i);
+	}*/
 
 
 
