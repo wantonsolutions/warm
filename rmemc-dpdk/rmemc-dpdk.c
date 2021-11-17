@@ -487,13 +487,19 @@ int32_t count_held_packets() {
 		int32_t total=0;
 		struct Buffer_State* bs;
 		bs=&ect_buffer_states[i];
-		total += *(bs->tail) - *(bs->head);
-		bs=&client_buffer_states[i];
-		total += *(bs->tail) - *(bs->head);
-		bs=&mem_buffer_states[i];
-		total += *(bs->tail) - *(bs->head);
+		total = *(bs->tail) - *(bs->head);
 		if (total > 0) {
-			printf("TOTAL HELD %d ID %d\n",total,i);
+			printf("ect ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
+		}
+		bs=&client_buffer_states[i];
+		total = *(bs->tail) - *(bs->head);
+		if (total > 0) {
+			printf("client ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
+		}
+		bs=&mem_buffer_states[i];
+		total = *(bs->tail) - *(bs->head);
+		if (total > 0) {
+			printf("mem ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
 		}
 	}
 	return 0;
@@ -926,7 +932,9 @@ void init_stc(struct rte_mbuf * pkt)
 		set_fast_id(roce_hdr->dest_qp,cs->id);
 		fast_qp_lookup[qp_id_hash(roce_hdr->dest_qp)]=roce_hdr->dest_qp;
 		cs->mseq_current = get_msn(roce_hdr);
-		cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
+		//cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
+		//!TODO make mseq_offset a constant, it's pointless to keep it in the cs structure
+		cs->mseq_offset = htonl(3184 << 8);
 		//rte_smp_mb();
 		//rte_smp_mb();
 		cs->receiver_init = 1;
