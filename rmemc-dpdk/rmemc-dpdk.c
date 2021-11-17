@@ -278,13 +278,15 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 }
 
 inline void lock_buffer_state(struct Buffer_State *bs) {
+	//printf("attempt lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 	rte_rwlock_write_lock(&(bs->bs_lock));
-	printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
+	//printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
 inline void unlock_buffer_state(struct Buffer_State *bs) {
-	printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
+	//printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 	rte_rwlock_write_unlock(&(bs->bs_lock));
+	//printf("fully unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
 rte_atomic16_t atomic_qp_id_counter;
@@ -407,7 +409,7 @@ void init_buffer_states(void) {
 		bs->tail = &(ect_qp_buf_tail[i]);
 		bs->buf = &(ect_qp_buf[i]);
 		bs->timestamps = &(ect_qp_timestamp[i]);
-		rte_rwlock_init(&bs->bs_lock);
+		rte_rwlock_init(&(bs->bs_lock));
 
 		//client
 		bs = &client_buffer_states[i];
@@ -417,17 +419,19 @@ void init_buffer_states(void) {
 		bs->tail = &client_qp_buf_tail[i];
 		bs->buf = &client_qp_buf[i];
 		bs->timestamps = &client_qp_timestamp[i];
-		rte_rwlock_init(&bs->bs_lock);
+		rte_rwlock_init(&(bs->bs_lock));
 
 		//memory
 		bs = &mem_buffer_states[i];
-		bs->id = Connection_States[i].id;
+		bs->id = i;
 		bs->dequeable = &(mem_qp_dequeuable[i]);
 		bs->head = &(mem_qp_buf_head[i]);
 		bs->tail = &(mem_qp_buf_tail[i]);
 		bs->buf = &(mem_qp_buf[i]);
 		bs->timestamps = &(mem_qp_timestamp[i]);
-		rte_rwlock_init(&bs->bs_lock);
+		rte_rwlock_init(&(bs->bs_lock));
+		lock_buffer_state(bs);
+		unlock_buffer_state(bs);
 	}
 }
 
@@ -454,6 +458,10 @@ void init_reorder_buf(void)
 	bzero(client_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
 	bzero(ect_qp_dequeuable, TOTAL_ENTRY * sizeof(uint8_t));
 
+	bzero(client_buffer_states, TOTAL_ENTRY * sizeof(struct Buffer_State));
+	bzero(ect_buffer_states, TOTAL_ENTRY * sizeof(struct Buffer_State));
+	bzero(mem_buffer_states, TOTAL_ENTRY * sizeof(struct Buffer_State));
+
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)
@@ -474,16 +482,19 @@ void init_reorder_buf(void)
 struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	int id = fast_find_id(pkt);
 	if (unlikely(has_mapped_qp == 0) || id == -1) {
+		//printf("etc\n");
 		return &ect_buffer_states[0];
 	}
 
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
 	{
+		//printf("mem\n");
 		return &mem_buffer_states[id];
 	}
 	if (Connection_States[id].stcqp == roce_hdr->dest_qp)
 	{
+		//printf("clt\n");
 		return &client_buffer_states[id];
 	}
 	printf("something is weird here unable to get the buffer state\n");
@@ -530,8 +541,21 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
-		printf("enqueue\n");
-		lock_buffer_state(bs);
+
+		int found = 0;
+		for (int i=0;i<bst.size;i++) {
+			if (bst.buffer_states[i] == bs) {
+				found =1;
+				break;
+			}
+		}
+
+		if (!found) {
+			//printf("enqueue lock bs\n");
+			lock_buffer_state(bs);
+			bst.buffer_states[bst.size] = bs;
+			bst.size++;
+		}
 
 		//print_packet_lite(pkt);
 		//If it's going in the etc buffer then just throw it on fifo
@@ -545,8 +569,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		(*bs->buf)[entry] = pkt;
 
 		//Do the buffer state thing
-		bst.buffer_states[bst.size] = bs;
-		bst.size++;
 
 		//atomically timestamp the packet for global ordering
 		int64_t ts = pkt_timestamp_not_thread_safe();
@@ -581,8 +603,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 			}
 		}
 
-		printf("--enqueue\n");
-		unlock_buffer_state(bs);
 	}
 
 
@@ -613,6 +633,7 @@ void flush_buffers(uint16_t port) {
 	struct Buffer_State *bs =  &ect_buffer_states[0];
 	bst.size=1;
 	bst.buffer_states[0]=bs;
+	lock_buffer_state(bs);
 	dequeue_finish_mem_pkt_bulk_full2(port, 0, &bst);
 	printf("&& FLUSHING BUFFERS COMPLETE\n");
 	printf("setting buffer states to current\n");
@@ -623,8 +644,10 @@ void flush_buffers(uint16_t port) {
 		lock_buffer_state(bs);
 		(*bs->head) = readable_seq(cs->seq_current) + 1;
 		(*bs->tail) = readable_seq(cs->seq_current);
+		unlock_buffer_state(bs);
 		
 		bs = &client_buffer_states[i];
+		lock_buffer_state(bs);
 		//msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
 		//printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
 		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
@@ -643,9 +666,9 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 
 	for (int i=0;i<bst->size;i++) {
 		struct Buffer_State *bs = bst->buffer_states[i];
-		lock_buffer_state(bs);
+		//lock_buffer_state(bs);
 		if (unlikely(!(*bs->dequeable))) {
-			unlock_buffer_state(bs);
+			//unlock_buffer_state(bs);
 			continue;
 		} else {
 			//only dequeue once
@@ -664,7 +687,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
 			*bs->head += 1;
 		}
-		unlock_buffer_state(bs);
+		//unlock_buffer_state(bs);
 	}
 	//count_held_packets();
 	return mpr;
@@ -696,6 +719,7 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 		}
 		*/
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+		//lock_tx();
 		for(int i=0;i<mpr.size;i+=BURST_SIZE) {
 			int to_send=0;	
 			if (i + BURST_SIZE <= mpr.size) {
@@ -703,9 +727,15 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 			} else {
 				to_send = mpr.size - i;
 			}
-			rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
+			//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
+			rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[i], to_send);
 		}
+		//unlock_tx();
 		//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+	}
+
+	for (int i=0;i<bst->size;i++) {
+		unlock_buffer_state(bst->buffer_states[i]);
 	}
 	return;
 }
