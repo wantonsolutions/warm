@@ -435,6 +435,10 @@ void init_buffer_states(void) {
 		lock_buffer_state(bs);
 		unlock_buffer_state(bs);
 	}
+
+	printf("I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
+	struct Buffer_State * bs = &ect_buffer_states[0];
+	*(bs->head) = 1;
 }
 
 void init_reorder_buf(void)
@@ -544,21 +548,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		pkt = pkts[i];
 
 
-		int found = 0;
-		for (int i=0;i<bst.size;i++) {
-			if (bst.buffer_states[i] == bs) {
-				found =1;
-				break;
-			}
-		}
-
-		if (!found) {
-			//printf("enqueue lock bs\n");
-			lock_buffer_state(bs);
-			bst.buffer_states[bst.size] = bs;
-			bst.size++;
-		}
-
 		//print_packet_lite(pkt);
 		//If it's going in the etc buffer then just throw it on fifo
 		if (bs->buf == &ect_qp_buf[bs->id])
@@ -573,20 +562,27 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		//Do the buffer state thing
 
 		//atomically timestamp the packet for global ordering
+		/*
 		int64_t ts = pkt_timestamp_not_thread_safe();
 		(*bs->timestamps)[entry] = ts;
+		*/
 
 		//On the first call the sequence numbers are going to start somewhere
 		//random. In this case just move the head of the buffer to the current
 		//sequence number
+
+		/*
 		if (unlikely(*bs->head == 0))
 		{
-			*bs->head = seq;
+			printf("init %d seq %d\n",bs->id,seq);
+			//*bs->head = seq;
 		}
 
 		if (unlikely(*bs->head > seq)) {
-			*bs->head=seq;
+			printf("head slip %d\n",bs->id);
+			//*bs->head=seq;
 		}
+		*/
 
 
 		//If the tail is the new latest sequence number than slide it forward
