@@ -749,6 +749,28 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 	}
 }
 
+void enqueue_if_enqueuable(struct Buffer_State_Tracker* bst, struct Buffer_State *bs) {
+	if (*(bs->dequeable)) {
+		bst->buffer_states[bst->size]=bs;
+		bst->size++;
+	}
+}
+
+void general_dequeue(uint16_t port, uint32_t queue) {
+	struct Buffer_State_Tracker bst;
+	bst.size=0;
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		enqueue_if_enqueuable(&bst, &ect_buffer_states[i]);
+		enqueue_if_enqueuable(&bst, &client_buffer_states[i]);
+		enqueue_if_enqueuable(&bst, &mem_buffer_states[i]);
+	}	
+	if(bst.size > 0) {
+		lock_tx();
+		dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
+		unlock_tx();
+	}
+}
+
 void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
 	dequeue_finish_mem_pkt_bulk_merge4(port,queue, bst);
 	return;
@@ -2424,6 +2446,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
 
 	//STW RSS
+	/*
 	if (nb_rxq > 1)
 	{
 		//STW: use sym_hash_key for RSS
@@ -2449,6 +2472,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		port_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
 	}
 	//\STW RSS
+	*/
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
@@ -2710,6 +2734,11 @@ lcore_main(void)
 			}
 			#endif
 
+			if (rte_lcore_id() == 2) {
+				general_dequeue(port,queue);
+				continue;
+			}
+
 
 
 			//printf("core %d using queue %d\n",rte_lcore_id(),queue);
@@ -2783,9 +2812,13 @@ lcore_main(void)
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 			unlock_tx();
 
+			/*
 			lock_tx();
-			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
+			if (rte_lcore_id() == 2) {
+				general_dequeue(port,queue);
+			}
 			unlock_tx();
+			*/
 			//rte_smp_mb();
 
 			#endif
