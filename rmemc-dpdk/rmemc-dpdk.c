@@ -279,13 +279,15 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 
 inline void lock_buffer_state(struct Buffer_State *bs) {
 	//printf("attempt lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
-	rte_rwlock_write_lock(&(bs->bs_lock));
+	bs->id = bs->id;
+	//rte_rwlock_write_lock(&(bs->bs_lock));
 	//printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
 inline void unlock_buffer_state(struct Buffer_State *bs) {
 	//printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
-	rte_rwlock_write_unlock(&(bs->bs_lock));
+	bs->id = bs->id;
+	//rte_rwlock_write_unlock(&(bs->bs_lock));
 	//printf("fully unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
@@ -605,7 +607,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 
 	}
 
-
 	return bst;
 }
 
@@ -724,11 +725,23 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 		}
 		#endif
 
-		int32_t tqueue = bs->id % rte_lcore_count();
+		//int32_t tqueue = bs->id % rte_lcore_count();
 		//printf("tqueue %d queue %d\n",tqueue,queue);
-		lock_tx();
-		rte_eth_tx_burst(port, tqueue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
-		unlock_tx();
+		//lock_tx();
+		//rte_eth_tx_burst(port, tqueue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
+		//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
+		
+		for(int i=0;i<mpr.size;i+=BURST_SIZE) {
+			int to_send=0;	
+			if (i + BURST_SIZE <= mpr.size) {
+				to_send=BURST_SIZE;
+			} else {
+				to_send = mpr.size - i;
+			}
+			//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
+			rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
+		}
+		//unlock_tx();
 
 	}
 	for (int i=0;i<bst->size;i++) {
@@ -2766,12 +2779,13 @@ lcore_main(void)
 				printf("I think this is going to cause stack smashing\n");
 				exit(0);
 			}
-			//lock_tx();
+			lock_tx();
 			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
-			//unlock_tx();
-			//lock_tx();
+			unlock_tx();
+
+			lock_tx();
 			dequeue_finish_mem_pkt_bulk_full2(port,queue,&bst);
-			//unlock_tx();
+			unlock_tx();
 			//rte_smp_mb();
 
 			#endif
