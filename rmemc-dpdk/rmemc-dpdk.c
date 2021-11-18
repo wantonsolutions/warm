@@ -666,20 +666,15 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 
 	for (int i=0;i<bst->size;i++) {
 		struct Buffer_State *bs = bst->buffer_states[i];
-		//lock_buffer_state(bs);
 		if (unlikely(!(*bs->dequeable))) {
-			//unlock_buffer_state(bs);
 			continue;
 		} else {
-			//only dequeue once
 			*bs->dequeable = 0;
 		}
 
 		while (*bs->head <= *bs->tail)
 		{
-			//printf("(dq) core %3d, id %3d seq %6d\n",rte_lcore_id(),bs->id,*bs->head);
 			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
-			//print_packet_lite(s_pkt);
 			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
 			mpr.pkts[mpr.size]=s_pkt;
 			mpr.timestamps[mpr.size]=ts;
@@ -687,13 +682,65 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
 			*bs->head += 1;
 		}
-		//unlock_buffer_state(bs);
 	}
-	//count_held_packets();
 	return mpr;
 }
 
+void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
+	//printf("Starting %s\n",__FUNCTION__);
+
+	for (int i=0;i<bst->size;i++) {
+		struct Buffer_State *bs = bst->buffer_states[i];
+		if (unlikely(!(*bs->dequeable))) {
+			continue;
+		} else {
+			*bs->dequeable = 0;
+		}
+
+		struct map_packet_response mpr;
+		mpr.pkts[0] = NULL;
+		mpr.size = 0;
+
+		while (*bs->head <= *bs->tail)
+		{
+			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
+			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
+			mpr.pkts[mpr.size]=s_pkt;
+			mpr.timestamps[mpr.size]=ts;
+			mpr.size++;
+			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
+			*bs->head += 1;
+		}
+
+		#ifdef DEQUEUE_CHECKSUM
+		for (int i=0;i<mpr.size;i++) {
+			if (likely(i < mpr.size - 1))
+			{
+				rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[i + 1], void *));
+			}
+			if(packet_is_marked(mpr.pkts[i])) {
+				recalculate_rdma_checksum(mpr.pkts[i]);
+			}
+		}
+		#endif
+
+		int32_t tqueue = bs->id % rte_lcore_count();
+		//printf("tqueue %d queue %d\n",tqueue,queue);
+		lock_tx();
+		rte_eth_tx_burst(port, tqueue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
+		unlock_tx();
+
+	}
+	for (int i=0;i<bst->size;i++) {
+		unlock_buffer_state(bst->buffer_states[i]);
+	}
+}
+
 void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
+	dequeue_finish_mem_pkt_bulk_merge4(port,queue, bst);
+	return;
+	//Everyhing past this is skipped
+
 	struct map_packet_response mpr = dequeue_finish_mem_pkt_bulk_merge3(bst);
 	#ifdef PRINT_PACKET_BUFFERING
 	print_mpr(&mpr1);
@@ -720,6 +767,8 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 		*/
 		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts, mpr.size);
 		//lock_tx();
+
+		/*
 		for(int i=0;i<mpr.size;i+=BURST_SIZE) {
 			int to_send=0;	
 			if (i + BURST_SIZE <= mpr.size) {
@@ -729,9 +778,16 @@ void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buf
 			}
 			//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts[i], to_send);
 			rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[i], to_send);
-		}
+		}*/
+
 		//unlock_tx();
 		//rte_eth_tx_burst(port, 0, (struct rte_mbuf **)&mpr.pkts, mpr.size);
+	}
+
+	for(int i=0;i<mpr.size;i++) {
+		int32_t tqueue = fast_find_id(mpr.pkts[i]) % rte_lcore_count();
+		//printf("tqueue %d queue %d\n",tqueue,queue);
+		rte_eth_tx_burst(port, tqueue, (struct rte_mbuf **)&mpr.pkts[i], 1);
 	}
 
 	for (int i=0;i<bst->size;i++) {
