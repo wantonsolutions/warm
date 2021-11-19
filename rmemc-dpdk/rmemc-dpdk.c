@@ -282,14 +282,14 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 inline void lock_buffer_state(struct Buffer_State *bs) {
 	//printf("attempt lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 	bs->id = bs->id;
-	rte_rwlock_write_lock(&(bs->bs_lock));
+	//rte_rwlock_write_lock(&(bs->bs_lock));
 	//printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
 inline void unlock_buffer_state(struct Buffer_State *bs) {
 	//printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 	bs->id = bs->id;
-	rte_rwlock_write_unlock(&(bs->bs_lock));
+	//rte_rwlock_write_unlock(&(bs->bs_lock));
 	//printf("fully unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
@@ -370,14 +370,23 @@ uint64_t **mem_qp_timestamp;
 uint64_t **client_qp_timestamp;
 uint64_t **ect_qp_timestamp;
 
-uint64_t mem_qp_buf_head[TOTAL_ENTRY];
-uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
+//uint64_t mem_qp_buf_head[TOTAL_ENTRY];
+//uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
 
-uint64_t client_qp_buf_head[TOTAL_ENTRY];
-uint64_t client_qp_buf_tail[TOTAL_ENTRY];
+//uint64_t client_qp_buf_head[TOTAL_ENTRY];
+//uint64_t client_qp_buf_tail[TOTAL_ENTRY];
 
-uint64_t ect_qp_buf_head[TOTAL_ENTRY];
-uint64_t ect_qp_buf_tail[TOTAL_ENTRY];
+//uint64_t ect_qp_buf_head[TOTAL_ENTRY];
+//uint64_t ect_qp_buf_tail[TOTAL_ENTRY];
+
+rte_atomic64_t mem_qp_buf_head[TOTAL_ENTRY];
+rte_atomic64_t mem_qp_buf_tail[TOTAL_ENTRY];
+
+rte_atomic64_t client_qp_buf_head[TOTAL_ENTRY];
+rte_atomic64_t client_qp_buf_tail[TOTAL_ENTRY];
+
+rte_atomic64_t ect_qp_buf_head[TOTAL_ENTRY];
+rte_atomic64_t ect_qp_buf_tail[TOTAL_ENTRY];
 
 uint8_t mem_qp_dequeuable[TOTAL_ENTRY];
 uint8_t client_qp_dequeuable[TOTAL_ENTRY];
@@ -414,6 +423,8 @@ void init_buffer_states(void) {
 		bs->buf = &(ect_qp_buf[i]);
 		bs->timestamps = &(ect_qp_timestamp[i]);
 		rte_rwlock_init(&(bs->bs_lock));
+		rte_atomic64_init(bs->head);
+		rte_atomic64_init(bs->tail);
 
 		//client
 		bs = &client_buffer_states[i];
@@ -424,6 +435,8 @@ void init_buffer_states(void) {
 		bs->buf = &client_qp_buf[i];
 		bs->timestamps = &client_qp_timestamp[i];
 		rte_rwlock_init(&(bs->bs_lock));
+		rte_atomic64_init(bs->head);
+		rte_atomic64_init(bs->tail);
 
 		//memory
 		bs = &mem_buffer_states[i];
@@ -434,13 +447,17 @@ void init_buffer_states(void) {
 		bs->buf = &(mem_qp_buf[i]);
 		bs->timestamps = &(mem_qp_timestamp[i]);
 		rte_rwlock_init(&(bs->bs_lock));
-		lock_buffer_state(bs);
-		unlock_buffer_state(bs);
+		rte_atomic64_init(bs->head);
+		rte_atomic64_init(bs->tail);
+
+		//lock_buffer_state(bs);
+		//unlock_buffer_state(bs);
 	}
 
 	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
 	struct Buffer_State * bs = &ect_buffer_states[0];
-	*(bs->head) = 1;
+	rte_atomic64_set(bs->head,1);
+	//*(bs->head) = 1;
 }
 
 void init_reorder_buf(void)
@@ -517,19 +534,20 @@ int32_t count_held_packets() {
 		int32_t total=0;
 		struct Buffer_State* bs;
 		bs=&ect_buffer_states[i];
-		total = *(bs->tail) - *(bs->head);
+		//total = *(bs->tail) - *(bs->head);
+		total = rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head);
 		if (total > 0) {
-			printf("ect ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
+			printf("ect ID %d HELD %d head %d tail %d\n",i, rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head), rte_atomic64_read(bs->head), rte_atomic64_read(bs->tail));
 		}
 		bs=&client_buffer_states[i];
-		total = *(bs->tail) - *(bs->head);
+		total = rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head);
 		if (total > 0) {
-			printf("client ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
+			printf("client ID %d HELD %d head %d tail %d\n",i, rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head), rte_atomic64_read(bs->head), rte_atomic64_read(bs->tail));
 		}
 		bs=&mem_buffer_states[i];
-		total = *(bs->tail) - *(bs->head);
+		total = rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head);
 		if (total > 0) {
-			printf("mem ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
+			printf("mem ID %d HELD %d head %d tail %d\n",i, rte_atomic64_read(bs->tail) - rte_atomic64_read(bs->head), rte_atomic64_read(bs->head), rte_atomic64_read(bs->tail));
 		}
 	}
 	printf("\\COUNTING HELD PACKETS!!\n");
@@ -562,21 +580,23 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		//!this can be replaced with a fetch and add
 		if (bs->buf == &ect_qp_buf[bs->id])
 		{
-			seq = *(bs->tail) + 1;
-		}
-
+			//seq = *(bs->tail) + 1;
+			seq = rte_atomic64_add_return(bs->tail,1);
+			uint32_t entry = seq % PKT_REORDER_BUF;
+			(*bs->buf)[entry] = pkt;
+			
+		} else {
+			uint32_t entry = seq % PKT_REORDER_BUF;
+			(*bs->buf)[entry] = pkt;
+			rte_atomic64_inc(bs->tail);
+			//(*bs->tail)++;
+		} 
 		//put the packet in the buffer
+		/*
 		uint32_t entry = seq % PKT_REORDER_BUF;
 		(*bs->buf)[entry] = pkt;
-
-		//If the tail is the new latest sequence number than slide it forward
-		/*
-		if (likely(*bs->tail < seq))
-		{
-			*bs->tail = seq;
-		}
-		*/
 		(*bs->tail)++;
+		*/
 		unlock_buffer_state(bs);
 
 		rte_ring_enqueue(tx_queue,bs);
@@ -585,6 +605,7 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 	return bst;
 }
 
+/*
 int contiguous_buffered_packets_2(struct Buffer_State * bs) {
 	for (uint32_t i = *bs->head; i <= *bs->tail; i++)
 	{
@@ -593,7 +614,7 @@ int contiguous_buffered_packets_2(struct Buffer_State * bs) {
 		}
 	}
 	return 1;
-}
+}*/
 
 void print_mpr(struct map_packet_response* mpr) {
 	printf("MPR size: %d\n",mpr->size);
@@ -618,8 +639,10 @@ void flush_buffers(uint16_t port) {
 		struct Connection_State *cs = &Connection_States[i];
 		struct Buffer_State *bs = &mem_buffer_states[i];
 		lock_buffer_state(bs);
-		(*bs->head) = readable_seq(cs->seq_current) + 1;
-		(*bs->tail) = readable_seq(cs->seq_current);
+		//(*bs->head) = readable_seq(cs->seq_current) + 1;
+		//(*bs->tail) = readable_seq(cs->seq_current);
+		rte_atomic64_set(bs->head, readable_seq(cs->seq_current) + 1);
+		rte_atomic64_set(bs->tail, readable_seq(cs->seq_current));
 		unlock_buffer_state(bs);
 		
 		bs = &client_buffer_states[i];
@@ -628,12 +651,14 @@ void flush_buffers(uint16_t port) {
 		//printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
 		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
 		//printf("id: %d rec seq %d\n",bs->id, rec_seq);
-		(*bs->head) = rec_seq + 1;
-		(*bs->tail) = rec_seq;
+		//(*bs->head) = rec_seq + 1;
+		//(*bs->tail) = rec_seq;
+		rte_atomic64_set(bs->head, rec_seq + 1);
+		rte_atomic64_set(bs->tail, rec_seq);
 		unlock_buffer_state(bs);
 	}
 }
-
+/*
 struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
 	struct map_packet_response mpr;
@@ -660,7 +685,7 @@ struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_Stat
 		}
 	}
 	return mpr;
-}
+}*/
 
 void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
@@ -673,12 +698,14 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 
 		//Dequeue every sequential packet. Make sure that the head does not overrun the tail
 		//Also make sure that each packet being dequed is not equal to null
-		while ((*bs->head <= *bs->tail) && ((*bs->buf)[*bs->head % PKT_REORDER_BUF] != NULL))
+		int64_t tail = rte_atomic64_read(bs->tail);
+		int64_t head = rte_atomic64_read(bs->head);
+		while ((head <= tail) && ((*bs->buf)[head % PKT_REORDER_BUF] != NULL))
 		{
-			mpr.pkts[mpr.size]=(*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
+			mpr.pkts[mpr.size]=(*bs->buf)[(head) % PKT_REORDER_BUF];
 			mpr.size++;
-			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
-			*bs->head += 1;
+			(*bs->buf)[head % PKT_REORDER_BUF] = NULL;
+			head = rte_atomic64_add_return(bs->head,1);
 		}
 		unlock_buffer_state(bs);
 
