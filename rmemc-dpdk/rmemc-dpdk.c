@@ -31,6 +31,7 @@
 #include <rte_table.h>
 #include <rte_atomic.h>
 
+#include <locale.h>
 #include <execinfo.h>
 
 #include <endian.h>
@@ -252,7 +253,7 @@ void print_connection_state_status(void) {
 	struct Connection_State *cs;
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		cs=&Connection_States[i];
-		printf("id %3d SI=%d RI=%d seq %d mseq %d s-qpid %d (%d) r-qpid %d (%d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),readable_seq(cs->mseq_current),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
+		printf("id %3d SI=%d RI=%d seq %5d mseq %5d s-qpid %4d (%7d) r-qpid %4d (%7d)\n",cs->id,cs->sender_init,cs->receiver_init,readable_seq(cs->seq_current),readable_seq(cs->mseq_current),fast_find_id_qp(cs->ctsqp),cs->ctsqp, fast_find_id_qp(cs->stcqp), cs->stcqp);
 	}
 } 
 
@@ -437,7 +438,7 @@ void init_buffer_states(void) {
 		unlock_buffer_state(bs);
 	}
 
-	printf("I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
+	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
 	struct Buffer_State * bs = &ect_buffer_states[0];
 	*(bs->head) = 1;
 }
@@ -510,6 +511,8 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 
 int32_t count_held_packets() {
 
+	printf("COUNTING HELD PACKETS!!\n");
+
 	for(int i=0;i<TOTAL_CLIENTS;i++){
 		int32_t total=0;
 		struct Buffer_State* bs;
@@ -529,6 +532,7 @@ int32_t count_held_packets() {
 			printf("mem ID %d HELD %d head %d tail %d\n",i, *(bs->tail) - *(bs->head), *(bs->head), *(bs->tail));
 		}
 	}
+	printf("\\COUNTING HELD PACKETS!!\n");
 	return 0;
 }
 
@@ -552,6 +556,7 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		//If it's going in the etc buffer then just throw it on fifo
 		//lock_tx();
 		lock_buffer_state(bs);
+		//!this can be replaced with a fetch and add
 		if (bs->buf == &ect_qp_buf[bs->id])
 		{
 			seq = *(bs->tail) + 1;
@@ -562,24 +567,13 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		(*bs->buf)[entry] = pkt;
 
 		//If the tail is the new latest sequence number than slide it forward
-
-		//This is the locking point
 		if (likely(*bs->tail < seq))
 		{
 			*bs->tail = seq;
 		}
 
-		if(likely(*bs->head == *bs->tail)) {
-			*bs->dequeable = 1;
-		} else if (likely(contiguous_buffered_packets_2(bs))) {
-				*bs->dequeable = 1;
-		} else {
-			*bs->dequeable = 0;
-		}
-		//printf("enqueueing\n");
 		unlock_buffer_state(bs);
 		rte_ring_enqueue(tx_queue,bs);
-		//unlock_tx();
 	}
 
 	return bst;
@@ -610,7 +604,6 @@ void flush_buffers(uint16_t port) {
 	bst.size=1;
 	bst.buffer_states[0]=bs;
 	//lock_buffer_state(bs);
-	//dequeue_finish_mem_pkt_bulk_full2(port, 0, &bst);
 	general_dequeue(port,0);
 	printf("&& FLUSHING BUFFERS COMPLETE\n");
 	printf("setting buffer states to current\n");
@@ -670,16 +663,11 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 	for (int i=0;i<bst->size;i++) {
 		struct Buffer_State *bs = bst->buffer_states[i];
 		lock_buffer_state(bs);
-		if (unlikely(!(*bs->dequeable))) {
-			unlock_buffer_state(bs);
-			continue;
-		} else {
-			*bs->dequeable = 0;
-		}
-
 		mpr.size = 0;
 
-		while (*bs->head <= *bs->tail)
+		//Dequeue every sequential packet. Make sure that the head does not overrun the tail
+		//Also make sure that each packet being dequed is not equal to null
+		while ((*bs->head <= *bs->tail) && ((*bs->buf)[*bs->head % PKT_REORDER_BUF] != NULL))
 		{
 			mpr.pkts[mpr.size]=(*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
 			mpr.size++;
@@ -697,38 +685,21 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 			if(packet_is_marked(mpr.pkts[j])) {
 				recalculate_rdma_checksum(mpr.pkts[j]);
 			}
+			//print_packet_lite(mpr.pkts[j]);
 		}
 		#endif
-		//rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
-		//printf("mpr.size = %d\n",mpr.size);
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
-
-
 	}
 
 }
 
-void enqueue_if_enqueuable(struct Buffer_State_Tracker* bst, struct Buffer_State *bs) {
-	if (*(bs->dequeable)) {
-		bst->buffer_states[bst->size]=bs;
-		bst->size++;
-	}
-}
 
 void general_dequeue(uint16_t port, uint32_t queue) {
 	struct Buffer_State_Tracker bst;
 	bst.size = rte_ring_dequeue_burst(tx_queue,bst.buffer_states,32,NULL);
-
-
 	if(bst.size > 0) {
-		//printf("dequeue size %d\n",bst.size);
 		dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
 	}
-}
-
-void dequeue_finish_mem_pkt_bulk_full2(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
-	dequeue_finish_mem_pkt_bulk_merge4(port,queue, bst);
-	return;
 }
 
 void copy_eth_addr(uint8_t *src, uint8_t *dst)
@@ -1968,10 +1939,12 @@ void catch_ecn(struct rte_mbuf *pkt, uint8_t opcode)
 		struct Buffer_State * bs = get_buffer_state(pkt);
 		for (int i = 0; i < 20; i++)
 		{
-			printf("ECN packet # %d id %d\n", packet_counter,bs->id);
+			setlocale(LC_NUMERIC, "");
+			printf("ECN packet # %'d id %d\n", packet_counter,bs->id);
 			print_packet_lite(pkt);
 		}
 		print_packet(pkt);
+		count_held_packets();
 		//debug_start_printing_every_packet = 1;
 #ifdef TAKE_MEASUREMENTS
 		write_run_data();
