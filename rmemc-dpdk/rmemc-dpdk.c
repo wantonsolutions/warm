@@ -569,18 +569,16 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
+		/*
 		if(packet_is_marked(pkt)) {
 			recalculate_rdma_checksum(pkt);
 		}
+		*/
 
-		//print_packet_lite(pkt);
-		//If it's going in the etc buffer then just throw it on fifo
-		//lock_tx();
 		lock_buffer_state(bs);
 		//!this can be replaced with a fetch and add
 		if (bs->buf == &ect_qp_buf[bs->id])
 		{
-			//seq = *(bs->tail) + 1;
 			seq = rte_atomic64_add_return(bs->tail,1);
 			uint32_t entry = seq % PKT_REORDER_BUF;
 			(*bs->buf)[entry] = pkt;
@@ -589,14 +587,7 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 			uint32_t entry = seq % PKT_REORDER_BUF;
 			(*bs->buf)[entry] = pkt;
 			rte_atomic64_inc(bs->tail);
-			//(*bs->tail)++;
 		} 
-		//put the packet in the buffer
-		/*
-		uint32_t entry = seq % PKT_REORDER_BUF;
-		(*bs->buf)[entry] = pkt;
-		(*bs->tail)++;
-		*/
 		unlock_buffer_state(bs);
 
 		rte_ring_enqueue(tx_queue,bs);
@@ -605,16 +596,6 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 	return bst;
 }
 
-/*
-int contiguous_buffered_packets_2(struct Buffer_State * bs) {
-	for (uint32_t i = *bs->head; i <= *bs->tail; i++)
-	{
-		if((*bs->buf)[i % PKT_REORDER_BUF] == NULL) {
-			return 0;
-		}
-	}
-	return 1;
-}*/
 
 void print_mpr(struct map_packet_response* mpr) {
 	printf("MPR size: %d\n",mpr->size);
@@ -658,34 +639,6 @@ void flush_buffers(uint16_t port) {
 		unlock_buffer_state(bs);
 	}
 }
-/*
-struct map_packet_response dequeue_finish_mem_pkt_bulk_merge3(struct Buffer_State_Tracker *bst) {
-	//printf("Starting %s\n",__FUNCTION__);
-	struct map_packet_response mpr;
-	mpr.pkts[0] = NULL;
-	mpr.size = 0;
-
-	for (int i=0;i<bst->size;i++) {
-		struct Buffer_State *bs = bst->buffer_states[i];
-		if (unlikely(!(*bs->dequeable))) {
-			continue;
-		} else {
-			*bs->dequeable = 0;
-		}
-
-		while (*bs->head <= *bs->tail)
-		{
-			struct rte_mbuf *s_pkt = (*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
-			uint64_t ts = (*bs->timestamps)[(*bs->head) % PKT_REORDER_BUF];
-			mpr.pkts[mpr.size]=s_pkt;
-			mpr.timestamps[mpr.size]=ts;
-			mpr.size++;
-			(*bs->buf)[*bs->head % PKT_REORDER_BUF] = NULL;
-			*bs->head += 1;
-		}
-	}
-	return mpr;
-}*/
 
 void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
@@ -709,7 +662,6 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 		}
 		unlock_buffer_state(bs);
 
-		/*
 		#ifdef DEQUEUE_CHECKSUM
 		for (int j=0;j<mpr.size;j++) {
 			if (likely(j < mpr.size - 1))
@@ -722,7 +674,7 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 			//print_packet_lite(mpr.pkts[j]);
 		}
 		#endif
-		*/
+
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
 	}
 
@@ -731,7 +683,7 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 
 void general_dequeue(uint16_t port, uint32_t queue) {
 	struct Buffer_State_Tracker bst;
-	bst.size = rte_ring_dequeue_burst(tx_queue,bst.buffer_states,32,NULL);
+	bst.size = rte_ring_dequeue_burst(tx_queue,bst.buffer_states,4,NULL);
 	if(bst.size > 0) {
 		//printf("size %d\n",bst.size);
 		dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
