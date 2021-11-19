@@ -551,6 +551,9 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		seq = readable_seq(get_psn(pkts[i]));
 		pkt = pkts[i];
 
+		if(packet_is_marked(pkt)) {
+			recalculate_rdma_checksum(pkt);
+		}
 
 		//print_packet_lite(pkt);
 		//If it's going in the etc buffer then just throw it on fifo
@@ -567,12 +570,15 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		(*bs->buf)[entry] = pkt;
 
 		//If the tail is the new latest sequence number than slide it forward
+		/*
 		if (likely(*bs->tail < seq))
 		{
 			*bs->tail = seq;
 		}
-
+		*/
+		(*bs->tail)++;
 		unlock_buffer_state(bs);
+
 		rte_ring_enqueue(tx_queue,bs);
 	}
 
@@ -676,6 +682,7 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 		}
 		unlock_buffer_state(bs);
 
+		/*
 		#ifdef DEQUEUE_CHECKSUM
 		for (int j=0;j<mpr.size;j++) {
 			if (likely(j < mpr.size - 1))
@@ -688,6 +695,7 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 			//print_packet_lite(mpr.pkts[j]);
 		}
 		#endif
+		*/
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
 	}
 
@@ -698,6 +706,7 @@ void general_dequeue(uint16_t port, uint32_t queue) {
 	struct Buffer_State_Tracker bst;
 	bst.size = rte_ring_dequeue_burst(tx_queue,bst.buffer_states,32,NULL);
 	if(bst.size > 0) {
+		//printf("size %d\n",bst.size);
 		dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
 	}
 }
@@ -2640,6 +2649,7 @@ lcore_main(void)
 				#ifdef TAKE_MEASUREMENTS
 				sum_processed_data(rx_pkts[i]);
 				#endif
+
 
 				#ifdef WRITE_STEER
 				true_classify(rx_pkts[i]);
