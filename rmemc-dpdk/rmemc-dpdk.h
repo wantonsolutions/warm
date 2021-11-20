@@ -106,10 +106,10 @@ struct map_packet_response
 struct Buffer_State {
 	uint8_t *dequeable;
 	int id;
-	//uint64_t *head;
-	//uint64_t *tail;
-  rte_atomic64_t * head;
-  rte_atomic64_t * tail;
+	uint64_t *head;
+	uint64_t *tail;
+  //rte_atomic64_t * head;
+  //rte_atomic64_t * tail;
 
 	struct rte_mbuf *** buf;
 	uint64_t **timestamps;
