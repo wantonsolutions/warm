@@ -89,6 +89,7 @@ const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "ME
 struct rte_mempool *mbuf_pool;
 
 struct rte_ring *tx_queue;
+struct rte_ring *tx_queue_2;
 
 uint64_t pkt_timestamp_monotonic=0;
 inline uint64_t pkt_timestamp_not_thread_safe(void)
@@ -206,7 +207,7 @@ inline void unlock_qp(void)
 inline void lock_tx(void)
 {
 	#ifdef MULTI_CORE
-	//rte_rwlock_write_lock(&tx_lock);
+	rte_rwlock_write_lock(&tx_lock);
 	//printf("[core %d] lock tx\n",rte_lcore_id());
 	#endif
 }
@@ -215,7 +216,7 @@ inline void unlock_tx(void)
 {
 	#ifdef MULTI_CORE
 	//printf("[core %d] unlock tx\n",rte_lcore_id());
-	//rte_rwlock_write_unlock(&tx_lock);
+	rte_rwlock_write_unlock(&tx_lock);
 	#endif
 }
 
@@ -230,20 +231,6 @@ inline void unlock_write_steering(void)
 {
 	#ifdef MULTI_CORE
 	rte_rwlock_write_unlock(&next_lock);
-	#endif
-}
-
-inline void lock_qp_mapping(void) {
-	#ifdef MULTI_CORE
-	rte_rwlock_write_lock(&qp_mapping_lock);
-	//printf("[core %d] lock qp map\n",rte_lcore_id());
-	#endif
-}
-
-inline void unlock_qp_mapping(void) {
-	#ifdef MULTI_CORE
-	//printf("[core %d] unlock qp map\n",rte_lcore_id());
-	rte_rwlock_write_unlock(&qp_mapping_lock);
 	#endif
 }
 
@@ -262,7 +249,7 @@ inline void lock_connection_state(struct Connection_State *cs) {
 	//just to remove compiler errors
 	cs->id = cs->id;
 	//printf("[core %d] try lock cs %d\n",rte_lcore_id(),cs->id);
-	rte_rwlock_write_lock(&(cs->cs_lock));
+	//rte_rwlock_write_lock(&(cs->cs_lock));
 	//printf("[core %d] locked cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
 	#endif
@@ -273,7 +260,7 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 	//printf("unlock %d\n",cs->id);
 	cs->id = cs->id;
 	//printf("[core %d] try unlock cs %d\n",rte_lcore_id(),cs->id);
-	rte_rwlock_write_unlock(&(cs->cs_lock));
+	//rte_rwlock_write_unlock(&(cs->cs_lock));
 	//printf("[core %d] unlock cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
 	#endif
@@ -554,6 +541,15 @@ int32_t count_held_packets() {
 	return 0;
 }
 
+void print_mpr(struct map_packet_response* mpr) {
+	printf("MPR size: %d\n",mpr->size);
+	for (uint32_t i=0;i<mpr->size;i++) {
+		printf("[TS: %"PRIu64"]",mpr->timestamps[i]);
+		print_packet_lite(mpr->pkts[i]);
+	}
+}
+
+
 struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts, uint32_t size) {
 
 	struct Buffer_State_Tracker bst;
@@ -590,55 +586,17 @@ struct Buffer_State_Tracker enqueue_finish_mem_pkt_bulk2(struct rte_mbuf **pkts,
 		} 
 		unlock_buffer_state(bs);
 
-		rte_ring_enqueue(tx_queue,bs);
+		if(bs->id % 2 == 0) {
+			rte_ring_enqueue(tx_queue,bs);
+		} else {
+			rte_ring_enqueue(tx_queue_2,bs);
+		}
 	}
 
 	return bst;
 }
 
 
-void print_mpr(struct map_packet_response* mpr) {
-	printf("MPR size: %d\n",mpr->size);
-	for (uint32_t i=0;i<mpr->size;i++) {
-		printf("[TS: %"PRIu64"]",mpr->timestamps[i]);
-		print_packet_lite(mpr->pkts[i]);
-	}
-}
-
-void flush_buffers(uint16_t port) {
-	printf("&& FLUSHING BUFFERS\n");
-	struct Buffer_State_Tracker bst;
-	struct Buffer_State *bs =  &ect_buffer_states[0];
-	bst.size=1;
-	bst.buffer_states[0]=bs;
-	//lock_buffer_state(bs);
-	general_dequeue(port,0);
-	printf("&& FLUSHING BUFFERS COMPLETE\n");
-	printf("setting buffer states to current\n");
-
-	for (int i=0;i<TOTAL_CLIENTS;i++) {
-		struct Connection_State *cs = &Connection_States[i];
-		struct Buffer_State *bs = &mem_buffer_states[i];
-		lock_buffer_state(bs);
-		//(*bs->head) = readable_seq(cs->seq_current) + 1;
-		//(*bs->tail) = readable_seq(cs->seq_current);
-		rte_atomic64_set(bs->head, readable_seq(cs->seq_current) + 1);
-		rte_atomic64_set(bs->tail, readable_seq(cs->seq_current));
-		unlock_buffer_state(bs);
-		
-		bs = &client_buffer_states[i];
-		lock_buffer_state(bs);
-		//msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
-		//printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
-		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
-		//printf("id: %d rec seq %d\n",bs->id, rec_seq);
-		//(*bs->head) = rec_seq + 1;
-		//(*bs->tail) = rec_seq;
-		rte_atomic64_set(bs->head, rec_seq + 1);
-		rte_atomic64_set(bs->tail, rec_seq);
-		unlock_buffer_state(bs);
-	}
-}
 
 void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Buffer_State_Tracker *bst) {
 	//printf("Starting %s\n",__FUNCTION__);
@@ -670,7 +628,7 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 			}
 			if(packet_is_marked(mpr.pkts[j])) {
 				recalculate_rdma_checksum(mpr.pkts[j]);
-			}
+			} 
 			//print_packet_lite(mpr.pkts[j]);
 		}
 		#endif
@@ -680,13 +638,61 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 
 }
 
+#define DEQUEUE_BURST 32
 
-void general_dequeue(uint16_t port, uint32_t queue) {
+void general_dequeue_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct Buffer_State_Tracker bst;
-	bst.size = rte_ring_dequeue_burst(tx_queue,bst.buffer_states,4,NULL);
+	for (;;) {
+		uint32_t left;
+		bst.size = rte_ring_dequeue_burst(in_queue,bst.buffer_states,DEQUEUE_BURST,&left);
+		if(bst.size > 0) {
+			dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
+		}
+	}
+}
+
+void general_dequeue(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+	struct Buffer_State_Tracker bst;
+	uint32_t left;
+	bst.size = rte_ring_dequeue_burst(in_queue,bst.buffer_states,DEQUEUE_BURST,&left);
 	if(bst.size > 0) {
-		//printf("size %d\n",bst.size);
 		dequeue_finish_mem_pkt_bulk_merge4(port,queue, &bst);
+	}
+}
+
+void flush_buffers(uint16_t port) {
+	printf("&& FLUSHING BUFFERS\n");
+	struct Buffer_State_Tracker bst;
+	struct Buffer_State *bs =  &ect_buffer_states[0];
+	bst.size=1;
+	bst.buffer_states[0]=bs;
+	//lock_buffer_state(bs);
+	general_dequeue(port,0,tx_queue);
+	general_dequeue(port,0,tx_queue_2);
+	printf("&& FLUSHING BUFFERS COMPLETE\n");
+	printf("setting buffer states to current\n");
+
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		struct Connection_State *cs = &Connection_States[i];
+		struct Buffer_State *bs = &mem_buffer_states[i];
+		lock_buffer_state(bs);
+		//(*bs->head) = readable_seq(cs->seq_current) + 1;
+		//(*bs->tail) = readable_seq(cs->seq_current);
+		rte_atomic64_set(bs->head, readable_seq(cs->seq_current) + 1);
+		rte_atomic64_set(bs->tail, readable_seq(cs->seq_current));
+		unlock_buffer_state(bs);
+		
+		bs = &client_buffer_states[i];
+		lock_buffer_state(bs);
+		//msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
+		//printf("mseq current %d mseq offst %d\n",readable_seq(cs->mseq_current),readable_seq(cs->mseq_offset));
+		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
+		//printf("id: %d rec seq %d\n",bs->id, rec_seq);
+		//(*bs->head) = rec_seq + 1;
+		//(*bs->tail) = rec_seq;
+		rte_atomic64_set(bs->head, rec_seq + 1);
+		rte_atomic64_set(bs->tail, rec_seq);
+		unlock_buffer_state(bs);
 	}
 }
 
@@ -2559,8 +2565,22 @@ lcore_main(void)
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
-		RTE_ETH_FOREACH_DEV(port)
-		{
+
+		//Once we are initalized just hop in forever
+		if (has_mapped_qp) {
+			uint32_t queue_static = rte_lcore_id() / 2;
+			if (rte_lcore_id() == 2) {
+				general_dequeue_eternal(0,queue_static,tx_queue);
+			}
+			if (rte_lcore_id() == 4) {
+				general_dequeue_eternal(0,queue_static,tx_queue_2);
+			}
+		}
+
+		uint32_t port = 0;
+
+		//RTE_ETH_FOREACH_DEV(port)
+		//{
 			/* Get burst of RX packets, from first and only port */
 
 			struct rte_mbuf *rx_pkts[BURST_SIZE];
@@ -2596,7 +2616,11 @@ lcore_main(void)
 			#endif
 
 			if (rte_lcore_id() == 2) {
-				general_dequeue(port,queue);
+				general_dequeue(port,queue,tx_queue);
+				continue;
+			}
+			if (rte_lcore_id() == 4) {
+				general_dequeue(port,queue,tx_queue_2);
 				continue;
 			}
 
@@ -2641,9 +2665,7 @@ lcore_main(void)
 				//print_packet_lite(rx_pkts[i]);
 
 				//!TODO START HERE TOMORROW, we are going to pull out the lock_qp_mapping locks
-				//lock_qp_mapping();
 				mpr = map_qp(rx_pkts[i]);
-				//unlock_qp_mapping();
 				for (uint32_t j = 0; j < mpr.size; j++)
 				{
 					tx_pkts[to_tx] = mpr.pkts[j];
@@ -2682,7 +2704,7 @@ lcore_main(void)
 			#endif
 			//printf("core %d - done processing\n",rte_lcore_id());
 
-		}
+		//}
 
 	}
 }
@@ -2856,7 +2878,6 @@ int main(int argc, char *argv[])
 		rte_rwlock_init(&qp_lock);
 		rte_rwlock_init(&qp_init_lock);
 		rte_rwlock_init(&tx_lock);
-		rte_rwlock_init(&qp_mapping_lock);
 
 		init_reorder_buf();
 		init_connection_states();
@@ -2869,7 +2890,9 @@ int main(int argc, char *argv[])
 		rte_atomic16_set(&atomic_qp_id_counter,-1);
 
 		//tx_queue = rte_ring_create("TX_QUEUE", 1024, rte_eth_dev_socket_id(0), RING_F_MP_RTS_ENQ | RING_F_MC_RTS_DEQ);
-		tx_queue = rte_ring_create("TX_QUEUE", 1024, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		//tx_queue = rte_ring_create("TX_QUEUE", 2048, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		tx_queue = rte_ring_create("TX_QUEUE", 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		tx_queue_2 = rte_ring_create("TX_QUEUE_2", 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
 
 		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}

@@ -35,8 +35,8 @@ pushd build
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12,14,16,18,20,22,24 -n 18
 #gdb --args rmemc-dpdk -l 0 -n 1
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
-echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
-#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
+#echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2 -n 2
+echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
 #echo "iwicbV15" | sudo -S -E catchsegv ./rmemc-dpdk -l 0,2,4 -n 3
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4 -n 3
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6 -n 4
