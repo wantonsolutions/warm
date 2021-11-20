@@ -638,8 +638,89 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 
 }
 
+
 #define DEQUEUE_BURST 4
 
+void general_tx_enqueue(struct rte_mbuf * pkt) {
+		//print_packet_lite(pkt);
+
+		if (has_mapped_qp) {
+			uint32_t id = fast_find_id(pkt);
+			if(id % 2 == 0) {
+				rte_ring_enqueue(tx_queue,pkt);
+			} else {
+				rte_ring_enqueue(tx_queue_2,pkt);
+			}
+		} else {
+			rte_ring_enqueue(tx_queue,pkt);
+		}
+
+
+}
+
+void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+	for (;;) {
+		general_tx(port,queue,in_queue);
+	}
+}
+
+void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+	struct rte_mbuf * tx_pkts[DEQUEUE_BURST];
+	uint32_t left;
+	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
+
+
+	//Here the buffer states have been collected
+	uint64_t seq;
+	struct Buffer_State *bs;
+	struct rte_mbuf *pkt;
+
+	for (uint32_t i=0;i<dequeued;i++) {
+
+		pkt = tx_pkts[i];
+		bs = get_buffer_state(pkt);
+		seq = readable_seq(get_psn(pkt));
+
+		if (bs->buf == &ect_qp_buf[bs->id])
+		{
+			seq = rte_atomic64_add_return(bs->tail,1);
+			uint32_t entry = seq % PKT_REORDER_BUF;
+			(*bs->buf)[entry] = pkt;
+			
+		} else {
+			uint32_t entry = seq % PKT_REORDER_BUF;
+			(*bs->buf)[entry] = pkt;
+			rte_atomic64_inc(bs->tail);
+		} 
+
+		struct map_packet_response mpr;
+		mpr.size=0;
+		//Dequeue every sequential packet. Make sure that the head does not overrun the tail
+		//Also make sure that each packet being dequed is not equal to null
+		int64_t tail = rte_atomic64_read(bs->tail);
+		int64_t head = rte_atomic64_read(bs->head);
+		while ((head <= tail) && ((*bs->buf)[head % PKT_REORDER_BUF] != NULL))
+		{
+			mpr.pkts[mpr.size]=(*bs->buf)[(head) % PKT_REORDER_BUF];
+			mpr.size++;
+			(*bs->buf)[head % PKT_REORDER_BUF] = NULL;
+			head = rte_atomic64_add_return(bs->head,1);
+		}
+
+		#ifdef DEQUEUE_CHECKSUM
+		for (int j=0;j<mpr.size;j++) {
+			if (likely(j < mpr.size - 1))
+			{
+				rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[j + 1], void *));
+			}
+			if(packet_is_marked(mpr.pkts[j])) {
+				recalculate_rdma_checksum(mpr.pkts[j]);
+			} 
+		}
+		#endif
+		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
+	}
+}
 
 void general_dequeue_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct Buffer_State_Tracker bst;
@@ -668,8 +749,8 @@ void flush_buffers(uint16_t port) {
 	bst.size=1;
 	bst.buffer_states[0]=bs;
 	//lock_buffer_state(bs);
-	general_dequeue(port,0,tx_queue);
-	general_dequeue(port,0,tx_queue_2);
+	general_tx(port,0,tx_queue);
+	general_tx(port,0,tx_queue_2);
 	printf("&& FLUSHING BUFFERS COMPLETE\n");
 	printf("setting buffer states to current\n");
 
@@ -2571,10 +2652,10 @@ lcore_main(void)
 		if (has_mapped_qp) {
 			uint32_t queue_static = rte_lcore_id() / 2;
 			if (rte_lcore_id() == 2) {
-				general_dequeue_eternal(0,queue_static,tx_queue);
+				general_tx_eternal(0,queue_static,tx_queue);
 			}
 			if (rte_lcore_id() == 4) {
-				general_dequeue_eternal(0,queue_static,tx_queue_2);
+				general_tx_eternal(0,queue_static,tx_queue_2);
 			}
 		}
 
@@ -2617,11 +2698,11 @@ lcore_main(void)
 			#endif
 
 			if (rte_lcore_id() == 2) {
-				general_dequeue(port,queue,tx_queue);
+				general_tx(port,queue,tx_queue);
 				continue;
 			}
 			if (rte_lcore_id() == 4) {
-				general_dequeue(port,queue,tx_queue_2);
+				general_tx(port,queue,tx_queue_2);
 				continue;
 			}
 
@@ -2693,7 +2774,12 @@ lcore_main(void)
 				printf("I think this is going to cause stack smashing\n");
 				exit(0);
 			}
-			struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
+
+			for(int i=0;i<to_tx;i++) {
+				general_tx_enqueue(tx_pkts[i]);
+
+			}
+			//struct Buffer_State_Tracker bst = enqueue_finish_mem_pkt_bulk2(tx_pkts,to_tx);
 
 
 			#endif
