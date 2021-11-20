@@ -638,7 +638,8 @@ void dequeue_finish_mem_pkt_bulk_merge4(uint16_t port, uint32_t queue, struct Bu
 
 }
 
-#define DEQUEUE_BURST 32
+#define DEQUEUE_BURST 4
+
 
 void general_dequeue_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct Buffer_State_Tracker bst;
