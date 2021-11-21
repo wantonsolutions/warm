@@ -45,8 +45,6 @@
 
 int MOD_SLOT = 1;
 
-//#define DATA_PATH_PRINT
-//#define MAP_PRINT
 #define CATCH_ECN
 #define DEQUEUE_CHECKSUM
 
@@ -54,7 +52,6 @@ uint32_t debug_start_printing_every_packet = 0;
 
 static int has_mapped_qp = 0;
 static int packet_counter = 0;
-static int hash_collisons=0;
 
 #define MULTI_CORE
 
@@ -70,7 +67,8 @@ static int hash_collisons=0;
 uint64_t cached_write_vaddrs[KEYSPACE][WRITE_VADDR_CACHE_SIZE];
 uint32_t writes_per_key[KEYSPACE];
 
-#define HASHSPACE (1 << 24)
+//#define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
+#define HASHSPACE (1 << 20)
 uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
@@ -126,17 +124,15 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 
 //fast id finder
 //#define ID_SPACE 1<<24
-#define ID_SPACE 1<<24
+#define ID_SPACE 1<<17
 int32_t fast_id_lookup[ID_SPACE];
 int32_t fast_qp_lookup[ID_SPACE];
 
-uint32_t qp_id_hash(uint32_t qp) {
-	uint32_t val = (uint32_t) murmur3(qp) % (ID_SPACE);
-	return val;
+inline uint32_t qp_id_hash(uint32_t qp) {
+	return (uint32_t) murmur3(qp) % (ID_SPACE);
 }
 
 void set_fast_id(uint32_t qp, uint32_t id) {
-	//printf("setting fast ID: %d QP: %d\n",id,qp);
 	if(fast_id_lookup[qp_id_hash(qp)] != -1){
 		printf("curses I've hit a collision in the ID space");
 		exit(0);
@@ -145,16 +141,8 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 
 }
 
-int fast_find_id_qp(uint32_t qp) {
-	//lock_qp();
-	int id = fast_id_lookup[qp_id_hash(qp)];
-	if(fast_qp_lookup[qp_id_hash(qp)] != qp && id != -1) {
-		printf("FAILeD\n");
-		printf("fast_qp_lookup[%d]=%d qp =%d fast_id_lookup=%d\n",id,fast_qp_lookup[qp_id_hash(qp)],qp,qp_id_hash(qp),fast_id_lookup[qp_id_hash(qp)]);
-		exit(0);
-	}
-	//unlock_qp();
-	return id;
+inline int fast_find_id_qp(uint32_t qp) {
+	return fast_id_lookup[qp_id_hash(qp)];
 }
 
 int fast_find_id(struct rte_mbuf * buf) {
@@ -890,7 +878,7 @@ void init_connection_states(void)
 //I'm using a bit mixer instead of a hash
 //hashes are slow as AF
 //http://jonkagstrom.com/bit-mixer-construction/
-uint64_t murmur3(uint64_t k) {
+inline uint64_t murmur3(uint64_t k) {
   k ^= k >> 33;
   k *= 0xff51afd7ed558ccdull;
   k ^= k >> 33;
@@ -912,17 +900,6 @@ inline void update_read_tail(uint64_t key, uint64_t vaddr) {
 void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 {
 	uint32_t index = mod_hash(vaddr);
-	/*
-	if (cached_write_vaddr_mod[index] != 0) {
-		hash_collisons++;
-		/*
-		if(unlikely(hash_collisons % 1000 == 0)) {
-			printf("collisions %d old:%"PRIx64" new:%"PRIx64",\n",hash_collisons, cached_write_vaddr_mod[index], vaddr);
-		}
-
-	}
-	*/
-	//printf("%"PRIx64" \t\tWRITE\n",be64toh(vaddr));
 	cached_write_vaddr_mod[index] = vaddr;
 	cached_write_vaddr_mod_lookup[index] = key;
 }
@@ -930,19 +907,11 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 
 int does_read_have_cached_write_mod(uint64_t vaddr)
 {
-	//printf("\t%"PRIx64" \tREAD",be64toh(vaddr));
 	uint32_t index = mod_hash(vaddr);
-	if (cached_write_vaddr_mod[index] == vaddr)
+	if (likely(cached_write_vaddr_mod[index] == vaddr))
 	{
-		//printf("(hit) key = %d\n",cached_write_vaddr_mod_lookup[index]);
 		return cached_write_vaddr_mod_lookup[index];
-	} else if (cached_write_vaddr_mod[index] == 0) {
-		//printf("raw miss on read cache\n");
-	} else {
-		//printf("collision miss (search) %"PRIx64" (existing) %"PRIx64"\n",vaddr, cached_write_vaddr_mod[index]);
-		//printf("key in that location %"PRIu64"\n",cached_write_vaddr_mod_lookup[index]);
-	}
-	//printf("\n");
+	} 
 	return 0;
 }
 
@@ -1068,23 +1037,21 @@ uint32_t qp_is_mapped(uint32_t qp)
 
 struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 {
+	return &(cs->Outstanding_Requests[mod_slot(cs->seq_current)]);
+	/*
 	uint32_t slot_num = mod_slot(cs->seq_current);
 	struct Request_Map *slot = &(cs->Outstanding_Requests[slot_num]);
-	if (unlikely(!slot_is_open(slot)))
-	{
-		printf("CLOSED SLOT, this is really bad [overwitten op %s] (#%"PRIu64")!!\n",ib_print_op(slot->rdma_op),overwitten_writes++);
-		open_slot(slot);
-	}
 	return slot;
+	*/
 }
 
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	if (roce_hdr->opcode == RC_CNS) {
-		//print_packet(pkt);
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+
+		struct clover_hdr *clover_header = get_clover_hdr(pkt);
 		struct cs_request *cs = (struct cs_request *)clover_header;
 		struct write_request *wr = (struct write_request *)clover_header;
 
@@ -1098,7 +1065,6 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 		wr->rdma_extended_header.dma_length = 8;
 		wr->ptr = write_value;
 
-
 		//Header change now we need to adjust the length (should be -4)
 		//uint32_t size_diff = (sizeof(cs_request) - sizeof(write_request));
 		uint32_t size_diff = 4; // This is a magic number because the line before this (cs - write) gives 3
@@ -1109,38 +1075,37 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 }
 
 void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot) {
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (slot->rdma_op == RC_CNS && slot->was_write_swapped==1) {
-		//printf("converting missing ack to atomic-ack\n");
-		//printf("converting write-ack to cns-ack\n");
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+		struct clover_hdr *clover_header = get_clover_hdr(pkt);
 		struct cs_response *cs = (struct cs_response *)clover_header;
 		if(roce_hdr->opcode != RC_ACK) {
 			printf("This was a safty check, we should not reach here with CNS_TO_WRITE turned on");
 		}
 		//Set the headers
 		//First extend the size of the packt buf
-		//print_packet(pkt);
 		uint32_t size_diff = 8; // This is a magic number because the line before this (cs - write) gives 3
 		rte_pktmbuf_append(pkt,size_diff);
 		roce_hdr->opcode = RC_ATOMIC_ACK;
-		//cs->atomc_ack_extended.original_remote_data = be64toh(0);
 		cs->atomc_ack_extended.original_remote_data = htobe64(2048);
-		//cs->atomc_ack_extended.original_remote_data = htobe64(1024);
-
-		//printf("size diff %d\n",size_diff);
 
 		uint16_t dgram_len = htons(ntohs(udp_hdr->dgram_len) + size_diff);
-		//printf("dgram len new %d old %d\n",ntohs(dgram_len),ntohs(udp_hdr->dgram_len));
 		udp_hdr->dgram_len = dgram_len;
-
-
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
 	} 
 	
+}
+
+inline uint32_t qp_mapping_default(uint32_t key, struct roce_v2_header * roce_hdr) {
+	//Key to qp policy
+	if (likely(key != 0)) {
+		return key_to_qp(key);
+	} else {
+		return roce_hdr->dest_qp;
+	}
 }
 
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
@@ -1150,36 +1115,16 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
-	//uint32_t r_qp = roce_hdr->dest_qp;
-	//uint32_t id = fast_find_id(pkt);
 	uint32_t id = fast_find_id(pkt);
-	uint32_t n_qp = 0;
+	uint32_t n_qp = qp_mapping_default(key,roce_hdr);
 
 	//Keys are set to 0 when we are not going to map them. If the key is not
 	//equal to zero apply the mapping policy.
 
-	//Key to qp policy
-	
-	if (likely(key != 0))
-	{
-		n_qp = key_to_qp(key);
-	}
-	else
-	{
-		n_qp = roce_hdr->dest_qp;
-	}
-	/*
-	n_qp = id_to_qp(id);
-	*/
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
 	destination_connection = &Connection_States[fast_find_id_qp(n_qp)];
-	if (unlikely(destination_connection == NULL))
-	{
-		printf("I did not want to end up here\n");
-		return;
-	}
 
 	//Our middle box needs to keep track of the sequence number
 	//that should be tracked for the destination. This should
@@ -1201,29 +1146,21 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//reads. These should really be hased in the future.
 
 	//Search for an open slot
-	struct Request_Map *slot;
-	slot = get_empty_slot_mod(destination_connection);
+	struct Request_Map *slot = get_empty_slot_mod(destination_connection);
 
 	//The next step is to save the data from the current packet
 	//to a list of outstanding requests. As clover is blocking
 	//we can use the id to track which sequence number belongs
 	//to which request. These values will be used to map
 	//responses back.
+
+	//Save a unique id of sequence number and the qp that this response will arrive back on
 	close_slot(slot);
 	slot->id = id;
-	//Save a unique id of sequence number and the qp that this response will arrive back on
 	slot->mapped_sequence = destination_connection->seq_current;
-	slot->mapped_destination_server_to_client_qp = destination_connection->stcqp;
 	slot->original_sequence = roce_hdr->packet_sequence_number;
-	//Store the server to client to qp that this we will need to make the swap
-	slot->server_to_client_qp = Connection_States[id].stcqp;
-	slot->server_to_client_udp_port = Connection_States[id].udp_src_port_server;
-	slot->original_src_ip = ipv4_hdr->src_addr;
-	slot->server_to_client_rkey = Connection_States[id].stc_rkey;
 	slot->rdma_op=roce_hdr->opcode;
 	slot->was_write_swapped=0;
-
-	copy_eth_addr(eth_hdr->s_addr.addr_bytes, slot->original_eth_addr);
 
 	//Set the packet with the mapped information to the new qp
 	roce_hdr->dest_qp = destination_connection->ctsqp;
@@ -1231,17 +1168,13 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	udp_hdr->src_port = destination_connection->udp_src_port_client;
 	ipv4_hdr->src_addr = destination_connection->ip_addr_client;
 
-
 	//Transform CNS to WRITES
 	#ifdef CNS_TO_WRITE
 	map_cns_to_write(pkt,slot);
 	#endif
-	//rte_smp_mb();
+
 	unlock_connection_state(destination_connection);
 
-	//checksumming
-	ipv4_hdr->hdr_checksum = 0;
-	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
 	#ifdef DEQUEUE_CHECKSUM
 	mark_pkt_rdma_checksum(pkt);
@@ -1275,16 +1208,28 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 	return NULL;
 }
 
-struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
-	//printf("Generating Ack\n");
 
-	//struct Request_Map *
+void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_request) {
+		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
+		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+		struct Connection_State *destination_cs = &Connection_States[mapped_request->id];
+		roce_hdr->packet_sequence_number = mapped_request->original_sequence;
+		roce_hdr->dest_qp = destination_cs->stcqp;
+		udp_hdr->src_port = destination_cs->udp_src_port_client;
+		ipv4_hdr->dst_addr = destination_cs->ip_addr_client;
+		ipv4_hdr->src_addr = destination_cs->ip_addr_server;
+		copy_eth_addr(destination_cs->cts_eth_addr, eth_hdr->d_addr.addr_bytes);
+		copy_eth_addr(destination_cs->stc_eth_addr, eth_hdr->s_addr.addr_bytes);
+}
+
+
+struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
+
 	if (missing_write)
 	{
-		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
-		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool[0]);
 		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
-
 		if (pkt == NULL) {
 			printf("NULL PACKET ack generation\n");
 		}
@@ -1294,21 +1239,9 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 		rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
 
-		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
-		//copy over the connection state info
-		copy_eth_addr(cs->stc_eth_addr,eth_hdr->s_addr.addr_bytes);
-		ipv4_hdr->src_addr = cs->ip_addr_server;
+		map_back_packet(pkt, missing_write);
 
-		//Set the packety headers to that of the mapped request
-		roce_hdr->dest_qp = missing_write->server_to_client_qp;
-		roce_hdr->packet_sequence_number = missing_write->original_sequence;
-		udp_hdr->src_port = missing_write->server_to_client_udp_port;
-		ipv4_hdr->dst_addr = missing_write->original_src_ip;
-		//!todo perhaps the issue here is that the packet is being delivered across eth?
-		copy_eth_addr(missing_write->original_eth_addr, eth_hdr->d_addr.addr_bytes);
 		//make a local copy of the id before unlocking
 		uint32_t id = missing_write->id;
 		//open up the mapped request
@@ -1320,6 +1253,8 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 		//This is must be done after the unlock
 		struct Connection_State *destination_cs = &Connection_States[id];
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 		uint32_t msn;
 		//Avoid double locking
 		if (destination_cs == cs) {
@@ -1334,20 +1269,12 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 		map_write_ack_to_atomic_ack(pkt,missing_write);
 		#endif
 
-		//Ip mapping recalculate the ip checksum
-		ipv4_hdr->hdr_checksum = 0;
-		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-
 		#ifdef DEQUEUE_CHECKSUM
 		mark_pkt_rdma_checksum(pkt);
 		#else
 		recalculate_rdma_checksum(pkt);
 		#endif
 
-
-		//print_packet(pkt);
-
-		//THis is a good place to inject the transition from a write to a CNS.
 		return pkt;
 	}
 	return NULL;
@@ -1410,6 +1337,7 @@ void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_reque
 	return;
 }
 
+
 //Mappping qp backwards is the demultiplexing operation.  The first step is to
 //identify the kind of packet and figure out if it has been placed on the
 struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
@@ -1470,26 +1398,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			}
 		}
 
-		//lock_connection_state(source_connection);
-
-
-		//sanity_check_mapping(pkt,mapped_request);
-
 		//Set the packety headers to that of the mapped request
-		roce_hdr->dest_qp = mapped_request->server_to_client_qp;
-		roce_hdr->packet_sequence_number = mapped_request->original_sequence;
-		udp_hdr->src_port = mapped_request->server_to_client_udp_port;
-		ipv4_hdr->dst_addr = mapped_request->original_src_ip;
-		copy_eth_addr(mapped_request->original_eth_addr, eth_hdr->d_addr.addr_bytes);
-		//make a local copy of the id before unlocking
-		uint32_t original_id = mapped_request->id;
-		//open up the mapped request
-
+		//struct Connection_State orginial = &Connection_States[mapped_request->id];
+		map_back_packet(pkt,mapped_request);
 
 		#ifdef CNS_TO_WRITE
 		map_write_ack_to_atomic_ack(pkt,mapped_request);
 		#endif
-
 
 		open_slot(mapped_request);
 		unlock_connection_state(source_connection);
@@ -1499,7 +1414,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//what the original connection was so that we can update it accordingly.
 
 		//This is must be done after the unlock
-		struct Connection_State *destination_cs = &Connection_States[original_id];
+		struct Connection_State *destination_cs = &Connection_States[mapped_request->id];
 		uint32_t msn = produce_and_update_msn(roce_hdr, destination_cs);
 		set_msn(roce_hdr, msn);
 
@@ -1509,11 +1424,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n", rte_lcore_id(), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 #endif
 
-
-
-		//Ip mapping recalculate the ip checksum
-		ipv4_hdr->hdr_checksum = 0;
-		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
 		#ifdef DEQUEUE_CHECKSUM
 		mark_pkt_rdma_checksum(pkt);
@@ -1553,32 +1463,31 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 	mpr.pkts[0] = pkt;
 	mpr.size = 1;
 
-	track_qp(pkt);
 	//Not mapping yet
-	if (has_mapped_qp == 0)
+	if (unlikely(has_mapped_qp == 0))
+	{
+		track_qp(pkt);
+		return mpr;
+	}
+
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	if (unlikely(!qp_is_mapped(roce_hdr->dest_qp)))
 	{
 		return mpr;
+	}
+
+
+
+	//backward path requires little checking
+	uint8_t opcode = roce_hdr->opcode;
+	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE)
+	{
+		return map_qp_backwards(pkt);
 	}
 
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	uint32_t size = ntohs(ipv4_hdr->total_length);
-	uint8_t opcode = roce_hdr->opcode;
-	uint32_t r_qp = roce_hdr->dest_qp;
-
-	if (qp_is_mapped(r_qp) == 0)
-	{
-		//This is not a packet we should map forward
-		return mpr;
-	}
-
-	//backward path requires little checking
-	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE)
-	{
-		mpr = map_qp_backwards(pkt);
-		return mpr;
-	}
 
 
 	if (opcode == RC_READ_REQUEST)
@@ -2443,12 +2352,7 @@ lcore_main(void)
 					all_thread_barrier(&thread_barrier);
 					if (rte_lcore_id() == 0) {
 						printf("\n$$ Queue Pair Multiplexing On $$\n");
-
 						print_connection_state_status();
-						//flip the switch
-						//print_first_mapping();
-
-						//start doing fast operations now
 						flush_buffers(port);
 						lock_qp();
 						has_mapped_qp=1;
@@ -2466,17 +2370,11 @@ lcore_main(void)
 
 
 
-			//printf("core %d using queue %d\n",rte_lcore_id(),queue);
-			//const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
-			//if (nb_rx > 0) {
-			//	printf("[core %d] rx %d\n",rte_lcore_id(),nb_rx);
-			//}
 
 			if (unlikely(nb_rx == 0)) {
 				continue;
 			}
-			//printf("core %d - processing\n",rte_lcore_id());
 
 
 			#define PRINT_COUNT 10000
@@ -2487,7 +2385,6 @@ lcore_main(void)
 				{
 					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 				}
-				//packet_counter++;
 
 				#ifdef TAKE_MEASUREMENTS
 				sum_processed_data(rx_pkts[i]);

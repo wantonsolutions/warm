@@ -118,6 +118,11 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 void recalculate_rdma_checksum(struct rte_mbuf *pkt)
 {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+
+	//checksumming
+	ipv4_hdr->hdr_checksum = 0;
+	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
     uint32_t crc_check = csum_pkt_fast(pkt); //This need to be added before we can validate packets
     void *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
     rte_memcpy(current_checksum, &crc_check, 4);
