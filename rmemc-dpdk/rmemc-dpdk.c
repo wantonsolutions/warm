@@ -46,7 +46,6 @@
 int MOD_SLOT = 1;
 
 #define CATCH_ECN
-#define DEQUEUE_CHECKSUM
 
 uint32_t debug_start_printing_every_packet = 0;
 
@@ -495,7 +494,6 @@ int32_t count_held_packets() {
 void print_mpr(struct map_packet_response* mpr) {
 	printf("MPR size: %d\n",mpr->size);
 	for (uint32_t i=0;i<mpr->size;i++) {
-		printf("[TS: %"PRIu64"]",mpr->timestamps[i]);
 		print_packet_lite(mpr->pkts[i]);
 	}
 }
@@ -551,7 +549,6 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 			*(bs->head) = (*bs->head) + 1;
 		}
 
-		#ifdef DEQUEUE_CHECKSUM
 		for (int j=0;j<mpr.size;j++) {
 			if (likely(j < mpr.size - 1))
 			{
@@ -561,7 +558,7 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 				recalculate_rdma_checksum(mpr.pkts[j]);
 			} 
 		}
-		#endif
+
 		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
 	}
 }
@@ -950,13 +947,9 @@ void steer_read(struct rte_mbuf *pkt, uint32_t key)
 	{
 		rr->rdma_extended_header.vaddr = vaddr;
 		#ifdef MAP_QP
-			#ifdef DEQUEUE_CHECKSUM
-			mark_pkt_rdma_checksum(pkt);
-			#else
-			recalculate_rdma_checksum(pkt);
-			#endif
-			#else
-			recalculate_rdma_checksum(pkt);
+		mark_pkt_rdma_checksum(pkt);
+		#else
+		recalculate_rdma_checksum(pkt);
 		#endif
 		//recalculate_rdma_checksum(pkt);
 #ifdef TAKE_MEASUREMENTS
@@ -1176,22 +1169,9 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	unlock_connection_state(destination_connection);
 
 
-	#ifdef DEQUEUE_CHECKSUM
 	mark_pkt_rdma_checksum(pkt);
-	#else
-	recalculate_rdma_checksum(pkt);
-	#endif
 }
 
-struct Connection_State *find_connection(struct rte_mbuf *pkt)
-{
-	//fast find connection
-	int32_t id = fast_find_id(pkt);
-	if (id == -1) {
-		return NULL;
-	}
-	return &Connection_States[id];
-}
 
 struct Request_Map *find_slot_mod(struct Connection_State *source_connection, struct rte_mbuf *pkt)
 {
@@ -1269,11 +1249,7 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 		map_write_ack_to_atomic_ack(pkt,missing_write);
 		#endif
 
-		#ifdef DEQUEUE_CHECKSUM
 		mark_pkt_rdma_checksum(pkt);
-		#else
-		recalculate_rdma_checksum(pkt);
-		#endif
 
 		return pkt;
 	}
@@ -1342,36 +1318,19 @@ void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_reque
 //identify the kind of packet and figure out if it has been placed on the
 struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 {
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
 	struct map_packet_response mpr;
 	mpr.pkts[0] = pkt;
 	mpr.size = 1;
 
-	if (unlikely(has_mapped_qp == 0))
-	{
-		printf("We have not started multiplexing yet. Returning with no packet modifictions.\n");
-		return mpr;
-	}
-
-	struct Connection_State *source_connection = find_connection(pkt);
-	//This packet might not be part of any active connection
-	if (unlikely(source_connection == NULL))
-	{
-		return mpr;
-	}
-
-
+	struct Connection_State *source_connection = &Connection_States[fast_find_id_qp(roce_hdr->dest_qp)];
 	lock_connection_state(source_connection);
+
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
 	if (likely(mapped_request != NULL))
 	{
-
-
 		//Itterativly search for coalesed packets
 		//TODO move this to it's own function
 		uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
@@ -1388,8 +1347,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 				//subtract the sequence number by one and revert it back to roce header format
 				search_sequence_number = revert_seq(readable_seq(search_sequence_number) - 1);
-
-				//close the missing write
 				open_slot(missing_write);
 
 				missing_write = find_missing_write(source_connection, search_sequence_number);
@@ -1424,15 +1381,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		printf("        MAP BACK :: (core %d) seq(%d <- %d) mseq(%d <- %d) (op %s) (s-qp %d)\n", rte_lcore_id(), readable_seq(mapped_request->original_sequence), readable_seq(mapped_request->mapped_sequence), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 #endif
 
-
-		#ifdef DEQUEUE_CHECKSUM
 		mark_pkt_rdma_checksum(pkt);
-		#else
-		recalculate_rdma_checksum(pkt);
-		#endif
-
-
-		
 
 		return mpr;
 	}
@@ -1448,11 +1397,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		//printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
 
-		#ifdef DEQUEUE_CHECKSUM
 		mark_pkt_rdma_checksum(pkt);
-		#else
-		recalculate_rdma_checksum(pkt);
-		#endif
 	}
 	return mpr;
 }
@@ -1903,13 +1848,9 @@ void true_classify(struct rte_mbuf *pkt)
 			cs->atomic_req.vaddr = *next_vaddr_p; //We can add this once we can predict with confidence
 
 			#ifdef MAP_QP
-				#ifdef DEQUEUE_CHECKSUM
-				mark_pkt_rdma_checksum(pkt);
-				#else
-				recalculate_rdma_checksum(pkt);
-				#endif
-				#else
-				recalculate_rdma_checksum(pkt);
+			mark_pkt_rdma_checksum(pkt);
+			#else
+			recalculate_rdma_checksum(pkt);
 			#endif
 
 		}

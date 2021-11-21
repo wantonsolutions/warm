@@ -94,7 +94,6 @@ struct map_packet_response
 {
   uint32_t size;
   struct rte_mbuf *pkts[BURST_SIZE*BURST_SIZE*PACKET_INFLATION];
-  uint64_t timestamps[BURST_SIZE*BURST_SIZE*PACKET_INFLATION];
 } map_packet_response;
 
 
