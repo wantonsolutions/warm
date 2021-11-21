@@ -51,7 +51,7 @@ static int packet_counter = 0;
 #define MAP_QP
 #define CNS_TO_WRITE
 
-#define RX_CORES 1
+#define RX_CORES 2
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -448,11 +448,12 @@ void print_mpr(struct map_packet_response* mpr) {
 
 #define DEQUEUE_BURST 16
 void general_tx_enqueue(struct rte_mbuf * pkt) {
-	uint32_t queue_index = 1;
+	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
 		uint32_t id = fast_find_id(pkt);
-		queue_index = (id % (rte_lcore_count()-1)) + 1;
+		queue_index = (id % (rte_lcore_count()-RX_CORES)) + RX_CORES;
 	}
+	//printf("sending to queue %d\n",queue_index);
 	rte_ring_enqueue(tx_queues[queue_index],pkt);
 }
 
@@ -468,6 +469,7 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
 
 
+
 	//Here the buffer states have been collected
 	uint64_t seq;
 	struct Buffer_State *bs;
@@ -475,6 +477,8 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 
 	for (uint32_t i=0;i<dequeued;i++) {
 		pkt = tx_pkts[i];
+		//printf("txing on core %d\n",rte_lcore_id());
+		//print_packet_lite(pkt);
 		bs = get_buffer_state(pkt);
 		seq = readable_seq(get_psn(pkt));
 
@@ -2013,7 +2017,7 @@ lcore_main(void)
 
 	printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
 	/* Run until the application is quit or killed. */
-
+	port=0;
 	uint64_t lcore_pkt_count = 0;
 	for (;;)
 	{
@@ -2027,11 +2031,10 @@ lcore_main(void)
 
 		if (has_mapped_qp) {
 			if (queue >= RX_CORES)  {
-				general_tx_eternal(0,queue,tx_queues[queue]);
+				general_tx_eternal(port,queue,tx_queues[queue]);
 			}
 		}
 
-		uint32_t port = 0;
 
 		//RTE_ETH_FOREACH_DEV(port)
 		//{
@@ -2061,7 +2064,7 @@ lcore_main(void)
 		#endif
 
 		if (queue >= RX_CORES)  {
-			general_tx(0,queue,tx_queues[queue]);
+			general_tx(port,queue,tx_queues[queue]);
 			continue;
 		}
 
@@ -2072,10 +2075,12 @@ lcore_main(void)
 
 		for (uint16_t i = 0; i < nb_rx; i++)
 		{
+
 			if (likely(i < nb_rx - 1))
 			{
 				rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
 			}
+
 
 			#ifdef TAKE_MEASUREMENTS
 			sum_processed_data(rx_pkts[i]);
@@ -2088,8 +2093,11 @@ lcore_main(void)
 
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
+			//print_packet_lite(rx_pkts[i]);
 			for (uint32_t j = 0; j < mpr.size; j++)
 			{
+				//printf("enqueuing\n");
+				//print_packet_lite(rx_pkts[i]);
 				general_tx_enqueue(mpr.pkts[j]);
 			}
 
@@ -2274,7 +2282,8 @@ int main(int argc, char *argv[])
 		rte_atomic16_set(&atomic_qp_id_counter,-1);
 		for (int i=0;i<MEMPOOLS;i++) {
 			printf("init tx mempool %d\n",i);
-			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
+			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
+			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
 		}
 
 		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
