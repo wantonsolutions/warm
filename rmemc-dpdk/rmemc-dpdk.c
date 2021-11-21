@@ -949,7 +949,7 @@ inline uint32_t mod_slot(uint32_t seq)
 	return readable_seq(seq) % CS_SLOTS;
 }
 
-uint32_t qp_is_mapped(uint32_t qp)
+inline uint32_t qp_is_mapped(uint32_t qp)
 {
 	if(fast_find_id_qp(qp) == -1) {
 		return 0;
@@ -957,15 +957,16 @@ uint32_t qp_is_mapped(uint32_t qp)
 	return 1;
 }
 
-struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
+inline struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 {
 	return &(cs->Outstanding_Requests[mod_slot(cs->seq_current)]);
-	/*
-	uint32_t slot_num = mod_slot(cs->seq_current);
-	struct Request_Map *slot = &(cs->Outstanding_Requests[slot_num]);
-	return slot;
-	*/
 }
+
+
+#define CNS_TO_WRITE_SIZE_DIFF 4
+#define CNS_TO_WRITE_DMA_LENGTH 8
+#define CNS_TO_WRITE_DGRAM_LEN 0x3000
+#define CNS_TO_WRITE_IPV4_LEN 0x4400
 
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
@@ -980,21 +981,21 @@ void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 		slot->was_write_swapped=1;
 
 		//set the opcode to write
-		uint64_t write_value;
-		write_value = cs->atomic_req.swap_or_add;
-
 		roce_hdr->opcode = RC_WRITE_ONLY;
-		wr->rdma_extended_header.dma_length = 8;
-		wr->ptr = write_value;
+		wr->rdma_extended_header.dma_length = CNS_TO_WRITE_DMA_LENGTH;
+		wr->ptr = cs->atomic_req.swap_or_add;
 
 		//Header change now we need to adjust the length (should be -4)
-		//uint32_t size_diff = (sizeof(cs_request) - sizeof(write_request));
-		uint32_t size_diff = 4; // This is a magic number because the line before this (cs - write) gives 3
-		rte_pktmbuf_trim(pkt,size_diff);
-		udp_hdr->dgram_len = htons(ntohs(udp_hdr->dgram_len) - size_diff);
-		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) - size_diff);
+		rte_pktmbuf_trim(pkt,CNS_TO_WRITE_SIZE_DIFF);
+		udp_hdr->dgram_len = CNS_TO_WRITE_DGRAM_LEN;
+		ipv4_hdr->total_length = CNS_TO_WRITE_IPV4_LEN;
 	}
 }
+
+#define ACK_TO_ATOMIC_SIZE_DIFF 8 // This is a magic number because the line before this (cs - write) gives 3
+#define ORIGINAL_DATA_ACCEPT 0x8000000000000
+#define ATOMIC_ACK_DGRAM_LEN 0x2400
+#define ATOMIC_ACK_IPV4_LEN 0x3800
 
 void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot) {
 
@@ -1002,27 +1003,23 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 	if (slot->rdma_op == RC_CNS && slot->was_write_swapped==1) {
 		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-		struct clover_hdr *clover_header = get_clover_hdr(pkt);
-		struct cs_response *cs = (struct cs_response *)clover_header;
-		if(roce_hdr->opcode != RC_ACK) {
-			printf("This was a safty check, we should not reach here with CNS_TO_WRITE turned on");
-		}
+		struct cs_response *cs = (struct cs_response *)get_clover_hdr(pkt);
+
 		//Set the headers
 		//First extend the size of the packt buf
-		uint32_t size_diff = 8; // This is a magic number because the line before this (cs - write) gives 3
-		rte_pktmbuf_append(pkt,size_diff);
+		rte_pktmbuf_append(pkt,ACK_TO_ATOMIC_SIZE_DIFF);
 		roce_hdr->opcode = RC_ATOMIC_ACK;
-		cs->atomc_ack_extended.original_remote_data = htobe64(2048);
-
-		uint16_t dgram_len = htons(ntohs(udp_hdr->dgram_len) + size_diff);
-		udp_hdr->dgram_len = dgram_len;
-		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
+		cs->atomc_ack_extended.original_remote_data = ORIGINAL_DATA_ACCEPT;
+		udp_hdr->dgram_len = ATOMIC_ACK_DGRAM_LEN;
+		ipv4_hdr->total_length = ATOMIC_ACK_IPV4_LEN;
 	} 
 	
 }
 
 inline uint32_t qp_mapping_default(uint32_t key, struct roce_v2_header * roce_hdr) {
 	//Key to qp policy
+	//Keys are set to 0 when we are not going to map them. If the key is not
+	//equal to zero apply the mapping policy.
 	if (likely(key != 0)) {
 		return key_to_qp(key);
 	} else {
@@ -1032,21 +1029,13 @@ inline uint32_t qp_mapping_default(uint32_t key, struct roce_v2_header * roce_hd
 
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 {
-	struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	uint32_t id = fast_find_id(pkt);
 	uint32_t n_qp = qp_mapping_default(key,roce_hdr);
 
-	//Keys are set to 0 when we are not going to map them. If the key is not
-	//equal to zero apply the mapping policy.
-
-
 	//Find the connection state of the mapped destination connection.
-	struct Connection_State *destination_connection;
-	destination_connection = &Connection_States[fast_find_id_qp(n_qp)];
+	struct Connection_State *destination_connection = &Connection_States[fast_find_id_qp(n_qp)];
 
 	//Our middle box needs to keep track of the sequence number
 	//that should be tracked for the destination. This should
@@ -1085,6 +1074,8 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	slot->was_write_swapped=0;
 
 	//Set the packet with the mapped information to the new qp
+	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	roce_hdr->dest_qp = destination_connection->ctsqp;
 	roce_hdr->packet_sequence_number = destination_connection->seq_current;
 	udp_hdr->src_port = destination_connection->udp_src_port_client;
@@ -1095,10 +1086,9 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	map_cns_to_write(pkt,slot);
 	#endif
 
-	unlock_connection_state(destination_connection);
-
-
 	mark_pkt_rdma_checksum(pkt);
+
+	unlock_connection_state(destination_connection);
 }
 
 
@@ -1185,61 +1175,20 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 	return NULL;
 }
 
-struct Request_Map *find_missing_write(struct Connection_State * source_connection, uint32_t search_sequence_number){
-	uint32_t slot_num_0 = mod_slot(search_sequence_number);
-	uint32_t slot_num_1 = mod_slot_minus_one(search_sequence_number);
-	struct Request_Map *mapped_request_0 = &(source_connection->Outstanding_Requests[slot_num_0]);
-	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num_1]);
+inline struct Request_Map *find_missing_write(struct Connection_State * source_connection, uint32_t search_sequence_number){
 
-	if (!(mapped_request_0->rdma_op==RC_WRITE_ONLY || mapped_request_0->rdma_op==RC_CNS || mapped_request_0->rdma_op==RC_READ_REQUEST))
-	{
+	uint32_t slot_num = mod_slot_minus_one(search_sequence_number);
+	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num]);
+
+	if(likely(slot_is_open(mapped_request_1))) {
 		return NULL;
 	}
 
-	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_WRITE_ONLY)
-	{
+	if (mapped_request_1->rdma_op==RC_WRITE_ONLY || mapped_request_1->rdma_op==RC_CNS){
 		return mapped_request_1;
 	}
-	if ((!slot_is_open(mapped_request_1)) && mapped_request_1->rdma_op==RC_CNS)
-	{
-		return mapped_request_1;
-	}
+
 	return NULL;
-}
-
-
-void sanity_check_mapping(struct rte_mbuf *pkt, struct Request_Map *mapped_request) {
-	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-	int invalid = 0;
-	switch(roce_hdr->opcode){
-		case RC_ACK:
-			if ( (mapped_request->rdma_op != RC_WRITE_ONLY) &&
-				 (mapped_request->rdma_op != RC_CNS)
-			) {
-				invalid = 1;
-			}
-			break;
-		case RC_ATOMIC_ACK:
-			if (mapped_request->rdma_op != RC_CNS) {
-				invalid = 1;
-			}
-			break;
-		case RC_READ_RESPONSE:
-			if (mapped_request->rdma_op != RC_READ_REQUEST) {
-				invalid = 1;
-			}
-			break;
-		default:
-			break;
-	}
-	if (invalid) {
-		printf("INVALID MAPPING RESPONSE! OP is %s Original was %s\n",ib_print_op(roce_hdr->opcode),ib_print_op(mapped_request->rdma_op));
-		print_packet_lite(pkt);
-		print_packet(pkt);
-
-		printf("BECN %d FECN %d\n",roce_hdr->bcen,roce_hdr->fecn);
-	}
-	return;
 }
 
 
@@ -1261,7 +1210,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	if (likely(mapped_request != NULL))
 	{
 		//Itterativly search for coalesed packets
-		//TODO move this to it's own function
 		uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 		struct Request_Map *missing_write = find_missing_write(source_connection, search_sequence_number);
 		while(missing_write) {
@@ -1322,10 +1270,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
-		//int packet_msn = get_msn(roce_hdr);
-		//printf("@@@@ NO ENTRY TRANSITION @@@@ :: (seq %d) mseq(%d <- %d) (op %s) (s-qp %d) id (missing i took it out)\n", readable_seq(roce_hdr->packet_sequence_number), readable_seq(msn), readable_seq(packet_msn), ib_print_op(roce_hdr->opcode), roce_hdr->dest_qp);
 		set_msn(roce_hdr, msn);
-
 		mark_pkt_rdma_checksum(pkt);
 	}
 	return mpr;
