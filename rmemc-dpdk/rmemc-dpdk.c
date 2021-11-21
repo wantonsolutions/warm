@@ -500,7 +500,7 @@ void print_mpr(struct map_packet_response* mpr) {
 	}
 }
 
-#define DEQUEUE_BURST 4
+#define DEQUEUE_BURST 16
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = 1;
 	if (has_mapped_qp) {
@@ -1476,8 +1476,6 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-
-
 	//backward path requires little checking
 	uint8_t opcode = roce_hdr->opcode;
 	if (opcode == RC_ACK || opcode == RC_ATOMIC_ACK || opcode == RC_READ_RESPONSE)
@@ -1485,22 +1483,17 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		return map_qp_backwards(pkt);
 	}
 
-	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct clover_hdr *clover_header = get_clover_hdr(pkt);
-	uint32_t size = ntohs(ipv4_hdr->total_length);
-
-
 	if (opcode == RC_READ_REQUEST)
 	{
 		int key = 0;
 #ifdef READ_STEER
 		//lock_write_steering();
+		struct clover_hdr *clover_header = get_clover_hdr(pkt);
 		struct read_request *rr = (struct read_request *)clover_header;
-		uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
-		if (size == 1024) {
-			//!todo check to see how we can make the does read have cached write safe
+		#define network_order_1024 262144
+		//uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
+		if (rr->rdma_extended_header.dma_length == network_order_1024) {
 			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
-			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			#ifdef TAKE_MEASUREMENTS
 			increment_read_counter();
 			#endif
@@ -1512,14 +1505,15 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 				#endif
 			}
 		} 
-		//unlock_write_steering();
 #endif
 		map_qp_forward(pkt, key);
 	}
 	else if (opcode == RC_WRITE_ONLY)
 	{
+		struct clover_hdr *clover_header = get_clover_hdr(pkt);
 		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
+
 		/*
 		When I perform writes across keys but aslo mux QP on the writes
 		there is an issue where writes with size of 68 get through and
@@ -1536,6 +1530,8 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 
 		Jun 15 2021 - Stewart Grant
 		*/
+		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+		uint32_t size = ntohs(ipv4_hdr->total_length);
 		if (unlikely(size == 68))
 		{
 			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
