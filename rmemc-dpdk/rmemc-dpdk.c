@@ -51,7 +51,7 @@ static int packet_counter = 0;
 #define MAP_QP
 #define CNS_TO_WRITE
 
-#define RX_CORES 2
+#define RX_CORES 3
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -447,6 +447,7 @@ void print_mpr(struct map_packet_response* mpr) {
 }
 
 #define DEQUEUE_BURST 16
+//#define DEQUEUE_BURST 32
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
@@ -2052,7 +2053,7 @@ lcore_main(void)
 				all_thread_barrier(&thread_barrier);
 				if (rte_lcore_id() == 0) {
 					printf("\n$$ Queue Pair Multiplexing On $$\n");
-					print_connection_state_status();
+					//print_connection_state_status();
 					flush_buffers(port);
 					lock_qp();
 					has_mapped_qp=1;
