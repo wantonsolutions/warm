@@ -49,10 +49,9 @@ static int packet_counter = 0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-#define CNS_TO_WRITE
+//#define CNS_TO_WRITE
 
-//#define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
-#define HASHSPACE (1 << 20)
+#define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
 uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
@@ -94,8 +93,8 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
 }
 
-//#define ID_SPACE 1<<24 THIS IS MUCH SAFER YOU FOOL
-#define ID_SPACE 1<<16
+#define ID_SPACE 1<<24 //THIS IS MUCH SAFER YOU FOOL
+//#define ID_SPACE 1<<16
 int32_t fast_id_lookup[ID_SPACE];
 int32_t fast_qp_lookup[ID_SPACE];
 
