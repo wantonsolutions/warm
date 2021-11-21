@@ -76,7 +76,6 @@ uint64_t cached_write_vaddr_mod_lookup[HASHSPACE];
 uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 
 
-struct rte_mempool *mbuf_pool_ack;
 #define IPV4_OFFSET 14
 #define UDP_OFFSET 34
 #define ROCE_OFFSET 42
@@ -86,18 +85,9 @@ struct rte_mempool *mbuf_pool_ack;
 #define MEMPOOLS 12
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12"};
-//struct rte_mempool *mbuf_pool[MEMPOOLS];
 struct rte_mempool *mbuf_pool;
 
-//struct rte_ring *tx_queue;
-//struct rte_ring *tx_queue_2;
 struct rte_ring *tx_queues[MEMPOOLS];
-
-uint64_t pkt_timestamp_monotonic=0;
-inline uint64_t pkt_timestamp_not_thread_safe(void)
-{
-	return pkt_timestamp_monotonic++;
-}
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 {
@@ -124,9 +114,7 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
 }
 
-//fast id finder
-//#define ID_SPACE 1<<24
-#define ID_SPACE 1<<24
+#define ID_SPACE 1<<20
 int32_t fast_id_lookup[ID_SPACE];
 int32_t fast_qp_lookup[ID_SPACE];
 
@@ -136,7 +124,6 @@ uint32_t qp_id_hash(uint32_t qp) {
 }
 
 void set_fast_id(uint32_t qp, uint32_t id) {
-	//printf("setting fast ID: %d QP: %d\n",id,qp);
 	if(fast_id_lookup[qp_id_hash(qp)] != -1){
 		printf("curses I've hit a collision in the ID space");
 		exit(0);
@@ -145,16 +132,8 @@ void set_fast_id(uint32_t qp, uint32_t id) {
 
 }
 
-int fast_find_id_qp(uint32_t qp) {
-	//lock_qp();
-	int id = fast_id_lookup[qp_id_hash(qp)];
-	if(fast_qp_lookup[qp_id_hash(qp)] != qp && id != -1) {
-		printf("FAILeD\n");
-		printf("fast_qp_lookup[%d]=%d qp =%d fast_id_lookup=%d\n",id,fast_qp_lookup[qp_id_hash(qp)],qp,qp_id_hash(qp),fast_id_lookup[qp_id_hash(qp)]);
-		exit(0);
-	}
-	//unlock_qp();
-	return id;
+inline int fast_find_id_qp(uint32_t qp) {
+	return fast_id_lookup[qp_id_hash(qp)];
 }
 
 int fast_find_id(struct rte_mbuf * buf) {
@@ -258,8 +237,6 @@ inline void unlock_buffer_state(struct Buffer_State *bs) {
 }
 
 rte_atomic16_t atomic_qp_id_counter;
-
-uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
 
 //Keys start at 1, so I'm subtracting 1 to make the first key equal to index
@@ -290,7 +267,7 @@ uint32_t get_or_create_id(uint32_t qp)
 
 	//first try to go fast
 	id = fast_find_id_qp(qp);
-	if (id != -1) {
+	if (likely(id != -1)) {
 		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != qp)) {
 			printf("QP COLLISION\n");
 			exit(0);
@@ -301,12 +278,10 @@ uint32_t get_or_create_id(uint32_t qp)
 	lock_qp();
 	int16_t new_id = rte_atomic16_add_return(&atomic_qp_id_counter,1);
 	id = (int32_t)new_id;
-
 	set_fast_id(qp,id);
 	fast_qp_lookup[qp_id_hash(qp)]=qp;
 
 	//Set globals
-	qp_values[id] = id;
 	id_qp[id] = qp;
 	unlock_qp();
 
@@ -455,19 +430,16 @@ void init_reorder_buf(void)
 struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	int id = fast_find_id(pkt);
 	if (unlikely(has_mapped_qp == 0) || id == -1) {
-		//printf("etc\n");
 		return &ect_buffer_states[0];
 	}
 
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
 	{
-		//printf("mem\n");
 		return &mem_buffer_states[id];
 	}
 	if (Connection_States[id].stcqp == roce_hdr->dest_qp)
 	{
-		//printf("clt\n");
 		return &client_buffer_states[id];
 	}
 	printf("something is weird here unable to get the buffer state\n");
@@ -539,6 +511,8 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct Buffer_State *bs;
 	struct rte_mbuf *pkt;
 
+	struct map_packet_response mpr;
+	mpr.size=0;
 	for (uint32_t i=0;i<dequeued;i++) {
 		pkt = tx_pkts[i];
 		bs = get_buffer_state(pkt);
@@ -553,8 +527,6 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 		(*bs->buf)[entry] = pkt;
 		(*bs->tail)++;
 
-		struct map_packet_response mpr;
-		mpr.size=0;
 		while (((*bs->head) <= (*bs->tail)) && ((*bs->buf)[(*bs->head) % PKT_REORDER_BUF] != NULL))
 		{
 			mpr.pkts[mpr.size]=(*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
@@ -574,8 +546,8 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 			} 
 		}
 		#endif
-		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
 	}
+	rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
 }
 
 void flush_buffers(uint16_t port) {
@@ -598,8 +570,6 @@ void flush_buffers(uint16_t port) {
 		lock_buffer_state(bs);
 		(*bs->head) = readable_seq(cs->seq_current) + 1;
 		(*bs->tail) = readable_seq(cs->seq_current);
-		//rte_atomic64_set(bs->head, readable_seq(cs->seq_current) + 1);
-		//rte_atomic64_set(bs->tail, readable_seq(cs->seq_current));
 		unlock_buffer_state(bs);
 		
 		bs = &client_buffer_states[i];
@@ -1068,14 +1038,7 @@ uint32_t qp_is_mapped(uint32_t qp)
 
 struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
 {
-	uint32_t slot_num = mod_slot(cs->seq_current);
-	struct Request_Map *slot = &(cs->Outstanding_Requests[slot_num]);
-	if (unlikely(!slot_is_open(slot)))
-	{
-		printf("CLOSED SLOT, this is really bad [overwitten op %s] (#%"PRIu64")!!\n",ib_print_op(slot->rdma_op),overwitten_writes++);
-		open_slot(slot);
-	}
-	return slot;
+	return &(cs->Outstanding_Requests[mod_slot(cs->seq_current)]);
 }
 
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
@@ -1123,21 +1086,13 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 		}
 		//Set the headers
 		//First extend the size of the packt buf
-		//print_packet(pkt);
 		uint32_t size_diff = 8; // This is a magic number because the line before this (cs - write) gives 3
 		rte_pktmbuf_append(pkt,size_diff);
 		roce_hdr->opcode = RC_ATOMIC_ACK;
-		//cs->atomc_ack_extended.original_remote_data = be64toh(0);
 		cs->atomc_ack_extended.original_remote_data = htobe64(2048);
-		//cs->atomc_ack_extended.original_remote_data = htobe64(1024);
-
-		//printf("size diff %d\n",size_diff);
 
 		uint16_t dgram_len = htons(ntohs(udp_hdr->dgram_len) + size_diff);
-		//printf("dgram len new %d old %d\n",ntohs(dgram_len),ntohs(udp_hdr->dgram_len));
 		udp_hdr->dgram_len = dgram_len;
-
-
 		ipv4_hdr->total_length = htons(ntohs(ipv4_hdr->total_length) + size_diff);
 	} 
 	
@@ -1150,14 +1105,11 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 
-	//uint32_t r_qp = roce_hdr->dest_qp;
-	//uint32_t id = fast_find_id(pkt);
-	uint32_t id = fast_find_id(pkt);
+	uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 	uint32_t n_qp = 0;
 
 	//Keys are set to 0 when we are not going to map them. If the key is not
 	//equal to zero apply the mapping policy.
-
 	//Key to qp policy
 	
 	if (likely(key != 0))
@@ -1168,9 +1120,6 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	{
 		n_qp = roce_hdr->dest_qp;
 	}
-	/*
-	n_qp = id_to_qp(id);
-	*/
 
 	//Find the connection state of the mapped destination connection.
 	struct Connection_State *destination_connection;
@@ -1211,8 +1160,9 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	//responses back.
 	close_slot(slot);
 	slot->id = id;
-	//Save a unique id of sequence number and the qp that this response will arrive back on
 	slot->mapped_sequence = destination_connection->seq_current;
+
+
 	slot->mapped_destination_server_to_client_qp = destination_connection->stcqp;
 	slot->original_sequence = roce_hdr->packet_sequence_number;
 	//Store the server to client to qp that this we will need to make the swap
@@ -1281,8 +1231,6 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 	//struct Request_Map *
 	if (missing_write)
 	{
-		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool_ack);
-		//struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool[0]);
 		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
 
 		if (pkt == NULL) {
@@ -2034,23 +1982,6 @@ void true_classify(struct rte_mbuf *pkt)
 			printf("actual:    %" PRIu64 "\n", be64toh(swap));
 			print_address(&predict);
 			print_address(&swap);
-			/*
-			print_binary_address(&predict);
-			print_binary_address(&swap);
-			uint64_t diff = be64toh(swap) - be64toh(predict);
-			printf("difference=%" PRIu64 "\n", diff);
-			diff = htobe64(diff);
-			print_binary_address(&diff);
-			uint64_t xor = be64toh(swap) ^ be64toh(predict);
-			printf("xor=%" PRIu64 "\n", xor);
-			xor = htobe64(xor);
-			print_binary_address(&xor);
-
-			printf("base\n");
-			print_binary_address(&first_cns[key]);
-			uint64_t fcns = first_cns[key];
-			print_binary_address(&fcns);
-			*/
 
 			printf("unable to find the next oustanding write, how can this be? SWAP: %" PRIu64 " latest_key[id = %d]=%" PRIu64 ", first cns[key = %" PRIu64 "]=%" PRIu64 "\n", swap, id, latest_key[id], latest_key[id], first_cns[latest_key[id]]);
 			printf("we should stop here and fail, but for now lets keep going\n");
