@@ -134,10 +134,7 @@ int packet_is_marked(struct rte_mbuf *pkt) {
 
 inline void mark_pkt_rdma_checksum(struct rte_mbuf *pkt) {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-    uint32_t crc_check = 0;
     uint32_t *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
-    *current_checksum = 0;
-    //rte_memcpy(current_checksum, &crc_check, 4);
 }
 
 uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr)
