@@ -40,14 +40,11 @@
 #define SEQUENCE_NUMBER_SHIFT 256
 
 
-#define CATCH_ECN
-int MOD_SLOT = 1;
-
 
 static int has_mapped_qp = 0;
 static int packet_counter = 0;
 
-#define MULTI_CORE
+#define CATCH_ECN
 
 #define WRITE_STEER
 #define READ_STEER
@@ -66,12 +63,10 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
-
 #define MEMPOOLS 12
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12"};
 struct rte_mempool *mbuf_pool;
-
 struct rte_ring *tx_queues[MEMPOOLS];
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -100,7 +95,7 @@ inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 }
 
 //#define ID_SPACE 1<<24 THIS IS MUCH SAFER YOU FOOL
-#define ID_SPACE 1<<17
+#define ID_SPACE 1<<16
 int32_t fast_id_lookup[ID_SPACE];
 int32_t fast_qp_lookup[ID_SPACE];
 
@@ -203,21 +198,20 @@ inline void unlock_buffer_state(struct Buffer_State *bs) {
 }
 
 rte_atomic16_t atomic_qp_id_counter;
-uint32_t qp_values[TOTAL_ENTRY];
 uint32_t id_qp[TOTAL_ENTRY];
 
 //Keys start at 1, so I'm subtracting 1 to make the first key equal to index
 //zero.  qp_id_counter is the total number of qp that can be written to. So here
 //we are just taking all of the keys and wrapping them around so the first key
 //goes to the first qp, and the qp_id_counter + 1  key goes to the first qp.
-uint32_t key_to_qp(uint64_t key)
+inline uint32_t key_to_qp(uint64_t key)
 {
 	int qp = TOTAL_CLIENTS;
 	uint32_t index = (key) % qp;
 	return id_qp[index];
 }
 
-uint32_t id_to_qp(uint32_t id) {
+inline uint32_t id_to_qp(uint32_t id) {
 	int qp = 2;
 	uint32_t index = (id) % qp;
 	return id_qp[index];
@@ -229,14 +223,11 @@ uint32_t id_to_qp(uint32_t id) {
 //this will set it. Otherwise the ID is returned.
 uint32_t get_or_create_id(uint32_t qp)
 {
-	uint32_t *return_value;
-	int32_t id;
-
 	//first try to go fast
-	id = fast_find_id_qp(qp);
+	uint32_t id = fast_find_id_qp(qp);
 	if (id != -1) {
 		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != qp)) {
-			printf("QP COLLISION\n");
+			printf("QP COLLISION -- Delete this code eventually\n");
 			exit(0);
 		}
 		return id;
@@ -250,7 +241,6 @@ uint32_t get_or_create_id(uint32_t qp)
 	fast_qp_lookup[qp_id_hash(qp)]=qp;
 
 	//Set globals
-	qp_values[id] = id;
 	id_qp[id] = qp;
 	unlock_qp();
 
@@ -682,7 +672,7 @@ void init_stc(struct rte_mbuf * pkt)
     {
 		cs =&Connection_States[fast_find_id_qp(roce_hdr->dest_qp)];
 		if (cs->receiver_init == 0) {
-			printf("what the fuck\n");
+			printf("I think that this is a sign there has been a qp collisiion ID_SPACE could be increased in size ID_SPACE=%d\n",ID_SPACE);
 			exit(0);
 		}
         return;
@@ -712,7 +702,6 @@ void init_stc(struct rte_mbuf * pkt)
 		return;
 	}
 
-
 	//initalize the first time
 	cs = &Connection_States[matching_id];
 
@@ -724,7 +713,7 @@ void init_stc(struct rte_mbuf * pkt)
 			return;
 		}
 	}
-	//lock_qp();
+
 	lock_connection_state(cs);
 	if (cs->receiver_init == 0 && cs->sender_init !=0)
 	{
@@ -733,19 +722,11 @@ void init_stc(struct rte_mbuf * pkt)
 		set_fast_id(roce_hdr->dest_qp,cs->id);
 		fast_qp_lookup[qp_id_hash(roce_hdr->dest_qp)]=roce_hdr->dest_qp;
 		cs->mseq_current = get_msn(roce_hdr);
-		//cs->mseq_offset = htonl(ntohl(cs->seq_current) - ntohl(cs->mseq_current)); //still shifted by 256 but not in network order
-		//!TODO make mseq_offset a constant, it's pointless to keep it in the cs structure
 		cs->mseq_offset = htonl(3184 << 8);
-		//rte_smp_mb();
-		//rte_smp_mb();
 		cs->receiver_init = 1;
 		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
-		//check_id_mapping();
-		//print_connection_state_status();
 	}
 	unlock_connection_state(cs);
-	//unlock_qp();
-	//printf("---end init_stc\n");
 	return;
 }
 
@@ -761,14 +742,11 @@ void update_cs_seq(struct rte_mbuf * pkt) {
 	struct Connection_State *cs = &Connection_States[id];
 
 	lock_connection_state(cs);
-	//rte_smp_mb();
 	cs->seq_current = roce_hdr->packet_sequence_number;
 
 	if (roce_hdr->opcode == RC_CNS) {
 		cs->last_atomic_seq = roce_hdr->packet_sequence_number;
 	}
-
-	//rte_smp_mb();
 	unlock_connection_state(cs);
 
 }
@@ -796,16 +774,15 @@ static uint64_t latest_key[TOTAL_ENTRY];
 
 static uint64_t overwitten_writes = 0;
 
-uint64_t get_latest_key(uint32_t id)
+inline uint64_t get_latest_key(uint32_t id)
 {
 	return latest_key[id];
 }
 
-void set_latest_key(uint32_t id, uint64_t key)
+inline void set_latest_key(uint32_t id, uint64_t key)
 {
 	latest_key[id] = key;
 }
-
 
 static int init = 0;
 static uint32_t write_value_packet_size = 0;
@@ -841,17 +818,16 @@ inline uint64_t murmur3(uint64_t k) {
   return k;
 }
 
-uint32_t mod_hash(uint64_t vaddr)
+inline uint32_t mod_hash(uint64_t vaddr)
 {
-	uint32_t index = (uint32_t)murmur3(vaddr) % HASHSPACE;
-	return index;
+	return (uint32_t)murmur3(vaddr) % HASHSPACE;
 }
 
 inline void update_read_tail(uint64_t key, uint64_t vaddr) {
 	cached_write_vaddr_mod_latest[key] = vaddr;
 }
 
-void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
+inline void update_write_vaddr_cache(uint64_t key, uint64_t vaddr)
 {
 	uint32_t index = mod_hash(vaddr);
 	cached_write_vaddr_mod[index] = vaddr;
@@ -859,7 +835,7 @@ void update_write_vaddr_cache_mod(uint64_t key, uint64_t vaddr)
 }
 
 
-int does_read_have_cached_write_mod(uint64_t vaddr)
+inline int does_read_have_cached_write(uint64_t vaddr)
 {
 	uint32_t index = mod_hash(vaddr);
 	if (likely(cached_write_vaddr_mod[index] == vaddr))
@@ -869,7 +845,7 @@ int does_read_have_cached_write_mod(uint64_t vaddr)
 	return 0;
 }
 
-void print_cache_population(void) {
+inline void print_cache_population(void) {
 	int populated = 0;
 	for(int i=0;i<HASHSPACE;i++) {
 		if (cached_write_vaddr_mod[i] != 0) {
@@ -880,14 +856,10 @@ void print_cache_population(void) {
 }
 
 
-uint64_t get_latest_vaddr_mod(uint32_t key)
+inline uint64_t get_latest_vaddr(uint32_t key)
 {
 	return cached_write_vaddr_mod_latest[key];
 }
-
-int (*does_read_have_cached_write)(uint64_t) = does_read_have_cached_write_mod;
-void (*update_write_vaddr_cache)(uint64_t, uint64_t) = update_write_vaddr_cache_mod;
-uint64_t (*get_latest_vaddr)(uint32_t) = get_latest_vaddr_mod;
 
 void steer_read(struct rte_mbuf *pkt, uint32_t key)
 {
@@ -1393,18 +1365,10 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		struct clover_hdr *clover_header = get_clover_hdr(pkt);
 		struct read_request *rr = (struct read_request *)clover_header;
 		#define network_order_1024 262144
-		//uint32_t size = ntohl(rr->rdma_extended_header.dma_length);
 		if (rr->rdma_extended_header.dma_length == network_order_1024) {
-			key = (*does_read_have_cached_write)(rr->rdma_extended_header.vaddr);
-			#ifdef TAKE_MEASUREMENTS
-			increment_read_counter();
-			#endif
+			key = does_read_have_cached_write(rr->rdma_extended_header.vaddr);
 			if (likely(key != 0)) {
 				steer_read(pkt, key);
-			} else {
-				#ifdef TAKE_MEASUREMENT
-				read_not_cached();
-				#endif
 			}
 		} 
 #endif
@@ -1438,11 +1402,6 @@ struct map_packet_response map_qp(struct rte_mbuf *pkt)
 		{
 			uint32_t id = fast_find_id_qp(roce_hdr->dest_qp);
 			*key = get_latest_key(id);
-			if (*key < 1 || *key > KEYSPACE)
-			{
-				printf("danger zone\n");
-				*key = 0;
-			}
 		}
 		map_qp_forward(pkt, *key);
 	}
@@ -2124,93 +2083,77 @@ lcore_main(void)
 		//{
 			/* Get burst of RX packets, from first and only port */
 
-			struct rte_mbuf *rx_pkts[BURST_SIZE];
-			struct rte_mbuf *tx_pkts[BURST_SIZE*PACKET_INFLATION];
-			uint32_t to_tx = 0;
+		struct rte_mbuf *rx_pkts[BURST_SIZE];
+		struct rte_mbuf *tx_pkts[BURST_SIZE*PACKET_INFLATION];
+		uint32_t to_tx = 0;
 
 
+		#ifdef MAP_QP
+		if (unlikely((has_mapped_qp==0))){
+			if(unlikely(fully_qp_init())) {
+			
+				all_thread_barrier(&thread_barrier);
+				if (rte_lcore_id() == 0) {
+					printf("\n$$ Queue Pair Multiplexing On $$\n");
+					print_connection_state_status();
+					flush_buffers(port);
+					lock_qp();
+					has_mapped_qp=1;
+					unlock_qp();
+				}
+				all_thread_barrier(&thread_barrier2);
+			}
+		}
+		#endif
 
+		if (rte_lcore_id() != 0)  {
+			general_tx(0,queue,tx_queues[queue]);
+			continue;
+		}
+
+		const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
+		if (unlikely(nb_rx == 0)) {
+			continue;
+		}
+
+		for (uint16_t i = 0; i < nb_rx; i++)
+		{
+			if (likely(i < nb_rx - 1))
+			{
+				rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
+			}
+
+			#ifdef TAKE_MEASUREMENTS
+			sum_processed_data(rx_pkts[i]);
+			#endif
+
+
+			#ifdef WRITE_STEER
+			true_classify(rx_pkts[i]);
+			#endif
 
 			#ifdef MAP_QP
-
-			if (unlikely((has_mapped_qp==0))){
-				if(unlikely(fully_qp_init())) {
-				
-					all_thread_barrier(&thread_barrier);
-					if (rte_lcore_id() == 0) {
-						printf("\n$$ Queue Pair Multiplexing On $$\n");
-						print_connection_state_status();
-						flush_buffers(port);
-						lock_qp();
-						has_mapped_qp=1;
-						unlock_qp();
-					}
-					all_thread_barrier(&thread_barrier2);
-				}
-			}
-			#endif
-
-			if (rte_lcore_id() != 0)  {
-				general_tx(0,queue,tx_queues[queue]);
-				continue;
-			}
-
-
-
-			const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
-
-			if (unlikely(nb_rx == 0)) {
-				continue;
-			}
-
-
-			#define PRINT_COUNT 10000
-			for (uint16_t i = 0; i < nb_rx; i++)
+			struct map_packet_response mpr = map_qp(rx_pkts[i]);
+			for (uint32_t j = 0; j < mpr.size; j++)
 			{
-
-				if (likely(i < nb_rx - 1))
-				{
-					rte_prefetch0(rte_pktmbuf_mtod(rx_pkts[i + 1], void *));
-				}
-
-				#ifdef TAKE_MEASUREMENTS
-				sum_processed_data(rx_pkts[i]);
-				#endif
-
-
-				#ifdef WRITE_STEER
-				true_classify(rx_pkts[i]);
-				#endif
-
-
-				#ifdef MAP_QP
-				struct map_packet_response mpr = map_qp(rx_pkts[i]);
-				for (uint32_t j = 0; j < mpr.size; j++)
-				{
-					tx_pkts[to_tx] = mpr.pkts[j];
-					to_tx++;
-				}
-
-				#else
-				tx_pkts[i]=rx_pkts[i];
-				to_tx++;
-				#endif
+				general_tx_enqueue(mpr.pkts[j]);
 			}
 
-			#ifndef MAP_QP
-			rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
 			#else
-			for(int i=0;i<to_tx;i++) {
-				general_tx_enqueue(tx_pkts[i]);
-
-			}
+			tx_pkts[i]=rx_pkts[i];
+			to_tx++;
 			#endif
-			#ifdef TAKE_MEASUREMENTS
-			if(has_mapped_qp){
-				calculate_in_flight(&Connection_States);
-			}
-			#endif
+		}
 
+		#ifndef MAP_QP
+		rte_eth_tx_burst(port, queue, tx_pkts, to_tx);
+		#endif
+
+		#ifdef TAKE_MEASUREMENTS
+		if(has_mapped_qp){
+			calculate_in_flight(&Connection_States);
+		}
+		#endif
 	}
 }
 
@@ -2313,19 +2256,6 @@ int main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "cannot create mbuf pool\n");
 	printf("created mbuf_pool %d\n");
 
-	//This is the unnessisary multipool setup
-	/*
-	for(int i=0;i<rte_lcore_count();i++) {
-		mbuf_pool[i] = rte_pktmbuf_pool_create(mpool_names[i], num_mbufs * nb_ports,
-											mbuf_cache_size, 0, rte_mbuf_default_buf_size, rte_socket_id());
-		if (mbuf_pool[i] == null)
-			rte_exit(exit_failure, "cannot create mbuf pool\n");
-		printf("created mbuf_pool %d\n",i);
-	}*/
-
-
-
-
 
 	printf("initalizing ports with %d cores\n",rte_lcore_count());
 	/* Initialize all ports. */
@@ -2336,8 +2266,6 @@ int main(int argc, char *argv[])
 
 	if (rte_lcore_count() > 1)
 		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
-
-
 
 	//dome debugging
 	struct rte_eth_link link;
