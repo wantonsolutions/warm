@@ -49,7 +49,9 @@ static int packet_counter = 0;
 #define WRITE_STEER
 #define READ_STEER
 #define MAP_QP
-//#define CNS_TO_WRITE
+#define CNS_TO_WRITE
+
+#define RX_CORES 1
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -138,20 +140,20 @@ rte_rwlock_t qp_lock;
 rte_rwlock_t qp_mapping_lock;
 
 inline void lock_qp(void) {
-	//rte_rwlock_write_lock(&qp_lock);
+	rte_rwlock_write_lock(&qp_lock);
 }
 
 inline void unlock_qp(void) {
-	//rte_rwlock_write_unlock(&qp_lock);
+	rte_rwlock_write_unlock(&qp_lock);
 }
 
 
 inline void lock_write_steering(void) {
-	//rte_rwlock_write_lock(&next_lock);
+	rte_rwlock_write_lock(&next_lock);
 }
 
 inline void unlock_write_steering(void) {
-	//rte_rwlock_write_unlock(&next_lock);
+	rte_rwlock_write_unlock(&next_lock);
 }
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
@@ -168,7 +170,7 @@ inline void lock_connection_state(struct Connection_State *cs) {
 	//just to remove compiler errors
 	cs->id = cs->id;
 	//printf("[core %d] try lock cs %d\n",rte_lcore_id(),cs->id);
-	//rte_rwlock_write_lock(&(cs->cs_lock));
+	rte_rwlock_write_lock(&(cs->cs_lock));
 	//printf("[core %d] locked cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
 }
@@ -177,7 +179,7 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 	//printf("unlock %d\n",cs->id);
 	cs->id = cs->id;
 	//printf("[core %d] try unlock cs %d\n",rte_lcore_id(),cs->id);
-	//rte_rwlock_write_unlock(&(cs->cs_lock));
+	rte_rwlock_write_unlock(&(cs->cs_lock));
 	//printf("[core %d] unlock cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
 }
@@ -1817,8 +1819,16 @@ static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
+
+
 	const uint16_t rx_rings = core_count, tx_rings = core_count;
+	//const uint16_t rx_rings = RX_CORES, tx_rings = core_count-RX_CORES;
+
+
 	uint64_t nb_rxq = core_count;
+	//uint64_t nb_rxq = RX_CORES;
+
+
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
 	int retval;
@@ -1844,8 +1854,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
 
 	//STW RSS
-	/*
-	if (nb_rxq > 1)
+	if (RX_CORES > 1)
 	{
 		//STW: use sym_hash_key for RSS
 		printf("Configuring RSS for a total of %d cores\n",core_count);
@@ -1867,10 +1876,10 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	}
 	else
 	{
+		printf("Single Queue RSS\n");
 		port_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
 	}
 	//\STW RSS
-	*/
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
 		port_conf.txmode.offloads |=
@@ -1893,7 +1902,8 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	if (retval < 0)
 		return retval;
 		*/
-	for (q = 0; q < rx_rings; q++)
+	//for (q = 0; q < rx_rings; q++)
+	for (q = 0; q < RX_CORES; q++)
 	{
 		printf("allocating queue %d (cores %d)\n",q,core_count);
 		retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
@@ -1902,7 +1912,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 			return retval;
 	}
 
-	printf("RX queues %d, TX queues %d\n",dev_info.nb_rx_queues,dev_info.nb_tx_queues);
+	//printf("RX queues %d, TX queues %d\n",dev_info.nb_rx_queues,dev_info.nb_tx_queues);
 
 	txconf = dev_info.default_txconf;
 	txconf.offloads = port_conf.txmode.offloads;
@@ -2016,7 +2026,7 @@ lcore_main(void)
 		uint32_t queue = rte_lcore_id() / 2;
 
 		if (has_mapped_qp) {
-			if (rte_lcore_id() != 0)  {
+			if (queue >= RX_CORES)  {
 				general_tx_eternal(0,queue,tx_queues[queue]);
 			}
 		}
@@ -2050,7 +2060,7 @@ lcore_main(void)
 		}
 		#endif
 
-		if (rte_lcore_id() != 0)  {
+		if (queue >= RX_CORES)  {
 			general_tx(0,queue,tx_queues[queue]);
 			continue;
 		}
@@ -2205,6 +2215,7 @@ int main(int argc, char *argv[])
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
 	if (port_init(portid, mbuf_pool, rte_lcore_count()) != 0)
+	//if (port_init(portid, mbuf_pool, RX_CORES) != 0)
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 
