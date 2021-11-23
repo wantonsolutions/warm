@@ -11,6 +11,8 @@
 //#include "crc32_gold.c"
 //#include <zlib.h>
 #include "zlib/zlib.h"
+//#include "crc32_slice16.c"
+//#include "google_crc.c"
 
 inline uint32_t get_psn(struct rte_mbuf *pkt)
 {
@@ -92,8 +94,15 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 
 
     ulong crcstart = 0x2144df1c;
-    ulong crc;
+    ulong crc, crc2;
     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
+    /*
+    crc2 = (~crc32_sse42_simd_(start, len, crcstart)) & 0xFFFFFFFF;
+    if (crc != crc2) {
+        printf("CRC %x CRC2 %x Not equal\n",crc, crc2);
+    }
+    */
+    //crc = crc32_16(crcstart, start, len) & 0xFFFFFFFF;
 
     //uint32_t crc2= option_13_golden_intel(start,len,crcstart) & 0xFFFFFFFF;
     //uint32_t crc3= option_13_golden_intel(start,len,crcstart);
