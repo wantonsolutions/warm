@@ -35,6 +35,7 @@
 #include <execinfo.h>
 #include <endian.h>
 
+
 #define KEYSPACE 1024
 #define CACHE_KEYSPACE 1024
 #define SEQUENCE_NUMBER_SHIFT 256
@@ -47,11 +48,11 @@ static int packet_counter = 0;
 #define CATCH_ECN
 
 #define WRITE_STEER
-#define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define READ_STEER
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
-#define RX_CORES 3
+#define RX_CORES 4
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -64,9 +65,9 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
-#define MEMPOOLS 12
+#define MEMPOOLS 14
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
-const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12"};
+const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12", "TXQ13", "TXQ14"};
 struct rte_mempool *mbuf_pool;
 struct rte_ring *tx_queues[MEMPOOLS];
 
@@ -182,20 +183,6 @@ inline void unlock_connection_state(struct Connection_State *cs) {
 	rte_rwlock_write_unlock(&(cs->cs_lock));
 	//printf("[core %d] unlock cs %d\n",rte_lcore_id(),cs->id);
 	//rte_smp_mb();
-}
-
-inline void lock_buffer_state(struct Buffer_State *bs) {
-	//printf("attempt lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
-	bs->id = bs->id;
-	//rte_rwlock_write_lock(&(bs->bs_lock));
-	//printf("lock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
-}
-
-inline void unlock_buffer_state(struct Buffer_State *bs) {
-	//printf("unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
-	bs->id = bs->id;
-	//rte_rwlock_write_unlock(&(bs->bs_lock));
-	//printf("fully unlock bs \t%3d [core %d]\n",bs->id,rte_lcore_id());
 }
 
 rte_atomic16_t atomic_qp_id_counter;
@@ -334,8 +321,6 @@ void init_buffer_states(void) {
 		bs->timestamps = &(mem_qp_timestamp[i]);
 		rte_rwlock_init(&(bs->bs_lock));
 
-		//lock_buffer_state(bs);
-		//unlock_buffer_state(bs);
 	}
 
 	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
@@ -476,6 +461,7 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct Buffer_State *bs;
 	struct rte_mbuf *pkt;
 
+
 	for (uint32_t i=0;i<dequeued;i++) {
 		pkt = tx_pkts[i];
 		//printf("txing on core %d\n",rte_lcore_id());
@@ -487,13 +473,13 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 		{
 			seq = *(bs->tail) + 1;
 		}
+		struct map_packet_response mpr;
+		mpr.size=0;
 
 		uint32_t entry = seq % PKT_REORDER_BUF;
 		(*bs->buf)[entry] = pkt;
 		(*bs->tail)++;
 
-		struct map_packet_response mpr;
-		mpr.size=0;
 		while (((*bs->head) <= (*bs->tail)) && ((*bs->buf)[(*bs->head) % PKT_REORDER_BUF] != NULL))
 		{
 			mpr.pkts[mpr.size]=(*bs->buf)[(*bs->head) % PKT_REORDER_BUF];
@@ -511,41 +497,31 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 				recalculate_rdma_checksum(mpr.pkts[j]);
 			} 
 		}
-
-		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)&mpr.pkts[0], mpr.size);
+		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)mpr.pkts, mpr.size);
 	}
 }
 
 void flush_buffers(uint16_t port) {
-	printf("&& FLUSHING BUFFERS\n");
+	//printf("&& FLUSHING BUFFERS\n");
 	struct Buffer_State_Tracker bst;
 	struct Buffer_State *bs =  &ect_buffer_states[0];
 	bst.size=1;
 	bst.buffer_states[0]=bs;
-	//lock_buffer_state(bs);
 	for(int i=0;i<MEMPOOLS;i++) {
 		general_tx(port,0,tx_queues[i]);
 	}
-	//general_tx(port,0,tx_queues[1]);
-	printf("&& FLUSHING BUFFERS COMPLETE\n");
-	printf("setting buffer states to current\n");
+	//printf("&& FLUSHING BUFFERS COMPLETE\n");
 
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State *cs = &Connection_States[i];
 		struct Buffer_State *bs = &mem_buffer_states[i];
-		lock_buffer_state(bs);
 		(*bs->head) = readable_seq(cs->seq_current) + 1;
 		(*bs->tail) = readable_seq(cs->seq_current);
-		//rte_atomic64_set(bs->head, readable_seq(cs->seq_current) + 1);
-		//rte_atomic64_set(bs->tail, readable_seq(cs->seq_current));
-		unlock_buffer_state(bs);
 		
 		bs = &client_buffer_states[i];
-		lock_buffer_state(bs);
 		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
 		(*bs->head) = rec_seq + 1;
 		(*bs->tail) = rec_seq;
-		unlock_buffer_state(bs);
 	}
 }
 
@@ -730,7 +706,7 @@ void init_stc(struct rte_mbuf * pkt)
 		cs->mseq_current = get_msn(roce_hdr);
 		cs->mseq_offset = htonl(3184 << 8);
 		cs->receiver_init = 1;
-		printf("**Client Thread %3d Fully Initalized**\n",cs->id);
+		//printf("**Client Thread %3d Fully Initalized**\n",cs->id);
 	}
 	unlock_connection_state(cs);
 	return;
@@ -1271,8 +1247,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 
 	unlock_connection_state(source_connection);
 
-	//!I think that this can be simplified to just update the MSN there should not be a time when that is not set
-
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
 	{
@@ -1737,7 +1711,8 @@ void true_classify(struct rte_mbuf *pkt)
 			//This is the crash condtion
 			//Fatal, unable to find the next key
 			printf("Crashing on (CNS PREDICT) ID: %d psn %d\n", id, readable_seq(roce_hdr->packet_sequence_number));
-			//check_id_mapping();
+			check_id_mapping();
+			print_connection_state_status();
 			printf("predicted: %" PRIu64 "\n", be64toh(predict));
 			printf("actual:    %" PRIu64 "\n", be64toh(swap));
 			print_address(&predict);
@@ -1831,7 +1806,6 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 
 
 	uint64_t nb_rxq = core_count;
-	//uint64_t nb_rxq = RX_CORES;
 
 
 	uint16_t nb_rxd = RX_RING_SIZE;
@@ -1858,8 +1832,16 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_CHECKSUM;
 	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
 
+	int rxing_cores;
+
+	#ifdef MAP_QP
+		rxing_cores=RX_CORES;
+	#else
+		rxing_cores=rte_lcore_count();
+	#endif
+
 	//STW RSS
-	if (RX_CORES > 1)
+	if (rxing_cores > 1)
 	{
 		//STW: use sym_hash_key for RSS
 		printf("Configuring RSS for a total of %d cores\n",core_count);
@@ -1908,9 +1890,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		return retval;
 		*/
 	//for (q = 0; q < rx_rings; q++)
-	for (q = 0; q < RX_CORES; q++)
+	for (q = 0; q < rxing_cores; q++)
 	{
-		printf("allocating queue %d (cores %d)\n",q,core_count);
+		//printf("allocating queue %d (cores %d)\n",q,core_count);
 		retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
 										rte_eth_dev_socket_id(port), NULL, mbuf_pool);
 		if (retval < 0)
@@ -2030,11 +2012,13 @@ lcore_main(void)
 		//Once we are initalized just hop in forever
 		uint32_t queue = rte_lcore_id() / 2;
 
+		#ifdef MAP_QP
 		if (has_mapped_qp) {
 			if (queue >= RX_CORES)  {
 				general_tx_eternal(port,queue,tx_queues[queue]);
 			}
 		}
+		#endif
 
 
 		//RTE_ETH_FOREACH_DEV(port)
@@ -2064,10 +2048,12 @@ lcore_main(void)
 		}
 		#endif
 
+		#ifdef MAP_QP
 		if (queue >= RX_CORES)  {
 			general_tx(port,queue,tx_queues[queue]);
 			continue;
 		}
+		#endif
 
 		const uint16_t nb_rx = rte_eth_rx_burst(port, queue, rx_pkts, BURST_SIZE);
 		if (unlikely(nb_rx == 0)) {
@@ -2083,6 +2069,7 @@ lcore_main(void)
 			}
 
 
+			//print_packet_lite(rx_pkts[i]);
 			#ifdef TAKE_MEASUREMENTS
 			sum_processed_data(rx_pkts[i]);
 			#endif
@@ -2094,7 +2081,6 @@ lcore_main(void)
 
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
-			//print_packet_lite(rx_pkts[i]);
 			for (uint32_t j = 0; j < mpr.size; j++)
 			{
 				//printf("enqueuing\n");
@@ -2282,7 +2268,7 @@ int main(int argc, char *argv[])
 		rte_atomic16_init(&atomic_qp_id_counter);
 		rte_atomic16_set(&atomic_qp_id_counter,-1);
 		for (int i=0;i<MEMPOOLS;i++) {
-			printf("init tx mempool %d\n",i);
+			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
 			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
 		}
