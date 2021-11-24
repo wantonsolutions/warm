@@ -67,7 +67,6 @@ void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]) {
     in_flight_timestamps[in_flight_count]=ts;
     for (int i=0;i<TOTAL_CLIENTS;i++){
         struct Connection_State *cs = &(*states)[i];
-        uint32_t in_flight[TOTAL_MSG_TYPES];
         for(int j=0;j<CS_SLOTS;j++) {
             struct Request_Map * slot = &(cs->Outstanding_Requests[j]);
             if(!slot_is_open(slot)) {
