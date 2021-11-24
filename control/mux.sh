@@ -52,6 +52,11 @@ byobu select-window -t $USER:2
 byobu send-keys "cd ~/warm/control" C-m
 byobu send-keys "tail -f results.dat" C-m
 
+#start a second named window
+byobu new-window -t $USER:3 -n presentation
+byobu select-window -t $USER:2
+byobu send-keys "cd ~/warm/presentation" C-m
+
 
 
 # Attach to the session you just created

@@ -1,5 +1,5 @@
 source /home/ssgrant/.bashrc;
 cd /home/ssgrant/warm/rmemc-dpdk;
 ./run.sh &
-sleep 45;
+sleep 20;
 echo iwicbV15 | sudo -S killall rmemc-dpdk

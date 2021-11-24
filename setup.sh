@@ -84,23 +84,50 @@ function setup_switch {
     interface ethernet 1/30 openflow mode hybrid
     interface ethernet 1/31 openflow mode hybrid
 
-    #Port Eth1/29 is Yak00 (192.168.1.12)
-    #Port Eth1/30 is Yak01 (192.168.1.13)
-    #Port Eth1/31 is Yak02 (192.168.1.14)
-    #Port Eth1/3 is Yeti5 (192.168.1.17)
+    #Port Eth1/29 is Yak00 (192.168.1.12) (meta)
+    #Port Eth1/30 is Yak01 (192.168.1.13) (memory)
+    #Port Eth1/31 is Yak02 (192.168.1.14) (middle)
+    #Port Eth1/3 is Yeti5 (192.168.1.17)  (client)
 
     #add redirection flows to table 0
+
+    #this is for a two client setup where the middlebox is sitting behind 1/31
     openflow add-flows 1 ,table=0,in_port=Eth1/30,nw_src=192.168.1.12/32,nw_dst=192.168.1.11/32,actions=output=Eth1/31
     openflow add-flows 2 ,table=0,in_port=Eth1/29,nw_src=192.168.1.11/32,nw_dst=192.168.1.12/32,actions=output=Eth1/31
     openflow add-flows 3 ,table=0,in_port=Eth1/3,nw_src=192.168.1.17/32,nw_dst=192.168.1.12/32,actions=output=Eth1/31
 
+    #for a single client setup where each machine has it's own physical machine
+    #yak1 is memory
+    #ya2 is the middlebox
+    #yak0 is the metadata server
+    #yeti-05 is the client
+    ## the metadata server traffic should be uninterupted
+    
+    ##in this case we don't want the middlebox to touch packets which are on
+    #their way to and from the metadata server, so we route around it by ip
+    #matching The key thing is to have the ip prefix after the flow number as seen below
+
+    #client to middlebox
+    openflow add-flows 1 ip,table=0,in_port=Eth1/29,nw_src=192.168.1.12,nw_dst=192.168.1.13,actions=output=Eth1/31
+    #memory to middlebox
+    openflow add-flows 2 ip,table=0,in_port=Eth1/30,nw_src=192.168.1.13,nw_dst=192.168.1.12,actions=output=Eth1/31
+
+
+
+
     #remove redirection flows
     openflow del-flows 1
     openflow del-flows 2
+    openflow del-flows 3
 
     #change speed
     interface etherent 1/3  #where 1/3 is the port
     speed 100G force        #the force is there because without it the command fails
+
+    #check congestion control
+    show interfaces ethernet 1/30 congestion-control
+    https://community.mellanox.com/s/article/howto-configure-roce-with-ecn-end-to-end-using-connectx-4-and-spectrum--trust-l2-x#jive_content_id_Test_the_RDMA_Layer
+
     "
 
 

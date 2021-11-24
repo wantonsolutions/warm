@@ -32,6 +32,7 @@ with open(filename, 'r') as csvfile:
 #print('\nFirst 5 rows are:\n') 
 sum_val = 0
 sum_thread = 0
+sum_ops = 0
 thread_val=int(float(rows[0][1]))
 #print("init thread val",thread_val)
 #print("Starting Thread Value %s"%thread_val)
@@ -44,15 +45,19 @@ for row in rows:
                 print(str(sum_val)+",", end = '')
             elif i==1:
                 print(str(sum_thread)+",", end = '')
+            elif i==6:
+                print(str(sum_ops)+",", end = '')
             else:
                 print("%s,"%col, end = '')
             i=i+1
         sum_val=0
         thread_val=int(row[1])
         sum_thread=0
+        sum_ops=0
         print()
     sum_thread = int(row[1]) + sum_thread
     sum_val = int(float(row[0])) + sum_val
+    sum_ops = int(float(row[6])) + sum_ops
     #print("summing")
     #print(row)
 
@@ -63,6 +68,8 @@ for col in row:
         print(str(sum_val)+",", end = '')
     elif i==1:
         print(str(sum_thread)+",", end = '')
+    elif i==6:
+        print(str(sum_ops)+",", end = '')
     else:
         print("%s,"%col, end = '')
     i=i+1

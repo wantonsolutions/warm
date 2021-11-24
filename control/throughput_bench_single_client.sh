@@ -4,6 +4,8 @@
 
 #B09-27
 
+echo "Bencmark Script $1"
+
 
 ssh b09-27 'sudo killall memcached'
 ssh yak0 'echo iwicbV15 | sudo -S killall init'
@@ -23,7 +25,7 @@ export LCLOVER_YCSB_OP_MODE=$3
 export LCLOVER_PAYLOAD_SIZE=$4
 
 #Currently hardcoded, should be a parameter
-CLIENTS=2
+CLIENTS=1
 
 #setup envornment variables for the remote host
 rm lenv.sh
@@ -59,6 +61,8 @@ ssh yak2 $fullBuild &
 
 wait
 echo "BUILD COMPLETE"
+sleep 1
+echo "BUILD COMPLETE double check"
 
 
 #start the middlebox
@@ -72,22 +76,24 @@ memcachedSource=`cat memcached_server.sh`
 ssh b09-27 $memcachedSource &
 sleep 1
 
-metaSource=`cat meta_server.sh`
-ssh yak1 $metaSource &
-sleep 1
-
+#yak1 memory
 memorySource=`cat mem_server.sh`
 echo "sshing to the memory server"
 echo "$memorySource"
 ssh yak1 $memorySource &
-
-clientSource1=`cat client_server_1.sh`
-ssh yak0 "$clientSource1" &
 sleep 1
 
-clientSource2=`cat client_server_2.sh`
-echo "$clientSource2"
-ssh yeti5 "$clientSource2" &
+#yak0 meta
+metaSource=`cat meta_server.sh`
+ssh yak0 $metaSource &
+sleep 1
+
+#yeti 5 client
+clientSource1=`cat client_server_1.sh`
+ssh yeti5 "$clientSource1" &
+sleep 1
+
+
 
 
 echo "FINSHED ALL THE LAUNCHING SCRIPTS WAITING"
@@ -97,15 +103,15 @@ wait
 echo "DONE RUNNING"
 
 scp yak0:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
-scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
+#scp yeti5:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
 
 scp yak2:/tmp/switch_statistics.dat switch_statistics.dat
 scp yak2:/tmp/sequence_order.dat sequence_order.dat
 
 tail -1 clean_1.dat >> results.dat
-tail -1 clean_2.dat >> results.dat
+#tail -1 clean_2.dat >> results.dat
 tail -1 clean_1.dat >> latest.dat
-tail -1 clean_2.dat >> latest.dat
+#tail -1 clean_2.dat >> latest.dat
 
 cat switch_statistics.dat >> agg_switch_statistics.dat
 
