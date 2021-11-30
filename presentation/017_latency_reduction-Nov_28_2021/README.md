@@ -22,5 +22,6 @@ The summary of the results for the 64 thread configuration are below
 
 ![summary](summary_read.png)
 ![summary](summary_write.png)
+![summary](full_summary.png)
 
 
