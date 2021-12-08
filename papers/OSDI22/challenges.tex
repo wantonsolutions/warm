@@ -1,4 +1,4 @@
-\section{Serialization}
+\section{Serialization overheads}
 
 At the end of the day, any consistent memory model requires some form
 of serialization.  Indeed, it is well known that sequential
@@ -6,7 +6,7 @@ consistency can be implemented by ensuring that all operations on a
 given memory address are totally ordered~\cite{ivy}.  In this section,
 we survey the alternatives available in existing RDMA hardware, ranging from optimistic approaches that detect and recover from reordering to those that enforce varying degrees of serialization.
 
-\subsection{Locking overhead}
+\subsection{RDMA costs}
 
 In principle, clients can deal with potential conflicts by utilizing the atomic
 operations provided by the RDMA specification, such as compare and swap (CAS).
@@ -28,16 +28,39 @@ latency to the operation. This separation between the decision making point
 overhead in using RDMA based atomics. Ideally the decision point and execution
 of location would have minimal latency. i.e CPU and L1 cache.
 
-\subsection{Concurrency Details}
+\begin{figure}[t]
+    \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
+    \caption{Relative Speed of RDMA verbs as a function of parallel requests}
+    \label{fig:rdma_concur}
+\end{figure}
+
+RDMA is designed for extremely high throughput and low latency operations. Far
+memory systems use their verb library to implement remote memory operations. The
+most common are reads, and writes, with the atomic library being used to
+implement serialized remote memory accesses. Atomics operations require
+significantly NIC memory and are substantially slower than default reads and
+writes. Figure~\ref{fig:rdma_concur} Is a benchmark of RDMA verb performance
+between two ConnectX-5 NICs. Note that read and write performance are able to
+achieve approximately 2x the performance of the atomic CAS instruction.
+
+RDMA atomic operations are known to be slow due to their need to make a PCIe
+round trip. In contrast locks held in SRAM require only a few nanoseconds to
+perform locking operations. To unlock the full potential of RDMA we convert
+compare and swap operations to writes in network. While this operation is
+generally unsafe, by resolving all conflicts, and using RDMA reliable
+connections, we can ensure all operations succeed and serialization without
+using RDMA atomic operations.
+
+\subsubsection{Read tearing}
 \todo{place somewhere else}
-\textbf{read tearing}: Async reads and writes can lead to read tearing. Reads
+Async reads and writes can lead to read tearing. Reads
 will happily occur on address which are mid write. Writes are done per cache
 line, but can span many. To prevent corruption writes are typically followed by
 a checksum which provides data integrity~\cite{pilaf,clover}. One advantage of CAS is
 that it ensure all reads are complete even if the 64 byte CAS is across cache
 lines.
 
-\subsection{Memory management hardware}
+\subsubsection{Memory management hardware}
 
 Hence, a performant far memory system should avoid the use of atomic operations
 if at all possible, relying instead on async RDMA verbs.  Even in that case,
@@ -79,7 +102,7 @@ sequence numbers against the known monotonic sequence.}
     \label{fig:reorder}
 \end{figure}
 
-\subsection{Queue pair bottlenecks}
+\subsubsection{Queue pair bottlenecks}
 
  There are two challenges to restricting requests for a given address
  to a single queue pair---one that can be worked around, and one that
@@ -95,29 +118,9 @@ sequence numbers against the known monotonic sequence.}
     \label{fig:qp_bottleneck}
 \end{figure}
 
-\subsection{Bandwidth Inflation} 
-
-Optimistic concurrency is designed to have low cost common case operations and
-only incur a penalty when conflicts occur. The typical strategy to deal with
-conflicts is to arbitrarily determine a winner, and have the loser retry. With
-remote memory retires consume network bandwidth and resources. As contention
-increases so to does the average cost of each operation. Our results show that
-under contention the average cost of read and write operations can inflate by up
-to 2x Figure~\ref{fig:bandwidth_reduction} above an optimal O(1) implementation when
-all operations succeed on their first try.
-
-\subsection{Tail Latency}
-
-High tail latencies are a well understood bottleneck which greatly effect
-end-to-end system performance. Under contention optimistic concurrency
-mechanisms can exhibit extreme tail latencies. Our experimentation with Clover
-shows that under moderate write pressure (50\% write operations with 64 threads)
-it's 99th tail latency increases by 83x Figure~\ref{fig:tail_latency}. Reducing the
-cost of each operation to exactly 1 attempt can reduce this additional latency
-by nearly two orders of magnitude.
 
 
-\subsection{Separating Concerns}
+\subsection{Conflict resolution}
 
 Sharing remote memory creates a variety of performance problems related to
 synchronization. Some problems are system, and algorithm specific, while others
@@ -151,28 +154,26 @@ do not fail drastically improves overall performance under contention. However
 some performance is still left untapped as the underlying RDMA hardware has
 further limitations. 
 
-\begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-    \caption{Relative Speed of RDMA verbs as a function of parallel requests}
-    \label{fig:rdma_concur}
-\end{figure}
+\subsubsection{Bandwidth Inflation} 
 
-RDMA is designed for extremely high throughput and low latency operations. Far
-memory systems use their verb library to implement remote memory operations. The
-most common are reads, and writes, with the atomic library being used to
-implement serialized remote memory accesses. Atomics operations require
-significantly NIC memory and are substantially slower than default reads and
-writes. Figure~\ref{fig:rdma_concur} Is a benchmark of RDMA verb performance
-between two ConnectX-5 NICs. Note that read and write performance are able to
-achieve approximately 2x the performance of the atomic CAS instruction.
+Optimistic concurrency is designed to have low cost common case operations and
+only incur a penalty when conflicts occur. The typical strategy to deal with
+conflicts is to arbitrarily determine a winner, and have the loser retry. With
+remote memory retires consume network bandwidth and resources. As contention
+increases so to does the average cost of each operation. Our results show that
+under contention the average cost of read and write operations can inflate by up
+to 2x Figure~\ref{fig:bandwidth_reduction} above an optimal O(1) implementation when
+all operations succeed on their first try.
 
-RDMA atomic operations are known to be slow due to their need to make a PCIe
-round trip. In contrast locks held in SRAM require only a few nanoseconds to
-perform locking operations. To unlock the full potential of RDMA we convert
-compare and swap operations to writes in network. While this operation is
-generally unsafe, by resolving all conflicts, and using RDMA reliable
-connections, we can ensure all operations succeed and serialization without
-using RDMA atomic operations.
+\subsubsection{Tail Latency}
+
+High tail latencies are a well understood bottleneck which greatly effect
+end-to-end system performance. Under contention optimistic concurrency
+mechanisms can exhibit extreme tail latencies. Our experimentation with Clover
+shows that under moderate write pressure (50\% write operations with 64 threads)
+it's 99th tail latency increases by 83x Figure~\ref{fig:tail_latency}. Reducing the
+cost of each operation to exactly 1 attempt can reduce this additional latency
+by nearly two orders of magnitude.
 
 
 

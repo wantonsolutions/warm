@@ -1,7 +1,16 @@
-\section{Solutions}
+\section{Benefits of on-path serialization}
 
+Given the overhead of atomic RDMA operations and the performance
+bottlenecks associated with individual queue pairs, this section
+considers the opportunities made available by an on-path serializer.
+In particular, if we ensure that data races cannot arise, we can
+replace expensive compare-and-swap operations with simple read and
+write verbs.  Moreover, given sufficient information about the target
+of each operation, we can selectively leverage ordering guarantees
+provided by individual queue pairs while multiplexing independent
+operations across multiple QPs to improve scalability.
 
-\subsection{Atomic Replacement} 
+\subsection{Atomic replacement} 
 
 
 % atomic operations provided a serialized order on writes, and prevent torn
@@ -41,7 +50,7 @@ with the only difference being that the atomic contains the original data from
 the memory location of the CAS. This original data is missing due to the
 transformation so we inject a value which indicates success to the sender.
 %%
-This value is application specific; in Clovers case 64 zero bits indicate
+This value is application specific; in Clover's case 64 zero bits indicate
 success. Transforming CAS to write does nothing to disturb the RDMA protocol,
 as both the sender and receiver side NIC are oblivious.  
 However, the guarantees the atomic provides, such as write serialization and the
@@ -50,7 +59,7 @@ data the serialization point must be placed somewhere else. Our approach is to
 detect conflicts in network, and utilize the in order delivery guarantees of
 RDMA reliable connections to ensure safe and serialized operations.
 
-\subsection{Connection Remapping}
+\subsection{Connection remapping}
 
 RDMA operations made on a reliable connection (one server one client queue pair)
 are guaranteed to be executed in the same order as their sequence numbers
@@ -71,6 +80,8 @@ read and write the same key are shared state operations.
 %%solution for RDMA.  %Different transports with different ordering guarantees
 %%would require bespoke solutions.  
 
+\subsubsection{Sequence-space stitching}
+
 Multiplexing and demultiplexing RDMA operations across established connections
 requires a significant amount of care. Requests on a single connection must have
 monotonic sequence numbers from the senders and receivers perspectives. If
@@ -80,7 +91,7 @@ on shared connections we track a sequence number per memory QP and inject the
 updated sequence number into the packet after a state based mapping decision has
 been made. A stub for each mapped request is stored on the middlebox to aid in
 mapping the request back. The stub keeps track of the original requests sequence
-number, ip address, mac address, and queue pair. Stubs are stored in an array
+number, IP address, MAC address, and queue pair. Stubs are stored in an array
 based on their sequence number \% $table size$ for an O(1) lookup when they are
 demultiplexed back to their original connections.
 %%
@@ -93,14 +104,14 @@ We calculate the message sequence number a sender expects to see by counting the
 number of operations a sender has issued and adding it to the value of the
 original message sequence number for that connection.
 
-\subsection{Instruction Coalescing} RoCE coalesces some ACKs as an optimization.
-Multiple writes can be acknowledged by a single acknowledgement, in the form of
+\subsubsection{Instruction coalescing} RoCE coalesces some ACKs as an optimization.
+Multiple writes can be acknowledged by a single acknowledgment, in the form of
 either an ACK, ATOMIC ACK, or Read Response. This occurs when multiple RDMA
-request are processed concurrently. When mapping requests, some acknowledgements
-may be coalesced which are required from the senders perspetive.
+request are processed concurrently. When mapping requests, some acknowledgments
+may be coalesced which are required from the senders perspective.
 
 A final additional challenge in mapping
-requests, is that receving NIC's can coalesce acknowledgement messages. Given a
+requests, is that receiving NICs can coalesce acknowledgement messages. Given a
 single connection, if two concurrent writes are issued, it is perfectly valid
 for an RDMA NIC to only ack the second write. This is a challange when mapping
 requests as a coalesed message might have been for a different sender. In our
@@ -113,6 +124,10 @@ acks an atomic ACK is generated in place of the coalessed write ack.
 
 
 \section{Improving Clover performance}
+
+To quantify the potential performacne gains an on-path serializer can
+realize in practice, we apply each of the two optimizations above in
+the context of Clover, a high-performance far memory system.
 
 \todo{High level overview of system}
 
