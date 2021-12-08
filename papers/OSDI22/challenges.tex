@@ -1,10 +1,102 @@
 \section{Serialization}
 
-At the end of the day, any consistent memory model requires some form
-of serialization.  Indeed, it is well known that sequential
-consistency can be implemented by ensuring that all operations on a
-given memory address are totally ordered~\cite{ivy}.  In this section,
-we survey the alternatives available in existing RDMA hardware, ranging from optimistic approaches that detect and recover from reordering to those that enforce varying degrees of serialization.
+
+%%TODO \sg{I really like this section for ivy but I don't quite know how to integerate it at the moment.}
+% At the end of the day, any consistent memory model requires some form of
+% serialization.  Indeed, it is well known that sequential consistency can be
+% implemented by ensuring that all operations on a given memory address are
+% totally ordered~\cite{ivy}.  In this section, we survey the alternatives
+% available in existing RDMA hardware, ranging from optimistic approaches that
+% detect and recover from reordering to those that enforce varying degrees of
+% serialization.
+
+Sharing remote memory creates a variety of performance problems related to
+synchronization and serialization. Some problems are system, and algorithm
+specific, while others are the result of RDMA hardware limitations.  Porting a
+naive serialization mechanism such as spinlocks to remote memory would be
+prohibitively expensive. Each attempt to require the lock would require a
+network round trip resulting in a huge latency increase, bandwidth cost and
+throughput drop. In this section we will avoid using such a straw man comparison
+and instead highlight the current shortfalls of opportunistic serialization used
+in Clover as it is state of the art. First we will show why under contention
+opportunistic concurrency leads to high tail latencies, and low throughput. Then
+we will discuss how the hardware mechanisms (RDMA CAS) used to achieve
+serialization are themselves suboptimal.
+
+
+\begin{figure}[t]
+    \includegraphics[width=0.45\textwidth]{fig/stale_reads.pdf}
+    \caption{Percentage of stale reads made on a 50\% write workload \todo{repeat for reads and write on new setup (likely higher percentage)}}
+    \label{fig:stale_reads}
+\end{figure}
+
+\subsection{Opportunistic Concurrency} 
+%%
+Optimistic concurrency algorithms are by
+definition optimistic, and when contention does occur their operations must be
+retried in order to complete the operation. Clover's opportunistic algorithm
+maintains a linked list for each key and attempts to read and write to the tail
+of a list for each operation. The location of the tail of the list is guessed
+opportunistically (it moves on every write). If the guess is incorrect the
+algorithm retries. Both writes and reads can fail, and must be retried.
+Figure~\ref{fig:stale_reads} shows the percentage of reads which fail at a 50\%
+write workload in clover \footnote{Write fail at a nearly identical rate}.
+
+\subsection{Bandwidth Inflation} 
+
+Optimistic concurrency is designed to have low cost common case operations and
+only incur a penalty when conflicts occur. The typical strategy to deal with
+conflicts is to arbitrarily determine a winner, and have the loser retry. With
+remote memory retires consume network bandwidth and resources. As contention
+increases so to does the average cost of each operation. Our results show that
+under contention the average cost of read and write operations can inflate by up
+to 2x Figure~\ref{fig:bandwidth_reduction} above an optimal O(1) implementation when
+all operations succeed on their first try.
+
+\subsection{Tail Latency}
+
+High tail latencies are a well understood bottleneck which greatly effect
+end-to-end system performance. Under contention optimistic concurrency
+mechanisms can exhibit extreme tail latencies. Our experimentation with Clover
+shows that under moderate write pressure (50\% write operations with 64 threads)
+it's 99th tail latency increases by 83x Figure~\ref{fig:tail_latency}. Reducing the
+cost of each operation to exactly 1 attempt can reduce this additional latency
+by nearly two orders of magnitude.
+
+Retried operations result in large throughput drops (2x) and massive increases
+in tail latency (26x) We correct for these opportunistic failures by caching the
+location of the most recent writes, and using them to steer operations from old
+locations to the most up to date. Ensuring that operations do not fail
+drastically improves overall performance under contention. However some
+performance is still left untapped as the underlying RDMA hardware has further
+limitations. 
+
+\subsection{RDMA Atomics}
+
+\begin{figure}[t]
+    \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
+    \caption{Relative Speed of RDMA verbs as a function of parallel requests}
+    \label{fig:rdma_concur}
+\end{figure}
+
+
+
+RDMA is designed for extremely high throughput and low latency operations. Far
+memory systems use their verb library to implement remote memory operations. The
+most common are reads, and writes, with the atomic library being used to
+implement serialized remote memory accesses. Atomics operations require
+significantly NIC memory and are substantially slower than default reads and
+writes. Figure~\ref{fig:rdma_concur} Is a benchmark of RDMA verb performance
+between two ConnectX-5 NICs. Note that read and write performance are able to
+achieve approximately 2x the performance of the atomic CAS instruction.
+
+RDMA atomic operations are known to be slow due to their need to make a PCIe
+round trip. In contrast locks held in SRAM require only a few nanoseconds to
+perform locking operations. To unlock the full potential of RDMA we convert
+compare and swap operations to writes in network. While this operation is
+generally unsafe, by resolving all conflicts, and using RDMA reliable
+connections, we can ensure all operations succeed and serialization without
+using RDMA atomic operations.
 
 \subsection{Locking overhead}
 
@@ -94,85 +186,6 @@ sequence numbers against the known monotonic sequence.}
     \caption{Max throughput per QP \todo{take real measurement}}
     \label{fig:qp_bottleneck}
 \end{figure}
-
-\subsection{Bandwidth Inflation} 
-
-Optimistic concurrency is designed to have low cost common case operations and
-only incur a penalty when conflicts occur. The typical strategy to deal with
-conflicts is to arbitrarily determine a winner, and have the loser retry. With
-remote memory retires consume network bandwidth and resources. As contention
-increases so to does the average cost of each operation. Our results show that
-under contention the average cost of read and write operations can inflate by up
-to 2x Figure~\ref{fig:bandwidth_reduction} above an optimal O(1) implementation when
-all operations succeed on their first try.
-
-\subsection{Tail Latency}
-
-High tail latencies are a well understood bottleneck which greatly effect
-end-to-end system performance. Under contention optimistic concurrency
-mechanisms can exhibit extreme tail latencies. Our experimentation with Clover
-shows that under moderate write pressure (50\% write operations with 64 threads)
-it's 99th tail latency increases by 83x Figure~\ref{fig:tail_latency}. Reducing the
-cost of each operation to exactly 1 attempt can reduce this additional latency
-by nearly two orders of magnitude.
-
-
-\subsection{Separating Concerns}
-
-Sharing remote memory creates a variety of performance problems related to
-synchronization. Some problems are system, and algorithm specific, while others
-are the result of RDMA hardware limitations. 
-
-If synchronization techniques such as spinlocks were naively
-implemented the cost of acquiring the lock would be multiplied by many orders of
-magnitude. As such developers of remote memory systems typically rely on
-optimistic concurrency mechanisms so that in cases were no contention exists
-remote operations can succeed on their first try.
-
-\begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/stale_reads.pdf}
-    \caption{Percentage of stale reads made on a 50\% write workload}
-    \label{fig:stale_reads}
-\end{figure}
-
-Optimistic concurrency algorithms are by definition optimistic, and when
-contention does occur their operations must be retried in order to complete the
-operation. Clover's opportunistic algorithm attempts to read and write to the
-tail of a list for each key, in it's key value store. The location of the tail
-of the list is guessed opportunistically (it moves on every write). If the guess
-is incorrect the algorithm retries. Both writes and reads can fail, and must be
-retried. Figure~\ref{fig:stale_reads} shows the percentage of reads which fail
-at a 50\% write workload in clover \footnote{Write fail at a nearly identical
-rate}. Retried operations result in large throughput drops (2x) and massive
-increases in tail latency (26x) We correct for these opportunistic failures by
-caching the location of the most recent writes, and using them to steer
-operations from old locations to the most up to date. Ensuring that operations
-do not fail drastically improves overall performance under contention. However
-some performance is still left untapped as the underlying RDMA hardware has
-further limitations. 
-
-\begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-    \caption{Relative Speed of RDMA verbs as a function of parallel requests}
-    \label{fig:rdma_concur}
-\end{figure}
-
-RDMA is designed for extremely high throughput and low latency operations. Far
-memory systems use their verb library to implement remote memory operations. The
-most common are reads, and writes, with the atomic library being used to
-implement serialized remote memory accesses. Atomics operations require
-significantly NIC memory and are substantially slower than default reads and
-writes. Figure~\ref{fig:rdma_concur} Is a benchmark of RDMA verb performance
-between two ConnectX-5 NICs. Note that read and write performance are able to
-achieve approximately 2x the performance of the atomic CAS instruction.
-
-RDMA atomic operations are known to be slow due to their need to make a PCIe
-round trip. In contrast locks held in SRAM require only a few nanoseconds to
-perform locking operations. To unlock the full potential of RDMA we convert
-compare and swap operations to writes in network. While this operation is
-generally unsafe, by resolving all conflicts, and using RDMA reliable
-connections, we can ensure all operations succeed and serialization without
-using RDMA atomic operations.
 
 
 
