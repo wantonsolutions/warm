@@ -219,18 +219,20 @@ process repeats. We found that by using an array size of 8x the ~\todo{vast
 majority of reads succeed first try.} While the number of reads that require a
 second try is ~\todo{a number}. ~\todo{insert the CDF of read retries}.
 
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
-    \caption{Performance as a function of keys cached. Caching a few
-    of the top-$N$ keys provides the greatest marginal throughput
-    benefits.}
-    \label{fig:cache}
-\end{figure}
+%% ACS - This is just lifted from WORDS; no need to repeat here
 
-\textbf{reduced cache size} we show that if hot keys are known we require only a
-small amount of in network state~\ref{fig:cache} we have considered dynamic
-approaches such as LRU which would allows for a finite amount of space and an
-arbitrary number of keys to be serviced.
+%% \begin{figure}
+%%     \includegraphics[width=0.45\textwidth]{fig/cache.pdf}
+%%     \caption{Performance as a function of keys cached. Caching a few
+%%     of the top-$N$ keys provides the greatest marginal throughput
+%%     benefits.}
+%%     \label{fig:cache}
+%% \end{figure}
+
+%% \textbf{reduced cache size} we show that if hot keys are known we require only a
+%% small amount of in network state~\ref{fig:cache} we have considered dynamic
+%% approaches such as LRU which would allows for a finite amount of space and an
+%% arbitrary number of keys to be serviced.
 
  
 
