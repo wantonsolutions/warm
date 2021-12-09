@@ -2,6 +2,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from statistics import mean
 import numpy as np
+import matplotlib.font_manager as font_manager
+
+plt.rcParams.update({'font.size': 12})
 
 fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(15,4))
 #labels =  ['2', '4', '8', '16', '32', '48', '64']
@@ -25,6 +28,9 @@ read_write_steering_color='#cf243cff'     #alice
 write_steering_color='#ed7d31ff'          #kelly
 default_clover_color='#8caff6ff'          #Coral 
 
+default_line_width=3
+default_marker_size=10
+
 
 def div_thousand (list):
     return [val /1000.0 for val in list]
@@ -38,11 +44,11 @@ def static_plot_attributes(ax,cns_replacement,qp_mapping,read_write_steering,wri
     clover_with_buffering=div_thousand(clover_with_buffering)
 
     #plot
-    ax.plot(labels[:len(clover_with_buffering)],clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
-    ax.plot(labels[:len(write_steering)],write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
-    ax.plot(labels[:len(read_write_steering)],read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color)
-    ax.plot(labels[:len(qp_mapping)],qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color)
-    ax.plot(labels[:len(cns_replacement)],cns_replacement,label=cns_label,marker=cns_marker,color=cns_color)
+    ax.plot(labels[:len(clover_with_buffering)],clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color,linewidth=default_line_width,markersize=default_marker_size)
+    ax.plot(labels[:len(write_steering)],write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color,linewidth=default_line_width,markersize=default_marker_size)
+    ax.plot(labels[:len(read_write_steering)],read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color,linewidth=default_line_width,markersize=default_marker_size)
+    ax.plot(labels[:len(qp_mapping)],qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color,linewidth=default_line_width,markersize=default_marker_size)
+    ax.plot(labels[:len(cns_replacement)],cns_replacement,label=cns_label,marker=cns_marker,color=cns_color,linewidth=default_line_width,markersize=default_marker_size)
 
 
 figure_name='full_system_performance'
@@ -57,7 +63,13 @@ clover_with_buffering_B=[197762,348117,618548,1086834,1673550,2033202,2303143,]
 static_plot_attributes(ax1,cns_replacement_B,qp_mapping_B,read_write_steering_B,write_steering_B,clover_with_buffering_B)
 ax1.set_title('5% Writes')
 ax1.set_ylabel('KOPS')
-ax1.legend(loc='upper left', ncol=2)
+#ax1.legend(loc='upper left', ncol=2)
+
+font = font_manager.FontProperties(
+                                   style='normal', size=10)
+
+ax1.legend(loc='upper left', ncol=2, prop=font)
+#ax1.legend(loc='lower right', ncol=2, prop=font)
 #ax1.set_ylim(top=350)
 
 ####################### YCSB A
