@@ -251,46 +251,46 @@ required metadata to make the change from CAS to write is the location of the
 tail pointer. In this case the metadata cost is O(n) as it grows linearly with
 the keyspace.
 
-\textbf{2) reordering} The second requirement, that operations not be reordered
-after the invariant has been checked requires more care in real systems. For
-instance in an RDMA system with two clients, both could have contesting CAS
-operations swapped with writes. As the two clients are transmitting operations on
-separate QP, and the receiving NIC makes no guarantees about ordering between QP,
-the operations could easily be reordered. In the case with CAS, the order could
-be forced by ensuring that if one write was to succeed the second would fail.
-Without this guarantee the preservation of operation ordering must be maintained
-in another way.
+% \textbf{2) reordering} The second requirement, that operations not be reordered
+% after the invariant has been checked requires more care in real systems. For
+% instance in an RDMA system with two clients, both could have contesting CAS
+% operations swapped with writes. As the two clients are transmitting operations on
+% separate QP, and the receiving NIC makes no guarantees about ordering between QP,
+% the operations could easily be reordered. In the case with CAS, the order could
+% be forced by ensuring that if one write was to succeed the second would fail.
+% Without this guarantee the preservation of operation ordering must be maintained
+% in another way.
 
-\subsection{Connection Remapping}
+% \subsection{Connection Remapping}
 
 
-Our solution here is simple, given that we have the key's for reads and writes
-(Section ~\ref{sec:operation-caching}), all operations for the same key are
-mapped to the same QP.  This algorithm requires that a few pieces of state be
-maintained per connection.  First the sending and response QP for each sender
-and receiver need to be tracked. Second the sequence number of each connection,
-and the original message sequence number offset must be maintained. Per client
-connection the pair of QP's require 48 bits, and the sequence + message sequence
-require an additional 48 for a total of 12 bytes per connection. The storage
-requirement for mapped requests varies based on the algorithm. If clients are
-able to issue an unbounded number of async requests, then a buffer large enough
-to maintain backwards mappings for each request is required. In clover clients
-can issue up to 2 async requests, so we keep a two 6 byte mappings for each
-connection available to map back. 
+% Our solution here is simple, given that we have the key's for reads and writes
+% (Section ~\ref{sec:operation-caching}), all operations for the same key are
+% mapped to the same QP.  This algorithm requires that a few pieces of state be
+% maintained per connection.  First the sending and response QP for each sender
+% and receiver need to be tracked. Second the sequence number of each connection,
+% and the original message sequence number offset must be maintained. Per client
+% connection the pair of QP's require 48 bits, and the sequence + message sequence
+% require an additional 48 for a total of 12 bytes per connection. The storage
+% requirement for mapped requests varies based on the algorithm. If clients are
+% able to issue an unbounded number of async requests, then a buffer large enough
+% to maintain backwards mappings for each request is required. In clover clients
+% can issue up to 2 async requests, so we keep a two 6 byte mappings for each
+% connection available to map back. 
 
-Depending on the algorithm and the QP mapping scheme requests from a single
-sender can be reordered. That is, if a client makes a read and write request to
-different locations in memory, and they are mapped to different QP, they may be
-returned out of order. Infiniband allows for out of order operations on
-receivers~\cite{infiniband-spec}, which pushes operation ordering to client
-side user space. Roce does not allow for out of order operations. In this case
-the receiving NIC will retransmit if requests are delivered out of order. Here
-we buffer requests in network, as we have application knowledge the size of the
-buffer is bounded (to the size of a single read packet in clovers case). We
-suggest that given the tight memory restrictions on middleboxes algorithms which
-have an unbounded number of async requests leave the ordering of remapped
-requests to client side user space using IB verbs or a different transport layer
-entirely.
+% Depending on the algorithm and the QP mapping scheme requests from a single
+% sender can be reordered. That is, if a client makes a read and write request to
+% different locations in memory, and they are mapped to different QP, they may be
+% returned out of order. Infiniband allows for out of order operations on
+% receivers~\cite{infiniband-spec}, which pushes operation ordering to client
+% side user space. Roce does not allow for out of order operations. In this case
+% the receiving NIC will retransmit if requests are delivered out of order. Here
+% we buffer requests in network, as we have application knowledge the size of the
+% buffer is bounded (to the size of a single read packet in clovers case). We
+% suggest that given the tight memory restrictions on middleboxes algorithms which
+% have an unbounded number of async requests leave the ordering of remapped
+% requests to client side user space using IB verbs or a different transport layer
+% entirely.
 
 \todo{these sections may not be nessisary}
 
