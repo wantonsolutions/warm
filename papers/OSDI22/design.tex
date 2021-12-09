@@ -1,63 +1,59 @@
 \section{Benefits of on-path serialization}
 
-Given the overhead of atomic RDMA operations and the performance
-bottlenecks associated with individual queue pairs, this section
-considers the opportunities made available by an on-path serializer.
-In particular, if we ensure that data races cannot arise, we can
-replace expensive compare-and-swap operations with simple read and
-write verbs.  Moreover, given sufficient information about the target
-of each operation, we can selectively leverage ordering guarantees
-provided by individual queue pairs while multiplexing independent
-operations across multiple QPs to improve scalability.
+Given the overhead of atomic RDMA operations and the performance bottlenecks
+associated with individual queue pairs, this section considers the opportunities
+made available by an on-path serializer.  In particular, if we ensure that data
+races cannot arise, we can replace expensive compare-and-swap operations with
+simple write verbs and use the ordering guarantees of RDMA reliable connections
+to provide serializablity. Moreover with information about stateful dependencies
+we can assign independent operations across multiple QP to improve scalability.
 
 \subsection{Atomic replacement} 
 
-
-% atomic operations provided a serialized order on writes, and prevent torn
-% reads on the atomic region.
-
 In many disaggregated systems operation serialization is performed using RDMA
 atomic operations implemented on a NIC. These atomics are expensive because they
-can block many concurrent RDMA operations while they execute. The time required
-to complete an atomic is at minimum a PCIe round trip from the NIC to main
-memory, during which time a lock on the NIC guards the memory access. Lock
-implementation is both vendor and transport specific~\cite{design-guidelines}.
-In the worst case a barrier is placed on all operations resulting in complete
-head-of-line blocking, in the best case locking is per connection and only
-causes other operations to block when reads or writes occur on overlapping
-ranges virtual memory. Regardless of the implementation atomic operations are
-significantly slower than asynchronous non-blocking reads and writes.
+can block many concurrent RDMA operations while they execute and require scarce
+NIC resources. The time required to complete an atomic is at minimum a PCIe
+round trip from the NIC to main memory, during which time a lock on the NIC
+guards the memory access. Lock implementation is both vendor and transport
+specific~\cite{design-guidelines}. In the worst case a barrier is placed on all
+operations resulting in complete head-of-line blocking, in the best case locking
+is per connection and only causes other operations to block when reads or writes
+occur on overlapping ranges virtual memory. Regardless of the implementation
+atomic operations are significantly slower than asynchronous non-blocking reads
+and writes.
 
 Because of their cost, we would like to replace atomic writes such as compare
 and swap (CAS) with non-blocking writes.  From a RoCE v2 perspective the per
 packet transformation from CAS to write can be applied easily in the datapath.
-RoCE v2 CAS and write headers only differ by a few fields. CAS can be though of
-as a special case where the write is conditional and the length is preset to 8
-bytes.
+RoCE v2 CAS and write headers only differ by a few fields. CAS can be thought of
+as a special case of a write, where the write is conditional and the length is
+preset to 8 bytes.
 %%
-To transform CAS headers to writes we switch the RDMA OP field from CAS to
-WRITE, copy the CAS value to the write payload location, set the DMA length of
-the write to 8, and shrink the IPV4 length by 4. Post modification the RoCE v2
-and IPv4 checksums are recalculated so the modified packet will not be rejected
-by the memory side NIC.
+CAS packets are transformed to writes by modifying their headers. We switch the
+RDMA OP field of the CAS to WRITE, copy the CAS value to the write payload
+location, set the DMA length of the write to 8, and shrink the IPV4 length by 4.
+Post modification the RoCE v2 and IPv4 checksums are recalculated so the
+modified packet will not be rejected by the memory side NIC. The transformation
+from CAS to write is deterministic and only requires a few cycles to transform
+the header.
 
-%%
 On the memory server, the NIC processes the modified CAS as a WRITE and responds
-with an ACK once the operation is complete. Once the ACK reaches our middlebox
-we apply the inverse transformation from the ACK to an Atomic ACK which the
-sender expects to see. RDMA Atomic ACK headers are very similar to regular ACKs
-with the only difference being that the atomic contains the original data from
-the memory location of the CAS. This original data is missing due to the
-transformation so we inject a value which indicates success to the sender.
+with an ACK. Once the ACK reaches our middlebox we apply the inverse
+transformation from the ACK to an Atomic ACK which the sender expects to see.
+RDMA Atomic ACK headers are very similar to regular ACKs with the only
+difference being that the atomic contains the original data from the memory
+location of the CAS. This original data is missing due to the transformation so
+we inject a value which indicates success to the sender.
 %%
 This value is application specific; in Clover's case 64 zero bits indicate
-success. Transforming CAS to write does nothing to disturb the RDMA protocol,
-as both the sender and receiver side NIC are oblivious.  
-However, the guarantees the atomic provides, such as write serialization and the
-prevention of read tearing has been lost. To prevent arbitrary corruption of
-data the serialization point must be placed somewhere else. Our approach is to
-detect conflicts in network, and utilize the in order delivery guarantees of
-RDMA reliable connections to ensure safe and serialized operations.
+success. Transforming CAS to write does nothing to disturb the RDMA protocol, as
+both the sender and receiver side NIC are oblivious.  However, the guarantees
+the atomic provides, such as write serialization and the prevention of read
+tearing has been lost. To prevent arbitrary corruption of data the serialization
+point must be placed somewhere else. Our approach is to detect conflicts in
+network, and utilize the in order delivery guarantees of RDMA reliable
+connections to ensure safe and serialized operations.
 
 \subsection{Connection remapping}
 
@@ -65,7 +61,7 @@ RDMA operations made on a reliable connection (one server one client queue pair)
 are guaranteed to be executed in the same order as their sequence numbers
 similar to TCP transport ordering~\cite{infiniband-spec}~\footnote{while IB
 allows for relaxed ordering here we rely on that feature being turned off on the
-receiver} . That is operations on a single stream are totally ordered with
+receiver}. That is operations on a single stream are totally ordered with
 respect to one another. This is not true across multiple connections in the
 where writes to shared state can easily corrupt one another, and reads can be
 torn without the use of locks.  Our insight is that if all operations across all
@@ -89,7 +85,16 @@ monotonicity is broken, the NIC will invoke an expensive go-back-n protocol or
 issue explicit congestion notifications. To achieve monotonic sequence numbers
 on shared connections we track a sequence number per memory QP and inject the
 updated sequence number into the packet after a state based mapping decision has
-been made. A stub for each mapped request is stored on the middlebox to aid in
+been made.
+%%
+This monotonic sequence number increment and QP maping is the serialization
+point which replaces the use of the RDMA CAS operation. As long as a packet is
+given an atomically incremental sequence number from our middlebox and placed on
+a stateful partitioned connection, it will execute in the same serialized order
+as if it were protected by a CAS. We are guaranteed this due to the ordering
+requirements of RDMA reliable connections.
+
+Once sent a stub for each mapped request is stored on the middlebox to aid in
 mapping the request back. The stub keeps track of the original requests sequence
 number, IP address, MAC address, and queue pair. Stubs are stored in an array
 based on their sequence number \% $table size$ for an O(1) lookup when they are
@@ -120,8 +125,6 @@ request is coalessed a gap in the sequence number is observable. In this case we
 generate the coalesed request. While read, and CAS requests can not be
 coalessed, CAS requests mapped to writes can be. In the case of coalesed ATOMIC
 acks an atomic ACK is generated in place of the coalessed write ack.
-
-
 
 \section{Improving Clover performance}
 
