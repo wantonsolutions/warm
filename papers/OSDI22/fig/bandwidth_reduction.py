@@ -21,19 +21,24 @@ read_write_steering_color='#cf243cff'     #alice
 write_steering_color='#ed7d31ff'          #kelly
 default_clover_color='#8caff6ff'          #Coral 
 
-labels = ['50', '5', '100'] 
-optimal = [1314, 1254, 1380]
+# labels = ['50', '5', '100'] 
+# optimal = [1314, 1254, 1380]
+# read_write = [1300, 1253, 1343]
+# write = [3305, 1499, 1341]
+# clover = [2457, 1491, 3091]
 
-read_write = [1300, 1253, 1343]
-write = [3305, 1499, 1341]
-clover = [2457, 1491, 3091]
+labels = [ '5','50', '100'] 
+optimal = [ 1254,1314, 1380]
+read_write = [ 1253,1300, 1343]
+write = [ 1499,3305, 1341]
+clover = [ 1491,2457, 3091]
 
 x = np.arange(len(labels))  # the label locations
 width = 0.2  # the width of the bars
 
 div=1
-
-fig, ax = plt.subplots()
+plt.rcParams.update({'font.size': 16})
+fig, ax = plt.subplots(figsize=(8,4), dpi=80)
 rects0 = ax.bar(x - width, read_write, width, label='Read+Write',color=read_write_steering_color)
 rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color)
 rects2 = ax.bar(x + width, clover, width, label='Clover',color=default_clover_color)

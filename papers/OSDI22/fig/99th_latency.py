@@ -20,6 +20,7 @@ default_clover_label='clover'
 master_width=0.45
 
 #fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,5))
+plt.rcParams.update({'font.size': 16})
 fig, (ax1, ax2) = plt.subplots(1 ,2, figsize=(15,5), gridspec_kw={'width_ratios': [2,3]})
 
 ##READS
@@ -55,7 +56,7 @@ rects4 = ax1.bar(x + (2*width), cns, width, label='CNS->Write',color=cns_color)
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax1.set_ylabel('99th percentile latency (us)')
-ax1.set_title('Read Latencies')
+#ax1.set_title('Read Latencies')
 ax1.set_xticks(x)
 ax1.set_xticklabels(labels)
 ax1.set_xlabel("Write Ratio")
@@ -88,7 +89,7 @@ rects3 = ax2.bar(x + width, qp, width, label='QP mapping',color=qp_mapping_color
 rects4 = ax2.bar(x + (2*width), cns, width, label='CNS->Write',color=cns_color)
 
 #ax2.set_ylabel('99th percentile latency (us)')
-ax2.set_title('Write Latencies')
+#ax2.set_title('Write Latencies')
 ax2.set_xticks(x)
 ax2.set_xticklabels(labels)
 ax2.set_xlabel("Write Ratio")
