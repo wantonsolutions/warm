@@ -1,7 +1,7 @@
 \section{Serialization overheads}
 
 
-%%TODO \sg{I really like this section for ivy but I don't quite know how to integerate it at the moment.}
+%%TODO \sg{I really like this section for ivy but I don't quite know how to integrate it at the moment.}
 % At the end of the day, any consistent memory model requires some form of
 % serialization.  Indeed, it is well known that sequential consistency can be
 % implemented by ensuring that all operations on a given memory address are
@@ -13,7 +13,7 @@
 Sharing remote memory creates a variety of performance problems related to
 synchronization and serialization. Some problems are system, and algorithm
 specific, while others are the result of RDMA hardware limitations.  Porting a
-naive serialization mechanism such as spinlocks to remote memory would be
+naive serialization mechanism such as spin locks to remote memory would be
 prohibitively expensive. Each attempt to require the lock would require a
 network round trip resulting in a huge latency increase, bandwidth cost and
 throughput drop. In this section we will avoid using such a straw man comparison
@@ -71,52 +71,77 @@ drastically improves overall performance under contention. However some
 performance is still left untapped as the underlying RDMA hardware has further
 limitations. 
 
-\subsection{RDMA costs}
+\subsection{RDMA semantics}
+
+
+When designing a far memory system that leverages RDMA, it is
+important to understand the guarantees (not) provided by existing hardware.
+In particular, even if one constrains the arrival of RDMA requests to
+a given server---or NIC port on a server---there remain multiple
+sources of concurrency and contention that may lead to potential races
+and seeming violations of the total request order.  Formally, RDMA
+operations are not, in general, linearizable, even at a single port on
+a given NIC.  In order to allow applications to reason about and react
+to this uncertainty, current NICs provide two different classes of
+guarantees.
+
+\subsubsection{Atomic operations}
+
+The strongest guarantee available in the RDMA specification is
+atomicity, through the use of special atomic operations like compare
+and swap (CAS).  Like their traditional CPU counterparts, CAS
+operations appear to execute at a single point in time, ensuring a
+total ordering on all CAS instructions and a partial ordering between
+CAS and all other instructions---i.e., all other instructions appear
+to occur strictly before or after the CAS, regardless of whether they
+are themselves atomic.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-    \caption{Relative Speed of RDMA verbs as a function of parallel requests}
+    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.}
     \label{fig:rdma_concur}
 \end{figure}
 
-In principle, clients can deal with potential conflicts by utilizing the atomic
-operations provided by the RDMA specification, such as compare and swap (CAS).
-Like their local CPU counterparts, CAS enables (seemingly) lock-free updates to
-far data by detecting races and allowing clients to implement recovery
-mechanisms. In practice, however, these atomics are
-famously~\cite{design-guidelines,clover} expensive, fundamentally because they
-require mutual exclusion across all queue pairs to deliver their functionality.
-As shown in prior work~\cite{design-guidelines}[Figure. 14], the rate at which
-atomics bottleneck is a function of their addresses being independent from one
-another.
+These atomic operations enable (seemingly) lock-free updates to far
+memory by allowing clients to detect data races and enabling them to
+implement safe recovery mechanisms. In practice, however, these
+atomics are famously~\cite{design-guidelines,clover} expensive,
+fundamentally because they require mutual exclusion across all queue
+pairs to deliver their semantics.  Figure~\ref{fig:rdma_concur}
+confirms the findings of prior
+studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
+ConnectX-3) remain true on our ConnectX-5 NICs, namely that CAS
+operations have a hard performance bottleneck, while standard verbs
+(e.g., read and write) continue to scale with increased request
+concurrency.
 
-The execution of CAS on a NIC is further slowed by it's distance from the memory
-on which it's transaction is performed. The NIC determines the address to lock,
-ensures that no dependent writes are concurrent, then performs the write, and
-waits for the PCIe transaction to main memory to complete. The PCIe bus adds
-latency to the operation. This separation between the decision making point
-(NIC) and the location of execution (main memory) causes another fundamental
-overhead in using RDMA based atomics. Ideally the decision point and execution
-of location would have minimal latency. i.e CPU and L1 cache.
+Practically speaking, the performance of atomic operations is limited
+by the PCIe bus.  In order to provide atomicity, the NIC must ensure
+that no dependent operations are concurrent, dispatch the write, and
+then wait for the memory operation to complete.  The separation
+between the serialization point (NIC) and the data storage (main
+memory) represents a fundamental overhead to employing atomics.
+Ideally, the serialization could occur much closer to the memory
+location itself, as is the case with local CPU instructions and L1
+cache.
 
-RDMA is designed for extremely high throughput and low latency operations. Far
-memory systems use their verb library to implement remote memory operations. The
-most common are reads, and writes, with the atomic library being used to
-implement serialized remote memory accesses. Atomics operations require
-significantly NIC memory and are substantially slower than default reads and
-writes. Figure~\ref{fig:rdma_concur} Is a benchmark of RDMA verb performance
-between two ConnectX-5 NICs. Note that read and write performance are able to
-achieve approximately 2x the performance of the atomic CAS instruction.
+%% RDMA is designed for extremely high throughput and low latency
+%% operations. Far memory systems use their verb library to implement
+%% remote memory operations. The most common are reads, and writes, with
+%% the atomic library being used to implement serialized remote memory
+%% accesses. Atomics operations require significantly NIC memory and are
+%% substantially slower than default reads and writes.
 
-RDMA atomic operations are known to be slow due to their need to make a PCIe
-round trip. In contrast locks held in SRAM require only a few nanoseconds to
-perform locking operations. To unlock the full potential of RDMA we convert
-compare and swap operations to writes in network. While this operation is
-generally unsafe, by resolving all conflicts, and using RDMA reliable
-connections, we can ensure all operations succeed and serialization without
-using RDMA atomic operations.
+%% RDMA atomic operations are known to be slow due to their need to make a PCIe
+%% round trip. In contrast locks held in SRAM require only a few nanoseconds to
+%% perform locking operations. To unlock the full potential of RDMA we convert
+%% compare and swap operations to writes in network. While this operation is
+%% generally unsafe, by resolving all conflicts, and using RDMA reliable
+%% connections, we can ensure all operations succeed and serialization without
+%% using RDMA atomic operations.
 
-\subsubsection{Memory management hardware}
+
+\subsubsection{Queue-pair ordering}
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
@@ -124,52 +149,77 @@ using RDMA atomic operations.
     \label{fig:reorder}
 \end{figure}
 
-Hence, a performant far memory system should avoid the use of atomic operations
-if at all possible, relying instead on async RDMA verbs.  Even in that case,
-existing hardware does provide some guarantees.  For example, RDMA provides
-access to memory hosted on a server that likely utilizes a commodity hardware
-memory management unit (MMU).  All modern MMUs ensure coherent memory accesses,
-and generally ensure a total ordering on local memory requests.  Unfortunately,
-due to the complexities of today's multi-core NUMA architectures and PCIe bus
-arbitration, it is possible that memory requests may not be serviced in the
-order they are dispatched. Happily, the RDMA specification requires that NICs
-enforce ordering across operations in an individual queue pair, so sequential
-consistency can be ensured by ensuring that all requests for a given memory
-location arrive on the same queue pair.
+Hence, a scalable far memory system should avoid the use of atomic
+operations to the extent possible, instead relying upon traditional,
+lightweight RDMA verbs.  Even then, existing hardware does provide
+some guarantees.  For example, RDMA provides access to memory hosted
+on a server that likely utilizes a commodity hardware memory
+management unit (MMU).  All modern MMUs ensure coherent memory
+accesses and frequently ensure a total ordering on local memory
+requests (i.e., sequential consistency).  Unfortunately, due to the
+complexities of today's multi-core NUMA architectures and PCIe bus
+arbitration, it is possible that memory requests may not be serviced
+in the order they are dispatched.  Similarly, individual RDMA requests
+may be serviced as multiple memory accesses, potentially leading to
+issues like read tearing.
 
-Figure~\ref{fig:reorder} shows that this guarantee is actually required: i.e.,
-requests across queue pairs are \emph{not} always processed in the order
-received in practice.  In this example, we use RDMA read and write operations to
-detect reordering across 1000 keys on a zipf distribution. Specifically we
-monitor a stream of key value requests in clover and maintain a centralized
-counter for each packet. When a reply packet is sent from the memory side NIC we
-compare the sequence of replies with the order that they were issued in. Our
-experiment monitors requests using a single core, and a single queue on our
-middle box. Therefore all renderings are the result of reordering on the memory
-side server, either in the NIC itself or over the PCIe bus.
+Figure~\ref{fig:reorder} shows that this potential reordering is not
+just an academic concern, but instead arises with some frequency.  In
+this example, we issue RDMA read and write operations at a rate of
+\textbf{XXX} operations per second to 1000 different memory
+locations according to a Zipf distribution, and spread these requests
+across \textbf{XXX} different queue pairs.  We maintain a monotonically
+increasing global request counter at the client and compare the order
+of responses to the total request order.  The plot shows the
+distribution of sequence-number gaps between responses.  As expected,
+the vast majority differ by one (i.e., arrive in the same order they
+were dispatched), but a non-trivial number are out of order by one or
+two instructions, and some are delayed by over 10 instructions.
 
-\todo{I think that this was written with a misunderstanding about what the charts were}
-As expected, when all requests are issued on the same queue pair, they are
-serviced in order.  Once a non-trivial level of concurrency is reached, however,
-the reordering becomes significant, with over 7\% of requests to the same
-address serviced out of order when they are spread across 32 queue
-pairs.\sg{given a zipf distribution, and 16qp around 3\% of packets are
-reordered. This is detected by checking the sequence numbers against the known
-monotonic sequence.}
-
-
-\subsubsection{Queue pair bottlenecks}
-
- There are two challenges to restricting requests for a given address
- to a single queue pair---one that can be worked around, and one that
- must be addressed.  First, queue pairs are established on a
- client/server basis, so requests from different clients must arrive
- on different queue pairs.  Second, the performance of a single queue
- pair on commercial NICs is significantly less than line rate (likely
- precisely because of the need to enforce ordering constraints).
+%% RDMA read and write operations to detect reordering across 1000 keys
+%% on a zipf distribution. Specifically we monitor a stream of key value
+%% requests in clover and maintain a centralized counter for each
+%% packet. When a reply packet is sent from the memory side NIC we
+%% compare the sequence of replies with the order that they were issued
+%% in. Our experiment monitors requests using a single core, and a single
+%% queue on our middle box. Therefore all renderings are the result of
+%% reordering on the memory side server, either in the NIC itself or over
+%% the PCIe bus.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
     \caption{Max throughput per QP \todo{take real measurement}}
     \label{fig:qp_bottleneck}
 \end{figure}
+
+Happily, the RDMA specification stipulates that a NIC should ensure
+that all operations over a given queue pair are serviced in the order
+they arrived.  In general, this can provide sequential consistency if
+all operations relating to a given memory location arrive on the same
+queue pair.  Unsurprisingly, however, this ordering guarantee comes
+with its own scalability limitations.  Figure~\ref{fig:qp_bottlenec}
+shows that the performance of an individual queue pair falls far short
+of line rate on our hardware.  Moreover, as traditionally conceived, a
+queue pair is intended to be established between a single client and
+server---limiting its utility in a disaggregated setting.
+
+%% \todo{I think that this was written with a misunderstanding about what the charts were}
+%% As expected, when all requests are issued on the same queue pair, they are
+%% serviced in order.  Once a non-trivial level of concurrency is reached, however,
+%% the reordering becomes significant, with over 7\% of requests to the same
+%% address serviced out of order when they are spread across 32 queue
+%% pairs.\sg{given a zipf distribution, and 16qp around 3\% of packets are
+%% reordered. This is detected by checking the sequence numbers against the known
+%% monotonic sequence.}
+
+
+%\subsubsection{Queue pair bottlenecks}
+
+%%  There are two challenges to restricting requests for a given address
+%%  to a single queue pair---one that can be worked around, and one that
+%%  must be addressed.  First, queue pairs are established on a
+%%  client/server basis, so requests from different clients must arrive
+%%  on different queue pairs.  Second, the performance of a single queue
+%%  pair on commercial NICs is significantly less than line rate (likely
+%%  precisely because of the need to enforce ordering constraints).
+
