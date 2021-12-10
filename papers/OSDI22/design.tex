@@ -10,7 +10,28 @@ we can assign independent operations across multiple QP to improve scalability.
 
 \subsection{Conflict avoidance}
 
-The
+The single biggest impact an on-path serializer can have is to
+dramatically decrease the likilihood of a failed operation due to a
+stale hint.  Specifically, because the serializer can observe and
+modify operations as they go by, it can ``correct'' any operations it
+knows to be likely to fail.  Note that such replacement is strictly a
+performance enhancement---because the operations continue to be
+processed by teh server as usual, any subsequent reordering will
+simply cause the operation to fail, just as it would have without the
+reordering.
+
+\subsubsection{Read steering}
+
+\subsubsection{Write steering}
+
+\subsection{Enforcing ordering}
+
+If the serializer is able to ensure that packets will not be reordered
+between when it operates on them and their arrival at the memory
+server--because, for example, it is directly connected over a single
+link--we can leverage the ordering semantics provided by RDMA queue
+pairs to further reduce---and even eliminate---failed and/or
+concurrent operations.
 
 \subsection{Connection remapping}
 
