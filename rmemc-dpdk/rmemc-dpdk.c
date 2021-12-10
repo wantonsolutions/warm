@@ -157,7 +157,7 @@ inline void unlock_write_steering(void) {
 
 struct Connection_State Connection_States[TOTAL_ENTRY];
 
-uint32_t sequence_numbers[TOTAL_ENTRY];
+rte_atomic32_t sequence_numbers[TOTAL_ENTRY];
 uint32_t message_sequence_numbers[TOTAL_ENTRY];
 
 void print_connection_state_status(void) {
@@ -504,6 +504,9 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 }
 
 void flush_buffers(uint16_t port) {
+	if(has_mapped_qp) {
+		printf("Danger should not be flushing buffer if you have mapped qp\n");
+	}
 	//printf("&& FLUSHING BUFFERS\n");
 	struct Buffer_State_Tracker bst;
 	struct Buffer_State *bs =  &ect_buffer_states[0];
@@ -562,7 +565,11 @@ void init_connection_state(struct rte_mbuf *pkt)
 	}
 
 	cs->id = id;
+	//Double seq set
 	cs->seq_current = roce_hdr->packet_sequence_number;
+	//sequence_numbers[id]=readable_seq(roce_hdr->packet_sequence_number);
+	rte_atomic32_set(&sequence_numbers[id],readable_seq(roce_hdr->packet_sequence_number));
+	
 	cs->udp_src_port_client = udp_hdr->src_port;
 	cs->ctsqp = roce_hdr->dest_qp;
 	cs->cts_rkey = get_rkey_rdma_packet(roce_hdr);
@@ -626,6 +633,10 @@ uint32_t produce_and_update_msn_lockless(struct roce_v2_header *roce_hdr, struct
 //Otherwise update the MSN.
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr)
 {
+
+	if(has_mapped_qp) {
+		printf("should not be in find and update stc after mapping\n");
+	}
 	struct Connection_State *cs;
 
 	int32_t id = fast_find_id_qp(roce_hdr->dest_qp);
@@ -718,6 +729,9 @@ void init_stc(struct rte_mbuf * pkt)
 }
 
 void update_cs_seq(struct rte_mbuf * pkt) {
+	if(has_mapped_qp) {
+		printf("DANGER should not be un update_cs_seq after mapping qp\n");
+	}
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (roce_hdr->opcode != RC_WRITE_ONLY && roce_hdr->opcode != RC_CNS && roce_hdr->opcode != RC_READ_REQUEST)
 	{
@@ -730,6 +744,8 @@ void update_cs_seq(struct rte_mbuf * pkt) {
 
 	lock_connection_state(cs);
 	cs->seq_current = roce_hdr->packet_sequence_number;
+	//sequence_numbers[id]=readable_seq(roce_hdr->packet_sequence_number);
+	rte_atomic32_set(&sequence_numbers[id],readable_seq(roce_hdr->packet_sequence_number));
 
 	if (roce_hdr->opcode == RC_CNS) {
 		cs->last_atomic_seq = roce_hdr->packet_sequence_number;
@@ -948,10 +964,6 @@ inline uint32_t qp_is_mapped(uint32_t qp)
 	return 1;
 }
 
-inline struct Request_Map *get_empty_slot_mod(struct Connection_State *cs)
-{
-	return &(cs->Outstanding_Requests[mod_slot(cs->seq_current)]);
-}
 
 inline struct Request_Map *get_empty_slot_mod_ronly(struct Connection_State *cs, uint32_t seq)
 {
@@ -967,6 +979,7 @@ inline struct Request_Map *get_empty_slot_mod_ronly(struct Connection_State *cs,
 void map_cns_to_write(struct rte_mbuf *pkt, struct Request_Map *slot) {
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	if (roce_hdr->opcode == RC_CNS) {
+		//printf("Mapping CNS to write\n");
 		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 
@@ -1042,19 +1055,34 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	uint32_t n_qp = qp_mapping_vaddr(pkt);
 	//printf("nqp %d\n");
 	uint32_t local_current_seq;
+	uint32_t test_seq;
 
 	//Find the connection state of the mapped destination connection.
-	struct Connection_State *destination_connection = &Connection_States[fast_find_id_qp(n_qp)];
+	uint32_t dest_id =fast_find_id_qp(n_qp);
+	struct Connection_State *destination_connection = &Connection_States[dest_id];
 
 	//Our middle box needs to keep track of the sequence number
 	//that should be tracked for the destination. This should
 	//always be an increment of 1 from it's previous number.
 	//Here we increment the sequence number
+
+
+	/*
 	lock_connection_state(destination_connection);
 	destination_connection->seq_current = htonl(ntohl(destination_connection->seq_current) + SEQUENCE_NUMBER_SHIFT); //There is bit shifting here.
 	//make a local copy so we can unlock
 	local_current_seq=destination_connection->seq_current;
 	unlock_connection_state(destination_connection);
+	*/
+	test_seq = rte_atomic32_add_return(&sequence_numbers[dest_id],1);
+	test_seq=revert_seq(test_seq %(1 << 24));
+
+	/*
+	if(test_seq != local_current_seq) {
+		printf("test seq %d, original seq %d\n",test_seq, local_current_seq);
+	}
+	*/
+	local_current_seq=test_seq;
 
 #ifdef MAP_PRINT
 	uint32_t msn = Connection_States[id].mseq_current;
@@ -1092,7 +1120,6 @@ void map_qp_forward(struct rte_mbuf *pkt, uint64_t key)
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 
-	printf("identifier %d\n",ipv4_hdr->packet_id);
 
 	//this line is volatile if we copy from the dest connection, use local copy
 	roce_hdr->packet_sequence_number = local_current_seq;
@@ -2176,6 +2203,7 @@ lcore_main(void)
 				//printf("enqueuing\n");
 				//print_packet_lite(rx_pkts[i]);
 				if(packet_is_marked(mpr.pkts[j])) {
+					//printf("recalculating\n");
 					recalculate_rdma_checksum(mpr.pkts[j]);
 				} 
 				general_tx_enqueue(mpr.pkts[j]);
