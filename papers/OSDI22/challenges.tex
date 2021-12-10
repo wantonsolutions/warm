@@ -60,8 +60,7 @@ As a concrete example we consider the costs of contended operations in
 Clover.  Recall Clover maintains a linked list for each key and
 attempts to read and write to the tail of a list for each
 operation. The location of the tail of the list is cached at each
-client and used as a hint for subsequent operations.  If the guess is
-incorrect the algorithm retries.  Hence, both writes and reads can
+client and used as a hint for subsequent operations.  If the hint is stale the algorithm retries.  Hence, both writes and reads can
 fail when using a stale hint and must be retried.
 Figure~\ref{fig:stale_reads} shows the percentage of operation
 attempts that fail under a 50:50 read/write workload as a function of
@@ -150,15 +149,37 @@ operations have a hard performance bottleneck, while standard verbs
 (e.g., read and write) continue to scale with increased request
 concurrency.
 
-Practically speaking, the performance of atomic operations is limited
-by the PCIe bus.  In order to provide atomicity, the NIC must ensure
+%In many disaggregated systems operation serialization is performed using RDMA
+%atomic operations implemented on a NIC. These
+Atomics are expensive both because they can block concurrent RDMA
+operations and because they require, at a minimum, a round trip over
+the PCIe bus.
+%while they execute and require scarce NIC resources.
+In order to provide atomicity, the NIC must ensure
 that no dependent operations are concurrent, dispatch the write, and
-then wait for the memory operation to complete.  The separation
-between the serialization point (NIC) and the data storage (main
-memory) represents a fundamental overhead to employing atomics.
-Ideally, the serialization could occur much closer to the memory
-location itself, as is the case with local CPU instructions and L1
-cache.
+then wait for the memory operation to complete.
+%The
+%time required to complete an atomic is at minimum a PCIe round trip
+%from the NIC to main memory, during which time a lock on the NIC
+%guards the memory access.
+Lock implementation is both vendor and
+transport specific~\cite{design-guidelines}. In the worst case a
+barrier is placed on all operations resulting in complete head-of-line
+blocking, in the best case locking is per connection and only causes
+other operations to block when reads or writes occur on overlapping
+ranges virtual memory. Regardless of the implementation atomic
+operations are likely to be significantly slower than asynchronous non-blocking
+reads and writes.
+
+%% Practically speaking, the performance of atomic operations is limited
+%% by the PCIe bus.  In order to provide atomicity, the NIC must ensure
+%% that no dependent operations are concurrent, dispatch the write, and
+%% then wait for the memory operation to complete.  The separation
+%% between the serialization point (NIC) and the data storage (main
+%% memory) represents a fundamental overhead to employing atomics.
+%% Ideally, the serialization could occur much closer to the memory
+%% location itself, as is the case with local CPU instructions and L1
+%% cache.
 
 %% RDMA is designed for extremely high throughput and low latency
 %% operations. Far memory systems use their verb library to implement

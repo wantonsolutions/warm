@@ -1,4 +1,4 @@
-\section{Benefits of on-path serialization}
+\section{On-path serialization}
 
 Given the overhead of atomic RDMA operations and the performance bottlenecks
 associated with individual queue pairs, this section considers the opportunities
@@ -8,52 +8,9 @@ simple write verbs and use the ordering guarantees of RDMA reliable connections
 to provide serializablity. Moreover with information about stateful dependencies
 we can assign independent operations across multiple QP to improve scalability.
 
-\subsection{Atomic replacement} 
+\subsection{Conflict avoidance}
 
-In many disaggregated systems operation serialization is performed using RDMA
-atomic operations implemented on a NIC. These atomics are expensive because they
-can block many concurrent RDMA operations while they execute and require scarce
-NIC resources. The time required to complete an atomic is at minimum a PCIe
-round trip from the NIC to main memory, during which time a lock on the NIC
-guards the memory access. Lock implementation is both vendor and transport
-specific~\cite{design-guidelines}. In the worst case a barrier is placed on all
-operations resulting in complete head-of-line blocking, in the best case locking
-is per connection and only causes other operations to block when reads or writes
-occur on overlapping ranges virtual memory. Regardless of the implementation
-atomic operations are significantly slower than asynchronous non-blocking reads
-and writes.
-
-Because of their cost, we would like to replace atomic writes such as compare
-and swap (CAS) with non-blocking writes.  From a RoCE v2 perspective the per
-packet transformation from CAS to write can be applied easily in the datapath.
-RoCE v2 CAS and write headers only differ by a few fields. CAS can be thought of
-as a special case of a write, where the write is conditional and the length is
-preset to 8 bytes.
-%%
-CAS packets are transformed to writes by modifying their headers. We switch the
-RDMA OP field of the CAS to WRITE, copy the CAS value to the write payload
-location, set the DMA length of the write to 8, and shrink the IPV4 length by 4.
-Post modification the RoCE v2 and IPv4 checksums are recalculated so the
-modified packet will not be rejected by the memory side NIC. The transformation
-from CAS to write is deterministic and only requires a few cycles to transform
-the header.
-
-On the memory server, the NIC processes the modified CAS as a WRITE and responds
-with an ACK. Once the ACK reaches our middlebox we apply the inverse
-transformation from the ACK to an Atomic ACK which the sender expects to see.
-RDMA Atomic ACK headers are very similar to regular ACKs with the only
-difference being that the atomic contains the original data from the memory
-location of the CAS. This original data is missing due to the transformation so
-we inject a value which indicates success to the sender.
-%%
-This value is application specific; in Clover's case 64 zero bits indicate
-success. Transforming CAS to write does nothing to disturb the RDMA protocol, as
-both the sender and receiver side NIC are oblivious.  However, the guarantees
-the atomic provides, such as write serialization and the prevention of read
-tearing has been lost. To prevent arbitrary corruption of data the serialization
-point must be placed somewhere else. Our approach is to detect conflicts in
-network, and utilize the in order delivery guarantees of RDMA reliable
-connections to ensure safe and serialized operations.
+The
 
 \subsection{Connection remapping}
 
@@ -125,6 +82,46 @@ request is coalessed a gap in the sequence number is observable. In this case we
 generate the coalesed request. While read, and CAS requests can not be
 coalessed, CAS requests mapped to writes can be. In the case of coalesed ATOMIC
 acks an atomic ACK is generated in place of the coalessed write ack.
+
+
+
+\subsection{Atomic replacement} 
+
+
+Because of their cost, we would like to replace atomic writes such as compare
+and swap (CAS) with non-blocking writes.  From a RoCE v2 perspective the per
+packet transformation from CAS to write can be applied easily in the datapath.
+RoCE v2 CAS and write headers only differ by a few fields. CAS can be thought of
+as a special case of a write, where the write is conditional and the length is
+preset to 8 bytes.
+%%
+CAS packets are transformed to writes by modifying their headers. We switch the
+RDMA OP field of the CAS to WRITE, copy the CAS value to the write payload
+location, set the DMA length of the write to 8, and shrink the IPV4 length by 4.
+Post modification the RoCE v2 and IPv4 checksums are recalculated so the
+modified packet will not be rejected by the memory side NIC. The transformation
+from CAS to write is deterministic and only requires a few cycles to transform
+the header.
+
+On the memory server, the NIC processes the modified CAS as a WRITE and responds
+with an ACK. Once the ACK reaches our middlebox we apply the inverse
+transformation from the ACK to an Atomic ACK which the sender expects to see.
+RDMA Atomic ACK headers are very similar to regular ACKs with the only
+difference being that the atomic contains the original data from the memory
+location of the CAS. This original data is missing due to the transformation so
+we inject a value which indicates success to the sender.
+%%
+This value is application specific; in Clover's case 64 zero bits indicate
+success. Transforming CAS to write does nothing to disturb the RDMA protocol, as
+both the sender and receiver side NIC are oblivious.  However, the guarantees
+the atomic provides, such as write serialization and the prevention of read
+tearing has been lost. To prevent arbitrary corruption of data the serialization
+point must be placed somewhere else. Our approach is to detect conflicts in
+network, and utilize the in order delivery guarantees of RDMA reliable
+connections to ensure safe and serialized operations.
+
+
+
 
 \section{Improving Clover performance}
 
