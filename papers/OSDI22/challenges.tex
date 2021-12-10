@@ -10,18 +10,29 @@
 % detect and recover from reordering to those that enforce varying degrees of
 % serialization.
 
-Sharing remote memory creates a variety of performance problems related to
-synchronization and serialization. Some problems are system, and algorithm
-specific, while others are the result of RDMA hardware limitations.  Porting a
-naive serialization mechanism such as spin locks to remote memory would be
-prohibitively expensive. Each attempt to require the lock would require a
-network round trip resulting in a huge latency increase, bandwidth cost and
-throughput drop. In this section we will avoid using such a straw man comparison
-and instead highlight the current shortfalls of opportunistic serialization used
-in Clover as it is state of the art. First we will show why under contention
-opportunistic concurrency leads to high tail latencies, and low throughput. Then
-we will discuss how the hardware mechanisms (RDMA CAS) used to achieve
-serialization are themselves suboptimal.
+
+Far memory systems suffer from two fundamental sources of overhead:
+the costs of resolving conflicts from afar and the additional expense
+incurred by leveraging any hardware-enforced consistency semantics at
+the memory servers themselves.  Before introducing our approaches to
+avoiding both, we characterize the potential benefits by quantifying
+each in the context of Clover and our testbed RDMA hardware.
+
+
+%% Sharing remote memory creates a variety of performance problems
+%% related to synchronization and serialization. Some problems are
+%% system, and algorithm specific, while others are the result of RDMA
+%% hardware limitations.  Porting a naive serialization mechanism such as
+%% spin locks to remote memory would be prohibitively expensive. Each
+%% attempt to require the lock would require a network round trip
+%% resulting in a huge latency increase, bandwidth cost and throughput
+%% drop. In this section we will avoid using such a straw man comparison
+%% and instead highlight the current shortfalls of opportunistic
+%% serialization used in Clover as it is state of the art. First we will
+%% show why under contention opportunistic concurrency leads to high tail
+%% latencies, and low throughput. Then we will discuss how the hardware
+%% mechanisms (RDMA CAS) used to achieve serialization are themselves
+%% suboptimal.
 
 
 \begin{figure}[t]
@@ -30,60 +41,84 @@ serialization are themselves suboptimal.
     \label{fig:stale_reads}
 \end{figure}
 
-\subsection{Conflict resolution}
+\subsection{Client-based conflict resolution}
 %%
-Optimistic concurrency algorithms are by
-definition optimistic, and when contention does occur their operations must be
-retried in order to complete the operation. Clover's opportunistic algorithm
-maintains a linked list for each key and attempts to read and write to the tail
-of a list for each operation. The location of the tail of the list is guessed
-opportunistically (it moves on every write). If the guess is incorrect the
-algorithm retries. Both writes and reads can fail, and must be retried.
-Figure~\ref{fig:stale_reads} shows the percentage of reads which fail at a 50\%
-write workload in clover \footnote{Write fail at a nearly identical rate}.
 
-\subsubsection{Bandwidth Inflation} 
+Optimistic approaches to concurrency management, while far more
+performant than pessimistic ones in the un-contended case, can
+frequently be prohibitively expensive when contention is common.  In
+general, the conflicting operation(s) must be retried incurring
+additional latency and bandwidth.  In some systems, the retry is a
+heavyweight, pessimistic operation, leading to a substantial---but
+fixed---overhead.  In others, like Clover, subsequent attempts remain
+optimistic, resulting in a linear (per-retry) increase in costs.
+In the latter case, however, very high rates of contention can lead to
+congestion collapse, where a retry is essentially doomed to failure,
+dramatically decreasing system throughput.
 
-Optimistic concurrency is designed to have low cost common case operations and
-only incur a penalty when conflicts occur. The typical strategy to deal with
-conflicts is to arbitrarily determine a winner, and have the loser retry. With
-remote memory retires consume network bandwidth and resources. As contention
-increases so to does the average cost of each operation. Our results show that
-under contention the average cost of read and write operations can inflate by up
-to 2x (Figure~\ref{fig:bandwidth_reduction}) above an optimal O(1)
-implementation in which all operations succeed on their first try.
+As a concrete example we consider the costs of contended operations in
+Clover.  Recall Clover maintains a linked list for each key and
+attempts to read and write to the tail of a list for each
+operation. The location of the tail of the list is cached at each
+client and used as a hint for subsequent operations.  If the guess is
+incorrect the algorithm retries.  Hence, both writes and reads can
+fail when using a stale hint and must be retried.
+Figure~\ref{fig:stale_reads} shows the percentage of operation
+attempts that fail under a 50:50 read/write workload as a function of
+the number of concurrent clients.
 
-\subsubsection{Tail Latency}
+\paragraph{Bandwidth inflation.} 
 
-High tail latencies are a well understood bottleneck which greatly effect
-end-to-end system performance. Under contention optimistic concurrency
-mechanisms can exhibit extreme tail latencies. Our experimentation with Clover
-shows that under moderate write pressure (50\% write operations with 64 threads)
-it's 99th tail latency increases by 36x Figure~\ref{fig:tail_latency}. Reducing the
-cost of each operation to exactly 1 attempt can reduce this additional latency
-by nearly two orders of magnitude.
+One of the most direct impacts of failed operations is the bandwidth
+overhead of the retries.  Because a Clover ``operation'' actually
+consists of multiple packet exchanges, the total bandwidth is not
+strictly proportional to the failure rate, but rather slightly
+sub-linear.  Nevertheless, the expected cost of each operation rises
+steadily with contention, which is a function of both the workload and
+level of concurrency.  Our measurements show that under contention the
+average bandwidth cost of Clover read and write operations can inflate
+by 2--3$\times$ (Figure~\ref{fig:bandwidth_reduction}) when compared
+to an optimal scenario in which all operations succeed on their first
+try.
 
-Retried operations result in large throughput drops (2x) and massive increases
-in tail latency (36x) We correct for these opportunistic failures by caching the
-location of the most recent writes, and using them to steer operations from old
-locations to the most up to date. Ensuring that operations do not fail
-drastically improves overall performance under contention. However some
-performance is still left untapped as the underlying RDMA hardware has further
-limitations. 
+\paragraph{Tail latency.}
+
+Perhaps even more significant than the overheads associated with the
+expected number of retries is the cost in the tail---namely the
+latency associated with those particularly ``unlucky'' requests that
+fail repeatedly.  Note that these operations are precisely those for
+``hot'' memory locations, so likely to be ones that matter.  Our
+experimentation with Clover shows that under moderate write pressure
+(e.g., 50\% write operations with 64 threads) the 99th-percentile tail
+latency increases by over 36$\times$ (Figure~\ref{fig:tail_latency}).
+
+%% Reducing the cost of each operation to exactly 1 attempt can reduce
+%% this additional latency by nearly two orders of magnitude.
+
+%% Retried operations result in large throughput drops (2x) and massive
+%% increases in tail latency (36x) We correct for these opportunistic
+%% failures by caching the location of the most recent writes, and using
+%% them to steer operations from old locations to the most up to
+%% date. Ensuring that operations do not fail drastically improves
+%% overall performance under contention. However some performance is
+%% still left untapped as the underlying RDMA hardware has further
+%% limitations.
 
 \subsection{RDMA semantics}
 
-
-When designing a far memory system that leverages RDMA, it is
-important to understand the guarantees (not) provided by existing hardware.
-In particular, even if one constrains the arrival of RDMA requests to
-a given server---or NIC port on a server---there remain multiple
-sources of concurrency and contention that may lead to potential races
-and seeming violations of the total request order.  Formally, RDMA
-operations are not, in general, linearizable, even at a single port on
-a given NIC.  In order to allow applications to reason about and react
-to this uncertainty, current NICs provide two different classes of
-guarantees.
+Any client-based contention management scheme requires a certain level
+of serialization support at the memory server.  There is a clear
+tradeoff, however, between the strength of the guarantees and the
+costs associated with implementing them.  In the particular case of
+RDMA, there are distinct forms of support with very different
+characteristics.  In general, even if one constrains the arrival of
+RDMA requests to a given server---or NIC port on a server---there
+remain multiple sources of concurrency and contention that may lead to
+potential races and seeming violations of the total request order.
+Formally, RDMA operations are not, in general, linearizable, even at a
+single port on a given NIC.  In order to allow applications to reason
+about and react to this uncertainty, current NICs provide two
+different classes of guarantees.
 
 \subsubsection{Atomic operations}
 
@@ -194,7 +229,7 @@ two instructions, and some are delayed by over 10 instructions.
 
 Happily, the RDMA specification stipulates that a NIC should ensure
 that all operations over a given queue pair are serviced in the order
-they arrived.  In general, this can provide sequential consistency if
+they arrive.  In general, this can provide sequential consistency if
 all operations relating to a given memory location arrive on the same
 queue pair.  Unsurprisingly, however, this ordering guarantee comes
 with its own scalability limitations.  Figure~\ref{fig:qp_bottlenec}
