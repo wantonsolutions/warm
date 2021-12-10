@@ -20,12 +20,14 @@
 //#define RX_RING_SIZE 1024
 //#define TX_RING_SIZE 1024
 
-#define RX_RING_SIZE 2048
-#define TX_RING_SIZE 2048
+//#define RX_RING_SIZE 2048
+#define RX_RING_SIZE 256
+#define TX_RING_SIZE RX_RING_SIZE
 
 //#define NUM_MBUFS 8191
-#define NUM_MBUFS 8191 * 32
-#define MBUF_CACHE_SIZE 250
+//#define NUM_MBUFS 8191 * 32
+#define NUM_MBUFS RX_RING_SIZE * 24
+#define MBUF_CACHE_SIZE 128
 //#define BURST_SIZE 4
 //#define BURST_SIZE 8
 //#define BURST_SIZE 16

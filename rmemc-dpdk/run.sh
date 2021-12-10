@@ -13,9 +13,9 @@ if [[ $1 == -b ]]; then
     make clean
 
     #echo "setting RTE_SDK to vtune"
-    #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/vtune_install/share/dpdk
+    export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/vtune_install/share/dpdk
     #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/myinstall/share/dpdk
-    export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/fastinstall/share/dpdk
+    #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/fastinstall/share/dpdk
     echo "RTE_SDK=$RTE_SDK"
 
     make -j 30

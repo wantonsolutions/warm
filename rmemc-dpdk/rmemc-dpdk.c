@@ -50,7 +50,7 @@ static int packet_counter = 0;
 #define MAP_QP
 #define CNS_TO_WRITE
 
-#define RX_CORES 12
+#define RX_CORES 11
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -456,13 +456,13 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	uint32_t left;
 	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
 
-
-
 	//Here the buffer states have been collected
 	uint64_t seq;
 	struct Buffer_State *bs;
 	struct rte_mbuf *pkt;
 
+	struct map_packet_response mpr;
+	mpr.size=0;
 
 	for (uint32_t i=0;i<dequeued;i++) {
 		pkt = tx_pkts[i];
@@ -475,8 +475,6 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 		{
 			seq = *(bs->tail) + 1;
 		}
-		struct map_packet_response mpr;
-		mpr.size=0;
 
 		uint32_t entry = seq % PKT_REORDER_BUF;
 		(*bs->buf)[entry] = pkt;
@@ -489,18 +487,22 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 			(*bs->buf)[*(bs->head) % PKT_REORDER_BUF] = NULL;
 			*(bs->head) = (*bs->head) + 1;
 		}
+		/*
 
 		for (int j=0;j<mpr.size;j++) {
+			
 			if (likely(j < mpr.size - 1))
 			{
 				rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[j + 1], void *));
 			}
 			if(packet_is_marked(mpr.pkts[j])) {
+				printf("recalculating\n");
 				recalculate_rdma_checksum(mpr.pkts[j]);
 			} 
 		}
-		rte_eth_tx_burst(port, queue, (struct rte_mbuf **)mpr.pkts, mpr.size);
+		*/
 	}
+	rte_eth_tx_burst(port, queue, (struct rte_mbuf **)mpr.pkts, mpr.size);
 }
 
 void flush_buffers(uint16_t port) {
@@ -1016,7 +1018,9 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 
 		//Set the headers
 		//First extend the size of the packt buf
-		rte_pktmbuf_append(pkt,ACK_TO_ATOMIC_SIZE_DIFF);
+		if (roce_hdr->opcode == RC_ACK) {
+			rte_pktmbuf_append(pkt,ACK_TO_ATOMIC_SIZE_DIFF);
+		}
 		roce_hdr->opcode = RC_ATOMIC_ACK;
 		cs->atomc_ack_extended.original_remote_data = ORIGINAL_DATA_ACCEPT;
 		udp_hdr->dgram_len = ATOMIC_ACK_DGRAM_LEN;
@@ -1154,7 +1158,7 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 }
 
 
-void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_request) {
+inline void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_request) {
 		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 		struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
@@ -1169,11 +1173,44 @@ void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_request) 
 		copy_eth_addr(destination_cs->stc_eth_addr, eth_hdr->s_addr.addr_bytes);
 }
 
+#define PRE_ALLOCATED_ACKS 64
+static int ack_counter[TOTAL_ENTRY];
+struct rte_mbuf * pre_acks[TOTAL_ENTRY][PRE_ALLOCATED_ACKS];
+
+void pre_allocate_acks(void) {
+	for (int i=0;i<PRE_ALLOCATED_ACKS;i++) {
+		for(int j=0;j<TOTAL_ENTRY;j++) {
+			printf("preallocate %d, %d\n",j,i);
+			struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
+			rte_pktmbuf_append(pkt,ACK_PKT_LEN);
+			//do I need to expand the packet here?
+			struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+			rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+			pre_acks[j][i]=pkt;
+		}
+	}
+	bzero(ack_counter,TOTAL_ENTRY * sizeof(int));
+}
+
 
 struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct Connection_State *cs) {
 
 	if (missing_write)
 	{
+		/*
+		int core_id = rte_lcore_id();
+		int counter = (ack_counter[core_id]++) % PRE_ALLOCATED_ACKS;
+		struct rte_mbuf *pkt = pre_acks[core_id][counter];
+		print_packet_lite(pkt);
+		if (counter == 0) {
+			printf("\n");
+		}
+
+		// struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+		// rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+
+		//printf("safe\n");
+		*/
 		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
 		if (pkt == NULL) {
 			printf("NULL PACKET ack generation\n");
@@ -1854,7 +1891,8 @@ static const struct rte_eth_conf port_conf_default = {
 
 #define RSS_HASH_KEY_LENGTH 40				// for mlx5
 //uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
-uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+//uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
 	0x6D,
@@ -1940,8 +1978,8 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 
 
 	port_conf.rxmode.split_hdr_size=0;
-	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_CHECKSUM;
-	port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
+	//port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_CHECKSUM;
+	//port_conf.rxmode.offloads|=DEV_RX_OFFLOAD_SCATTER;
 
 	int rxing_cores;
 
@@ -2201,7 +2239,7 @@ lcore_main(void)
 			for (uint32_t j = 0; j < mpr.size; j++)
 			{
 				//printf("enqueuing\n");
-				//print_packet_lite(rx_pkts[i]);
+				//print_packet_lite(mpr.pkts[j]);
 				if(packet_is_marked(mpr.pkts[j])) {
 					//printf("recalculating\n");
 					recalculate_rdma_checksum(mpr.pkts[j]);
@@ -2393,8 +2431,9 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), NULL);
 		}
+		//pre_allocate_acks();
 
 		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}
