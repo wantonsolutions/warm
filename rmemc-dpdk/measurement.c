@@ -113,7 +113,10 @@ uint64_t sequence_order_timestamp[TOTAL_ENTRY][TOTAL_PACKET_SEQUENCES];
 uint32_t request_count_id[TOTAL_ENTRY];
 uint64_t read_redirections = 0;
 uint64_t reads = 0;
+uint64_t reads_failed = 0;
 uint64_t read_misses = 0;
+uint64_t writes =0;
+uint64_t writes_failed=0;
 
 uint64_t bytes_processed = 0;
 
@@ -216,10 +219,14 @@ void write_general_stats_to_known_file(void)
         perror("Failed: ");
         return;
     }
+    printf("Writing to %s\n",filename);
     fprintf(fp, "READS %" PRIu64 "\n", reads);
+    fprintf(fp, "READS FAILED %" PRIu64 "\n", reads_failed);
     fprintf(fp, "READ REDIRECTIONS %" PRIu64 "\n", read_redirections);
     fprintf(fp, "READ MISSES %" PRIu64 "\n", read_misses);
     fprintf(fp, "READ HITS %" PRIu64 "\n", reads - read_misses);
+    fprintf(fp, "WRITES %" PRIu64 "\n",writes);
+    fprintf(fp, "WRITES FAILED %" PRIu64 "\n",writes_failed);
     fprintf(fp, "Data Processed %"PRIu64"\n", bytes_processed);
     fclose(fp);
 }
@@ -237,6 +244,10 @@ void increment_read_counter(void) {
     reads++;
 }
 
+void failed_read(void) {
+    reads_failed++;
+}
+
 void read_redirected(void)
 {
     read_redirections++;
@@ -245,6 +256,14 @@ void read_redirected(void)
 void read_not_cached(void)
 {
     read_misses++;
+}
+
+void increment_write_counter(void) {
+    writes++;
+}
+
+void failed_write(void) {
+    writes_failed++;
 }
 
 void stk_trc_handler(int sig) {

@@ -95,22 +95,25 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 
     ulong crcstart = 0x2144df1c;
     ulong crc, crc2;
+
+    //Test
+    // if (roce_hdr->opcode == RC_ATOMIC_ACK) {
+    //     len = 5;
+    //     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
+    //     printf("%x id\n",ipv4_hdr->packet_id);
+    //     printf("%x crc32\n",crc);
+    // }
+    
+    //correct
+    len = ntohs(ipv4_hdr->total_length) - 4;
     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
-    /*
-    crc2 = (~crc32_sse42_simd_(start, len, crcstart)) & 0xFFFFFFFF;
-    if (crc != crc2) {
-        printf("CRC %x CRC2 %x Not equal\n",crc, crc2);
-    }
-    */
-    //crc = crc32_16(crcstart, start, len) & 0xFFFFFFFF;
 
-    //uint32_t crc2= option_13_golden_intel(start,len,crcstart) & 0xFFFFFFFF;
-    //uint32_t crc3= option_13_golden_intel(start,len,crcstart);
-    //uint32_t crc4= ippsCRC32_8u(start,len,crcstart);
-        //const void* M, uint32_t bytes, uint32_t prev/* = 0*/)
 
-    //ulong crc_2 = rte_hash_crc(start,len,(uint32_t)crcstart) & 0xFFFFFFFF;
-   // printf("crc %x crc2 %x crc3 %x\n",crc,crc2,crc3);
+
+
+
+
+    
 
     //Restore header values post masking
     ipv4_hdr->time_to_live = ttl;
@@ -123,6 +126,11 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 
     return (uint32_t)crc;
 }
+
+uint32_t csum_pkt_fast_cns(struct rte_mbuf *pkt) {
+
+}
+
 
 void recalculate_rdma_checksum(struct rte_mbuf *pkt)
 {

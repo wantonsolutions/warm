@@ -6,7 +6,11 @@
 
 #define TOTAL_PACKET_LATENCIES 10000
 #define TOTAL_PACKET_SEQUENCES 10000
-//#define TAKE_MEASUREMENTS
+#define TAKE_MEASUREMENTS
+
+#define MEASURE_BANDWIDTH
+//#define MEASURE_READ_REDIRECTIONS
+//#define MEASURE_IN_FLIGHT
 
 int64_t timestamp(void);
 void append_packet_latency(uint64_t clock_cycles);
@@ -28,4 +32,11 @@ void write_in_flight_to_known_file(void);
 void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]);
 uint32_t inverse_rdma_msg_type_index_map(uint8_t opcode);
 uint32_t rdma_msg_type_index_map(uint8_t opcode);
+
+
+void failed_read(void);
+void read_redirected(void);
+void read_not_cached(void);
+void increment_write_counter(void);
+void failed_write(void);
 #endif
