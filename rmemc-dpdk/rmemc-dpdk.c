@@ -67,6 +67,7 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12", "TXQ13", "TXQ14"};
 struct rte_mempool *mbuf_pool;
+struct rte_mempool *ack_pool;
 struct rte_ring *tx_queues[MEMPOOLS];
 
 inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
@@ -1030,9 +1031,13 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 }
 
 inline uint32_t qp_mapping_vaddr(struct rte_mbuf * pkt) {
+	/*
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	struct cs_request *cs = (struct cs_request *)clover_header;
 	return key_to_qp(cs->atomic_req.vaddr);
+
+	*/
+	return id_qp[1];
 }
 
 
@@ -1173,15 +1178,16 @@ inline void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_re
 		copy_eth_addr(destination_cs->stc_eth_addr, eth_hdr->s_addr.addr_bytes);
 }
 
-#define PRE_ALLOCATED_ACKS 64
-static int ack_counter[TOTAL_ENTRY];
-struct rte_mbuf * pre_acks[TOTAL_ENTRY][PRE_ALLOCATED_ACKS];
+#define PRE_ALLOCATED_ACKS 512
+#define MAX_CORES 32
+static int ack_counter[MAX_CORES];
+struct rte_mbuf * pre_acks[MAX_CORES][PRE_ALLOCATED_ACKS];
 
 void pre_allocate_acks(void) {
 	for (int i=0;i<PRE_ALLOCATED_ACKS;i++) {
-		for(int j=0;j<TOTAL_ENTRY;j++) {
-			printf("preallocate %d, %d\n",j,i);
-			struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
+		for(int j=0;j<MAX_CORES;j++) {
+			//printf("preallocate %d, %d\n",j,i);
+			struct rte_mbuf *pkt = rte_pktmbuf_alloc(ack_pool);
 			rte_pktmbuf_append(pkt,ACK_PKT_LEN);
 			//do I need to expand the packet here?
 			struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
@@ -1189,7 +1195,7 @@ void pre_allocate_acks(void) {
 			pre_acks[j][i]=pkt;
 		}
 	}
-	bzero(ack_counter,TOTAL_ENTRY * sizeof(int));
+	bzero(ack_counter,MAX_CORES * sizeof(int));
 }
 
 
@@ -1197,29 +1203,32 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 	if (missing_write)
 	{
-		/*
 		int core_id = rte_lcore_id();
 		int counter = (ack_counter[core_id]++) % PRE_ALLOCATED_ACKS;
 		struct rte_mbuf *pkt = pre_acks[core_id][counter];
-		print_packet_lite(pkt);
+		/*
 		if (counter == 0) {
 			printf("\n");
-		}
+		}*/
+		//struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
+		//rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+		//print_packet_lite(pkt);
+
 
 		// struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 		// rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
 
 		//printf("safe\n");
-		*/
+	/*
 		struct rte_mbuf *pkt = rte_pktmbuf_alloc(mbuf_pool);
 		if (pkt == NULL) {
 			printf("NULL PACKET ack generation\n");
 		}
-
 		rte_pktmbuf_append(pkt,ACK_PKT_LEN);
 		//do I need to expand the packet here?
 		struct rte_ether_hdr *eth_hdr = get_eth_hdr(pkt);
 		rte_memcpy(eth_hdr,template_ack,ACK_PKT_LEN);
+	*/
 
 
 		map_back_packet(pkt, missing_write);
@@ -1245,6 +1254,7 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 			msn = produce_and_update_msn(roce_hdr, destination_cs);
 		}
 
+		//print_packet_lite(pkt);
 		set_msn(roce_hdr, msn);
 
 		#ifdef CNS_TO_WRITE
@@ -1286,7 +1296,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	mpr.size = 1;
 
 	struct Connection_State *source_connection = &Connection_States[fast_find_id_qp(roce_hdr->dest_qp)];
-	//lock_connection_state(source_connection);
+	lock_connection_state(source_connection);
 
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
@@ -1298,12 +1308,16 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		while(missing_write) {
 			struct rte_mbuf * coalesed_ack = generate_missing_ack(missing_write, source_connection);
 			if (coalesed_ack != NULL) {
+				mpr.pkts[mpr.size] = coalesed_ack;
+				mpr.size++;
 				//Shuffle packets back
+				/*
 				for(int i=mpr.size;i>0;i--) {
 					mpr.pkts[i] = mpr.pkts[i-1];
 				}
 				mpr.pkts[0] = coalesed_ack;
 				mpr.size++;
+				*/
 
 				//subtract the sequence number by one and revert it back to roce header format
 				search_sequence_number = revert_seq(readable_seq(search_sequence_number) - 1);
@@ -1315,6 +1329,13 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			}
 		}
 
+		for(int i=0;i<(mpr.size)/2;i++) {
+			struct rte_mbuf *tmp;
+			tmp=mpr.pkts[i];
+			mpr.pkts[i]=mpr.pkts[(mpr.size-1)-i];
+			mpr.pkts[(mpr.size-1)-i]=tmp;
+		}
+
 		//Set the packety headers to that of the mapped request
 		//struct Connection_State orginial = &Connection_States[mapped_request->id];
 		map_back_packet(pkt,mapped_request);
@@ -1324,7 +1345,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		#endif
 
 		open_slot(mapped_request);
-		//unlock_connection_state(source_connection);
+		unlock_connection_state(source_connection);
 
 		//Update the tracked msn this requires adding to it, and then storing
 		//back to the connection states To do this we need to take a look at
@@ -1346,7 +1367,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-	//unlock_connection_state(source_connection);
+	unlock_connection_state(source_connection);
 
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
@@ -2234,12 +2255,18 @@ lcore_main(void)
 			true_classify(rx_pkts[i]);
 			#endif
 
+
+			/*
+			if(has_mapped_qp) {
+				print_packet_lite(rx_pkts[i]);
+			}
+			*/
+
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
 			for (uint32_t j = 0; j < mpr.size; j++)
 			{
 				//printf("enqueuing\n");
-				//print_packet_lite(mpr.pkts[j]);
 				if(packet_is_marked(mpr.pkts[j])) {
 					//printf("recalculating\n");
 					recalculate_rdma_checksum(mpr.pkts[j]);
@@ -2362,6 +2389,8 @@ int main(int argc, char *argv[])
 
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+	ack_pool = rte_pktmbuf_pool_create("ACK_POOL", PRE_ALLOCATED_ACKS * MAX_CORES,
+										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "cannot create mbuf pool\n");
 	printf("created mbuf_pool %d\n");
@@ -2433,7 +2462,7 @@ int main(int argc, char *argv[])
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
 			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), NULL);
 		}
-		//pre_allocate_acks();
+		pre_allocate_acks();
 
 		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}

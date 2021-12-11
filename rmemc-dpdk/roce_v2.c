@@ -216,6 +216,7 @@ void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn)
     struct read_response *read_resp = (struct read_response *)clover_header;
     struct rdma_ack *ack = (struct rdma_ack *)clover_header;
     struct cs_response *cs_resp = (struct cs_response *)clover_header;
+    const char *op = ib_print_op(roce_hdr->opcode);
     switch (roce_hdr->opcode)
     {
     case RC_READ_RESPONSE:;
@@ -228,7 +229,7 @@ void set_msn(struct roce_v2_header *roce_hdr, uint32_t new_msn)
         cs_resp->ack_extended.sequence_number = new_msn;
         return;
     default:
-        printf("WRONG HEADER MSN NOT FOUND\n");
+        printf("WRONG HEADER MSN NOT FOUND op %s\n",op);
         exit(0);
         return;
     }
