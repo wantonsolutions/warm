@@ -13,7 +13,8 @@ if [[ $1 == -b ]]; then
     make clean
 
     #echo "setting RTE_SDK to vtune"
-    export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/vtune_install/share/dpdk
+    #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/vtune_install/share/dpdk
+    export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/submission_install/usr/local/ssgrant/dpdk-stable-19.11.5/share/dpdk
     #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/myinstall/share/dpdk
     #export RTE_SDK=/usr/local/ssgrant/dpdk-stable-19.11.5/fastinstall/share/dpdk
     echo "RTE_SDK=$RTE_SDK"
@@ -41,8 +42,13 @@ pushd build
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6 -n 4
 
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12,14,16,18,20,22,24 -n 14
-echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0,2,4,6,8,10,12,14,16,18,20,22,24 -n 14
+echo "iwicbV15" | sudo -S -E ./rmemc-dpdk \
+    -l 0,2,4,6,8,10,12,14,16,18,20,22,24,26 -n 14 -- 
 
+#-w 0000:04:00.0,rx_vec_en=1,mprq_en=1,txq_inline_max=128\
+
+
+   # rxq_cqe_comp_en=1,mprq_en=1' \
 #,30,32,34,36,38,40,42,44,46 -n 24
 #echo "iwicbV15" | sudo -S -E ./rmemc-dpdk -l 0 -n 1
 popd

@@ -435,7 +435,7 @@ void print_mpr(struct map_packet_response* mpr) {
 }
 
 //#define DEQUEUE_BURST 8
-#define DEQUEUE_BURST 32
+#define DEQUEUE_BURST 64
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
@@ -2375,6 +2375,10 @@ int main(int argc, char *argv[])
 
 	/* Initialize the Environment Abstraction Layer (EAL). */
 	int ret = rte_eal_init(argc, argv);
+	for(int i=0;i<argc;i++) {
+		printf("%d) %s\n",i,argv[i]);
+
+	}
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
 
@@ -2460,7 +2464,7 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
 		}
 		pre_allocate_acks();
 
