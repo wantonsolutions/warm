@@ -217,7 +217,7 @@ complexities of today's multi-core NUMA architectures and PCIe bus
 arbitration, it is possible that memory requests may not be serviced
 in the order they are dispatched.  Similarly, individual RDMA requests
 may be serviced as multiple memory accesses, potentially leading to
-issues like read tearing.
+write corruption and read tearing.
 
 Figure~\ref{fig:reorder} shows that this potential reordering is not
 just an academic concern, but instead arises with some frequency.  In
@@ -248,9 +248,16 @@ two instructions, and some are delayed by over 10 instructions.
     \label{fig:qp_bottleneck}
 \end{figure}
 
-Happily, the RDMA specification stipulates that a NIC should ensure
-that all operations over a given queue pair are serviced in the order
-they arrive.  In general, this can provide sequential consistency if
+Happily, the RDMA specification stipulates that operations made on a
+reliable connection (one-server/one-client queue pair) are guaranteed
+to be executed in the same order as their sequence numbers, similar to
+TCP's transport-layer semantics~\cite{infiniband-spec}~\footnote{while
+IB allows for relaxed ordering here we rely on that feature being
+turned off on the receiver}. That is, operations on a given queue pair
+are totally ordered with respect to one another.
+% a NIC should ensure that all operations over a given queue pair are
+%serviced in the order they arrive.
+In general, this can provide sequential consistency if
 all operations relating to a given memory location arrive on the same
 queue pair.  Unsurprisingly, however, this ordering guarantee comes
 with its own scalability limitations.  Figure~\ref{fig:qp_bottlenec}
