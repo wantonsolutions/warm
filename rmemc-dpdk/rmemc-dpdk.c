@@ -2029,7 +2029,7 @@ static const struct rte_eth_conf port_conf_default = {
 
 #define RSS_HASH_KEY_LENGTH 40				// for mlx5
 //uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
-uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;// | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 //uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
@@ -2134,8 +2134,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		printf("Configuring RSS for a total of %d cores\n",core_count);
 		port_conf.rx_adv_conf.rss_conf.rss_key = sym_hash_key;
 		port_conf.rx_adv_conf.rss_conf.rss_key_len = RSS_HASH_KEY_LENGTH;
-		port_conf.rx_adv_conf.rss_conf.rss_hf =
-			rss_hf & dev_info.flow_type_rss_offloads;
+		port_conf.rx_adv_conf.rss_conf.rss_hf = rss_hf; // & dev_info.flow_type_rss_offloads;
 	}
 	else
 	{
@@ -2380,8 +2379,7 @@ lcore_main(void)
 			/*
 			if(has_mapped_qp) {
 				print_packet_lite(rx_pkts[i]);
-			}
-			*/
+			}*/
 
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
@@ -2391,6 +2389,10 @@ lcore_main(void)
 				if(packet_is_marked(mpr.pkts[j])) {
 					//printf("recalculating\n");
 					recalculate_rdma_checksum(mpr.pkts[j]);
+					lcore_pkt_count++;
+					if(lcore_pkt_count % 5000000 == 0 ) {
+						printf("[Core %2d] Pkts %d\n",rte_lcore_id(),lcore_pkt_count);
+					}
 				} 
 				general_tx_enqueue(mpr.pkts[j]);
 			}
