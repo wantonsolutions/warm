@@ -50,7 +50,7 @@ static int packet_counter = 0;
 #define MAP_QP
 #define CNS_TO_WRITE
 
-#define RX_CORES 19
+#define RX_CORES 12
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -156,7 +156,8 @@ inline void unlock_write_steering(void) {
 	rte_rwlock_write_unlock(&next_lock);
 }
 
-struct Connection_State Connection_States[TOTAL_ENTRY];
+struct Connection_State Connection_States[TOTAL_ENTRY]__attribute__((aligned (128))); //__attribute__(aligned(128));
+struct Request_Map Outstanding_Requests[TOTAL_ENTRY][CS_SLOTS] __attribute__((aligned (128)));
 
 rte_atomic32_t sequence_numbers[TOTAL_ENTRY];
 uint32_t message_sequence_numbers[TOTAL_ENTRY];
@@ -301,8 +302,8 @@ void init_buffer_states(void) {
 		bs->head = &(ect_qp_buf_head[i]);
 		bs->tail = &(ect_qp_buf_tail[i]);
 		bs->buf = &(ect_qp_buf[i]);
-		bs->timestamps = &(ect_qp_timestamp[i]);
-		rte_rwlock_init(&(bs->bs_lock));
+		//bs->timestamps = &(ect_qp_timestamp[i]);
+		//rte_rwlock_init(&(bs->bs_lock));
 
 		//client
 		bs = &client_buffer_states[i];
@@ -311,8 +312,8 @@ void init_buffer_states(void) {
 		bs->head = &client_qp_buf_head[i];
 		bs->tail = &client_qp_buf_tail[i];
 		bs->buf = &client_qp_buf[i];
-		bs->timestamps = &client_qp_timestamp[i];
-		rte_rwlock_init(&(bs->bs_lock));
+		//bs->timestamps = &client_qp_timestamp[i];
+		//rte_rwlock_init(&(bs->bs_lock));
 
 		//memory
 		bs = &mem_buffer_states[i];
@@ -321,8 +322,8 @@ void init_buffer_states(void) {
 		bs->head = &(mem_qp_buf_head[i]);
 		bs->tail = &(mem_qp_buf_tail[i]);
 		bs->buf = &(mem_qp_buf[i]);
-		bs->timestamps = &(mem_qp_timestamp[i]);
-		rte_rwlock_init(&(bs->bs_lock));
+		//bs->timestamps = &(mem_qp_timestamp[i]);
+		//rte_rwlock_init(&(bs->bs_lock));
 
 	}
 
@@ -435,7 +436,7 @@ void print_mpr(struct map_packet_response* mpr) {
 }
 
 //#define DEQUEUE_BURST 8
-#define DEQUEUE_BURST 16
+#define DEQUEUE_BURST 64
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
@@ -445,6 +446,7 @@ void general_tx_enqueue(struct rte_mbuf * pkt) {
 	//printf("sending to queue %d\n",queue_index);
 	rte_ring_enqueue(tx_queues[queue_index],pkt);
 }
+
 
 void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	printf("beginning eternal tx on core %d\n",rte_lcore_id());
@@ -525,7 +527,6 @@ void flush_buffers(uint16_t port) {
 	bst.size=1;
 	bst.buffer_states[0]=bs;
 	for(int i=0;i<MEMPOOLS;i++) {
-		printf("flushing %d\n",i);
 		general_tx(port,0,tx_queues[i]);
 	}
 	printf("&& FLUSHING BUFFERS COMPLETE\n");
@@ -541,6 +542,7 @@ void flush_buffers(uint16_t port) {
 		(*bs->head) = rec_seq + 1;
 		(*bs->tail) = rec_seq;
 	}
+
 }
 
 inline void copy_eth_addr(uint8_t *src, uint8_t *dst)
@@ -808,6 +810,7 @@ static uint32_t nacked_cns = 0;
 void init_connection_states(void)
 {
 	bzero(Connection_States, TOTAL_ENTRY * sizeof(Connection_State));
+	bzero(Outstanding_Requests, TOTAL_ENTRY * CS_SLOTS * sizeof(Request_Map));
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
 		struct Connection_State *source_connection;
@@ -816,7 +819,9 @@ void init_connection_states(void)
 		for (int j = 0; j < CS_SLOTS; j++)
 		{
 			struct Request_Map *mapped_request;
-			mapped_request = &(source_connection->Outstanding_Requests[j]);
+
+			//mapped_request = &(source_connection->Outstanding_Requests[j]);
+			mapped_request=&Outstanding_Requests[i][j];
 			mapped_request->open = 1;
 		}
 	}
@@ -980,7 +985,8 @@ inline uint32_t qp_is_mapped(uint32_t qp)
 
 inline struct Request_Map *get_empty_slot_mod_ronly(struct Connection_State *cs, uint32_t seq)
 {
-	return &(cs->Outstanding_Requests[mod_slot(seq)]);
+	//return &(cs->Outstanding_Requests[mod_slot(seq)]);
+	return &(Outstanding_Requests[cs->id][mod_slot(seq)]);
 }
 
 
@@ -1159,7 +1165,8 @@ struct Request_Map *find_slot_mod(struct Connection_State *source_connection, st
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	uint32_t search_sequence_number = roce_hdr->packet_sequence_number;
 	uint32_t slot_num = mod_slot(search_sequence_number);
-	struct Request_Map *mapped_request = &(source_connection->Outstanding_Requests[slot_num]);
+	//struct Request_Map *mapped_request = &(source_connection->Outstanding_Requests[slot_num]);
+	struct Request_Map *mapped_request = &(Outstanding_Requests[source_connection->id][slot_num]);
 
 	//First search to find if the sequence numbers match
 	if ((!slot_is_open(mapped_request)) && mapped_request->mapped_sequence == search_sequence_number)
@@ -1278,7 +1285,8 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 inline struct Request_Map *find_missing_write(struct Connection_State * source_connection, uint32_t search_sequence_number){
 
 	uint32_t slot_num = mod_slot_minus_one(search_sequence_number);
-	struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num]);
+	//struct Request_Map *mapped_request_1 = &(source_connection->Outstanding_Requests[slot_num]);
+	struct Request_Map *mapped_request_1 = &(Outstanding_Requests[source_connection->id][slot_num]);
 
 	if(likely(slot_is_open(mapped_request_1))) {
 		return NULL;
@@ -1335,7 +1343,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			mpr.pkts[(mpr.size-1)-i]=tmp;
 		}
 
-		//Set the packety headers to that of the mapped request
+		//eet the packety headers to that of the mapped request
 		//struct Connection_State orginial = &Connection_States[mapped_request->id];
 		map_back_packet(pkt,mapped_request);
 
@@ -2169,6 +2177,8 @@ lcore_main(void)
 
 
 	printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
+
+
 	/* Run until the application is quit or killed. */
 	port=0;
 	uint64_t lcore_pkt_count = 0;
@@ -2377,8 +2387,10 @@ int main(int argc, char *argv[])
 	int ret = rte_eal_init(argc, argv);
 	for(int i=0;i<argc;i++) {
 		printf("%d) %s\n",i,argv[i]);
-
 	}
+
+
+
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
 
@@ -2425,6 +2437,9 @@ int main(int argc, char *argv[])
 	printf("Client Threads %d\n", TOTAL_CLIENTS);
 	printf("Keyspace %d\n", KEYSPACE);
 
+	printf("Size of Request Map %d\n",sizeof(Request_Map));
+	printf("Size of Connection State %d\n",sizeof(Connection_State));
+
 	mode_print();
 
 	if (init == 0)
@@ -2464,7 +2479,7 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), RING_F_SC_DEQ);
 		}
 		pre_allocate_acks();
 

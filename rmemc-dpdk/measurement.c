@@ -59,6 +59,7 @@ uint32_t in_flight_measurement[TOTAL_IN_FLIGHT_TIMESTAMPS][TOTAL_CLIENTS][TOTAL_
 uint64_t in_flight_timestamps[TOTAL_IN_FLIGHT_TIMESTAMPS];
 uint64_t in_flight_count=0;
 
+/*
 void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]) {
     if (in_flight_count >= TOTAL_IN_FLIGHT_TIMESTAMPS) {
         return;
@@ -75,7 +76,7 @@ void calculate_in_flight(struct Connection_State (*states)[TOTAL_ENTRY]) {
         }
     }
     in_flight_count++;
-}
+}*/
 
 void write_in_flight_to_known_file(void)
 {
