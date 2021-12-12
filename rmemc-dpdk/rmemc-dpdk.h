@@ -52,7 +52,7 @@
 
 #define TOTAL_CLIENTS MITSUME_BENCHMARK_THREAD_NUM
 
-#define PKT_REORDER_BUF 1024
+#define PKT_REORDER_BUF 128
 
 //checksum
 struct Request_Map

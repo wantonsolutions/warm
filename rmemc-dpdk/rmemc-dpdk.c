@@ -435,7 +435,7 @@ void print_mpr(struct map_packet_response* mpr) {
 }
 
 //#define DEQUEUE_BURST 8
-#define DEQUEUE_BURST 32
+#define DEQUEUE_BURST 16
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
@@ -447,6 +447,7 @@ void general_tx_enqueue(struct rte_mbuf * pkt) {
 }
 
 void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+	printf("beginning eternal tx on core %d\n",rte_lcore_id());
 	for (;;) {
 		general_tx(port,queue,in_queue);
 	}
@@ -471,6 +472,9 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	mpr.size=0;
 
 	for (uint32_t i=0;i<dequeued;i++) {
+		if(i < dequeued-1) {
+			rte_prefetch0(tx_pkts[i+1]);
+		}
 		pkt = tx_pkts[i];
 		//printf("txing on core %d\n",rte_lcore_id());
 		//print_packet_lite(pkt);
@@ -1037,13 +1041,10 @@ void map_write_ack_to_atomic_ack(struct rte_mbuf *pkt, struct Request_Map *slot)
 }
 
 inline uint32_t qp_mapping_vaddr(struct rte_mbuf * pkt) {
-	/*
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 	struct cs_request *cs = (struct cs_request *)clover_header;
 	return key_to_qp(cs->atomic_req.vaddr);
-
-	*/
-	return id_qp[1];
+	//return id_qp[1];
 }
 
 
@@ -1316,14 +1317,6 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 			if (coalesed_ack != NULL) {
 				mpr.pkts[mpr.size] = coalesed_ack;
 				mpr.size++;
-				//Shuffle packets back
-				/*
-				for(int i=mpr.size;i>0;i--) {
-					mpr.pkts[i] = mpr.pkts[i-1];
-				}
-				mpr.pkts[0] = coalesed_ack;
-				mpr.size++;
-				*/
 
 				//subtract the sequence number by one and revert it back to roce header format
 				search_sequence_number = revert_seq(readable_seq(search_sequence_number) - 1);
@@ -1918,8 +1911,8 @@ static const struct rte_eth_conf port_conf_default = {
 
 #define RSS_HASH_KEY_LENGTH 40				// for mlx5
 //uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP; //ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
-//uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
-uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+uint64_t rss_hf = ETH_RSS_UDP | ETH_RSS_TCP | ETH_RSS_IP;// | ETH_RSS_VLAN; /* RSS IP by default. */
+//uint64_t rss_hf = ETH_RSS_NONFRAG_IPV4_UDP;// | ETH_RSS_VLAN; /* RSS IP by default. */
 
 uint8_t sym_hash_key[RSS_HASH_KEY_LENGTH] = {
 	0x6D,
