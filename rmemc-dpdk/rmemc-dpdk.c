@@ -50,7 +50,7 @@ static int packet_counter = 0;
 #define MAP_QP
 #define CNS_TO_WRITE
 
-#define RX_CORES 11
+#define RX_CORES 19
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -63,9 +63,9 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
-#define MEMPOOLS 14
+#define MEMPOOLS 20
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
-const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12", "TXQ13", "TXQ14"};
+const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12", "TXQ13", "TXQ14", "TXQ15", "TXQ16", "TXQ17", "TXQ18", "TXQ19", "TXQ20", "TXQ21", "TXQ22", "TX23", "TXQ24", "TXQ25"};
 struct rte_mempool *mbuf_pool;
 struct rte_mempool *ack_pool;
 struct rte_ring *tx_queues[MEMPOOLS];
@@ -435,7 +435,7 @@ void print_mpr(struct map_packet_response* mpr) {
 }
 
 //#define DEQUEUE_BURST 8
-#define DEQUEUE_BURST 64
+#define DEQUEUE_BURST 32
 void general_tx_enqueue(struct rte_mbuf * pkt) {
 	uint32_t queue_index = RX_CORES;
 	if (has_mapped_qp) {
@@ -453,6 +453,11 @@ void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queu
 }
 
 void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+
+	if (in_queue == NULL) {
+		printf("WTF null queue!\n");
+		return;
+	}
 	struct rte_mbuf * tx_pkts[DEQUEUE_BURST];
 	uint32_t left;
 	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
@@ -516,9 +521,10 @@ void flush_buffers(uint16_t port) {
 	bst.size=1;
 	bst.buffer_states[0]=bs;
 	for(int i=0;i<MEMPOOLS;i++) {
+		printf("flushing %d\n",i);
 		general_tx(port,0,tx_queues[i]);
 	}
-	//printf("&& FLUSHING BUFFERS COMPLETE\n");
+	printf("&& FLUSHING BUFFERS COMPLETE\n");
 
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
 		struct Connection_State *cs = &Connection_States[i];
@@ -607,14 +613,14 @@ void init_cs_wrapper(struct rte_mbuf *pkt)
 //connection state is behind, update that as well.
 uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connection_State *cs)
 {
-	lock_connection_state(cs);
+	//lock_connection_state(cs);
 	uint32_t msn = htonl(ntohl(roce_hdr->packet_sequence_number) - ntohl(cs->mseq_offset));
 	if (ntohl(msn) > ntohl(cs->mseq_current))
 	{
 		cs->mseq_current = msn;
 	}
 	msn = cs->mseq_current;
-	unlock_connection_state(cs);
+	//unlock_connection_state(cs);
 	return msn;
 }
 
@@ -1296,7 +1302,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 	mpr.size = 1;
 
 	struct Connection_State *source_connection = &Connection_States[fast_find_id_qp(roce_hdr->dest_qp)];
-	lock_connection_state(source_connection);
+	//lock_connection_state(source_connection);
 
 	struct Request_Map *mapped_request = find_slot_mod(source_connection, pkt);
 	//struct Request_Map *
@@ -1345,7 +1351,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		#endif
 
 		open_slot(mapped_request);
-		unlock_connection_state(source_connection);
+		//unlock_connection_state(source_connection);
 
 		//Update the tracked msn this requires adding to it, and then storing
 		//back to the connection states To do this we need to take a look at
@@ -1367,7 +1373,7 @@ struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt)
 		return mpr;
 	}
 
-	unlock_connection_state(source_connection);
+	//unlock_connection_state(source_connection);
 
 	uint32_t msn = find_and_update_stc(roce_hdr);
 	if (msn > 0)
@@ -2036,6 +2042,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 		printf("Single Queue RSS\n");
 		port_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
 	}
+
 	//\STW RSS
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
@@ -2464,7 +2471,7 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 1024, rte_eth_dev_socket_id(0), NULL);
 		}
 		pre_allocate_acks();
 
