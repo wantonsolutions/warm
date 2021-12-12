@@ -21,7 +21,7 @@ need for heavyweight atomic verbs.  Under a 50:50 read-write workload,
 our DPDK-based {\sword} prototype dramatically improves the
 performance of Clover, a state-of-the-art disaggregated key/value
 store: throughput rises by more than $3\times$, tail latency drops by
-over $36\times$, while reducing bandwidth usage by almost half.
+over $36\times$, and bandwidth usage cuts almost in half.
 Further, by removing the need for RDMA atomics, we show the ability to
 scale past the hardware-imposed limit of $\approx$2.7 MOP/s per queue
 pair on ConnectX-5 NICs.
