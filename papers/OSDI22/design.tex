@@ -122,12 +122,12 @@ longer histories in the table.
 
 When reads arrive {\sword} looks up their destination address in the
 table; if the address has a hit the associated key is used to look up
-the current tail in our write cache and the read is redirected to the
+the current tail in the write cache and the RDMA read is redirected to the
 cached location.  Should a miss occur---either because the hash bucket
 was overwritten by another key, or because the tail address is not
 cached---the read is left unmodified.  It will likely fail to arrive
 at the current tail, but Clover's recovery mechanism kicks in and
-performs a lookup to the meta data server for the last known address
+performs a lookup to the metadata server for the last known address
 and the process repeats. We find that by using an array size of
 8$\times$ the ~\todo{vast majority of reads succeed first try.} While
 the number of reads that require a second try is ~\todo{a
@@ -161,7 +161,7 @@ In general, the determination of which operations share state is
 application specific and requires inspecting each packet, extracting
 the relevant pieces of metadata, and vectoring the packet to the
 correct connection.  In the particular case of Clover, it suffices to
-identify RDMA operations that correspond to requests to read and write
+identify RDMA operations that correspond to requests to read or write
 the same key.
 
 %%While removing locking operations is a general principle here we consider a
@@ -169,11 +169,11 @@ the same key.
 %%would require bespoke solutions.  
 
 The challenge, of course, is that the RDMA specification stipulates
-that each client establish its own queue pair to a given server, so
+that each client establish its own queue pair with a given server, so
 operations for a given key from different clients will arrive on
-separate queue pairs.  \sword, then, must now interpose on the
+separate queue pairs.  \sword, then, must interpose on the
 full set of queue pairs terminated by a given (set of) server(s) and
-remap operations to queue pairs accordingly.
+vector operations to queue pairs accordingly.
 
 \paragraph{Sequence-space stitching.}
 
@@ -184,9 +184,9 @@ sender's and receiver's perspectives. If monotonicity is broken, the
 NIC will invoke an expensive go-back-$n$ protocol or issue explicit
 congestion notifications. To ensure monotonic sequence numbers on
 shared connections {\sword} tracks the outstanding sequence number per QP and
-inject the appropriate sequence number into the packet after the
+injects the appropriate sequence number into the packet after the
 mapping decision has been made.  (Ironically, there is no need to
-ensure any particular ordering among requests from a given client, so
+ensure any particular ordering among requests from separate clients, so
 any total ordering suffices.)
 %% This monotonic sequence number increment and QP mapping is the
 %% serialization point which replaces the use of the RDMA CAS
@@ -199,10 +199,10 @@ any total ordering suffices.)
 When an RDMA request arrives at {\sword} from a client, it is
 mapped to the appropriate queue pair for the relevant key and a
 \emph{stub} is stored to aid in mapping the request back, much like a
-network/address translator (NAT). The stub keeps track of the original
+network address translator (NAT). The stub keeps track of the original
 request's sequence number, IP address, MAC address, and queue
 pair. Stubs are stored in an array of size $n$ indexed by their
-sequence number $\pmod n$ to ensure $O(1)$ lookup when demultiplexing
+sequence number$\pmod n$ to ensure $O(1)$ lookup when demultiplexing
 the response.
 %%
 In addition to sequence numbers, a \emph{message} sequence number
@@ -258,7 +258,7 @@ write is conditional and the length is preset to 8 bytes.
 %%
 
 {\sword} transforms CAS packets to writes by modifying their headers: it
-switches the RDMA OP field of the CAS to \texttt{WRITE}, copies the CAS
+switches the RDMA OP field of the CAS to write, copies the CAS
 value to the write payload location, sets the DMA length of the write
 to 8, and shrinks the IPv4 length value by 4.  Post modification the RoCEv2
 and IPv4 checksums are recalculated.
