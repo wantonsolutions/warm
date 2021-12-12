@@ -3,20 +3,6 @@
 
 \subsection{Resource Disaggregation}
 
-Resource disaggregation is an architectural paradigm which separates disk, cpu
-and memory over a network~\cite{requirements,legoos}. The goal of this
-architecture is to enable extreme flexibility in terms of machine composition.
-For example a systems memory capacity can be dynamically apportioned by
-reconfiguration, rather than by manually changing the physical components of a
-single machine~\cite{fastswap}. It is now common for disks (HHD and SSD) to be
-disaggregated from CPU and memory. SSDs are comparatively easier to
-disaggregated than main memory as their access latencies are on the order of
-10's of microseconds which amortizes the network round trip cost~\cite{decible}.
-
-Local memory latency is around 50ns. The cost of accessing memory over the
-network is on the order of 1us -- approximately a 20x overhead. This order of
-magnitude difference in latency makes hiding remote memory accesses a hard
-problem.  
 
 Within the disaggregated memory community there is a divide between using
 software or hardware to access remote memory.  The use of custom hardware to
