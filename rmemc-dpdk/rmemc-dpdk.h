@@ -109,11 +109,15 @@ struct Buffer_State {
 	struct rte_mbuf *** buf;
 } Buffer_State;
 
-struct Buffer_State_Tracker 
-{
-	uint32_t size;
-	struct Buffer_State *buffer_states[BURST_SIZE * BURST_SIZE * PACKET_INFLATION];
-} Buffer_State_Tracker;
+struct Buffer_State2{
+  uint8_t dequeable;
+  int id;
+  uint64_t head;
+  uint64_t tail;
+  struct rte_mbuf *buf[PKT_REORDER_BUF];
+} Buffer_State2;
+
+
 
 
 //Locking

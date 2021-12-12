@@ -256,10 +256,6 @@ struct rte_mbuf ***mem_qp_buf;
 struct rte_mbuf ***client_qp_buf;
 struct rte_mbuf ***ect_qp_buf;
 
-uint64_t **mem_qp_timestamp;
-uint64_t **client_qp_timestamp;
-uint64_t **ect_qp_timestamp;
-
 uint64_t mem_qp_buf_head[TOTAL_ENTRY];
 uint64_t mem_qp_buf_tail[TOTAL_ENTRY];
 
@@ -277,6 +273,10 @@ struct Buffer_State mem_buffer_states[TOTAL_ENTRY];
 struct Buffer_State client_buffer_states[TOTAL_ENTRY];
 struct Buffer_State ect_buffer_states[TOTAL_ENTRY];
 
+struct Buffer_State2 mem_buffer_states2[TOTAL_ENTRY];
+struct Buffer_State2 client_buffer_states2[TOTAL_ENTRY];
+struct Buffer_State2 ect_buffer_states2[TOTAL_ENTRY];
+
 struct rte_mbuf *** dynamicly_allocate_buffer_state_pkt_buf(void) {
 	struct rte_mbuf*** buf = (struct rte_mbuf ***)rte_malloc(NULL, sizeof(struct rte_mbuf **) * TOTAL_ENTRY,0);
 	for (int i=0;i<TOTAL_ENTRY;i++) {
@@ -285,13 +285,6 @@ struct rte_mbuf *** dynamicly_allocate_buffer_state_pkt_buf(void) {
 	return buf;
 }
 
-uint64_t ** dynamicly_allocate_pkt_timestamps(void) {
-	uint64_t ** buf = (uint64_t **) rte_malloc(NULL, sizeof(uint64_t *) * TOTAL_ENTRY,0);
-	for (int i=0;i<TOTAL_ENTRY;i++) {
-		buf[i] = (uint64_t *)rte_malloc(NULL, sizeof(uint64_t) *PKT_REORDER_BUF,0);
-	}
-	return buf;
-}
 
 void init_buffer_states(void) {
 	for(int i=0;i<TOTAL_ENTRY;i++) {
@@ -330,6 +323,9 @@ void init_buffer_states(void) {
 	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
 	struct Buffer_State * bs = &ect_buffer_states[0];
 	*(bs->head) = 1;
+
+	struct Buffer_State2 * bs2 = &ect_buffer_states2[0];
+	bs2->head = 1;
 }
 
 void init_reorder_buf(void)
@@ -338,9 +334,11 @@ void init_reorder_buf(void)
 	client_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
 	ect_qp_buf=dynamicly_allocate_buffer_state_pkt_buf();
 
+	/*
 	ect_qp_timestamp=dynamicly_allocate_pkt_timestamps();
 	client_qp_timestamp=dynamicly_allocate_pkt_timestamps();
 	mem_qp_timestamp=dynamicly_allocate_pkt_timestamps();
+	*/
 
 
 
@@ -359,6 +357,7 @@ void init_reorder_buf(void)
 	bzero(ect_buffer_states, TOTAL_ENTRY * sizeof(struct Buffer_State));
 	bzero(mem_buffer_states, TOTAL_ENTRY * sizeof(struct Buffer_State));
 
+	printf("looping through mbufs\n");
 	for (int i = 0; i < TOTAL_ENTRY; i++)
 	{
 		for (int j = 0; j < PKT_REORDER_BUF; j++)
@@ -366,13 +365,27 @@ void init_reorder_buf(void)
 			mem_qp_buf[i][j] = NULL;
 			client_qp_buf[i][j] = NULL;
 			ect_qp_buf[i][j] = NULL;
-
-
-			mem_qp_timestamp[i][j] = 0;
-			client_qp_timestamp[i][j] = 0;
-			ect_qp_timestamp[i][j] = 0;
 		}
 	}
+	printf("moving on to init\n");
+
+	bzero(mem_buffer_states2,TOTAL_ENTRY * sizeof(Buffer_State2));
+	bzero(client_buffer_states2,TOTAL_ENTRY * sizeof(Buffer_State2));
+	bzero(ect_buffer_states2,TOTAL_ENTRY * sizeof(Buffer_State2));
+	for (int i = 0; i < TOTAL_ENTRY; i++)
+	{
+		mem_buffer_states2[i].id = i;
+		client_buffer_states2[i].id = i;
+		ect_buffer_states2[i].id = i;
+		for (int j = 0; j < PKT_REORDER_BUF; j++)
+		{
+			mem_buffer_states2[i].buf[j] = NULL;
+			client_buffer_states2[i].buf[j] = NULL;
+			ect_buffer_states2[i].buf[j] = NULL;
+		}
+	}
+
+
 	init_buffer_states();
 }
 
@@ -393,6 +406,28 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	{
 		//printf("clt\n");
 		return &client_buffer_states[id];
+	}
+	printf("something is weird here unable to get the buffer state\n");
+	exit(0);
+}
+
+struct Buffer_State2 * get_buffer_state2(struct rte_mbuf *pkt) {
+	int id = fast_find_id(pkt);
+	if (unlikely(has_mapped_qp == 0) || id == -1) {
+		//printf("etc\n");
+		return &ect_buffer_states2[0];
+	}
+
+	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
+	if (Connection_States[id].ctsqp == roce_hdr->dest_qp)
+	{
+		//printf("mem\n");
+		return &mem_buffer_states2[id];
+	}
+	if (Connection_States[id].stcqp == roce_hdr->dest_qp)
+	{
+		//printf("clt\n");
+		return &client_buffer_states2[id];
 	}
 	printf("something is weird here unable to get the buffer state\n");
 	exit(0);
@@ -455,7 +490,57 @@ void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queu
 	}
 }
 
+
+
+void general_tx2(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+
+	if (in_queue == NULL) {
+		printf("WTF null queue!\n");
+		return;
+	}
+	struct rte_mbuf * tx_pkts[DEQUEUE_BURST];
+	uint32_t left;
+	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
+
+	//Here the buffer states have been collected
+	uint64_t seq;
+	struct Buffer_State2 *bs;
+	struct rte_mbuf *pkt;
+
+	struct map_packet_response mpr;
+	mpr.size=0;
+
+	for (uint32_t i=0;i<dequeued;i++) {
+		pkt = tx_pkts[i];
+		bs = get_buffer_state2(pkt);
+		seq = readable_seq(get_psn(pkt));
+
+		if (bs->buf == &ect_buffer_states2[bs->id].buf)
+		{
+			//printf("we should be hitting here all the time!\n");
+			seq = bs->tail + 1;
+		}
+
+		uint32_t entry = seq % PKT_REORDER_BUF;
+		bs->buf[entry] = pkt;
+		bs->tail++;
+
+		while ((bs->head <= bs->tail) && (bs->buf[bs->head % PKT_REORDER_BUF] != NULL))
+		{
+			//printf("Head %d\n",bs->head);
+			mpr.pkts[mpr.size]=bs->buf[bs->head % PKT_REORDER_BUF];
+			mpr.size++;
+			bs->buf[bs->head % PKT_REORDER_BUF] = NULL;
+			bs->head = bs->head + 1;
+		}
+	}
+	rte_eth_tx_burst(port, queue, (struct rte_mbuf **)mpr.pkts, mpr.size);
+}
+
+
 void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
+	general_tx2(port,queue,in_queue);
+	return;
 
 	if (in_queue == NULL) {
 		printf("WTF null queue!\n");
@@ -517,15 +602,14 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	rte_eth_tx_burst(port, queue, (struct rte_mbuf **)mpr.pkts, mpr.size);
 }
 
+
+
 void flush_buffers(uint16_t port) {
 	if(has_mapped_qp) {
 		printf("Danger should not be flushing buffer if you have mapped qp\n");
 	}
 	//printf("&& FLUSHING BUFFERS\n");
-	struct Buffer_State_Tracker bst;
 	struct Buffer_State *bs =  &ect_buffer_states[0];
-	bst.size=1;
-	bst.buffer_states[0]=bs;
 	for(int i=0;i<MEMPOOLS;i++) {
 		general_tx(port,0,tx_queues[i]);
 	}
@@ -541,6 +625,32 @@ void flush_buffers(uint16_t port) {
 		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
 		(*bs->head) = rec_seq + 1;
 		(*bs->tail) = rec_seq;
+	}
+
+}
+
+void flush_buffers2(uint16_t port) {
+	if(has_mapped_qp) {
+		printf("Danger should not be flushing buffer if you have mapped qp\n");
+	}
+	for(int i=0;i<MEMPOOLS;i++) {
+		general_tx(port,0,tx_queues[i]);
+	}
+	printf("&& FLUSHING BUFFERS COMPLETE\n");
+
+	for (int i=0;i<TOTAL_CLIENTS;i++) {
+		struct Connection_State *cs = &Connection_States[i];
+		struct Buffer_State2 *bs = &mem_buffer_states2[i];
+		bs->head = readable_seq(cs->seq_current) + 1;
+		bs->tail = readable_seq(cs->seq_current);
+
+		//printf("Buffer head mem %d tail %d\n",bs->head, bs->tail);
+		
+		bs = &client_buffer_states2[i];
+		int rec_seq = readable_seq(cs->mseq_current) + readable_seq(cs->mseq_offset);
+		bs->head = rec_seq + 1;
+		bs->tail = rec_seq;
+		//printf("Buffer head %d client\n",bs->head);
 	}
 
 }
@@ -2218,7 +2328,8 @@ lcore_main(void)
 				if (rte_lcore_id() == 0) {
 					printf("\n$$ Queue Pair Multiplexing On $$\n");
 					//print_connection_state_status();
-					flush_buffers(port);
+					//flush_buffers(port);
+					flush_buffers2(port);
 					lock_qp();
 					has_mapped_qp=1;
 					unlock_qp();
