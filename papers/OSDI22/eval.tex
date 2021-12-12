@@ -10,16 +10,15 @@ significant performance boots, while consuming only a small amount of memory.
 % ACS - Lifted from WORDS; rewrite
 
 Our testbed consists of five machines: a Clover memory server,
-metadata server, and two Clover clients; the last machine implements
-our DPDK-based ``ToR''. Physically, the machines are identical: each
-is equipped with two Intel Xeon E5-2640 CPUs and 256 GB of main memory
-evenly spread across the NUMA domains. Each server is equipped with a
+metadata server, and two Clover clients; the last machine hosts
+{\sword}. Physically, the machines are identical: each is equipped
+with two Intel Xeon E5-2640 CPUs and 256 GB of main memory evenly
+spread across the NUMA domains. Each server is equipped with a
 Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of
 which are connected to a 100-Gbps Mellanox Onyx Switch. All Clover
 servers are configured with default routing settings: clients send
 directly to the metadata and data servers. We install OpenFlow rules
-on the Onyx switch to redirect the Clover RDMA traffic to the DPDK
-``ToR''; \textbf{XXX:} Figure~\ref{f:testbed} shows the layout of our
+on the Onyx switch to redirect the Clover RDMA traffic to \sword; \textbf{XXX:} Figure~\ref{f:testbed} shows the layout of our
 testbed.
 
 \subsection{YCSB Benchmarks}

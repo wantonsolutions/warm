@@ -11,7 +11,7 @@
 % serialization.
 
 
-Far memory systems suffer from two fundamental sources of overhead:
+Passive memory systems suffer from two fundamental sources of overhead:
 the costs of resolving conflicts from afar and the additional expense
 incurred by leveraging any hardware-enforced consistency semantics at
 the memory servers themselves.  Before introducing our approaches to
@@ -58,13 +58,13 @@ dramatically decreasing system throughput.
 
 As a concrete example we consider the costs of contended operations in
 Clover.  Recall Clover maintains a linked list for each key and
-attempts to read and write to the tail of a list for each
+attempts to read and write to the tail of the list for each
 operation. The location of the tail of the list is cached at each
-client and used as a hint for subsequent operations.  If the hint is stale the algorithm retries.  Hence, both writes and reads can
-fail when using a stale hint and must be retried.
-Figure~\ref{fig:stale_reads} shows the percentage of operation
-attempts that fail under a 50:50 read/write workload as a function of
-the number of concurrent clients.
+client and used as a hint for subsequent operations.  If the hint is
+stale the client obtains an updated tail pointer and retries the
+operation.  Figure~\ref{fig:stale_reads} shows the percentage of
+operation attempts that fail under a 50:50 read-write workload as a
+function of the number of concurrent clients.
 
 \paragraph{Bandwidth inflation.} 
 
@@ -83,7 +83,7 @@ try.
 \paragraph{Tail latency.}
 
 Perhaps even more significant than the overheads associated with the
-expected number of retries is the cost in the tail---namely the
+expected number of retries is the cost at the tail---namely the
 latency associated with those particularly ``unlucky'' requests that
 fail repeatedly.  Note that these operations are precisely those for
 ``hot'' memory locations, so likely to be ones that matter.  Our
@@ -113,7 +113,7 @@ RDMA, there are distinct forms of support with very different
 characteristics.  In general, even if one constrains the arrival of
 RDMA requests to a given server---or NIC port on a server---there
 remain multiple sources of concurrency and contention that may lead to
-potential races and seeming violations of the total request order.
+races and seeming violations of the total request order.
 Formally, RDMA operations are not, in general, linearizable, even at a
 single port on a given NIC.  In order to allow applications to reason
 about and react to this uncertainty, current NICs provide two
@@ -132,7 +132,7 @@ are themselves atomic.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.}
+    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic operations, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
     \label{fig:rdma_concur}
 \end{figure}
 
@@ -142,7 +142,7 @@ implement safe recovery mechanisms. In practice, however, these
 atomics are famously~\cite{design-guidelines,clover} expensive,
 fundamentally because they require mutual exclusion across all queue
 pairs to deliver their semantics.  Figure~\ref{fig:rdma_concur}
-confirms the findings of prior
+confirms that the findings of prior
 studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
 ConnectX-3) remain true on our ConnectX-5 NICs, namely that CAS
 operations have a hard performance bottleneck, while standard verbs
@@ -165,9 +165,9 @@ then wait for the memory operation to complete.
 Lock implementation is both vendor and
 transport specific~\cite{design-guidelines}. In the worst case a
 barrier is placed on all operations resulting in complete head-of-line
-blocking, in the best case locking is per connection and only causes
+blocking; in the best case locking is per connection and only causes
 other operations to block when reads or writes occur on overlapping
-ranges virtual memory. Regardless of the implementation atomic
+ranges virtual memory. Regardless of the implementation, atomic
 operations are likely to be significantly slower than asynchronous non-blocking
 reads and writes.
 
@@ -201,7 +201,7 @@ reads and writes.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
-    \caption{CDF of packet reorderings once QP mapping is applied to a zipf distribution}
+    \caption{CDF of packet reorderings once QP mapping is applied to a zipf distribution.  \textbf{XXX:} Replace with PDF.}
     \label{fig:reorder}
 \end{figure}
 
@@ -216,13 +216,13 @@ requests (i.e., sequential consistency).  Unfortunately, due to the
 complexities of today's multi-core NUMA architectures and PCIe bus
 arbitration, it is possible that memory requests may not be serviced
 in the order they are dispatched.  Similarly, individual RDMA requests
-may be serviced as multiple memory accesses, potentially leading to
+may require multiple memory accesses, potentially leading to
 write corruption and read tearing.
 
 Figure~\ref{fig:reorder} shows that this potential reordering is not
 just an academic concern, but instead arises with some frequency.  In
 this example, we issue RDMA read and write operations at a rate of
-\textbf{XXX} operations per second to 1000 different memory
+\textbf{XXX} operations per second to 1,000 different memory
 locations according to a Zipf distribution, and spread these requests
 across \textbf{XXX} different queue pairs.  We maintain a monotonically
 increasing global request counter at the client and compare the order
@@ -251,16 +251,18 @@ two instructions, and some are delayed by over 10 instructions.
 Happily, the RDMA specification stipulates that operations made on a
 reliable connection (one-server/one-client queue pair) are guaranteed
 to be executed in the same order as their sequence numbers, similar to
-TCP's transport-layer semantics~\cite{infiniband-spec}~\footnote{while
-IB allows for relaxed ordering here we rely on that feature being
-turned off on the receiver}. That is, operations on a given queue pair
+TCP's transport-layer semantics~\cite{infiniband-spec}.
+%~\footnote{while
+%IB allows for relaxed ordering here we rely on that feature being
+%turned off on the receiver}.
+That is, operations on a given queue pair
 are totally ordered with respect to one another.
 % a NIC should ensure that all operations over a given queue pair are
 %serviced in the order they arrive.
 In general, this can provide sequential consistency if
 all operations relating to a given memory location arrive on the same
 queue pair.  Unsurprisingly, however, this ordering guarantee comes
-with its own scalability limitations.  Figure~\ref{fig:qp_bottlenec}
+with its own scalability limitations.  Figure~\ref{fig:qp_bottleneck}
 shows that the performance of an individual queue pair falls far short
 of line rate on our hardware.  Moreover, as traditionally conceived, a
 queue pair is intended to be established between a single client and
