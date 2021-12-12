@@ -120,7 +120,7 @@ Hash collisions are resolved by replacing the old address and key with
 the new values, allowing keys with higher update rates to maintain
 longer histories in the table.
 
-When reads arrive {\sword} lookup up their destination address in the
+When reads arrive {\sword} looks up their destination address in the
 table; if the address has a hit the associated key is used to look up
 the current tail in our write cache and the read is redirected to the
 cached location.  Should a miss occur---either because the hash bucket
