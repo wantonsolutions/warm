@@ -36,9 +36,13 @@ each in the context of Clover and our testbed RDMA hardware.
 
 
 \begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/stale_reads.pdf}
-    \caption{Percentage of stale reads made on a 50\% write workload \todo{repeat for reads and write on new setup (likely higher percentage)}}
-    \label{fig:stale_reads}
+    \includegraphics[width=0.45\textwidth]{fig/success_rate.pdf}
+    
+    \caption{Percentage of successful read and write operations at a 50\% write
+    workload as more client threads are added. At 128 threads only 26\% of write
+    operations are successful using optimistic concurrency}
+
+    \label{fig:success_rate}
 \end{figure}
 
 \subsection{Client-based conflict resolution}
@@ -62,8 +66,8 @@ attempts to read and write to the tail of the list for each
 operation. The location of the tail of the list is cached at each
 client and used as a hint for subsequent operations.  If the hint is
 stale the client obtains an updated tail pointer and retries the
-operation.  Figure~\ref{fig:stale_reads} shows the percentage of
-operation attempts that fail under a 50:50 read-write workload as a
+operation.  Figure~\ref{fig:success_rate} shows the percentage of
+operation which succeed at a 50:50 read-write workload as a
 function of the number of concurrent clients.
 
 \paragraph{Bandwidth inflation.} 
@@ -203,8 +207,10 @@ reads and writes.
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
     
     \caption{PDF of packet reorderings once QP mapping is applied to a zipf
-    distribution. The majority of packets have monotonic sequence numbers,
-    however reorderings of up to 15 packets can occur.}
+    distribution. The values above are the absolute difference in the arrival
+    order of sequence numbers after being mapped to different QP. The majority
+    of packets retain their order (delta=1), however reorderings of up to 15
+    packets can occur.}
 
     \label{fig:reorder}
 \end{figure}

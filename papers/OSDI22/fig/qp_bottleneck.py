@@ -19,6 +19,7 @@ x = np.arange(len(labels))  # the label locations
 
 width = 0.35  # the width of the bars
 
+plt.rcParams.update({'font.size': 16})
 fig, ax = plt.subplots()
 rects1 = ax.bar(x, memory_qp, color=write_steering_color, edgecolor='k') #, width, label=treatment_label, color='tab:blue', hatch='\\')
 

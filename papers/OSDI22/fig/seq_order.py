@@ -59,13 +59,17 @@ def plot_charts(source_filename, sequence_output_filename):
             last_seq = sequences[index]
 
         index=index+1
-        
 
-    plt.hist(gap, color=qp_mapping_color, density=True,bins=30, edgecolor='black')
+    gap=[ a * -1 if a < 0 else a for a in gap ] 
 
-    plt.ylabel("Probability")
+    plt.rcParams.update({'font.size': 16})
+    plt.hist(gap, color=qp_mapping_color, density=True,bins=15, edgecolor='black')
+
+    plt.ylabel("probability")
     plt.yscale('log')
-    plt.xlabel("Sequence number difference between sequential packets")
+    plt.xlabel("sequence number delta")
+    plt.xlim(0,15)
+    plt.xticks(range(1,16,2))
     #plt.plot(x,y, label="sequence_steps")
     plt.tight_layout()
     plt.savefig(sequence_output_filename)
