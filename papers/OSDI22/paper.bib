@@ -737,3 +737,25 @@ keywords = {storage systems, low latency, large-scale systems, Datacenters}
   pages={1093-1098},
   doi={10.23919/DATE.2018.8342174}}
 
+@inproceedings{ycsb,
+author = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
+title = {Benchmarking Cloud Serving Systems with YCSB},
+year = {2010},
+isbn = {9781450300360},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/1807128.1807152},
+doi = {10.1145/1807128.1807152},
+abstract = {While the use of MapReduce systems (such as Hadoop) for large scale data analysis has been widely recognized and studied, we have recently seen an explosion in the number of systems developed for cloud data serving. These newer systems address "cloud OLTP" applications, though they typically do not support ACID transactions. Examples of systems proposed for cloud serving use include BigTable, PNUTS, Cassandra, HBase, Azure, CouchDB, SimpleDB, Voldemort, and many others. Further, they are being applied to a diverse range of applications that differ considerably from traditional (e.g., TPC-C like) serving workloads. The number of emerging cloud serving systems and the wide range of proposed applications, coupled with a lack of apples-to-apples performance comparisons, makes it difficult to understand the tradeoffs between systems and the workloads for which they are suited. We present the "Yahoo! Cloud Serving Benchmark" (YCSB) framework, with the goal of facilitating performance comparisons of the new generation of cloud data serving systems. We define a core set of benchmarks and report results for four widely used systems: Cassandra, HBase, Yahoo!'s PNUTS, and a simple sharded MySQL implementation. We also hope to foster the development of additional cloud benchmark suites that represent other classes of applications by making our benchmark tool available via open source. In this regard, a key feature of the YCSB framework/tool is that it is extensible--it supports easy definition of new workloads, in addition to making it easy to benchmark new systems.},
+booktitle = {Proceedings of the 1st ACM Symposium on Cloud Computing},
+pages = {143–154},
+numpages = {12},
+keywords = {cloud serving database, benchmarking},
+location = {Indianapolis, Indiana, USA},
+series = {SoCC '10}
+}
+
+  
+
+
+

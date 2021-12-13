@@ -3,68 +3,96 @@
 
 Adding computation to the network increases latency and consumes memory. Our
 evaluation demonstrates that by applying our techniques we are able to see
-significant performance boots, while consuming only a small amount of memory.
+significant performance boosts in terms of overall throughput, and latency for
+existing systems. We discuss the memory implications and show that systems
+performance can be significantly improved by replacing compare and swap
+operations with writes.
 
 \subsection{Testbed}
 
-% ACS - Lifted from WORDS; rewrite
-
-Our testbed consists of five machines: a Clover memory server,
-metadata server, and two Clover clients; the last machine hosts
-{\sword}. Physically, the machines are identical: each is equipped
-with two Intel Xeon E5-2640 CPUs and 256 GB of main memory evenly
-spread across the NUMA domains. Each server is equipped with a
-Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of
-which are connected to a 100-Gbps Mellanox Onyx Switch. All Clover
-servers are configured with default routing settings: clients send
-directly to the metadata and data servers. We install OpenFlow rules
-on the Onyx switch to redirect the Clover RDMA traffic to \sword; \textbf{XXX:} Figure~\ref{f:testbed} shows the layout of our
-testbed.
+Our testbed consists of five machines: a Clover memory server, metadata server,
+and two Clover clients; the last machine hosts {\sword}. Physically, the
+machines are identical: each is equipped with two Intel Xeon E5-2640 CPUs and
+256 GB of main memory evenly spread across the NUMA domains. Each server is
+equipped with a Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot,
+all of which are connected to a 100-Gbps Mellanox Onyx Switch. All Clover
+servers are configured with default routing settings: clients send directly to
+the metadata and data servers. We install OpenFlow rules on the Onyx switch to
+redirect the Clover RDMA traffic to \sword; \textbf{\todo{XXX:}}
+Figure~\ref{f:testbed} shows the layout of our testbed.
 
 \subsection{YCSB Benchmarks}
 
-The ycsb benchmark consists of varying read and write workloads which have been
-shown to emulate many common data center operations. We show a breakdown of our
-techniques, mainly read and write caching, QP mapping, and atomic replacement
-with respect to their effect to system performance on two YCSB benchmarks. We
-choose YCSB-B (95\% read and 5\% write) as our baseline, and YCSB-A (50\% read and
-50\% write) to demonstrate how our algorithm performs under high contention. We
-also show the performance boots obtained while running a 100\% write workload
-which is intended to emulate other programmatic workloads such as accessing a
-lock in remote memory.
-
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
-    \caption{{Performance increase of each technique using clover as a baseline on YCSB benchmarks.}}
+
+    \caption{{Performance of \sword techniques relative to clover on YCSB
+    benchmarks. The percentage of workload writes increases from left to
+    right.}}
+
     \label{fig:full_system_performance}
 \end{figure*}
 
-\todo{real takeaways}
+The YCSB benchmark consists of varying read and write workloads which have been
+shown to emulate many common data center operations~\cite{ycsb}. We show a
+breakdown of our techniques, mainly read and write caching, QP mapping, and
+atomic replacement with respect to their effect to system performance on two
+YCSB benchmarks. We choose YCSB-B (95\% read and 5\% write) as our baseline, and
+YCSB-A (50\% read and 50\% write) to demonstrate how our algorithm performs
+under high contention.  We also show the performance boosts obtained while
+running a 100\% write workload which is intended to emulate other programmatic
+workloads which are update heavy.
 
-\subsection{Memory Utilization}
+Figure~\ref{fig:full_system_performance} shows the relative performance gains
+from each of \sword's techniques. At 5\% read the performance improvement is
+minimal in terms of write steering as the vast majority of writes succeed on
+their first try. Individual writes can lead to many stale reads immediately
+after which leads write steering to offer a 1.17x throughput improvement.
+Applying QP mapping to the read majorly case adds too much computational
+overhead to give a benefit when writes are low, and only a few compare and swap
+operations exist. 
 
-Our techniques give a performance boots at the cost of in network memory. We
-took special care to design our algorithms so that they could 1) use only a
-small amount of network memory, 2) be scalable depending on the resources
-available. We show how our performance varies as a function of the available in
-network state.
+At 50\% writes, clover is sufficiently outside of it's operational domain, that
+at 64 threads, over half of all write operations fail. Here applying write
+steering gives 1.73x at 64 cores. Write steering only is not sufficient at this
+workload. While all writes succeed they can easily outstrip reads causing the
+majority of them to fail (above 50\% at 64 threads).
+Figure~\ref{fig:tail_latency} shows the effect of only applying write steering
+to read latencies. Applying both read and write steering yields a 2.82x
+throughput improvement as nearly all operations succeed. This workload leads to
+enough common case failures that performance overhead of performing QP mapping
+still yields a performance boost.
 
-As seen in Figure~\ref{fig:cache} our write caching is able to provide a
-significant performance boost while only using a small number of cached
-addresses. In the following experiment we show the maximum performance boost we
-can provide as a function of the available in network memory. Specifically in
-the case of read and write caching this means shrinking the size of the
-available cache. In terms of QP mapping it restricts the number of connections
-which can have their connections mapped. Unmapped connections must use atomic
-operations for their requests to succeed.
+Write only workloads are antagonistic for Clover. Applying write steering and
+read steering yield 3.89x and 3.63x throughput improvements respectively. No
+reads occur so read steering is pure overhead.
 
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/memory_util.jpg}
-    \caption{{Relative performance improvement of our techniques with restricted amounts of memory. Here a rightsized allocation implies that for the given number of connections we could support, all requests were mapped and reads and writes were cached.}}
-    \label{fig:memory_util}
-\end{figure}
 
-\todo{say something real about the the memory utilization takeaways}
+
+%%\todo{real takeaways}
+
+% \subsection{Memory Utilization}
+% Our techniques give a performance boost at the cost of in network memory. We
+% took special care to design our algorithms so that they could 1) use only a
+% small amount of network memory, 2) be scalable depending on the resources
+% available. We show how our performance varies as a function of the available in
+% network state.
+
+% As seen in Figure~\ref{fig:cache} our write caching is able to provide a
+% significant performance boost while only using a small number of cached
+% addresses. In the following experiment we show the maximum performance boost we
+% can provide as a function of the available in network memory. Specifically in
+% the case of read and write caching this means shrinking the size of the
+% available cache. In terms of QP mapping it restricts the number of connections
+% which can have their connections mapped. Unmapped connections must use atomic
+% operations for their requests to succeed.
+
+% \begin{figure}
+%     \includegraphics[width=0.45\textwidth]{fig/memory_util.jpg}
+%     \caption{{Relative performance improvement of our techniques with restricted amounts of memory. Here a rightsized allocation implies that for the given number of connections we could support, all requests were mapped and reads and writes were cached.}}
+%     \label{fig:memory_util}
+% \end{figure}
+%%\todo{say something real about the the memory utilization takeaways}
 
 
 \subsection{Bandwidth Reduction}
