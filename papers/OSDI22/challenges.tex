@@ -229,18 +229,18 @@ in the order they are dispatched.  Similarly, individual RDMA requests
 may require multiple memory accesses, potentially leading to
 write corruption and read tearing.
 
-Figure~\ref{fig:reorder} shows that this potential reordering is not
-just an academic concern, but instead arises with some frequency.  In
-this example, we issue RDMA read and write operations at a rate of
-\textbf{XXX} operations per second to 1,000 different memory
-locations according to a Zipf distribution, and spread these requests
-across \textbf{XXX} different queue pairs.  We maintain a monotonically
-increasing global request counter at the client and compare the order
-of responses to the total request order.  The plot shows the
-distribution of sequence-number gaps between responses.  As expected,
-the vast majority differ by one (i.e., arrive in the same order they
-were dispatched), but a non-trivial number are out of order by one or
-two instructions, and some are delayed by over 10 instructions.
+Figure~\ref{fig:reorder} shows that this potential reordering is not just an
+academic concern, but instead arises with some frequency. In this example, we
+issue RDMA read, write and CAS operations at a rate of 1 million operations per
+second to 1024 different memory locations according to a Zipf distribution, and
+spread these requests across 32 different queue pairs. Each request is routed
+through a middlebox which keeps a global request counter for each RDMA request.
+We track the reordering of each requests relative to the order it was issued
+from the middlebox, and when its response was received.  The plot shows the
+distribution of sequence-number gaps between responses.  As expected, the vast
+majority differ by one (i.e., arrive in the same order they were dispatched),
+but a non-trivial number are out of order by one or two packets, and some are
+delayed by up to 15.
 
 %% RDMA read and write operations to detect reordering across 1000 keys
 %% on a zipf distribution. Specifically we monitor a stream of key value
