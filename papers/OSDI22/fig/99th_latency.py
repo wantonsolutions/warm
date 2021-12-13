@@ -51,7 +51,7 @@ rects0 = ax1.bar(x - (2*width), clover, width, label='Clover',color=default_clov
 rects1 = ax1.bar(x - width, write, width, label='Write',color=write_steering_color)
 rects2 = ax1.bar(x, read_write, width, label='Read+Write',color=read_write_steering_color)
 rects3 = ax1.bar(x + width, qp, width, label='QP mapping',color=qp_mapping_color)
-rects4 = ax1.bar(x + (2*width), cns, width, label='CNS->Write',color=cns_color)
+rects4 = ax1.bar(x + (2*width), cns, width, label='CAS->Write',color=cns_color)
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
@@ -86,7 +86,7 @@ rects0 = ax2.bar(x - (2*width), clover, width, label='Clover',color=default_clov
 rects1 = ax2.bar(x - width, write, width, label='Write',color=write_steering_color)
 rects2 = ax2.bar(x, read_write, width, label='Read+Write',color=read_write_steering_color)
 rects3 = ax2.bar(x + width, qp, width, label='QP mapping',color=qp_mapping_color)
-rects4 = ax2.bar(x + (2*width), cns, width, label='CNS->Write',color=cns_color)
+rects4 = ax2.bar(x + (2*width), cns, width, label='CAS->Write',color=cns_color)
 
 #ax2.set_ylabel('99th percentile latency (us)')
 #ax2.set_title('Write Latencies')

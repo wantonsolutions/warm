@@ -201,7 +201,11 @@ reads and writes.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
-    \caption{CDF of packet reorderings once QP mapping is applied to a zipf distribution.  \textbf{XXX:} Replace with PDF.}
+    
+    \caption{PDF of packet reorderings once QP mapping is applied to a zipf
+    distribution. The majority of packets have monotonic sequence numbers,
+    however reorderings of up to 15 packets can occur.}
+
     \label{fig:reorder}
 \end{figure}
 
@@ -242,11 +246,13 @@ two instructions, and some are delayed by over 10 instructions.
 %% reordering on the memory side server, either in the NIC itself or over
 %% the PCIe bus.
 
-\begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
-    \caption{Max throughput per QP \todo{take real measurement}}
-    \label{fig:qp_bottleneck}
-\end{figure}
+\begin{figure}[t] \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
+
+\caption{Max throughput per QP on RoCEv2 RC connections. Each QP gets a single
+core, and issues inlined writes. Single connection only offer a fraction of the
+available nic bandwidth.} 
+
+\label{fig:qp_bottleneck} \end{figure}
 
 Happily, the RDMA specification stipulates that operations made on a
 reliable connection (one-server/one-client queue pair) are guaranteed
