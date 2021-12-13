@@ -152,14 +152,23 @@ the keyspace.
 
 \subsection{RDMA interposition}
 
-RDMA packets are not intended to be modified in
-flight, and care must be taken not to corrupt them. RDMA invariant CRCs (ICRC)
-are calculated at the time of sending and are designed to ensure the integrity
-of the payload. When we modify \texttt{c\&s} packets their ICRC must be
-recalculated or the packet will be rejected by the receiving NIC. FPGA
+RDMA packets are not intended to be modified in flight, and care must be taken
+not to corrupt them. RDMA invariant CRCs (ICRC) are calculated at the time of
+sending and are designed to ensure the integrity of the payload. When we modify
+packets their ICRC must be recalculated or the packet will be rejected by the
+receiving NIC. Such an error would cause an extreme performance hit as any
+dropped packet triggers a timeout, and go back n retransmission.  FPGA
 implementations of RDMA ICRC have been built in the past~\cite{Mansour_2019};
 the required CRC calculation is identical to Ethernet CRC, with some additional
-header components and field masking.  Our DPDK solution uses \texttt{zlib}'s
-\texttt{crc32} for the calculation.  We believe that this algorithm can also be
-implemented efficiently on a programmable switch.
+\texttt{crc32} for the calculation. This algorithm is highly optimized for
+general case CRC calcuation. Recalculating the CRC for all modified packets is
+the primary overhead of \sword as each packet must be recalculated after a
+squence number update, which occurs on all multiplexed and demultiplexed
+packets. This overhead could be reduced by either removing the need for the CRC
+which is not a feature available on CX series NICS, or by allowing an alterative
+lighter weight checksum which could be quickly updated based on deltas made to
+the packet while in flight. While these options are not currently available we
+believe that commodity switches and smartnics could leverage hardware offloads
+to reduce the cost, as the CRC calculation is identical to ethernet with only the
+additional need to mask RocE specified packet felids.
 
