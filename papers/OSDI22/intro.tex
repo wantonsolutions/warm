@@ -3,15 +3,14 @@
 There has been tremendous interest in resource disaggregation in recent years,
 with both academic and industrial researchers chasing the potential for
 increased scalability, power efficiency, and cost
-savings~\cite{fastswap,rethinking,the-machine,requirements,clio-arxiv,leap,zombieland,storm,aifm,legoos,supernic}.
+savings~\cite{fastswap,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,legoos,supernic}.
 By physically separating compute from storage across a network, it is possible
-to dynamically adjust hardware resource allocations to suit changing
-workloads~\cite{fastswap}.  Considerable headway has been made at higher levels
-of the storage hierarchy; published and even production systems now support
-remoting spinning disks, SSDs, and modern non-volatile memory
-technologies~\cite{decible}.  Remote primary storage, however, remains a
-fundamental challenge due to the orders-of-magnitude disparity between
-main-board memory accesses and network round trips.
+to dynamically adjust hardware resource allocations to suit changing workloads.
+Considerable headway has been made at higher levels of the storage hierarchy;
+published and even production systems now support remoting spinning disks, SSDs,
+and modern non-volatile memory technologies~\cite{decible}.  Remote primary
+storage, however, remains a fundamental challenge due to the orders-of-magnitude
+disparity between main-board memory accesses and network round trips.
 
 %Resource disaggregation is an architectural paradigm which separates
 %disk, CPU and memory over a network. The goal of this architecture is

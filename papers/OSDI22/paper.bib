@@ -664,11 +664,21 @@ month = dec,
   year = {2007},
 }
 
+, fastswap
+
+@misc{intel-rack,
+  author = {Intel},
+  title = {Intel Rack Scale Architecture: Faster Service Delivery and Lower TCO},
+  howpublished = {https://www.intel.com/content/www/us/en/architecture-and-technology/rack-scale-design-overview.html}
+}
+
 @inproceedings{cliquemap,
 title	= {CliqueMap: Productionizing an RMA-Based  Distributed Caching System},
 author	= {Aditya Akella and Amanda Strominger and Amin Vahdat and Arjun Singhvi and Dan Gibson and Harshad Deshmukh and Maggie Anderson and Milo M. K. Martin and Rob Cauble and Thomas F. Wenisch},
 year	= {2021}
 }
+
+
 
 @misc{supernic,
       title={Disaggregating and Consolidating Network Functionalities with SuperNIC}, 
@@ -695,4 +705,24 @@ numpages = {14},
 keywords = {remote memory, disaggregated memory, cache coherence},
 location = {Virtual, USA},
 series = {ASPLOS 2021}
+}
+
+@article{ramcloud,
+author = {Ousterhout, John and Gopalan, Arjun and Gupta, Ashish and Kejriwal, Ankita and Lee, Collin and Montazeri, Behnam and Ongaro, Diego and Park, Seo Jin and Qin, Henry and Rosenblum, Mendel and Rumble, Stephen and Stutsman, Ryan and Yang, Stephen},
+title = {The RAMCloud Storage System},
+year = {2015},
+issue_date = {September 2015},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {33},
+number = {3},
+issn = {0734-2071},
+url = {https://doi.org/10.1145/2806887},
+doi = {10.1145/2806887},
+abstract = {RAMCloud is a storage system that provides low-latency access to large-scale datasets. To achieve low latency, RAMCloud stores all data in DRAM at all times. To support large capacities (1PB or more), it aggregates the memories of thousands of servers into a single coherent key-value store. RAMCloud ensures the durability of DRAM-based data by keeping backup copies on secondary storage. It uses a uniform log-structured mechanism to manage both DRAM and secondary storage, which results in high performance and efficient memory usage. RAMCloud uses a polling-based approach to communication, bypassing the kernel to communicate directly with NICs; with this approach, client applications can read small objects from any RAMCloud storage server in less than 5μs, durable writes of small objects take about 13.5μs. RAMCloud does not keep multiple copies of data online; instead, it provides high availability by recovering from crashes very quickly (1 to 2 seconds). RAMCloud’s crash recovery mechanism harnesses the resources of the entire cluster working concurrently so that recovery performance scales with cluster size.},
+journal = {ACM Trans. Comput. Syst.},
+month = {aug},
+articleno = {7},
+numpages = {55},
+keywords = {storage systems, low latency, large-scale systems, Datacenters}
 }

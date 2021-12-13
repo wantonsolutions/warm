@@ -8,9 +8,9 @@ Within the disaggregated memory community there is a divide between using
 software or hardware to access remote memory.  The use of custom hardware to
 access and control memory over the network is referred to as memory
 disaggregation. Here custom hardware is used to interpose on either the caching
-or paging system. Alternatively the use of commodity hardware to access and
-control remote memory is referred to as \textit{far memory} ~\cite{reigons,
-legoos, clover}~\todo{more}. In this work we concentrate on the latter, our
+or paging system ~\cite{rethinking}. Alternatively the use of commodity hardware to access and
+control remote memory is referred to as \textit{far memory} ~\cite{reigons,fastswap,
+legoos, clover, lite}. In this work we concentrate on the latter, our
 solutions for accessing and controlling remote memory are confined to existing
 hardware, mainly RDMA capable NICs and programmable switches.
 
@@ -18,7 +18,7 @@ Choosing how to expose remote memory to users remains an open problem. Full
 transparency implies that existing applications can make use of remote memory
 without modification. Many systems leverage virtual memory and use remote memory
 as a swap device fetching and evicting pages to and from remote memory.
-~\cite{fastswap,GMS,infiniswap,leap}. Transparency costs performance systems
+~\cite{fastswap,GMS,infiniswap,leap,ramcloud}. Transparency costs performance systems
 which make the remote accesses explicit typically have far higher performance
 for similar operations~\cite{aifm}\todo{Find another good citation for this}.
 Prior work on transparent remote memory does not consider the problem of sharing
@@ -43,17 +43,18 @@ comparison to fully asynchronous verbs~\cite{design-guidelines}.
 \subsection{Programable Middleboxes}
 
 Current proposals for disaggregated architectures are scoped at rack
-scale~\cite{disandapp,beyond,firebox}.  The machinery for arbitrating memory
-access varies between proposals but they each rely on a centralized controller.
-Some are as simple as a scaled out PCIe root complex, while others imagine a
-programable middle box with an API exposed to applications~\cite{disandapp}. We
-see the latter as a promising opportunity as it allows for developers to highly
-optimize their programs for remote memory.  In this work we envision rack scale
-computing with either a programmable switch, or some other programmable hardware
-(FPGA) being used as a centralized switching fabric for memory
-operations~\cite{supernic}. We assume that these middle boxes have highly
-constrained resources such as a limited amount of SRAM intended for forwarding
-packets with limited functionality for executing programs in the data path.
+scale~\cite{disandapp,the-machine,intel-rack,firebox}.  The machinery for
+arbitrating memory access varies between proposals but they each rely on a
+centralized controller.  Some are as simple as a scaled out PCIe root complex,
+while others imagine a programable middle box with an API exposed to
+applications~\cite{disandapp}. We see the latter as a promising opportunity as
+it allows for developers to highly optimize their programs for remote memory.
+In this work we envision rack scale computing with either a programmable switch,
+or some other programmable hardware (FPGA) being used as a centralized switching
+fabric for memory operations~\cite{supernic}. We assume that these middle boxes
+have highly constrained resources such as a limited amount of SRAM intended for
+forwarding packets with limited functionality for executing programs in the data
+path.
 
 \subsection{Clover}
 
