@@ -31,16 +31,13 @@ top-of-rack switch and resolved in the data path. Our solution,
 knowledge of the disaggregated memory protocol to resolve conflicts
 transparently in flight as the operations flow traverse the ToR.
 
-\begin{figure}
-    \includegraphics[width=0.45\textwidth]{fig/overview_2.pdf}
+\begin{figure} \includegraphics[width=0.45\textwidth]{fig/overview_2.pdf}
 %%
-    \caption{ System overview, Metadata, client, and Remote Memory
-    servers are Clover components. Our remote memory coordinator is
-    located on a centralized TOR interconnecting the clover components.
-    \textbf{\todo{XXX:}} Redraw and relabel as \sword.}
+\caption{ System overview, Metadata, client, and Remote Memory servers are
+Clover components. \sword is run on a separate server connected to the same TOR.
+Routing to \sword is completed by adding openflow rules.}
 %%
-    \label{fig:overview} 
-\end{figure}
+\label{fig:overview} \end{figure}
 
 Figure~\ref{fig:overview} shows how {\sword} interacts with the Clover
 system.  We envisage {\sword} implemented as a remote memory coordinator
