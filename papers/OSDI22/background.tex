@@ -8,11 +8,12 @@ Within the disaggregated memory community there is a divide between using
 software or hardware to access remote memory.  The use of custom hardware to
 access and control memory over the network is referred to as memory
 disaggregation. Here custom hardware is used to interpose on either the caching
-or paging system ~\cite{rethinking}. Alternatively the use of commodity hardware to access and
-control remote memory is referred to as \textit{far memory} ~\cite{reigons,fastswap,
-legoos, clover, lite}. In this work we concentrate on the latter, our
-solutions for accessing and controlling remote memory are confined to existing
-hardware, mainly RDMA capable NICs and programmable switches.
+or paging system ~\cite{dredbox,rethinking}. Alternatively the use of commodity
+hardware to access and control remote memory is referred to as \textit{far
+memory} ~\cite{reigons,fastswap, legoos, clover, lite}. In this work we
+concentrate on the latter, our solutions for accessing and controlling remote
+memory are confined to existing hardware, mainly RDMA capable NICs and
+programmable switches.
 
 Choosing how to expose remote memory to users remains an open problem. Full
 transparency implies that existing applications can make use of remote memory
@@ -31,7 +32,7 @@ users, such as POSIX, PUT/GET, or language integrated runtimes.
 \subsection{RDMA Key Value Stores}
 
 RDMA has been used in a litany of work to build fast in memory key values
-stores~\cite{MemC3,herd,pilaf,sonuma,storm}. These works provide deep insights
+stores~\cite{farm,MemC3,herd,pilaf,sonuma,storm}. These works provide deep insights
 into the tradeoffs between RDMA verbs, and the spectrum of remote memory
 architectures. In each it is assumed that a remote CPU is co-resident with
 memory to provide some degree of serialization for writes and metadata
