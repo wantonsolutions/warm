@@ -15,7 +15,7 @@ orders-of-magnitude disparity between main-board memory accesses and
 network round trips.
 
 %Resource disaggregation is an architectural paradigm which separates
-%disk, cpu and memory over a network. The goal of this architecture is
+%disk, CPU and memory over a network. The goal of this architecture is
 %to enable extreme flexibility in terms of machine composition.  For
 %example a systems memory capacity can be dynamically apportioned by
 %reconfiguration, rather than by manually changing the physical
@@ -32,7 +32,7 @@ network round trips.
 
 The hardware community has made great strides in closing the latency
 gap via novel technologies like silicon photonics and new rack-scale
-interconnects, but commecially available options remain significanly
+interconnects, but commercially available options remain significantly
 slower than on-board options.  Concretely, the latency of making a
 memory access over commercially available interconnect technologies
 like RDMA~\cite{infiniband-spec}, GenZ~\cite{genz}, and CXL~\cite{cxl}
@@ -48,7 +48,7 @@ the DMA is being performed to assist with
 serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.  The very few
 published systems that attempt to provide fully passive remote
 memory~\cite{reigons,clover} focus on read-heavy workloads to
-amoritize the high costs of conflict detection and resolution.
+amortize the high costs of conflict detection and resolution.
 
 %% % and Omni-Path~\cite{omni-path}. // omni-path is dead now % 
 %Each protocol, while distinct, meets approximately the same requirements,
@@ -59,35 +59,35 @@ amoritize the high costs of conflict detection and resolution.
 %sense untill it's published at a major venue
 %%Clio~\cite{clio-arxiv}
 %%todo ask alex about the archive reference
-%%todo do a quick read of how dma is delt with on the other interconnects
+%%todo do a quick read of how DMA is dealt with on the other interconnects
 
 In the absence of a general-purpose CPU located alongside remote
 memory, it falls to each individual client to ensure that its reads
 and writes are serialized, usually by leveraging expensive
-hardware-provided atomoic operations like compare and
+hardware-provided atomic operations like compare and
 swap~\cite{design-guidelines,clover}.  The cost of client-side
 serialization is stark, and most prior systems simply partition memory
 completely and forgo sharing~\cite{reigons,fastswap, legoos}.  On the
 other hand, one recent disaggregated key-value store,
-Clover~\cite{clover}, goes to great lengths to provide lockless reads
+Clover~\cite{clover}, goes to great lengths to provide lock-less reads
 while supporting concurrent writes by deploying an optimistic
 concurrency scheme that leverages RDMA's atomic compare-and-swap
 operation to detect and recover from write/write conflicts.  While
 highly scalable for read-heavy workloads, Clover's client-based
 recovery scheme quickly becomes cost prohibitive when faced with
 significant levels of write contention.  This shortcoming is not
-limited to Clover's design, however, but fundamental to any approach
-based upon distributed conflict resolution.
+limited to Clover, but is fundamental to any approach based upon
+distributed conflict resolution.
 
 %% minimize conflicts by caching  metadata about the
 %% location of the latest writes and reads while also make use of a
-%% remote data structures which allows for lockless reads. In the case of
+%% remote data structures which allows for lock-less reads. In the case of
 %% highly contended resources however the performance of clover
 %% diminishes sharply due to an increased number of atomic locking
 %% operations required on writes.
 
 The traditional alternative, of course, is to deploy a centralized
-memory controller that can serve as a serializatio point and ensure
+memory controller that can serve as a serialization point and ensure
 all races are resolved before accessing memory.  Unfortunately, such
 designs are inherently unscalable as they require all accesses to be
 routed through the controller, rather than forwarded directly between
@@ -96,56 +96,56 @@ that such a serialization point already exists in rack-scale
 disaggregated deployments: the top-of-rack switch.  We propose to
 leverage the capabilities of modern programmable switches to cache
 sufficient information about in-flight operations to transparently
-detect and resolve conflicts before they occur.  Unlike a traditonal
+detect and resolve conflicts before they occur.  Unlike a traditional
 centralized memory controller, our serializer need only act upon
 actual conflicts and can avoid the unnecessary costs of enforcing
 ordering among unrelated operations.  Moreover, in our design the
 serializer serves as a performance-enhancing proxy: it can always
 allow even conflicting operations to pass through unmodified without
-jeopardizing safey, as the default client-based conflict resolution
+jeopardizing safety, as the default client-based conflict resolution
 strategy remains.
 
-We present {\sword}, an on-path serilaizer (implemented either
-directly on the top-of-rack switch or an attached
-middlebox~\cite{disandapp}) that dramatically improves the performance
-of optimistic passive remote memory systems that support write
-sharing.  Like all ToRs, {\sword} imposes a globally observable total
-order on memory operations within a rack.  Crucially, {\sword} does
-not replace the underlying optimistic concurrency scheme: all remote
-memory operations are still suitably guarded to ensure that clients
-can detect and recover from conflicts.  Rather, because {\sword}
-understands the disaggregated memory protocol, it can inspect the
-total ordering and detect which guards will fail.  If suitably
-provisioned (i.e., it has the appropraite matadata cached), it can
-transparently modify requests in flight to account for the preceeding
-operations and decrease the liklihood the guard will trip.  Moreover,
-if {\sword} is configured to explicitly manage the RDMA connections
-themselves, it can further enforce per-server ordering and remove the
-expensive guards entirely.
+We present {\sword}, an on-path serializer
+%(implemented either
+%directly on the top-of-rack switch or an attached
+%middle box~\cite{disandapp})
+that dramatically improves the performance of optimistic passive
+remote memory systems that support write sharing.  Like all ToRs,
+{\sword} imposes a globally observable total order on memory
+operations within a rack.  Crucially, {\sword} does not replace the
+underlying optimistic concurrency scheme: all remote memory operations
+are still suitably guarded to ensure that clients can detect and
+recover from conflicts.  Rather, because {\sword} understands the
+disaggregated memory protocol, it can inspect the total ordering and
+detect which guards will fail.  If suitably provisioned (i.e., it has
+the appropriate metadata cached), it can transparently modify requests
+in flight to account for the preceding operations and decrease the
+likelihood the guard will trip.  Moreover, if {\sword} is configured
+to explicitly manage the RDMA connections themselves, it can enforce
+per-server ordering and remove the expensive guards entirely.
 
-We prototype {\sword} in the context of Clover on ConnectX-5 RoCE RDMA
-NICs remove the need for expensive atomic operations
+We prototype {\sword} using DPDK in the context of Clover on
+ConnectX-5 RoCE RDMA NICs.  Our evaluation shows that {\sword}
+dramatically increases the performance of Clover in the presence of
+write contention.  Under a 50:50 read-write workload, throughput rises
+by more than 3$\times$, tail latency drops by over 36$\times$ and
+bandwidth usage cuts almost in half.
+%Further, by re- moving the need for RDMA atomics, we scale past
+%the ConnectX atomic limit of ≈2.7 MOP/s per queue pair.
 
-on an RDMA enabled NIC. To show the benefits of such a system we
-implement a variety of in network contention resolutions for the
-Clover protocol and demonstrate their performance boots. Specially we
-cache the locations of the most recent reads and writes with stale
-metadata are steered to the most up to date locations allowing for
-O(1) remote memory accesses in all cases.
-
-We demonstrate in network serialization removes the need for expensive locking
-operations on the NIC. Using RDMA transport information and clover specific
-application knowledge all reads and writes to contended areas are totally
-ordered in the network. Specifically all reads and writes to the same keys are
-multiplexed to the same queue pairs, by utilizing the RDMA ordering requirements
-of QP's reads and writes require no expensive locks and can flow at line rate to
-remote memory. This ordering requires a number in band adjustments to the RDMA
-protocol in order to interoperable with commodity hardware. QP state must be
-maintained in network, specifically the sequence numbers of multiplexed
-requests, so that response packets can be demultiplexes back to their original
-connections. Small adjustments such as generating acks for collapsed requests is
-also required. We demonstrate that these algorithms are implementable in network
-at little cost with a DPDK prototype. We measure that ~\todo{we achieve a ?X
-improvement in performance using only XMB of in network state, and ?X
-performance improvement in highly contested settings with full use of system
-memory}.
+%% Using RDMA transport information and clover specific application
+%% knowledge all reads and writes to contended areas are totally ordered
+%% in the network. Specifically all reads and writes to the same keys are
+%% multiplexed to the same queue pairs, by utilizing the RDMA ordering
+%% requirements of QP's reads and writes require no expensive locks and
+%% can flow at line rate to remote memory. This ordering requires a
+%% number in band adjustments to the RDMA protocol in order to
+%% interoperable with commodity hardware. QP state must be maintained in
+%% network, specifically the sequence numbers of multiplexed requests, so
+%% that response packets can be demultiplexes back to their original
+%% connections. Small adjustments such as generating ACKs for collapsed
+%% requests is also required. We demonstrate that these algorithms are
+%% implementable in network at little cost with a DPDK prototype. We
+%% measure that ~\todo{we achieve a ?X improvement in performance using
+%%   only XMB of in network state, and ?X performance improvement in
+%%   highly contested settings with full use of system memory}.
