@@ -124,15 +124,13 @@ fails. This second operation executes opportunistically (around 99 percent of
 all reads), however sometimes it is omitted leading to a small over approximation
 in our optimal estimate. 
 
-
 Figure~\ref{fig:bandwidth_reduction} Show the cost of each operation in terms of
 bandwidth across write workloads. We calculate the value for each technique by
 summing the total bandwidth across a run, and dividing by the total number of
 operations. In each case Read+Write operates near optimal. Write steering alone
 causes significant inflation in the cost of operations at 50\% write as many
 operations fail. Clovers bandwidth inflates by 1.8x at 50\% and 2.24x at 100\%
-writes.
-
+writes all of which is recovered by applying read and write steering.
 
 \subsection{Tail Latency}
 
@@ -144,6 +142,36 @@ writes.
 
     \label{fig:tail_latency}
 \end{figure*}
+
+Perhaps the most critical variable that governs overall system performance is
+tail latency. In the context of RDMA reads and writes are often deeply
+integrated into the computational logic of a program and the whole program must
+wait for all operations to complete before continuing. We therefore consider
+poor tail latency to be a fundamental barrier to the widespread adoption of far
+memory systems.Optimistic concurrency is well known to exhibit poor tail latency
+under contention, and clover is no exception to this rule. 
+
+Figure~\ref{fig:tail_latency} shows the 99th percentile tail latencies
+associated with each of \sword's techniques in comparison with clover. Clover's
+read latency at 5 percent reads is 91us around 7.5x it's baseline our our
+testbed. With read and write steering this latency is dropped to 38us a 2.3x
+improvement over Clover's ideal operating regime. At 50\% writes read
+performance is improved by 2x with the exception of write steering only. When
+write steering is applied without the aid of read steering the writes quickly
+outpace the reads, leading the vast majority of reads to fail on their first
+attempt. Given that these tests were conducted with a zipf distribution across
+64 cores it is highly likely that more than one thread is writing to the hottest
+keys at any point during the run. This leads some read operations to fail 10's
+of times before succeeding at the 99th percentile. Because of this property we
+suggest that read and write steering be used in concert unless the workload is
+explicitly known.
+
+Clovers writes perform worse than it's reads under contention. Read plus write
+steering provides a 2.7x, 37.1x, and 25.2x improvement in tail latency across
+5,50,and 100\% write workloads. The application of QP mapping and swapping CNS
+to writes does little to effect tail latency as their performance cost comes
+largely as an increase to the average.
+
 
 \subsection{CAS to write performance}
 
