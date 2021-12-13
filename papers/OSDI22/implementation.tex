@@ -64,19 +64,19 @@ applied to the connection state of the new epoch.
 %     \vskip -1em
 % \end{figure}
 
-\subsection{Implementing Atomic replacement}
+% \subsection{Implementing Atomic replacement}
 
-In the
-following subsections we describe the dangers of removing atomics, and present
-our solutions.
+% In the
+% following subsections we describe the dangers of removing atomics, and present
+% our solutions.
 
-A few assumptions must be made in order for this replacement of operations to be
-made. First and foremost all operation serialization must be made, and finalized
-at the point where the CAS is swapped out. More formally, all of the data
-structure invariants which required locking, must be satisfied at the time of
-transforming the packet. Further the order of operations must be maintained
-downstream from the checking of the invariant. These two requirements influence
-the design of any system which aims to make this performance improvement.
+% A few assumptions must be made in order for this replacement of operations to be
+% made. First and foremost all operation serialization must be made, and finalized
+% at the point where the CAS is swapped out. More formally, all of the data
+% structure invariants which required locking, must be satisfied at the time of
+% transforming the packet. Further the order of operations must be maintained
+% downstream from the checking of the invariant. These two requirements influence
+% the design of any system which aims to make this performance improvement.
 
 
 %% ACS - This is just lifted from WORDS; no need to repeat here
@@ -94,18 +94,16 @@ the design of any system which aims to make this performance improvement.
 %% approaches such as LRU which would allows for a finite amount of space and an
 %% arbitrary number of keys to be serviced.
 
- 
-
-The first requirement, that the structural invariants
-of the data structure be maintained at the point of transformation demands that
-all of the state required to check the structural invariant be present at the
-point in the network at which the swap is made. This fact increases the memory
-cost on a switch, however with intelligent data structure design the cost of the
-required metadata can be mitigated. In the case of Clover, while each key has
-an entire linked list history that can potentially span megabytes, the only
-required metadata to make the change from CAS to write is the location of the
-tail pointer. In this case the metadata cost is O(n) as it grows linearly with
-the keyspace.
+% The first requirement, that the structural invariants
+% of the data structure be maintained at the point of transformation demands that
+% all of the state required to check the structural invariant be present at the
+% point in the network at which the swap is made. This fact increases the memory
+% cost on a switch, however with intelligent data structure design the cost of the
+% required metadata can be mitigated. In the case of Clover, while each key has
+% an entire linked list history that can potentially span megabytes, the only
+% required metadata to make the change from CAS to write is the location of the
+% tail pointer. In this case the metadata cost is O(n) as it grows linearly with
+% the keyspace.
 
 % \textbf{2) reordering} The second requirement, that operations not be reordered
 % after the invariant has been checked requires more care in real systems. For
@@ -150,7 +148,7 @@ the keyspace.
 
 \todo{these sections may not be nessisary}
 
-\subsection{RDMA interposition}
+\subsection{RDMA ICRC}
 
 RDMA packets are not intended to be modified in flight, and care must be taken
 not to corrupt them. RDMA invariant CRCs (ICRC) are calculated at the time of
@@ -172,3 +170,23 @@ believe that commodity switches and smartnics could leverage hardware offloads
 to reduce the cost, as the CRC calculation is identical to ethernet with only the
 additional need to mask RocE specified packet felids.
 
+\subsection{DPDK considerations}
+
+\sword is implemented in DPDK. Our choice to implement our prototype in DPDK was
+for ease of programmability. We use DPDK rather than RDMA to emulate the
+conditions of a programable switch. Specifically that all packets are processed
+without the aid of RDMA hardware on the NIC. Using DPDK introduces issues in
+terms of performance as individual cores on the server have low packet
+processing capabilities relative to dedicated networking hardware. As such are
+design is multithreaded and requires the use of careful atomics for performance.
+Our design partitions cores into TX and RX groups. RX cores are configured via
+RSS and perform traffic identification, write steering and mapping. We
+completely removed the need for any explicit locking between cores and share as
+little state as is theoretically possible. Each TX core serializes requests by
+making atomic fetch-and-add updates to a shared region of memory containing
+connection sequence and message-sequence numbers. RX cores are handed packets
+from TX cores using DPDKs lockless ring library. TX cores check packets to
+determine if they require CRC computation and calculate the CRC only if the
+packet has been modified. Adding a packet handoff between TX and RX increases
+latency, however the head of line blocking incurred by having a single core
+perform both mapping and CRC calculations is to high for our purposes.
