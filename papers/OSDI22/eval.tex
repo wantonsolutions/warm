@@ -111,7 +111,28 @@ per operation when resources are contested under different workloads.
     \label{fig:bandwidth_reduction}
 \end{figure}
 
-\todo{real takeaways}
+We calculate the optimal cost of each clover operation by averaging the cost of
+a successful operation in bytes for both reads, and for writes. We get the
+average measure by multiplying the cost of a read, and write by a coefficient
+for the workloads write percentage. Each write consists of an RDMA write
+followed by a CAS, along with the responses for each message. A read consists of
+a read and read response, as well as an opportunistic read made asynchronously
+with the main read to fetch the latests position of the tail A read consists of
+a read and read response, as well as an opportunistic read made asynchronously
+with the main read to fetch the latests position of the tail in case the read
+fails. This second operation executes opportunistically (around 99 percent of
+all reads), however sometimes it is omitted leading to a small over approximation
+in our optimal estimate. 
+
+
+Figure~\ref{fig:bandwidth_reduction} Show the cost of each operation in terms of
+bandwidth across write workloads. We calculate the value for each technique by
+summing the total bandwidth across a run, and dividing by the total number of
+operations. In each case Read+Write operates near optimal. Write steering alone
+causes significant inflation in the cost of operations at 50\% write as many
+operations fail. Clovers bandwidth inflates by 1.8x at 50\% and 2.24x at 100\%
+writes.
+
 
 \subsection{Tail Latency}
 
