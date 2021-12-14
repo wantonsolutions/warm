@@ -12,7 +12,7 @@ labels =  [2,4,8,16,32,48,64]
 
 cns_label='CAS -> Write'
 qp_mapping_label='QP mapping'
-read_write_steering_label='Write + Read'
+read_write_steering_label='Write+Read'
 write_steering_label='Write'
 default_clover_label='Clover'
 
@@ -68,7 +68,7 @@ ax1.set_ylabel('KOPS')
 font = font_manager.FontProperties(
                                    style='normal', size=10)
 
-ax1.legend(loc='upper left', ncol=2, prop=font)
+ax1.legend(loc='upper left', prop=font)
 #ax1.legend(loc='lower right', ncol=2, prop=font)
 #ax1.set_ylim(top=350)
 
