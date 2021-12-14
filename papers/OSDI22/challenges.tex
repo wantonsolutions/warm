@@ -207,11 +207,9 @@ reads and writes.
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
     
-    \caption{PDF of packet reorderings once QP mapping is applied to a Zipf
-    distribution. The values above are the absolute difference in the arrival
-    order of sequence numbers after being mapped to different QP. The majority
+    \caption{PDF of request reorderings.  Retransmitted operations lead to reordering values of zero.   The majority
     of packets retain their order (delta=1), however reorderings of up to 15
-    packets can occur.}
+    requests can occur.}
 
     \label{fig:reorder}
 \end{figure}
@@ -241,7 +239,7 @@ order of responses relative to the order the corresponding request was
 issued from the middlebox.  The plot shows the distribution of
 sequence-number gaps between responses.  As expected, the vast
 majority differ by one (i.e., arrive in the same order they were
-dispatched), but a non-trivial number are out of order by one or two
+dispatched), but a non-trivial number are out of order by one to five
 requests, and some by up to 15.
 
 %% RDMA read and write operations to detect reordering across 1000 keys
