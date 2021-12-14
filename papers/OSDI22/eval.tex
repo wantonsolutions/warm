@@ -116,6 +116,18 @@ workload.
     \label{fig:bandwidth_reduction}
       \vskip -0.5em
 \end{figure}
+\begin{figure*}
+    \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
+\vskip -1em
+    \caption{99th-percentile tail latencies of read (left) and write
+      (right) Clover operations for workloads of various write
+      intensities when applying each of {\sword}'s techniques.  Each
+      measurement taken over a Zipf distribution of requests with 64
+      clients. (Note the logarithmic $y$ axes.)}
+    \label{fig:tail_latency}
+      \vskip -0.5em
+\end{figure*}
+
 
 Placing memory operations in-band with regular network traffic can be
 problematic as applications' remote memory usage has the potential to
@@ -153,18 +165,6 @@ significant inflation in the cost of operations at 50\% writes because many
 read requests fail as discussed above.
 
 \subsection{Tail latency}
-
-\begin{figure*}
-    \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
-\vskip -1em
-    \caption{99th-percentile tail latencies of read (left) and write
-      (right) Clover operations for workloads of various write
-      intensities when applying each of {\sword}'s techniques.  Each
-      measurement taken over a Zipf distribution of requests with 64
-      clients. (Note the logarithmic $y$ axes.)}
-    \label{fig:tail_latency}
-      \vskip -0.5em
-\end{figure*}
 
 Perhaps the most critical variable that governs overall system
 performance is tail latency. In the context of disaggregated memory
@@ -227,14 +227,6 @@ significantly outperforms Clover alone.
 
 \subsection{Atomic replacement}
 
-\begin{figure}[t]
-    \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
-  \vskip -0.5em
-    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
-    \label{fig:cas_vs_swap}
-      \vskip -0.5em
-\end{figure}
-
 We show the ability of swapping compare-and-swap requests to writes
 to overcome hardware atomic bottlenecks by running a micro-benchmark
 that focuses exclusively on CAS performance.  Specifically, we extract
@@ -271,6 +263,15 @@ the memory-side NIC.
 %onto the same destination QP. Note that this configuration has the
 %highest degree of contention for our middlebox as 24 client threads
 %must be multiplexed to and from a single client connection. Further
+
+\begin{figure}[t]
+    \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
+  \vskip -0.5em
+    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
+    \label{fig:cas_vs_swap}
+      \vskip -1em
+\end{figure}
+
 
 We measure the server throughput in terms of RDMA requests per second as
 we increase contention by adding client threads.
