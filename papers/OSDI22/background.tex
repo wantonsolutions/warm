@@ -105,7 +105,7 @@ read-heavy case concurrent clients all eventually reach the end of the
 list. To speed up operations clients keep caches (i.e., hints) of the
 end of each key's linked list to avoid traversals. When writes are
 heavy and/or when particular keys are hot, Clover's performance
-degrades substantially. In order serialize writes Clover uses RDMA CAS
+degrades substantially. In order to serialize writes Clover uses RDMA CAS
 requests which further impact performance.
 
 %which
