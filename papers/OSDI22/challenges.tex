@@ -39,9 +39,11 @@ our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/success_rate.pdf}
     \vskip -0.5em
-    \caption{Percentage of successful read and write attempts on 1024 keys at a
-    50\% write workload \textit{Zipf(0.99)} as more client threads are added. At
-    128 threads only 26\% of write requests are successful.}
+    \caption{Percentage of successful read and write attempts in a
+      50:50 read-write workload spread across 1,024 keys according
+      to a Zipf(0.99) distribution as more client threads are
+      added. At 128 threads only 26\% of write requests are
+      successful.}
     \vskip -0.5em
     \label{fig:success_rate}
 \end{figure}
