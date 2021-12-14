@@ -26,7 +26,7 @@ layout of our testbed.
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
 
-    \caption{{Performance of \sword techniques relative to clover on YCSB
+    \caption{{Performance of {\sword} techniques applied to Clover on YCSB
     benchmarks. The percentage of workload writes increases from left to
     right.}}
 
@@ -113,7 +113,7 @@ workload.
 
 \begin{figure}
     \includegraphics[width=0.5\textwidth]{fig/bandwidth_reduction.pdf}
-    \caption{{Bandwidth reduction when in network steering is applied}}
+    \caption{Bytes required per operation for each of the three techniques for different write intensities.}
     \label{fig:bandwidth_reduction}
 \end{figure}
 
@@ -199,7 +199,7 @@ succeeding.
 %explicitly known.
 
 Writes (right-hand side of Figure~\ref{fig:tail_latency}) perform
-worse than reads under contention in default Clover. Read+write
+worse than reads under contention in default Clover. Write+read
 steering provides a 2.7$\times$, 37.1$\times$, and 25.2$\times$
 improvement in tail latency, respectively, across 5, 50, and 100\%
 write workloads.  As one might expect, performing write steering alone
@@ -209,7 +209,7 @@ spike in read tail latency
 
 Figure~\ref{fig:tail_latency} also shows the performance of queue pair
 mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
-to read+write steering.  Because the operations are already likely to
+to write+read steering.  Because the operations are already likely to
 succeed, there is no reason to expect any significant drop in tail
 latency by vectoring the operations to a particular QP or removing the
 CAS guard.  Rather, these plots show that the (significant) additional
