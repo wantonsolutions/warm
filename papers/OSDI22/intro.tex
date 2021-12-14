@@ -35,13 +35,13 @@ gap via novel technologies like silicon photonics and new rack-scale
 interconnects, but commercially available options remain significantly
 slower than on-board options.  Concretely, the latency of making a
 memory access over interconnect technologies
-like RDMA~\cite{infiniband-spec}, GenZ~\cite{genz}, and CXL~\cite{cxl}
+like RDMA~\cite{infiniband-spec}, Gen-Z~\cite{genz}, and CXL~\cite{cxl}
 remains on the order of 20$\times$ slower than a local access (e.g.,
 50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
 that these memory transport technologies provide the ability to
 directly execute requests like read, write and compare and swap on
 remote host memory through the use of a RDMA capable
-NICs~\cite{connectx}, SOCs~\cite{cavium}, FPGA
+NICs~\cite{connectx}, SoCs~\cite{cavium}, FPGA
 SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
 existing systems coordinate with a remote CPU on the socket at which
 the DMA is being performed to assist with
