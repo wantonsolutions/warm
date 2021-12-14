@@ -60,10 +60,16 @@ figure_name='experiment_0'
 ####################### YCSB A
 #qp=[1,2,4,8,16,32,40]
 #qp=[1,2,4,8]
-qp=[1]
+qp=[1,2,4,8]
 cns=[]
 cns_1=[525073,515478,499577,562232,481150,]
+cns_2=[514646,636636,617872,624570,629788,]
+cns_4=[608082,637527,638461,619035,662386,]
+cns_8=[681152,638242,672578,653324,673982,669546,]
 cns.append(cns_1)
+cns.append(cns_2)
+cns.append(cns_4)
+cns.append(cns_8)
 
 plot_qp_error(ax1,qp,cns,cns_label,cns_marker,cns_color)
 
