@@ -47,8 +47,8 @@ def static_plot_attributes(ax,cns_replacement,qp_mapping,read_write_steering,wri
     ax.plot(labels[:len(clover_with_buffering)],clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color,linewidth=default_line_width,markersize=default_marker_size)
     ax.plot(labels[:len(write_steering)],write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color,linewidth=default_line_width,markersize=default_marker_size)
     ax.plot(labels[:len(read_write_steering)],read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color,linewidth=default_line_width,markersize=default_marker_size)
-    ax.plot(labels[:len(qp_mapping)],qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color,linewidth=default_line_width,markersize=default_marker_size)
-    ax.plot(labels[:len(cns_replacement)],cns_replacement,label=cns_label,marker=cns_marker,color=cns_color,linewidth=default_line_width,markersize=default_marker_size)
+    #ax.plot(labels[:len(qp_mapping)],qp_mapping,label=qp_mapping_label,marker=qp_mapping_marker,color=qp_mapping_color,linewidth=default_line_width,markersize=default_marker_size)
+    #ax.plot(labels[:len(cns_replacement)],cns_replacement,label=cns_label,marker=cns_marker,color=cns_color,linewidth=default_line_width,markersize=default_marker_size)
 
 
 figure_name='full_system_performance'
