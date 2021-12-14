@@ -40,9 +40,9 @@ div=1
 plt.rcParams.update({'font.size': 16})
 fig, ax = plt.subplots(figsize=(8,4), dpi=80)
 plot_optimal(ax,optimal,x,3,width)
-rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color)
-rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color)
-rects0 = ax.bar(x + width, read_write, width, label='Write+Read',color=read_write_steering_color)
+rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color,edgecolor='k')
+rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color,edgecolor='k')
+rects0 = ax.bar(x + width, read_write, width, label='Write+Read',color=read_write_steering_color,edgecolor='k')
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
