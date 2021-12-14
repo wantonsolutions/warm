@@ -136,9 +136,11 @@ to occur strictly before or after the CAS, regardless of whether they
 are themselves atomic.
 
 \begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
+  \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
+  \vskip -0.5em
     \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
     \label{fig:rdma_concur}
+      \vskip -0.5em
 \end{figure}
 
 These atomic requests enable (seemingly) lock-free updates to far
@@ -206,11 +208,11 @@ reads and writes.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
-    
+  \vskip -0.5em    
     \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   The majority
     of requests retain their order (delta=1), however reorderings of up to 15
     requests can occur.}
-
+  \vskip -0.5em
     \label{fig:reorder}
 \end{figure}
 
@@ -252,13 +254,15 @@ requests, and some by up to 15.
 %% reordering on the memory side server, either in the NIC itself or over
 %% the PCIe bus.
 
-\begin{figure}[t] \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
-
+\begin{figure}[t]
+  \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
+  \vskip -0.5em
 \caption{Max throughput per QP on RoCEv2 RC connections. Each QP gets a single
 core, and issues in-lined writes. Single connection only offer a fraction of the
 available NIC bandwidth.} 
-
-\label{fig:qp_bottleneck} \end{figure}
+  \vskip -0.5em
+  \label{fig:qp_bottleneck}
+\end{figure}
 
 Happily, the RDMA specification stipulates that requests made on a
 reliable connection (one-server/one-client queue pair) are guaranteed
