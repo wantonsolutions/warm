@@ -1,19 +1,17 @@
 \section{On-path serialization}
 
-Given the overhead of remote conflict resolution and the performance
-bottlenecks associated with RDMA hardware serialization, this section
-discusses how an on-path serializer can dramatically increase
-real-world performance by alleviating both issues.  To ground our
-discussion, we address both in the context of Clover, a
-state-of-the-art far memory system. First we describe how to
-effectively do away with the need for most retries by ``fixing''
-operations issued with stale hints in flight.  Second, we show how we
-can leverage our ability to rewrite RDMA requests after their ordering
-is determined to replace expensive compare-and-swap requests with
-simple write verbs and rely upon the semantics of RDMA RC queue pairs
-to provide serializability.  Additionally, we can leverage this same
-functionality to multiplex independent operations across multiple QP
-to improve scalability.
+Given the overhead of remote conflict resolution and the performance bottlenecks
+associated with RDMA hardware serialization, this section discusses how an
+on-path serializer can dramatically increase real-world performance
+by alleviating both issues.  To ground our discussion, we address both in the
+context of Clover, a state-of-the-art far memory system. First we describe how
+to effectively do away with the need for most retries by ``fixing'' operations
+issued with stale hints in flight.  Second, we show how we can leverage our
+ability to rewrite RDMA requests after their ordering is determined to replace
+expensive compare-and-swap requests with simple write verbs and rely upon the
+semantics of RDMA RC queue pairs to provide serializability.  Additionally, we
+can leverage this same functionality to multiplex independent operations across
+multiple QP to improve scalability.
 
 \subsection{System overview}
 
@@ -43,7 +41,7 @@ Routing to {\sword} is effected by adding OpenFlow rules to redirect Clover traf
 
 Figure~\ref{fig:overview} shows how {\sword} interacts with the Clover
 system.  We envisage {\sword} implemented either as a part of or in-line with
-a programmable switch that serves as the top-of-rack (ToR) switch
+a programmable switch that serves as the ToR switch
 for all of the memory servers.  Client machines need not be directly
 attached to the ToR, although they likely would be in most rack-scale
 deployments.  Similarly, the topological location of Clover's metadata
