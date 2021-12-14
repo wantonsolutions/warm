@@ -184,17 +184,19 @@ largely as an increase to the average.
 \end{figure}
 
 We show the raw performance improvement of swapping compare and swap operations
-to writes by running an experiment which explicitly tests CAS contention. Each
-client core is given a single QP, and all clients make CAS requests to the same
-shared location. We measure the performance as the number of clients requesting
-the same shared address is increased. All requests are routed through our
-middlebox. In the default case, cas operations flow through without
-interference. We set the number of cores on our middlebox to 24 so that in our
-maximal test case each client thread flows through exactly one middlebox core
-for the lowest degree of interference between QP. In our CAS to Write
-configuration all client cores request the same address, and as such all are
-routed onto the same destination QP. Note that this configuration has the
-highest degree of contention for our middlebox as 24 client threads must be
+to writes by running an experiment which explicitly tests CAS contention. Here
+we remove clover from the mix and run a simple benchmark of RDMA CAS operations
+between two servers. \sword is routed to via a different set of Openflow rules.
+Each client core is given a single QP, and all client threads execute CAS
+operations to the same shared virtual address. We measure the performance in
+ops/s and increase the contention on the address by adding client threads. All
+requests are routed through our middlebox. In the default case, cas operations
+flow through without interference. We set the number of cores on our middlebox
+to 24 so that in our maximal test case each client thread flows through exactly
+one middlebox core for the lowest degree of interference between QP. In our CAS
+to Write configuration all client cores request the same address, and as such
+all are routed onto the same destination QP. Note that this configuration has
+the highest degree of contention for our middlebox as 24 client threads must be
 multiplexed to and from a single client connection. Further due to DPDK queue to
 core partitioning requirements all TX for a destination QP must be done by a
 specific core. Because of this requirement all requests must flow through a
@@ -209,6 +211,3 @@ operations per second per core. In this configuration all requests to the memory
 server must be processed by the same TX core. As such our bottleneck is
 approximately 2.8 MOPS. Hardware implemented CRC, cache tuning, and better lock
 management for TX queues could yield higher per core performance in the future.
-
-
-
