@@ -49,7 +49,7 @@ div=1
 
 rects0 = ax1.bar(x - (2*width), clover, width, label='Clover',color=default_clover_color,edgecolor='k')
 rects1 = ax1.bar(x - width, write, width, label='Write',color=write_steering_color,edgecolor='k')
-rects2 = ax1.bar(x, read_write, width, label='Read+Write',color=read_write_steering_color,edgecolor='k')
+rects2 = ax1.bar(x, read_write, width, label='Write+Read',color=read_write_steering_color,edgecolor='k')
 rects3 = ax1.bar(x + width, qp, width, label='QP mapping',color=qp_mapping_color,edgecolor='k')
 rects4 = ax1.bar(x + (2*width), cns, width, label='CAS->Write',color=cns_color,edgecolor='k')
 
@@ -59,6 +59,7 @@ ax1.set_ylabel('99th percentile latency (us)')
 #ax1.set_title('Read Latencies')
 ax1.set_xticks(x)
 ax1.set_yscale('log')
+ax1.set_ylim(20,10000)
 ax1.set_xticklabels(labels)
 ax1.set_xlabel("Write Ratio")
 ax1.legend()
@@ -85,7 +86,7 @@ div=1
 
 rects0 = ax2.bar(x - (2*width), clover, width, label='Clover',color=default_clover_color,edgecolor='k')
 rects1 = ax2.bar(x - width, write, width, label='Write',color=write_steering_color,edgecolor='k')
-rects2 = ax2.bar(x, read_write, width, label='Read+Write',color=read_write_steering_color,edgecolor='k')
+rects2 = ax2.bar(x, read_write, width, label='Write+Read',color=read_write_steering_color,edgecolor='k')
 rects3 = ax2.bar(x + width, qp, width, label='QP mapping',color=qp_mapping_color,edgecolor='k')
 rects4 = ax2.bar(x + (2*width), cns, width, label='CAS->Write',color=cns_color,edgecolor='k')
 
@@ -94,6 +95,7 @@ rects4 = ax2.bar(x + (2*width), cns, width, label='CAS->Write',color=cns_color,e
 ax2.set_xticks(x)
 ax2.set_xticklabels(labels)
 ax2.set_yscale('log')
+ax2.set_ylim(20,10000)
 ax2.set_xlabel("Write Ratio")
 
 #//ax.bar_label(rects2, padding=3)
