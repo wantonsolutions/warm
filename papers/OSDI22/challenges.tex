@@ -67,15 +67,15 @@ attempts to read and write to the tail of the list for each
 operation. The location of the tail of the list is cached at each
 client and used as a hint for subsequent operations.  If the hint is
 stale the client obtains an updated tail pointer and retries the
-operation.  Figure~\ref{fig:success_rate} shows the percentage of
-operation which succeed in a 50:50 read-write workload as a
+RDMA request.  Figure~\ref{fig:success_rate} shows the percentage of
+requests which succeed in a 50:50 read-write workload as a
 function of the number of concurrent client threads.
 
 \paragraph{Bandwidth inflation.} 
 
-One of the most direct impacts of failed operations is the bandwidth
-overhead of the retries.  Because a Clover ``operation'' actually
-consists of multiple packet exchanges, the total bandwidth is not
+One of the most direct impacts of failed requests is the bandwidth
+overhead of the retries.  Because a Clover operation actually
+consists of multiple RDMA requests, the total bandwidth is not
 strictly proportional to the failure rate, but rather slightly
 sub-linear.  Nevertheless, the expected cost of each operation rises
 steadily with contention, which is a function of both the workload and
@@ -119,17 +119,17 @@ characteristics.  In general, even if one constrains the arrival of
 RDMA requests to a given server---or NIC port on a server---there
 remain multiple sources of concurrency and contention that may lead to
 races and seeming violations of the total request order.
-Formally, RDMA operations are not, in general, linearizable, even at a
+Formally, RDMA requests are not, in general, linearizable, even at a
 single port on a given NIC.  In order to allow applications to reason
 about and react to this uncertainty, current NICs provide two
 different classes of guarantees.
 
-\subsubsection{Atomic operations}
+\subsubsection{Atomic requests}
 
 The strongest guarantee available in the RDMA specification is
-atomicity, through the use of special atomic operations like compare
+atomicity, through the use of special atomic requests like compare
 and swap (CAS).  Like their traditional CPU counterparts, CAS
-operations appear to execute at a single point in time, ensuring a
+requests appear to execute at a single point in time, ensuring a
 total ordering on all CAS instructions and a partial ordering between
 CAS and all other instructions---i.e., all other instructions appear
 to occur strictly before or after the CAS, regardless of whether they
@@ -137,11 +137,11 @@ are themselves atomic.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic operations, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
+    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
     \label{fig:rdma_concur}
 \end{figure}
 
-These atomic operations enable (seemingly) lock-free updates to far
+These atomic requests enable (seemingly) lock-free updates to far
 memory by allowing clients to detect data races and enabling them to
 implement safe recovery mechanisms. In practice, however, these
 atomics are famously~\cite{design-guidelines,clover} expensive,
@@ -150,18 +150,18 @@ pairs to deliver their semantics.  Figure~\ref{fig:rdma_concur}
 confirms that the findings of prior
 studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
 ConnectX-3) remain true on our ConnectX-5 NICs, namely that CAS
-operations have a hard performance bottleneck, while standard verbs
+requests have a hard performance bottleneck, while standard verbs
 (e.g., read and write) continue to scale with increased request
 concurrency.
 
 %In many disaggregated systems operation serialization is performed using RDMA
 %atomic operations implemented on a NIC. These
 Atomics are expensive both because they can block concurrent RDMA
-operations and because they require, at a minimum, a round trip over
+requests and because they require, at a minimum, a round trip over
 the PCIe bus.
 %while they execute and require scarce NIC resources.
 In order to provide atomicity, the NIC must ensure
-that no dependent operations are concurrent, dispatch the write, and
+that no dependent requests are concurrent, dispatch the write, and
 then wait for the memory operation to complete.
 %The
 %time required to complete an atomic is at minimum a PCIe round trip
@@ -169,11 +169,11 @@ then wait for the memory operation to complete.
 %guards the memory access.
 Lock implementation is both vendor and
 transport specific~\cite{design-guidelines}. In the worst case a
-barrier is placed on all operations resulting in complete head-of-line
+barrier is placed on all requests resulting in complete head-of-line
 blocking; in the best case locking is per connection and only causes
-other operations to block when reads or writes occur on overlapping
+other requests to block when reads or writes occur on overlapping
 ranges virtual memory. Regardless of the implementation, atomic
-operations are likely to be significantly slower than asynchronous non-blocking
+requests are likely to be significantly slower than asynchronous non-blocking
 reads and writes.
 
 %% Practically speaking, the performance of atomic operations is limited
@@ -207,7 +207,7 @@ reads and writes.
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
     
-    \caption{PDF of request reorderings.  Retransmitted operations lead to reordering values of zero.   The majority
+    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   The majority
     of packets retain their order (delta=1), however reorderings of up to 15
     requests can occur.}
 
@@ -215,7 +215,7 @@ reads and writes.
 \end{figure}
 
 Hence, a scalable far memory system should avoid the use of atomic
-operations to the extent possible, instead relying upon traditional,
+requests to the extent possible, instead relying upon traditional,
 lightweight RDMA verbs.  Even then, existing hardware does provide
 some guarantees.  For example, RDMA provides access to memory hosted
 on a server that likely utilizes a commodity hardware memory
@@ -230,8 +230,8 @@ write corruption and read tearing.
 
 Figure~\ref{fig:reorder} shows that this potential reordering is not
 just an academic concern, but instead arises with some frequency. In
-this example, we issue RDMA read, write and CAS operations at a rate
-of 1 million operations per second to 1,024 different memory locations
+this example, we issue RDMA read, write and CAS requests at a rate
+of 1 million requests per second to 1,024 different memory locations
 according to a Zipf distribution, and spread these requests across 32
 different queue pairs. Each request is routed through a middlebox that
 keeps a global request counter for each RDMA request.  We track the
@@ -260,18 +260,18 @@ available NIC bandwidth.}
 
 \label{fig:qp_bottleneck} \end{figure}
 
-Happily, the RDMA specification stipulates that operations made on a
+Happily, the RDMA specification stipulates that requests made on a
 reliable connection (one-server/one-client queue pair) are guaranteed
 to be executed in the same order as their sequence numbers, similar to
 TCP's transport-layer semantics~\cite{infiniband-spec}.
 %~\footnote{while
 %IB allows for relaxed ordering here we rely on that feature being
 %turned off on the receiver}.
-That is, operations on a given queue pair
+That is, requests on a given queue pair
 are totally ordered with respect to one another.
 % a NIC should ensure that all operations over a given queue pair are
 %serviced in the order they arrive.
-In general, this can provide sequential consistency if all operations
+In general, this can provide sequential consistency if all requests
 relating to a given memory location arrive on the same queue pair.
 Unsurprisingly, RCs' ordering guarantee comes with its own
 scalability limitations.  Figure~\ref{fig:qp_bottleneck} shows that

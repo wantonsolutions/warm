@@ -39,7 +39,7 @@ like RDMA~\cite{infiniband-spec}, GenZ~\cite{genz}, and CXL~\cite{cxl}
 remains on the order of 20$\times$ slower than a local access (e.g.,
 50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
 that these memory transport technologies provide the ability to
-directly execute operations like read, write and compare and swap on
+directly execute requests like read, write and compare and swap on
 remote host memory through the use of a RDMA capable
 NICs~\cite{connectx}, SOCs~\cite{cavium}, FPGA
 SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
@@ -64,7 +64,7 @@ amortize the costs of conflict detection and resolution.
 In the absence of a general-purpose CPU located alongside remote
 memory, it falls to each individual client to ensure that its reads
 and writes are serialized, usually by leveraging expensive
-hardware-provided atomic operations like compare and
+hardware-provided atomic requests like compare and
 swap~\cite{design-guidelines,clover}.  The cost of client-side
 serialization is steep, and most existing systems simply partition memory
 completely and forgo sharing~\cite{reigons,fastswap, legoos}.  On the
@@ -72,7 +72,7 @@ other hand, one recent disaggregated key-value store,
 Clover~\cite{clover}, goes to great lengths to provide lock-less reads
 while supporting concurrent writes by deploying an optimistic
 concurrency scheme that leverages RDMA's atomic compare-and-swap
-operation to detect and recover from write/write conflicts.  While
+request to detect and recover from write/write conflicts.  While
 highly scalable for read-heavy workloads, Clover's client-based
 recovery scheme quickly becomes cost prohibitive when faced with
 significant levels of write contention.  This shortcoming is not
@@ -95,13 +95,13 @@ the client and relevant server.  In this work we make the observation
 that such a serialization point already exists in rack-scale
 disaggregated deployments: the top-of-rack switch.  We propose to
 leverage the capabilities of modern programmable switches to cache
-sufficient information about in-flight operations to transparently
+sufficient information about in-flight requests to transparently
 detect and resolve conflicts before they occur.  Unlike a traditional
 centralized memory controller, our serializer need only act upon
 actual conflicts and can avoid the unnecessary costs of enforcing
-ordering among unrelated operations.  Moreover, in our design the
+ordering among unrelated requests.  Moreover, in our design the
 serializer serves as a performance-enhancing proxy: it can always
-allow even conflicting operations to pass through unmodified without
+allow even conflicting requests to pass through unmodified without
 jeopardizing safety, as the default client-based conflict resolution
 strategy remains.
 
@@ -112,7 +112,7 @@ We present {\sword}, an on-path serializer
 that dramatically improves the performance of optimistic passive
 remote memory systems that support write sharing.  Like all ToRs,
 {\sword} imposes a globally observable total order on memory
-operations within a rack.  Crucially, {\sword} does not replace the
+requests within a rack.  Crucially, {\sword} does not replace the
 underlying optimistic concurrency scheme: all remote memory operations
 are still suitably guarded to ensure that clients can detect and
 recover from conflicts.  Rather, because {\sword} understands the
@@ -130,9 +130,9 @@ evaluation shows that {\sword} dramatically increases the performance
 of Clover in the presence of write contention.  Under a 50:50
 read-write workload, throughput rises by almost 3$\times$, tail
 latency drops by over 36$\times$ and bandwidth usage cuts almost in
-half.  Further, we show that by replacing compare-and-swap operations
+half.  Further, we show that by replacing compare-and-swap requests
 in flight with standard RDMA verbs, we can surpass the
-hardware-imposed limit on atomic operations per queue pair.
+hardware-imposed limit on atomic requests per queue pair.
 
 %% Using RDMA transport information and clover specific application
 %% knowledge all reads and writes to contended areas are totally ordered

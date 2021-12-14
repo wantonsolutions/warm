@@ -1,17 +1,19 @@
 \section{On-path serialization}
 
-Given the overhead of remote conflict resolution and the performance bottlenecks
-associated with RDMA hardware serialization, this section discusses how an
-on-path serializer can dramatically increase real-world performance by
-alleviating both issues.  To ground our discussion, we address both in the
-context of Clover, a state-of-the-art far memory system. First we describe how
-to effectively do away with the need for most retries by ``fixing'' RDMA
-operations issued with stale hints in flight.  Second, we show how we can
-leverage our ability to rewrite RDMA requests after their ordering is determined
-to replace expensive compare-and-swap operations with simple write verbs and
-rely upon the semantics of RDMA RC queue pairs to provide serializability.
-Additionally, we can leverage this same functionality to multiplex independent
-operations across multiple QP to improve scalability.
+Given the overhead of remote conflict resolution and the performance
+bottlenecks associated with RDMA hardware serialization, this section
+discusses how an on-path serializer can dramatically increase
+real-world performance by alleviating both issues.  To ground our
+discussion, we address both in the context of Clover, a
+state-of-the-art far memory system. First we describe how to
+effectively do away with the need for most retries by ``fixing''
+operations issued with stale hints in flight.  Second, we show how we
+can leverage our ability to rewrite RDMA requests after their ordering
+is determined to replace expensive compare-and-swap requests with
+simple write verbs and rely upon the semantics of RDMA RC queue pairs
+to provide serializability.  Additionally, we can leverage this same
+functionality to multiplex independent operations across multiple QP
+to improve scalability.
 
 \subsection{System overview}
 
@@ -51,23 +53,23 @@ server are totally ordered before processing.
 \subsection{Conflict avoidance}
 
 The single biggest impact an on-path serializer like {\sword} can have
-is to dramatically decrease the likelihood of a failed operation due
+is to dramatically decrease the likelihood of a failed RDMA request due
 to a stale hint.  Specifically, because {\sword} can observe and
-modify operations as they go by, it can ``correct'' any operations it
+modify operations as they go by, it can ``correct'' any requests it
 knows to be likely to fail.  Note that such replacement is strictly a
-performance enhancement---because the operations continue to be
+performance enhancement---because the requests continue to be
 processed by the server as usual, any subsequent reordering will
-cause the operation to fail (and be retried by Clover), just as
+cause the request to fail (and be retried by Clover), just as
 it would have without rewriting.
 
 \subsubsection{Write steering}
 
-Recall that writes (committed with compare-and-swap operations) in
+Recall that writes (committed with compare-and-swap requests) in
 Clover are destined to the presumed tail of a key's linked list, but
 the target of any individual RDMA request may be out of date due to
-races with concurrent updates.  To prevent such operations from
+races with concurrent updates.  To prevent such requests from
 failing, {\sword} maintains a cache of the location of the most-recent writes
-for each key. If a write (CAS operation) arrives at {\sword}
+for each key. If a write (CAS request) arrives at {\sword}
 destined for a stale virtual address (i.e., an address other than the
 one currently cached for that key), {\sword} replaces it with
 the cached address.
@@ -141,7 +143,7 @@ their arrival at a memory server---because, for example, it is
 directly connected over a single link---we can leverage the ordering
 semantics provided by RDMA queue pairs to completely eliminate data
 races.  In that case, there is no need to incur the expense of RDMA
-atomic operations; {\sword} can simply replace them with lightweight verbs
+atomic requests; {\sword} can simply replace them with lightweight verbs
 to dramatically increase the scalability of a given memory server.
 Importantly, this optimization can be applied selectively to only the
 set of servers (or keys) for which {\sword} is suitably located
@@ -158,7 +160,7 @@ In general, the determination of which operations share state is
 application specific and requires inspecting each packet, extracting
 the relevant pieces of metadata, and vectoring the packet to the
 correct connection.  In the particular case of Clover, it suffices to
-identify RDMA operations that correspond to requests to read or write
+identify RDMA requests that correspond to requests to read or write
 the same key.
 
 %%While removing locking operations is a general principle here we consider a
@@ -174,7 +176,7 @@ vector operations to queue pairs accordingly.
 
 \paragraph{Sequence-space stitching.}
 
-Multiplexing and demultiplexing RDMA operations across established
+Multiplexing and demultiplexing RDMA requests across established
 connections requires a significant amount of care. Requests on a
 single connection must have monotonic sequence numbers from both the
 sender's and receiver's perspectives. If monotonicity is broken, the
@@ -187,7 +189,7 @@ ensure any particular ordering among requests from separate clients, so
 any total ordering suffices.)
 %% This monotonic sequence number increment and QP mapping is the
 %% serialization point which replaces the use of the RDMA CAS
-%% operation. As long as a packet is given an atomically incremental
+%% request. As long as a packet is given an atomically incremental
 %% sequence number from our middle box and placed on a stateful
 %% partitioned connection, it will execute in the same serialized
 %% order as if it were protected by a CAS. We are guaranteed this due
@@ -210,15 +212,15 @@ processed. If this value is wrong in the response packet from the
 perspective of the sender (i.e., is less than another message sequence
 number previously received by that client), the entire request is
 retransmitted.  {\sword} maintains the message sequence number each client
-expects to see by keeping track of the number of operations a client has
+expects to see by keeping track of the number of requests a client has
 issued and adding it to the value of the original message sequence
 number for that connection.
 
-\paragraph{Instruction coalescing.}
+\paragraph{Request coalescing.}
 
 As an additional complication, {\sword} must deal with the fact
 that RoCE coalesces some ACKs as an optimization.  In particular
-multiple RDMA operations can be acknowledged by a single
+multiple RDMA requests can be acknowledged by a single
 acknowledgment, in the form of either an ACK, ATOMIC ACK, or Read
 Response. This occurs when multiple RDMA requests are processed
 concurrently.  Because {\sword} maps requests across connections, some
@@ -246,7 +248,7 @@ insert it into the queue pair.
 \subsubsection{Atomic replacement} 
 
 Once any potentially conflicting operations are mapped to a single
-queue pair, {\sword} is free to replace atomic operations such as
+queue pair, {\sword} is free to replace atomic requests such as
 compare-and-swap with lightweight alternatives.  From a RoCEv2 perspective
 the per-packet transformation from CAS to write can be applied easily
 in the data path.  RoCEv2 CAS and write headers only differ by a few
@@ -254,7 +256,7 @@ fields. CAS can be thought of as a special case of a write, where the
 write is conditional and the length is preset to 8 bytes.
 %%
 
-{\sword} transforms CAS packets to writes by modifying their headers: it
+{\sword} transforms CAS requests to writes by modifying their headers: it
 switches the RDMA OP field of the CAS to write, copies the CAS
 value to the write payload location, sets the DMA length of the write
 to 8, and shrinks the IPv4 length value by 4.  Post modification the RoCEv2
@@ -276,7 +278,7 @@ indicates success to the sender.
 %%
 This value is application specific; in Clover's case 64 zero bits
 indicate success.  In other cases it may be necessary to store the
-value in the operation stub at {\sword}.
+value in the request stub at {\sword}.
 
 %Transforming CAS to
 %write does nothing to disturb the RDMA protocol, as both the sender
@@ -286,6 +288,6 @@ value in the operation stub at {\sword}.
 %the serialization point must be placed somewhere else. Our approach is
 %to detect conflicts in network, and utilize the in order delivery
 %guarantees of RDMA reliable connections to ensure safe and serialized
-%operations.
+%requests.
 
 

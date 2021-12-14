@@ -5,8 +5,8 @@ Adding computation to the network increases latency and consumes memory. Our
 evaluation demonstrates that by applying our techniques we are able to see
 significant performance boosts in terms of overall throughput, and latency for
 existing systems. We discuss the memory implications and show that systems
-performance can be significantly improved by replacing compare and swap
-operations with writes.
+performance can be significantly improved by replacing compare-and-swap
+requests with writes.
 
 \subsection{Testbed}
 
@@ -60,7 +60,7 @@ to offer a 1.17$\times$ throughput improvement.
 %operations exist.
 %
 At 50\% writes, Clover is well outside of it target workload:
-at 64 threads, over half of all write operations fail. Here applying write
+at 64 threads, over half of all write requests fail. Here applying write
 steering improves performance by over 1.73$\times$ at 64 threads.
 
 Write steering alone is not sufficient at this level of contention,
@@ -68,7 +68,7 @@ however.  Because all writes succeed they easily out-pace reads causing
 the majority of reads to fail at 64 threads.  (The resulting impact on
 tail latency is clearly shown in Figure~\ref{fig:tail_latency}.)
 Applying both read and write steering, on the other hand, yields a
-2.82$\times$ throughput improvement as nearly all operations
+2.82$\times$ throughput improvement as nearly all requests
 succeed.
 
 %This workload leads to enough common case failures that
@@ -113,7 +113,7 @@ workload.
 
 \begin{figure}
     \includegraphics[width=0.5\textwidth]{fig/bandwidth_reduction.pdf}
-    \caption{Bytes required per operation for each of the three techniques for different write intensities.}
+    \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.}
     \label{fig:bandwidth_reduction}
 \end{figure}
 
@@ -122,7 +122,7 @@ problematic as applications' remote memory usage has the potential to
 vary dramatically per application.  Under contention, memory operation
 can require additional packet exchanges which inflate the bandwidth
 necessary to service the same number of memory requests. Our
-in-network steering algorithms remove the need for operations to
+in-network steering algorithms remove the need for requests to
 retry.
 
 %Figure~\ref{fig:bandwidth_reduction} shows the average bytes
@@ -150,7 +150,7 @@ bandwidth usage increases with contention, growing by 1.8$\times$ at
 50\% and 2.24$\times$ at 100\% writes---all of which is recovered by
 applying read and write steering. Write steering alone causes
 significant inflation in the cost of operations at 50\% writes because many
-read operations fail as discussed above.
+read requests fail as discussed above.
 
 \subsection{Tail latency}
 
@@ -158,9 +158,9 @@ read operations fail as discussed above.
     \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
 
     \caption{99th-percentile tail latencies of read (left) and write
-      (right) operations for workloads of various write intensities
-      when applying each of {\sword}'s techniques.  Each measurement
-      taken over a Zipf distribution of requests with 64
+      (right) Clover operations for workloads of various write
+      intensities when applying each of {\sword}'s techniques.  Each
+      measurement taken over a Zipf distribution of requests with 64
       clients. (Note the logarithmic $y$ axes.)}
 
     \label{fig:tail_latency}
@@ -175,7 +175,7 @@ tail latency to be a fundamental barrier to the widespread adoption of
 far memory systems.  Optimistic concurrency is well known to exhibit
 poor tail latency under contention, and Clover is no exception to this
 rule. Our techniques significantly reduce tail latency as steering
-ensures that nearly all operations succeed with no need to retry.
+ensures that nearly all requests succeed with no need to retry.
 
 Figure~\ref{fig:tail_latency} shows the 99th-percentile tail latencies
 associated with each of \sword's techniques in comparison with default
@@ -194,7 +194,7 @@ hurts performance, as it makes reads more likely to fail.
 Given that these tests were conducted with a
 Zipf distribution across 64 cores it is highly likely that more than
 one thread is writing to the hottest keys at any point during the
-run. This leads some read operations to fail 10s of times before
+run. This leads some read requests to fail 10s of times before
 succeeding.
 
 %Because of this property we suggest
@@ -212,9 +212,9 @@ spike in read tail latency
 
 Figure~\ref{fig:tail_latency} also shows the performance of queue pair
 mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
-to write+read steering.  Because the operations are already likely to
+to write+read steering.  Because the requests are already likely to
 succeed, there is no reason to expect any significant drop in tail
-latency by vectoring the operations to a particular QP or removing the
+latency by vectoring the requests to a particular QP or removing the
 CAS guard.  Rather, these plots show that the (significant) additional
 logic required in {\sword} to implement these functions result in only
 marginal increase in tail latency relative to steering alone---and still
@@ -229,15 +229,15 @@ significantly outperforms default Clover.
 
 \begin{figure}
     \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
-    \caption{Throughput of conflicting CAS and rewritten CAS operations as a function of client threads/QPs.}
+    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
     \label{fig:cas_vs_swap}
 \end{figure}
 
-We show the ability of swapping compare and swap operations to writes
+We show the ability of swapping compare-and-swap requests to writes
 to overcome hardware atomic bottlenecks by running a micro-benchmark
 that focuses exclusively on CAS performance.  Specifically, we extract
 the CAS request alone from Clover's write operation (recall it
-consists of both an RDMA write and CAS) and repeatedly generate it
+consists of both an RDMA write and CAS requests) and repeatedly generate it
 from one client to a single memory server (while routing it through
 {\sword} as before).
 
@@ -246,7 +246,7 @@ from one client to a single memory server (while routing it through
 %servers. \sword is routed to via a different set of OpenFlow rules.
 
 Each client thread is bound to a its own queue pair, and all client
-threads issue CAS operations to the same shared virtual address.  We
+threads issue CAS requests to the same shared virtual address.  We
 set the number of cores on the {\sword} middlebox to 24 so that in our maximal
 test case each client thread flows through exactly one middlebox core
 for the lowest degree of interference between QP.
@@ -254,10 +254,10 @@ for the lowest degree of interference between QP.
 %All requests are routed
 %through our middlebox.
 In the default case (labeled CAS in Figure~\ref{fig:cas_vs_swap}),
-{\sword} lets CAS operations flow through without interference, each
+{\sword} lets CAS requests flow through without interference, each
 on their own queue pair.  In the CAS$\rightarrow$Write configuration
 {\sword} needs to rely upon the ordering semantics of RCs (because all
-the operations are for the same memory address and therefore
+the requests are for the same memory address and therefore
 conflict), so maps all client requests to the same QP at the server.
 Due to DPDK queue-to-core partitioning requirements all TX for a
 destination QP must be done by a specific core on the
@@ -270,15 +270,15 @@ the memory-side NIC.
 %highest degree of contention for our middlebox as 24 client threads
 %must be multiplexed to and from a single client connection. Further
 
-We measure the server throughput in terms of operations per second as
+We measure the server throughput in terms of RDMA requests per second as
 we increase contention by adding client threads.
 Figure~\ref{fig:cas_vs_swap} shows the performance gained by
-converting CAS operations to writes. Both configurations hit distinct
-bottlenecks: CAS operations bottleneck due to being applied to a
+converting CAS requests to writes. Both configurations hit distinct
+bottlenecks: CAS requests bottleneck due to being applied to a
 single key (c.f. Figure~\ref{fig:rdma_concur}). In the case of
 converting CAS to write, the bottleneck is the processing power of the
 CPU cores in our DPDK-based {\sword} prototype. (The maximum throughput
-our prototype can process is 2.8 million operations per second per
+our prototype can process is 2.8 million requests per second per
 core.)
 %In this configuration all
 %requests to the memory server must be processed by the same TX
