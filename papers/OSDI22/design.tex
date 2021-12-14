@@ -138,7 +138,7 @@ The combination of read and write steering dramatically improves the
 performance of Clover (as shown in Section~\ref{s:results}), but only
 scratches the surface of the potential improvements for far memory
 systems.  In particular, if {\sword} is able to ensure that
-packets will not be reordered between when it operates on them and
+requests will not be reordered between when it operates on them and
 their arrival at a memory server---because, for example, it is
 directly connected over a single link---we can leverage the ordering
 semantics provided by RDMA queue pairs to completely eliminate data

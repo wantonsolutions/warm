@@ -1,12 +1,11 @@
 \section{Evaluation}
 \label{s:results}
 
-Adding computation to the network increases latency and consumes memory. Our
-evaluation demonstrates that by applying our techniques we are able to see
-significant performance boosts in terms of overall throughput, and latency for
-existing systems. We discuss the memory implications and show that systems
-performance can be significantly improved by replacing compare-and-swap
-requests with writes.
+Our testbed experiments demonstrate that {\sword} delivers significant
+performance boosts in terms of overall throughput and latency for
+Clover. We discuss the relative impact of each of our techniques across
+various workloads, and demonstrate that replacing compare-and-swap
+requests with writes eliminates hardware bottlenecks.
 
 \subsection{Testbed}
 
@@ -25,12 +24,12 @@ layout of our testbed.
 
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
-
+  \vskip -0.5em
     \caption{{Performance of {\sword} techniques applied to Clover on YCSB
     benchmarks. The percentage of workload writes increases from left to
     right.}}
-
     \label{fig:full_system_performance}
+      \vskip -0.5em
 \end{figure*}
 
 The YCSB benchmark consists of varying read and write workloads which
@@ -63,22 +62,21 @@ At 50\% writes, Clover is well outside of it target workload:
 at 64 threads, over half of all write requests fail. Here applying write
 steering improves performance by over 1.73$\times$ at 64 threads.
 
-Write steering alone is not sufficient at this level of contention,
-however.  Because all writes succeed they easily out-pace reads causing
-the majority of reads to fail at 64 threads.  (The resulting impact on
+Write steering alone is insufficient at this level of contention.
+Because all writes succeed they easily out-pace reads causing the
+majority of reads to fail at 64 threads.  (The resulting impact on
 tail latency is clearly shown in Figure~\ref{fig:tail_latency}.)
 Applying both read and write steering, on the other hand, yields a
-2.82$\times$ throughput improvement as nearly all requests
-succeed.
-
+2.82$\times$ throughput improvement as nearly all requests succeed.
+%
 %This workload leads to enough common case failures that
 %performance overhead of performing QP mapping still yields a
 %performance boost.
-
-Write-only workloads are antagonistic for Clover's optimistic
-approach.  Write-only and write+read steering yield 3.89$\times$ and
-3.63$\times$ throughput improvements respectively; the read steering
-logic is pure overhead due to the complete lack of reads in the
+%
+Write-only workloads are antagonistic to Clover's optimistic
+approach: write and write+read steering yield 3.89$\times$ and
+3.63$\times$ throughput improvements respectively; the read-steering
+logic is pure overhead due to the absence of reads in the
 workload.
 
 
@@ -112,10 +110,24 @@ workload.
 \subsection{Bandwidth reduction}
 
 \begin{figure}
-    \includegraphics[width=0.5\textwidth]{fig/bandwidth_reduction.pdf}
+  \includegraphics[width=0.5\textwidth]{fig/bandwidth_reduction.pdf}
+    \vskip -0.5em
     \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.}
     \label{fig:bandwidth_reduction}
+      \vskip -0.5em
 \end{figure}
+\begin{figure*}
+    \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
+\vskip -1em
+    \caption{99th-percentile tail latencies of read (left) and write
+      (right) Clover operations for workloads of various write
+      intensities when applying each of {\sword}'s techniques.  Each
+      measurement taken over a Zipf distribution of requests with 64
+      clients. (Note the logarithmic $y$ axes.)}
+    \label{fig:tail_latency}
+      \vskip -0.5em
+\end{figure*}
+
 
 Placing memory operations in-band with regular network traffic can be
 problematic as applications' remote memory usage has the potential to
@@ -153,18 +165,6 @@ significant inflation in the cost of operations at 50\% writes because many
 read requests fail as discussed above.
 
 \subsection{Tail latency}
-
-\begin{figure*}
-    \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
-
-    \caption{99th-percentile tail latencies of read (left) and write
-      (right) Clover operations for workloads of various write
-      intensities when applying each of {\sword}'s techniques.  Each
-      measurement taken over a Zipf distribution of requests with 64
-      clients. (Note the logarithmic $y$ axes.)}
-
-    \label{fig:tail_latency}
-\end{figure*}
 
 Perhaps the most critical variable that governs overall system
 performance is tail latency. In the context of disaggregated memory
@@ -215,10 +215,10 @@ mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
 to write+read steering.  Because the requests are already likely to
 succeed, there is no reason to expect any significant drop in tail
 latency by vectoring the requests to a particular QP or removing the
-CAS guard.  Rather, these plots show that the (significant) additional
+CAS guard.  Rather, these plots show that the (significant) 
 logic required in {\sword} to implement these functions result in only
 marginal increase in tail latency relative to steering alone---and still
-significantly outperforms default Clover.
+significantly outperforms Clover alone.
 
 %The application of QP mapping and swapping
 %CNS to writes does little to effect tail latency as their performance
@@ -226,12 +226,6 @@ significantly outperforms default Clover.
 
 
 \subsection{Atomic replacement}
-
-\begin{figure}
-    \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
-    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
-    \label{fig:cas_vs_swap}
-\end{figure}
 
 We show the ability of swapping compare-and-swap requests to writes
 to overcome hardware atomic bottlenecks by running a micro-benchmark
@@ -270,6 +264,15 @@ the memory-side NIC.
 %highest degree of contention for our middlebox as 24 client threads
 %must be multiplexed to and from a single client connection. Further
 
+\begin{figure}[t]
+    \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
+  \vskip -0.5em
+    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
+    \label{fig:cas_vs_swap}
+      \vskip -1em
+\end{figure}
+
+
 We measure the server throughput in terms of RDMA requests per second as
 we increase contention by adding client threads.
 Figure~\ref{fig:cas_vs_swap} shows the performance gained by
@@ -285,7 +288,7 @@ core.)
 %core. As such our bottleneck is approximately 2.8 MOPS. Hardware
 %implemented CRC, cache tuning, and better lock management for TX
 %queues could yield higher per core performance in the future.
-Despite this implementation restriction, these results clearly show that
+Despite this restriction, these results show that
 replacing CAS with write avoids the memory server NIC's hardware
 bottleneck, enabling increased scalability with a more performant
 {\sword}---such as one implemented on a programmable switch.
