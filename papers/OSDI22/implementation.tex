@@ -6,7 +6,7 @@
     \label{fig:system}
 \end{figure}
 
-Our {\sword} prototype is implemented in a software switch using DPDK,
+Our {\sword} prototype is implemented as an in-line middlebox using DPDK,
 but is designed to have low memory and computational overhead making
 it suitable for deployment on programmable switch hardware.  Although
 our current evaluation is based on Clover, {\sword} is intended to be
@@ -15,41 +15,44 @@ the extent possible.
 
 
 
-\subsection{Traffic identification} Depending on the design of a disaggregated
-rack memory traffic might be coresident with regular network traffic.
-Additionally some of the traffic on the memory bus may not require tracking or
-manipulation. In the case of clover we do not modify any traffic to the metadata
-server as it is not in the read/write path. The first stage of our packet
-processing pipeline is to match requests for manipulation. In our design users
-submit a filter as part of their program to allow traffic which does not need to
-be modified to flow freely.
+\subsection{Traffic identification} Depending on the disaggregated
+rack architecture, memory traffic might be coresident with regular
+network traffic.  Additionally some of the traffic on the memory bus
+may not require tracking or manipulation. In the case of Clover we do
+not interpose upon or modify traffic to the metadata server as it is
+not in the read/write path. The first stage of our packet-processing
+pipeline classifies requests for manipulation. In our design operators
+submit a filter as part of their configuration to allow traffic which does
+not need to be modified to flow freely.
 
 \subsection{Dynamic enable/disable of connections, and epochs}
 
-A key goal of our approach is to support the deployment of
-serializer-based performance enhancements without modifying the far
-memory system itself---including requiring any explicit negotiation
-with the serializer.
+A key goal of our approach is to support serializer-based performance
+enhancements without modifying the far memory system
+itself---including requiring any explicit negotiation with the
+serializer.
 %For instance is designed to deal with
 %memory operations made to the wrong location via iterative pointer
 %chasing. We strongly suggest that disaggregated algorithms take this
 %approach as our middlebox solution only acts to acclerate operations
 %in the common case.
-We add and subtract connections based on the send
-and receipt of a single CAS operation. The QP and sequence number for
-the CAS are stored on send, and the ATOMIC ACK is used to retreive the
-other recevers QP. As this approach requires only a single packet
-requests can be added and removed from our algorithm dynamically with
-little effort. As some state may be dependent on the number of
-connections (such as the key to QP mappings), state transitions either
-require a lock, or the coping of current state over to a new epoch
-when new connections are added. In all of our experiments only one
-such transition is made. We begin our mapping after a specific number
-of clients for the experiment have connected. Once the total number of
-clients have connected, a switch is flipped, and the QP multiplexing
-algorithm begins. Requests which do not have mappings stored, but were
-in flight during the flip have their sequence numbers, and MSN values
-applied to the connection state of the new epoch.
+We add and subtract RoCE connections to {\sword}'s management tables
+based upon the send and receipt of CAS operations. The QP and
+sequence number for the CAS are stored on send, and the ATOMIC ACK is
+used to obtain the other recever's QP. As this approach requires only
+a single packet, requests can be added and removed from our algorithm
+dynamically with little effort.
+
+As some state may be dependent on the number of connections (such as
+the key-to-QP mappings), state transitions either require a lock, or
+the copying of current state over to a new epoch when new connections
+are added. In all of our experiments only one such transition is
+made. We begin our mapping after a specific number of clients for the
+experiment have connected. Once the total number of clients have
+connected, a switch is flipped, and the QP multiplexing algorithm
+begins. Requests which do not have mappings stored, but were in flight
+during the flip have their sequence numbers and MSN values applied to
+the connection state of the new epoch.
 
 %\subsection{Operation caching}
 %\label{sec:operation-caching}
@@ -148,43 +151,49 @@ applied to the connection state of the new epoch.
 
 \subsection{RDMA ICRC}
 
-RDMA packets are not intended to be modified in flight, and care must be taken
-not to corrupt them. RDMA invariant CRCs (ICRC) are calculated at the time of
-sending and are designed to ensure the integrity of the payload. When we modify
-packets their ICRC must be recalculated or the packet will be rejected by the
-receiving NIC. Such an error would cause an extreme performance hit as any
-dropped packet triggers a timeout, and go back n retransmission.  FPGA
-implementations of RDMA ICRC have been built in the past~\cite{Mansour_2019};
-the required CRC calculation is identical to Ethernet CRC, with some additional
-\texttt{crc32} for the calculation. This algorithm is highly optimized for
-general case CRC calcuation. Recalculating the CRC for all modified packets is
-the primary overhead of \sword as each packet must be recalculated after a
-squence number update, which occurs on all multiplexed and demultiplexed
-packets. This overhead could be reduced by either removing the need for the CRC
-which is not a feature available on CX series NICS, or by allowing an alterative
-lighter weight checksum which could be quickly updated based on deltas made to
-the packet while in flight. While these options are not currently available we
-believe that commodity switches and smartnics could leverage hardware offloads
-to reduce the cost, as the CRC calculation is identical to ethernet with only the
+RDMA packets are not intended to be modified in flight, and care must
+be taken not to corrupt them. RDMA invariant CRCs (ICRC) are
+calculated at the time of sending and are designed to ensure the
+integrity of the payload. When we modify packets their ICRC must be
+recalculated or the packet will be rejected by the receiving NIC. Such
+an error would cause an extreme performance hit as any dropped packet
+triggers a timeout, and go back n retransmission.  FPGA
+implementations of RDMA ICRC have been built in the
+past~\cite{Mansour_2019}; the required CRC calculation is identical to
+Ethernet CRC, with some additional \texttt{crc32} for the
+calculation. This algorithm is highly optimized for general case CRC
+calcuation.
+
+Recalculating the CRC for modified packets is the primary overhead
+of {\sword} as it must be recalculated after a squence number
+update, which occurs on all multiplexed and demultiplexed
+packets. This overhead could be reduced by either removing the need
+for the CRC (which is not a feature available on CX series NICs) or by
+allowing an alterative, lightweight checksum which could be quickly
+updated based on changes made to the packet while in flight. While
+these options are not currently available we believe that commodity
+switches and SmartNICs could leverage hardware offloads to reduce the
+cost, as the CRC calculation is identical to Ethernet with only the
 additional need to mask RocE specified packet felids.
 
 \subsection{DPDK considerations}
 
-\sword is implemented in DPDK. Our choice to implement our prototype in DPDK was
-for ease of programmability. We use DPDK rather than RDMA to emulate the
-conditions of a programable switch. Specifically that all packets are processed
-without the aid of RDMA hardware on the NIC. Using DPDK introduces issues in
-terms of performance as individual cores on the server have low packet
-processing capabilities relative to dedicated networking hardware. As such are
-design is multithreaded and requires the use of careful atomics for performance.
-Our design partitions cores into TX and RX groups. RX cores are configured via
-RSS and perform traffic identification, write steering and mapping. We
-completely removed the need for any explicit locking between cores and share as
-little state as is theoretically possible. Each TX core serializes requests by
-making atomic fetch-and-add updates to a shared region of memory containing
-connection sequence and message-sequence numbers. RX cores are handed packets
-from TX cores using DPDKs lockless ring library. TX cores check packets to
-determine if they require CRC computation and calculate the CRC only if the
-packet has been modified. Adding a packet handoff between TX and RX increases
-latency, however the head of line blocking incurred by having a single core
-perform both mapping and CRC calculations is to high for our purposes.
+{\sword} is implemented in DPDK for ease of programmability, but
+requires that all packets are processed without the aid of RDMA
+hardware on the NIC. Using DPDK introduces issues in terms of
+performance as individual cores on the server have low packet
+processing capabilities relative to dedicated networking hardware. As
+such our design is multithreaded and requires the use of careful
+atomics for performance.  Our design partitions cores into TX and RX
+groups. RX cores are configured via RSS and perform traffic
+identification, write steering and mapping. We completely removed the
+need for any explicit locking between cores and share as little state
+as is theoretically possible. Each TX core serializes requests by
+making atomic fetch-and-add updates to a shared region of memory
+containing connection sequence and message-sequence numbers. RX cores
+are handed packets from TX cores using DPDKs lockless ring library. TX
+cores check packets to determine if they require CRC computation and
+calculate the CRC only if the packet has been modified. Adding a
+packet handoff between TX and RX increases latency, however the head
+of line blocking incurred by having a single core perform both mapping
+and CRC calculations is to high for our purposes.
