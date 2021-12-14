@@ -1,16 +1,18 @@
 \section{Introduction}
 
-There has been tremendous interest in resource disaggregation in recent years,
-with both academic and industrial researchers chasing the potential for
-increased scalability, power efficiency, and cost
+There has been tremendous interest in resource disaggregation in
+recent years, with both academic and industrial researchers chasing
+the potential for increased scalability, power efficiency, and cost
 savings~\cite{fastswap,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,legoos,supernic}.
-By physically separating compute from storage across a network, it is possible
-to dynamically adjust hardware resource allocations to suit changing workloads.
-Considerable headway has been made at higher levels of the storage hierarchy;
-published and even production systems now support remoting spinning disks, SSDs,
-and modern non-volatile memory technologies~\cite{decible}.  Remote primary
-storage, however, remains a fundamental challenge due to the orders-of-magnitude
-disparity between main-board memory accesses and network round trips.
+By physically separating compute from storage across a network, it is
+possible to dynamically adjust hardware resource allocations to suit
+changing workloads.  Considerable headway has been made at higher
+levels of the storage hierarchy; published and even production systems
+now support remoting spinning disks, SSDs, and modern non-volatile
+memory technologies~\cite{decible}.  Remote primary storage, however,
+remains a fundamental challenge due to the orders-of-magnitude
+disparity between main-board memory accesses and even rack-local
+network round trips.
 
 %Resource disaggregation is an architectural paradigm which separates
 %disk, CPU and memory over a network. The goal of this architecture is
@@ -32,21 +34,21 @@ The hardware community has made great strides in closing the latency
 gap via novel technologies like silicon photonics and new rack-scale
 interconnects, but commercially available options remain significantly
 slower than on-board options.  Concretely, the latency of making a
-memory access over commercially available interconnect technologies
+memory access over interconnect technologies
 like RDMA~\cite{infiniband-spec}, GenZ~\cite{genz}, and CXL~\cite{cxl}
-remains on the order of 20$\times$ slower than a local access (i.e.,
+remains on the order of 20$\times$ slower than a local access (e.g.,
 50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
 that these memory transport technologies provide the ability to
 directly execute operations like read, write and compare and swap on
 remote host memory through the use of a RDMA capable
-NICs~\cite{connectx}, SOC~\cite{cavium} or FPGA
-smartNIC~\cite{corundum,kv-direct} or DPUs~\cite{fungible}, most
-existing systems coordinate with the remote CPU on the socket at which
+NICs~\cite{connectx}, SOCs~\cite{cavium}, FPGA
+SsmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
+existing systems coordinate with a remote CPU on the socket at which
 the DMA is being performed to assist with
-serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.  The very few
-published systems that attempt to provide fully passive remote
+serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.  The few
+published systems that provide fully passive remote
 memory~\cite{reigons,clover} focus on read-heavy workloads to
-amortize the high costs of conflict detection and resolution.
+amortize the costs of conflict detection and resolution.
 
 %% % and Omni-Path~\cite{omni-path}. // omni-path is dead now % 
 %Each protocol, while distinct, meets approximately the same requirements,
@@ -64,7 +66,7 @@ memory, it falls to each individual client to ensure that its reads
 and writes are serialized, usually by leveraging expensive
 hardware-provided atomic operations like compare and
 swap~\cite{design-guidelines,clover}.  The cost of client-side
-serialization is stark, and most prior systems simply partition memory
+serialization is steep, and most existing systems simply partition memory
 completely and forgo sharing~\cite{reigons,fastswap, legoos}.  On the
 other hand, one recent disaggregated key-value store,
 Clover~\cite{clover}, goes to great lengths to provide lock-less reads
@@ -122,14 +124,15 @@ likelihood the guard will trip.  Moreover, if {\sword} is configured
 to explicitly manage the RDMA connections themselves, it can enforce
 per-server ordering and remove the expensive guards entirely.
 
-We prototype {\sword} using DPDK in the context of Clover on
-ConnectX-5 RoCE RDMA NICs.  Our evaluation shows that {\sword}
-dramatically increases the performance of Clover in the presence of
-write contention.  Under a 50:50 read-write workload, throughput rises
-by more than 3$\times$, tail latency drops by over 36$\times$ and
-bandwidth usage cuts almost in half.
-%Further, by re- moving the need for RDMA atomics, we scale past
-%the ConnectX atomic limit of ≈2.7 MOP/s per queue pair.
+We prototype {\sword} using a DPDK-based middlebox connected in-line
+to the ToR in the context of Clover on ConnectX-5 RoCE RDMA NICs.  Our
+evaluation shows that {\sword} dramatically increases the performance
+of Clover in the presence of write contention.  Under a 50:50
+read-write workload, throughput rises by more than 3$\times$, tail
+latency drops by over 36$\times$ and bandwidth usage cuts almost in
+half.  Further, we show that by replacing compare-and-swap operations
+in flight with standard RDMA verbs, we can surpass the
+hardware-imposed limit on atomic operations per queue pair.
 
 %% Using RDMA transport information and clover specific application
 %% knowledge all reads and writes to contended areas are totally ordered

@@ -11,12 +11,13 @@
 % serialization.
 
 
-Passive memory systems suffer from two fundamental sources of overhead:
-the costs of resolving conflicts from afar and the additional expense
-incurred by leveraging any hardware-enforced consistency semantics at
-the memory servers themselves.  Before introducing our approaches to
-avoiding both, we characterize the potential benefits by quantifying
-each in the context of Clover and our testbed RDMA hardware.
+Passive memory systems suffer from two fundamental sources of
+overhead: the costs of resolving conflicts from afar and the
+additional expense incurred by leveraging any hardware-enforced
+consistency semantics at the memory servers themselves.  Before
+introducing our approaches to avoiding both, we characterize the
+potential benefits by quantifying each in the context of Clover and
+our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
 
 
 %% Sharing remote memory creates a variety of performance problems
@@ -67,8 +68,8 @@ operation. The location of the tail of the list is cached at each
 client and used as a hint for subsequent operations.  If the hint is
 stale the client obtains an updated tail pointer and retries the
 operation.  Figure~\ref{fig:success_rate} shows the percentage of
-operation which succeed at a 50:50 read-write workload as a
-function of the number of concurrent clients.
+operation which succeed in a 50:50 read-write workload as a
+function of the number of concurrent client threads.
 
 \paragraph{Bandwidth inflation.} 
 
@@ -206,7 +207,7 @@ reads and writes.
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
     
-    \caption{PDF of packet reorderings once QP mapping is applied to a zipf
+    \caption{PDF of packet reorderings once QP mapping is applied to a Zipf
     distribution. The values above are the absolute difference in the arrival
     order of sequence numbers after being mapped to different QP. The majority
     of packets retain their order (delta=1), however reorderings of up to 15
@@ -229,18 +230,19 @@ in the order they are dispatched.  Similarly, individual RDMA requests
 may require multiple memory accesses, potentially leading to
 write corruption and read tearing.
 
-Figure~\ref{fig:reorder} shows that this potential reordering is not just an
-academic concern, but instead arises with some frequency. In this example, we
-issue RDMA read, write and CAS operations at a rate of 1 million operations per
-second to 1024 different memory locations according to a Zipf distribution, and
-spread these requests across 32 different queue pairs. Each request is routed
-through a middlebox which keeps a global request counter for each RDMA request.
-We track the reordering of each requests relative to the order it was issued
-from the middlebox, and when its response was received.  The plot shows the
-distribution of sequence-number gaps between responses.  As expected, the vast
-majority differ by one (i.e., arrive in the same order they were dispatched),
-but a non-trivial number are out of order by one or two packets, and some are
-delayed by up to 15.
+Figure~\ref{fig:reorder} shows that this potential reordering is not
+just an academic concern, but instead arises with some frequency. In
+this example, we issue RDMA read, write and CAS operations at a rate
+of 1 million operations per second to 1,024 different memory locations
+according to a Zipf distribution, and spread these requests across 32
+different queue pairs. Each request is routed through a middlebox that
+keeps a global request counter for each RDMA request.  We track the
+order of responses relative to the order the corresponding request was
+issued from the middlebox.  The plot shows the distribution of
+sequence-number gaps between responses.  As expected, the vast
+majority differ by one (i.e., arrive in the same order they were
+dispatched), but a non-trivial number are out of order by one or two
+requests, and some by up to 15.
 
 %% RDMA read and write operations to detect reordering across 1000 keys
 %% on a zipf distribution. Specifically we monitor a stream of key value
@@ -255,8 +257,8 @@ delayed by up to 15.
 \begin{figure}[t] \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
 
 \caption{Max throughput per QP on RoCEv2 RC connections. Each QP gets a single
-core, and issues inlined writes. Single connection only offer a fraction of the
-available nic bandwidth.} 
+core, and issues in-lined writes. Single connection only offer a fraction of the
+available NIC bandwidth.} 
 
 \label{fig:qp_bottleneck} \end{figure}
 
@@ -271,14 +273,15 @@ That is, operations on a given queue pair
 are totally ordered with respect to one another.
 % a NIC should ensure that all operations over a given queue pair are
 %serviced in the order they arrive.
-In general, this can provide sequential consistency if
-all operations relating to a given memory location arrive on the same
-queue pair.  Unsurprisingly, however, this ordering guarantee comes
-with its own scalability limitations.  Figure~\ref{fig:qp_bottleneck}
-shows that the performance of an individual queue pair falls far short
-of line rate on our hardware.  Moreover, as traditionally conceived, a
-queue pair is intended to be established between a single client and
-server---limiting its utility in a disaggregated setting.
+In general, this can provide sequential consistency if all operations
+relating to a given memory location arrive on the same queue pair.
+Unsurprisingly, RCs' ordering guarantee comes with its own
+scalability limitations.  Figure~\ref{fig:qp_bottleneck} shows that
+the performance of individual queue pairs fall far short of line
+rate on our NICs; we observe increased performance until at least
+seven queue pairs are used in parallel.  Moreover, as traditionally
+conceived, a queue pair is intended to be established between a single
+client and server---limiting its utility in a disaggregated setting.
 
 %% \todo{I think that this was written with a misunderstanding about what the charts were}
 %% As expected, when all requests are issued on the same queue pair, they are

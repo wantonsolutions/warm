@@ -9,7 +9,7 @@ to effectively do away with the need for most retries by ``fixing'' RDMA
 operations issued with stale hints in flight.  Second, we show how we can
 leverage our ability to rewrite RDMA requests after their ordering is determined
 to replace expensive compare-and-swap operations with simple write verbs and
-rely upon the semantics of RDMA RC queue pairs to provide serializablity.
+rely upon the semantics of RDMA RC queue pairs to provide serializability.
 Additionally, we can leverage this same functionality to multiplex independent
 operations across multiple QP to improve scalability.
 
@@ -30,16 +30,15 @@ transparently in flight as the operations flow traverse the ToR.
 
 \begin{figure} \includegraphics[width=0.45\textwidth]{fig/overview_2.pdf}
 %%
-\caption{ System overview, Metadata, client, and Remote Memory servers are
-Clover components. \sword is run on a separate server connected to the same TOR.
-Routing to \sword is completed by adding openflow rules which interpose on
-clovers requests without making any explicit changes to clover itself.}
+\caption{Clients, Metadata and Remote Memory servers are
+Clover components. {\sword} is run on a separate server connected to the same ToR.
+Routing to {\sword} is effected by adding Openflow rules to redirect Clover traffic to {\sword}.}
 %%
 \label{fig:overview} \end{figure}
 
 Figure~\ref{fig:overview} shows how {\sword} interacts with the Clover
-system.  We envisage {\sword} implemented as a remote memory coordinator
-on a programmable switch that serves as the top-of-rack (ToR) switch
+system.  We envisage {\sword} implemented either as a part of or in-line with
+a programmable switch that serves as the top-of-rack (ToR) switch
 for all of the memory servers.  Client machines need not be directly
 attached to the ToR, although they likely would be in most rack-scale
 deployments.  Similarly, the topological location of Clover's metadata
@@ -73,17 +72,18 @@ destined for a stale virtual address (i.e., an address other than the
 one currently cached for that key), {\sword} replaces it with
 the cached address.
 
-While conceptually simple, the actual implementation is somewhat involved due to
-the design of both Clover and the RDMA protocol and our desire to remain
-transparent to both.  Specifically, Clover RDMA CAS requests do not explicitly
-specify the operation of which they are a part.  {\sword} infers the operation
-by checking the size of the RDMA request and then extract the key from the
-appropriate the location in the packet.  The key is then used as an index into a
-table lookup to find the virtual address of the latest write for that key.  Our
-strategy requires only 64 bytes of data per key---the size of the RDMA virtual
-address.  Because it modifies the content of the RDMA request, {\sword} also
-needs to recompute the RDMA ICRC checksum to prevent the server from rejecting
-the request as malformed.
+While conceptually simple, the actual implementation is somewhat
+involved due to the design of both Clover and the RDMA protocol and
+our desire to remain transparent to both.  Specifically, Clover RDMA
+CAS requests do not explicitly specify the operation of which they are
+a part.  {\sword} infers the operation by checking the size of the
+RDMA request and then extracts the key from the appropriate the
+location in the packet.  The key is then used as an index into a
+lookup table to find the virtual address of the latest write for that
+key.  Our strategy requires only 64 bytes of data per key---the size
+of the RDMA virtual address.  Because it modifies the content of the
+RDMA request, {\sword} also needs to recompute the RDMA ICRC checksum
+to prevent the server from rejecting the request as malformed.
 
 %By
 %performing this lookup in the data path all writes succeed regardless
@@ -104,28 +104,31 @@ RDMA read requests only contain the target virtual address and a size.
 %for which the read is for, without additional data in the packet the
 %value must be determined another way.
 As reads can be for arbitrarily old virtual addresses a naive solution
-that stored the entire lineage of each key would effectively require
+that stored the lineage of each key would effectively require
 caching the entire contents of Clover's metadata server.  Our solution
-is to hash the address of each write into an array 3$\times$
+is to hash the address of each write into an array somewhat larger than
 the size of the key space, and store the key along with the address.
 Hash collisions are resolved by replacing the old address and key with
 the new values, allowing keys with higher update rates to maintain
 longer histories in the table. 
 
-When reads arrive {\sword} looks up their destination address in the table; if
-the address has a hit the associated key is used to look up the current tail in
-the write cache and the RDMA read is redirected to the cached location.  Should
-a miss occur---either because the hash bucket was overwritten by another key, or
-because the tail address is not cached---the read is left unmodified.  If it
-fails to arrive at the current tail, Clover's default recovery mechanism kicks
-in and performs a lookup to the metadata server for the last known address and
-the process repeats. We find that by using an array size of 3$\times$ the vast
-majority of reads succeed first try. One advantage of this technique is that it
-is a generalized cache for recent RDMA reads, and requires little computation to
-maintain a hot cache. For optimization reasons we forgo using heavyweight hash
-functions and use the murmur3 bit scrambler to attain an approximately even hash
-of virtual addresses in only a few cycles which can likely be implemented on
-programable switch hardware.
+When reads arrive {\sword} looks up their destination address in the
+table; if the address has a hit the associated key is used to look up
+the current tail in the write cache and the RDMA read is redirected to
+the cached location.  Should a miss occur---either because the hash
+bucket was overwritten by another key, or because the tail address is
+not cached---the read is left unmodified.  If it fails to arrive at
+the current tail, Clover's default recovery mechanism kicks in and
+performs a lookup to the metadata server for the last known address
+and the process repeats. We find that by using an array size of
+3$\times$ the vast majority of reads succeed first try. One advantage
+of this technique is that it is a generalized cache for recent RDMA
+reads, and requires little computation to maintain a hot cache. For
+performance reasons we forgo heavyweight hash functions and use
+the \texttt{murmur3} bit scrambler to attain an approximately even
+hash of virtual addresses in only a few cycles.
+%---which can likely be
+%implemented on programable switch hardware.
 
 \subsection{Enforcing ordering}
 
