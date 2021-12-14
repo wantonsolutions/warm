@@ -110,12 +110,12 @@ logic is pure overhead due to the absence of reads.
 \subsection{Bandwidth reduction}
 
 \begin{figure}
-  \includegraphics[width=0.5\textwidth]{fig/bandwidth_reduction.pdf}
+  \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
-    \vskip -0.5em
+   \vskip -0.5em
     \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.}
     \label{fig:bandwidth_reduction}
-      \vskip -0.5em
+     \vskip -0.5em
 \end{figure}
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
@@ -175,8 +175,8 @@ page fault to complete before continuing. We therefore consider poor
 tail latency to be a fundamental barrier to the widespread adoption of
 far memory systems.  Optimistic concurrency is well known to exhibit
 poor tail latency under contention, and Clover is no exception to this
-rule. Our techniques significantly reduce tail latency as steering
-ensures that nearly all requests succeed with no need to retry.
+rule. Our techniques significantly reduce latency as steering
+ensures that nearly all requests succeed on the first try.
 
 Figure~\ref{fig:tail_latency} shows the 99th-percentile tail latencies
 associated with each of \sword's techniques in comparison with default
@@ -266,11 +266,11 @@ the memory-side NIC.
 %must be multiplexed to and from a single client connection. Further
 
 \begin{figure}[t]
-    \includegraphics[width=0.5\textwidth]{fig/cas_vs_swap.pdf}
-  \vskip -0.5em
+    \includegraphics[width=0.485\textwidth]{fig/cas_vs_swap.pdf}
+%  \vskip -0.5em
     \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
     \label{fig:cas_vs_swap}
-      \vskip -0.5em
+%      \vskip -0.5em
 \end{figure}
 
 

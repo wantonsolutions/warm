@@ -37,7 +37,7 @@ our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
 
 
 \begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/success_rate.pdf}
+    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
     \vskip -0.5em
     \caption{Percentage of successful read and write attempts in a
       50:50 read-write workload spread across 1,024 keys according
@@ -130,11 +130,11 @@ to occur strictly before or after the CAS, regardless of whether they
 are themselves atomic.
 
 \begin{figure}[t]
-  \includegraphics[width=0.45\textwidth]{fig/rdma_concur.pdf}
-  \vskip -0.5em
+  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
+%  \vskip -0.5em
     \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
     \label{fig:rdma_concur}
-      \vskip -0.5em
+%      \vskip -0.5em
 \end{figure}
 
 These atomic requests enable (seemingly) lock-free updates to far
@@ -201,7 +201,7 @@ reads and writes.
 \subsubsection{Queue-pair ordering}
 
 \begin{figure}[t]
-    \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
+    \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
   \vskip -0.5em    
     \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   The majority
     of requests retain their order (delta=1), however reorderings of up to 15
@@ -250,7 +250,7 @@ requests, and some by up to 15.
 
 
 \begin{figure}[t]
-  \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
+  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
   \vskip -0.5em
 \caption{Max throughput per QP on RoCEv2 RC connections. Each QP gets a single
 core, and issues in-lined writes. Single connection only offer a fraction of the
