@@ -157,8 +157,11 @@ read operations fail as discussed above.
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
 
-    \caption{Left: Read tail latencies 99th percentile. Right: Write latencies.
-    Each measure taken on a Zipf distribution of requests with 64 clients. Note that the y axis is log scale}
+    \caption{99th-percentile tail latencies of read (left) and write
+      (right) operations for workloads of various write intensities
+      when applying each of {\sword}'s techniques.  Each measurement
+      taken over a Zipf distribution of requests with 64
+      clients. (Note the logarithmic $y$ axes.)}
 
     \label{fig:tail_latency}
 \end{figure*}
