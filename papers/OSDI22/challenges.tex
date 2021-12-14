@@ -38,12 +38,13 @@ our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
 
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/success_rate.pdf}
-    
-    \caption{Percentage of successful read and write attempts on 1024 keys at a
-    50\% write workload \textit{zipf(0.99)} as more client threads are added. At
-    128 threads 26\% of write attempts are successful using optimistic
-    concurrency.}
-
+    \vskip -0.5em
+    \caption{Percentage of successful read and write attempts in a
+      50:50 read-write workload spread across 1,024 keys according
+      to a Zipf(0.99) distribution as more client threads are
+      added. At 128 threads only 26\% of write requests are
+      successful.}
+    \vskip -0.5em
     \label{fig:success_rate}
 \end{figure}
 
@@ -111,16 +112,11 @@ latency increases by over 36$\times$ (Figure~\ref{fig:tail_latency}).
 
 \subsection{RDMA semantics}
 
-Any client-based contention management scheme requires a certain level of
-serialization support at the memory server.  There is a clear tradeoff, however,
-between the strength of the guarantees and the costs associated with
-implementing them.  In the particular case of RDMA, it exposes a set of queue
-pair (QP) types with differing reliability guarantees. Unreliable connections
-and datagrams (UC \& UD) provide no ordering guarantees while reliable
-connections (RC) provide TCP like in order delivery on a single QP. While
-operations on a RC are linearizable, shared memory accesses across RC are not.
-In order to allow applications to reason about and react to this uncertainty,
-current NICs provide two different classes of guarantees.
+Any client-based contention management scheme requires a certain level
+of serialization support at the memory server.  There is a trade-off,
+however, between the strength of the guarantees and the costs
+associated with implementing them.  RDMA provides two different
+classes of guarantees; we summarize both below.
 
 \subsubsection{Atomic requests}
 
@@ -252,6 +248,7 @@ requests, and some by up to 15.
 %% reordering on the memory side server, either in the NIC itself or over
 %% the PCIe bus.
 
+\newpage
 \begin{figure}[t]
   \includegraphics[width=0.45\textwidth]{fig/qp_bottleneck.pdf}
   \vskip -0.5em
@@ -262,20 +259,34 @@ available NIC bandwidth.}
   \label{fig:qp_bottleneck}
 \end{figure}
 
-Happily, the RDMA specification stipulates that requests made on a
-reliable connection (one-server/one-client queue pair) are guaranteed
-to be executed in the same order as their sequence numbers, similar to
-TCP's transport-layer semantics~\cite{infiniband-spec}.
+Happily, the RDMA specification provides the ability to provide
+partial ordering amongst a subset of requests~\cite{infiniband-spec}.
+Specifically, RDMA provides three different types of queue pairs (QP)
+with differing ordering (and reliability) guarantees. Unreliable
+connections and datagrams (UC \& UD) provide no ordering guarantees
+while reliable connections (RC) provide TCP-like in-order processing
+of requests on that QP.  As a result, requests on an individual RC are
+linearizable with respect to each other, but shared memory accesses
+across multiple RC are not.
+%
+%In order to allow applications to
+%reason about and react to this uncertainty,
+%
+%stipulates that requests made on a
+%reliable connection (one-server/one-client queue pair) are guaranteed
+%to be executed in the same order as their sequence numbers, similar to
+%TCP's transport-layer semantics~\cite{infiniband-spec}.
 %~\footnote{while
 %IB allows for relaxed ordering here we rely on that feature being
 %turned off on the receiver}.
-That is, requests on a given queue pair
-are totally ordered with respect to one another.
+%That is, requests on a given queue pair
+%are totally ordered with respect to one another.
 % a NIC should ensure that all operations over a given queue pair are
 %serviced in the order they arrive.
+
 In general, this can provide sequential consistency if all requests
-relating to a given memory location arrive on the same queue pair.
-Unsurprisingly, RCs' ordering guarantee comes with its own
+relating to a given memory location arrive on the same RC queue pair.
+Unsurprisingly, RC's ordering guarantee comes with its own
 scalability limitations.  Figure~\ref{fig:qp_bottleneck} shows that
 the performance of individual queue pairs fall far short of line
 rate on our NICs; we observe increased performance until at least

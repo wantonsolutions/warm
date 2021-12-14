@@ -102,8 +102,7 @@ actual conflicts and can avoid the unnecessary costs of enforcing
 ordering among unrelated requests.  Moreover, in our design the
 serializer serves as a performance-enhancing proxy: it can always
 allow even conflicting requests to pass through unmodified without
-jeopardizing safety, as the default client-based conflict resolution
-strategy remains.
+jeopardizing safety, as the client-based conflict resolution remains.
 
 We present {\sword}, an on-path serializer
 %(implemented either
