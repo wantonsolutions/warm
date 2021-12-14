@@ -151,10 +151,10 @@ the connection state of the new epoch.
 
 \subsection{RDMA ICRC}
 
-RDMA packets are not intended to be modified in flight, and care must
+RDMA requests are not intended to be modified in flight, and care must
 be taken not to corrupt them. RDMA invariant CRCs (ICRC) are
 calculated at the time of sending and are designed to ensure the
-integrity of the payload. When we modify packets their ICRC must be
+integrity of the payload. When we modify requests their ICRC must be
 recalculated or the packet will be rejected by the receiving NIC. Such
 an error would cause an extreme performance hit as any dropped packet
 triggers a timeout, and go back n retransmission.  FPGA
@@ -164,10 +164,10 @@ Ethernet CRC, with some additional \texttt{crc32} for the
 calculation. This algorithm is highly optimized for general case CRC
 calcuation.
 
-Recalculating the CRC for modified packets is the primary overhead
+Recalculating the CRC for modified requests is the primary overhead
 of {\sword} as it must be recalculated after a squence number
 update, which occurs on all multiplexed and demultiplexed
-packets. This overhead could be reduced by either removing the need
+requests. This overhead could be reduced by either removing the need
 for the CRC (which is not a feature available on CX series NICs) or by
 allowing an alterative, lightweight checksum which could be quickly
 updated based on changes made to the packet while in flight. While
@@ -179,7 +179,7 @@ additional need to mask RocE specified packet felids.
 \subsection{DPDK considerations}
 
 {\sword} is implemented in DPDK for ease of programmability, but
-requires that all packets are processed without the aid of RDMA
+requires that all requests are processed without the aid of RDMA
 hardware on the NIC. Using DPDK introduces issues in terms of
 performance as individual cores on the server have low packet
 processing capabilities relative to dedicated networking hardware. As

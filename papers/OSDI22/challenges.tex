@@ -208,7 +208,7 @@ reads and writes.
     \includegraphics[width=0.45\textwidth]{fig/qp_reordering.pdf}
     
     \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   The majority
-    of packets retain their order (delta=1), however reorderings of up to 15
+    of requests retain their order (delta=1), however reorderings of up to 15
     requests can occur.}
 
     \label{fig:reorder}
@@ -286,7 +286,7 @@ client and server---limiting its utility in a disaggregated setting.
 %% serviced in order.  Once a non-trivial level of concurrency is reached, however,
 %% the reordering becomes significant, with over 7\% of requests to the same
 %% address serviced out of order when they are spread across 32 queue
-%% pairs.\sg{given a zipf distribution, and 16qp around 3\% of packets are
+%% pairs.\sg{given a zipf distribution, and 16qp around 3\% of requests are
 %% reordered. This is detected by checking the sequence numbers against the known
 %% monotonic sequence.}
 
