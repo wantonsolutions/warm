@@ -94,8 +94,8 @@ expected number of retries is the cost at the tail---namely the
 latency associated with those particularly ``unlucky'' requests that
 fail repeatedly.  Note that these operations are precisely those for
 ``hot'' memory locations, so likely to be ones that matter.  Our
-experimentation with Clover shows that under moderate write pressure
-(e.g., 50\% write operations with 64 threads) the 99th-percentile tail
+measurements show that under moderate contention
+(e.g., 50\% write operations with 64 threads) Clover's 99th-percentile tail
 latency increases by over 36$\times$ (Figure~\ref{fig:tail_latency}).
 
 %% Reducing the cost of each operation to exactly 1 attempt can reduce
@@ -218,7 +218,7 @@ on a server that likely utilizes a commodity hardware memory
 management unit (MMU).  All modern MMUs ensure coherent memory
 accesses and frequently ensure a total ordering on local memory
 requests (i.e., sequential consistency).  Unfortunately, due to the
-complexities of today's multi-core NUMA architectures and PCIe bus
+complexities of today's NUMA architectures and PCIe bus
 arbitration, it is possible that memory requests may not be serviced
 in the order they are dispatched.  Similarly, individual RDMA requests
 may require multiple memory accesses, potentially leading to
@@ -234,7 +234,7 @@ keeps a global request counter for each RDMA request.  We track the
 order of responses relative to the order the corresponding request was
 issued from the middlebox.  The plot shows the distribution of
 sequence-number gaps between responses.  As expected, the vast
-majority differ by one (i.e., arrive in the same order they were
+majority differ by one (i.e., the same order they were
 dispatched), but a non-trivial number are out of order by one to five
 requests, and some by up to 15.
 
@@ -291,7 +291,7 @@ scalability limitations.  Figure~\ref{fig:qp_bottleneck} shows that
 the performance of individual queue pairs fall far short of line
 rate on our NICs; we observe increased performance until at least
 seven queue pairs are used in parallel.  Moreover, as traditionally
-conceived, a queue pair is intended to be established between a single
+conceived, a QP is intended to be established between a single
 client and server---limiting its utility in a disaggregated setting.
 
 %% \todo{I think that this was written with a misunderstanding about what the charts were}
