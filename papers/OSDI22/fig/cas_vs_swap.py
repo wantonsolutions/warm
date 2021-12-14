@@ -41,7 +41,7 @@ def div_million (list):
 fig, axs = plt.subplots(1,1, figsize=(5,4))
 
 plot_data(axs,'cas_contention_control.dat','CAS',default_color,default_marker)
-plot_data(axs,'cas_to_write.dat','CAS -> write',cas_color,cas_marker)
+plot_data(axs,'cas_to_write.dat','CAS->Write',cas_color,cas_marker)
 #axs.set_title("csn raw vs write to CNS")
 axs.set_ylim(1,3)
 
