@@ -39,9 +39,10 @@ our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
 \begin{figure}[t]
     \includegraphics[width=0.45\textwidth]{fig/success_rate.pdf}
     
-    \caption{Percentage of successful read and write attempts at a 50\% write
-    workload as more client threads are added. At 128 threads only 26\% of write
-    attempts are successful using optimistic concurrency.}
+    \caption{Percentage of successful read and write attempts on 1024 keys at a
+    50\% write workload \textit{zipf(0.99)} as more client threads are added. At
+    128 threads 26\% of write attempts are successful using optimistic
+    concurrency.}
 
     \label{fig:success_rate}
 \end{figure}
