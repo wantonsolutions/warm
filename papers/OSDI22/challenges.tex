@@ -110,19 +110,16 @@ latency increases by over 36$\times$ (Figure~\ref{fig:tail_latency}).
 
 \subsection{RDMA semantics}
 
-Any client-based contention management scheme requires a certain level
-of serialization support at the memory server.  There is a clear
-tradeoff, however, between the strength of the guarantees and the
-costs associated with implementing them.  In the particular case of
-RDMA, there are distinct forms of support with very different
-characteristics.  In general, even if one constrains the arrival of
-RDMA requests to a given server---or NIC port on a server---there
-remain multiple sources of concurrency and contention that may lead to
-races and seeming violations of the total request order.
-Formally, RDMA requests are not, in general, linearizable, even at a
-single port on a given NIC.  In order to allow applications to reason
-about and react to this uncertainty, current NICs provide two
-different classes of guarantees.
+Any client-based contention management scheme requires a certain level of
+serialization support at the memory server.  There is a clear tradeoff, however,
+between the strength of the guarantees and the costs associated with
+implementing them.  In the particular case of RDMA, it exposes a set of queue
+pair (QP) types with differing reliability guarantees. Unreliable connections
+and datagrams (UC \& UD) provide no ordering guarantees while reliable
+connections (RC) provide TCP like in order delivery on a single QP. While
+operations on a RC are linearizable, shared memory accesses across RC are not.
+In order to allow applications to reason about and react to this uncertainty,
+current NICs provide two different classes of guarantees.
 
 \subsubsection{Atomic requests}
 
