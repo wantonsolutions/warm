@@ -191,9 +191,9 @@ need for any explicit locking between cores and share as little state
 as is theoretically possible. Each TX core serializes requests by
 making atomic fetch-and-add updates to a shared region of memory
 containing connection sequence and message-sequence numbers. RX cores
-are handed packets from TX cores using DPDKs lockless ring library. TX
-cores check packets to determine if they require CRC computation and
-calculate the CRC only if the packet has been modified. Adding a
-packet handoff between TX and RX increases latency, however the head
-of line blocking incurred by having a single core perform both mapping
-and CRC calculations is to high for our purposes.
+are handed packets from TX cores using DPDKs lock-less ring
+library. TX cores check packets to determine if they require CRC
+computation and calculate the CRC only if the packet has been
+modified. Adding a packet handoff between TX and RX increases latency,
+however the head-of-line blocking incurred by having a single core
+perform both mapping and CRC calculations is too high for our purposes.

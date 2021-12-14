@@ -42,7 +42,7 @@ that these memory transport technologies provide the ability to
 directly execute operations like read, write and compare and swap on
 remote host memory through the use of a RDMA capable
 NICs~\cite{connectx}, SOCs~\cite{cavium}, FPGA
-SsmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
+SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
 existing systems coordinate with a remote CPU on the socket at which
 the DMA is being performed to assist with
 serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.  The few
@@ -128,7 +128,7 @@ We prototype {\sword} using a DPDK-based middlebox connected in-line
 to the ToR in the context of Clover on ConnectX-5 RoCE RDMA NICs.  Our
 evaluation shows that {\sword} dramatically increases the performance
 of Clover in the presence of write contention.  Under a 50:50
-read-write workload, throughput rises by more than 3$\times$, tail
+read-write workload, throughput rises by almost 3$\times$, tail
 latency drops by over 36$\times$ and bandwidth usage cuts almost in
 half.  Further, we show that by replacing compare-and-swap operations
 in flight with standard RDMA verbs, we can surpass the

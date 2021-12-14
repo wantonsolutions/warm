@@ -1,25 +1,32 @@
 \section{Limitations}
 
-The main limitation of our work is that our middle box is developed in user
-space software and not on programmable networking hardware. There are additional
-limitations, in terms of language restrictions and processing power which occur
-on real hardware but not in our DPDK prototype. For example in programmable
-switches the need to recirculate packets which exceed the computational capacity
-of a pipeline results in decreased overall bandwidth. We use prior work on
-programable switches to inform our DPDK prototype and intentionally avoid
-decisions which would not be implementable on a programmable switch.
+As starkly demonstrated above, the main limitation of our work is that
+our {\sword} prototype is implemented as user-space software and not
+on programmable networking hardware. There are additional limitations,
+in terms of language restrictions and processing power which occur on
+real hardware but not in our DPDK prototype. For example, in
+programmable switches the need to recirculate packets which exceed the
+computational capacity of a pipeline results in decreased overall
+bandwidth. We use prior work on programable switches to inform our
+DPDK prototype and intentionally avoid decisions which would not be
+implementable on a programmable switch.
 
-Our experiments fall short of the underlying hardware limits. Our results are
-relative and show real performance boots which are obtained by reducing hardware
-contention. In future work we would like to extend our measurements to push the
-limitations of the underlying hardware. We expect that measuring at line rate
-will only increase the benifit seen by reducing this contention based on our
-current measurements~\ref{fig:full_system_performance}.
+Our Clover experiments fall short of the underlying hardware limits.
+While our results show real performance boosts from reducing hardware
+contention, there may be additiona bottlenecks we have not yet
+uncovered. In future work we would like to extend our measurements to
+push the limitations of the underlying hardware. We expect that
+measuring at line rate will only increase the benifit seen by reducing
+this contention based on our current
+measurements.
 
-Some aspects of RDMA interposition are left out of this work. For instance how
-to deal with ECN packets correctly id a difficult question when connections are
-being multiplexed as the generated ECN packet has a single destination. One
-option is to broadcast the ECN to all clients multiplexed on the destination
-connection and allow end-to-end congestion control. Another is to keep track of
-individual client request rates and only issue ECN to the highest requesting
-clients. We leave the finer points of congestion control to future work.
+%~\ref{fig:full_system_performance}.
+
+Some aspects of RDMA interposition are left out of this work. For
+instance, correctly handling ECN packets is a difficult question when
+connections are being multiplexed as the generated ECN packet has a
+single destination. One option is to broadcast the ECN to all clients
+multiplexed on the destination connection and allow end-to-end
+congestion control. Another is to keep track of individual client
+request rates and only issue ECN to the highest requesting clients. We
+leave the finer points of congestion control to future work.

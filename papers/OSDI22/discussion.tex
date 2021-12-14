@@ -1,16 +1,21 @@
-\section{Discussion and future work}
+%\section{Discussion and future work}
+%
+While our prototype focuses on Clover, we believe the
+%Our approach only measures the benefits which clover observers by using our in
+%network contention resolution. However our
+approach is general, and in the future we would like to add support
+for additional disaggregated memory systems. For example Remote
+Regions~\cite{reigons} implements a POSIX file system API for remote
+memory.
+%Our approach could also be used to remove contention in
+%a much more standardized remote memory environment.
 
-Our approach only measures the benefits which clover observers by using our in
-network contention resolution. However our approach is general, and in the
-future we would like to add functionality for different systems. For example
-Remote Regions~\cite{reigons} implements a POSIX file system API for remote
-memory.  Our approach could also be used to remove contention here in a much
-more standardized remote memory environment.
-
-Clover represents a state of the art key value store for remote memory, however
-it is designed with a different set of assumptions than we anticipate for future
-systems. We believe that in the context of remote memory with programmable middle
-boxes we should architect remote algorithms differently. Mainly that algorithms
-and data structures should be designed with the assumption that conflicts can be
-resolved using small amounts of high speed compute in network. We aim to explore
-the design space of such algorithms and data structures in the future.
+More broadly, each of these systems is designed with a different set
+of assumptions than we anticipate are appropriate for future
+deployments.  As others have also observed~\cite{mom}, in-network
+serialization occurs naturally in today's network fabrics, so it seems
+fruitful to consider how to design algorithms and data structures
+under the assumption most conflicts can be resolved using small
+amounts of high-speed compute in the network itself. We aim to explore
+the design space of such algorithms and data structures for
+disaggregation in the future.
