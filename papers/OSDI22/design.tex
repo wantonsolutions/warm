@@ -1,20 +1,17 @@
 \section{On-path serialization}
 
-Given the overhead of remote conflict resolution and the performance
-bottlenecks associated with RDMA hardware serialization, this section
-discusses how an on-path serializer can dramatically increase
-real-world performance by alleviating both issues.  To ground our
-discussion, we address both in the context of Clover, a
-state-of-the-art far memory system.  First we describe how to
-effectively do away with the need for most retries by ``fixing'' RDMA
-operations issued with stale hints in flight.  Second, we show how we
-can leverage our ability to rewrite RDMA requests after their ordering
-is determined to replace expensive compare-and-swap operations with
-simple write verbs and rely upon the semantics of RDMA queue pairs to
-provide serializability. Additionally, we can leverage this same
-functionality to multiplex independent operations across multiple QP
-to improve scalability.
-
+Given the overhead of remote conflict resolution and the performance bottlenecks
+associated with RDMA hardware serialization, this section discusses how an
+on-path serializer can dramatically increase real-world performance by
+alleviating both issues.  To ground our discussion, we address both in the
+context of Clover, a state-of-the-art far memory system. First we describe how
+to effectively do away with the need for most retries by ``fixing'' RDMA
+operations issued with stale hints in flight.  Second, we show how we can
+leverage our ability to rewrite RDMA requests after their ordering is determined
+to replace expensive compare-and-swap operations with simple write verbs and
+rely upon the semantics of RDMA RC queue pairs to provide serializablity.
+Additionally, we can leverage this same functionality to multiplex independent
+operations across multiple QP to improve scalability.
 
 \subsection{System overview}
 
@@ -35,7 +32,8 @@ transparently in flight as the operations flow traverse the ToR.
 %%
 \caption{ System overview, Metadata, client, and Remote Memory servers are
 Clover components. \sword is run on a separate server connected to the same TOR.
-Routing to \sword is completed by adding openflow rules.}
+Routing to \sword is completed by adding openflow rules which interpose on
+clovers requests without making any explicit changes to clover itself.}
 %%
 \label{fig:overview} \end{figure}
 
