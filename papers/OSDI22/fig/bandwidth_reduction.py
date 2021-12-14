@@ -39,10 +39,10 @@ width = 0.2  # the width of the bars
 div=1
 plt.rcParams.update({'font.size': 16})
 fig, ax = plt.subplots(figsize=(8,4), dpi=80)
-rects0 = ax.bar(x - width, read_write, width, label='Read+Write',color=read_write_steering_color)
-rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color)
-rects2 = ax.bar(x + width, clover, width, label='Clover',color=default_clover_color)
 plot_optimal(ax,optimal,x,3,width)
+rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color)
+rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color)
+rects0 = ax.bar(x + width, read_write, width, label='Write+Read',color=read_write_steering_color)
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
@@ -50,7 +50,12 @@ ax.set_ylabel('Bytes Per Operation')
 ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Write Ratio")
-ax.legend()
+
+handles, labels = ax.get_legend_handles_labels()
+order = [1,2,3,0]
+ax.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+
+#ax.legend()
 
 
 #ax.bar_label(rects1, padding=3)
