@@ -47,10 +47,10 @@ static int packet_counter = 0;
 
 //#define WRITE_STEER
 //#define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
-#define RX_CORES 11
+#define RX_CORES 1
 
 #define HASHSPACE (1 << 24) // THIS ONE WORKS DONT FUCK WITH IT TOO MUCH
 uint64_t cached_write_vaddr_mod[HASHSPACE];
@@ -1674,7 +1674,7 @@ void count_op_failures(struct rte_mbuf *pkt){
 				//print_bytes(&test_value,8);
 				if(test_value > 0) {
 					failed_read();
-					//printf("failed\n");
+					printf("test value %"PRIx64"\n",test_value);
 				}
 				//printf("\n");
 			}

@@ -13,7 +13,8 @@ function set_server_params {
             numasocket="0"
         ;;
         "yak-01.sysnet.ucsd.edu")
-            iface="enp129s0"
+            #iface="enp129s0" #Cx5
+            iface="enp3s0" #cx6
             ipaddr="192.168.1.13"
             numasocket="1"
         ;;
@@ -47,8 +48,27 @@ function set_server_params {
     esac
 }
 
-function setup_nic {
+function nic_info {
+    echo "collecting nic info"
 
+    echo "looking explictly for ConnectX series NIC"
+    slot=`lspci | grep -i Mel | cut -d ' ' -f1`
+    if [ -z "$slot" ]; then 
+        echo "unable to find mellanox device exiting"
+        exit 1
+    fi
+    sudo lspci -s $slot -vvv
+
+
+
+        
+
+    
+
+}
+
+function setup_nic {
+    nic_info
     #set the link up
     sudo ip link set $iface up
     #turn the interface on and configure ip
@@ -138,8 +158,6 @@ function set_ooo {
 set_server_params
 setup_nic
 setup_hugepages
-#set_ooo
-#set_ecn
 
 if [[ $hname == "yak-02.sysnet.ucsd.edu" ]]; then
     #turn off roce

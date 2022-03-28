@@ -228,6 +228,8 @@ void write_general_stats_to_known_file(void)
     fprintf(fp, "WRITES %" PRIu64 "\n",writes);
     fprintf(fp, "WRITES FAILED %" PRIu64 "\n",writes_failed);
     fprintf(fp, "Data Processed %"PRIu64"\n", bytes_processed);
+    fprintf(fp, "%2.3f,\n",(float)reads_failed/(float)reads*100.0);
+    fprintf(fp, "%2.3f,\n",(float)writes_failed/(float)writes*100.0);
     fclose(fp);
 }
 
