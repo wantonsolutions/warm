@@ -14,6 +14,8 @@
 //#include "crc32_slice16.c"
 //#include "google_crc.c"
 
+#define PERFORM_ICRC
+
 inline uint32_t get_psn(struct rte_mbuf *pkt)
 {
     struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
@@ -94,23 +96,8 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 
 
     ulong crcstart = 0x2144df1c;
-    ulong crc, crc2;
+    ulong crc;
     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
-    /*
-    crc2 = (~crc32_sse42_simd_(start, len, crcstart)) & 0xFFFFFFFF;
-    if (crc != crc2) {
-        printf("CRC %x CRC2 %x Not equal\n",crc, crc2);
-    }
-    */
-    //crc = crc32_16(crcstart, start, len) & 0xFFFFFFFF;
-
-    //uint32_t crc2= option_13_golden_intel(start,len,crcstart) & 0xFFFFFFFF;
-    //uint32_t crc3= option_13_golden_intel(start,len,crcstart);
-    //uint32_t crc4= ippsCRC32_8u(start,len,crcstart);
-        //const void* M, uint32_t bytes, uint32_t prev/* = 0*/)
-
-    //ulong crc_2 = rte_hash_crc(start,len,(uint32_t)crcstart) & 0xFFFFFFFF;
-   // printf("crc %x crc2 %x crc3 %x\n",crc,crc2,crc3);
 
     //Restore header values post masking
     ipv4_hdr->time_to_live = ttl;
@@ -132,9 +119,11 @@ void recalculate_rdma_checksum(struct rte_mbuf *pkt)
 	ipv4_hdr->hdr_checksum = 0;
 	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
+    #ifdef PERFORM_ICRC
     uint32_t crc_check = csum_pkt_fast(pkt); //This need to be added before we can validate packets
     void *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
     rte_memcpy(current_checksum, &crc_check, 4);
+    #endif
 }
  
 int packet_is_marked(struct rte_mbuf *pkt) {
@@ -148,10 +137,8 @@ int packet_is_marked(struct rte_mbuf *pkt) {
 
 inline void mark_pkt_rdma_checksum(struct rte_mbuf *pkt) {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-    uint32_t crc_check = 0;
     uint32_t *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
     *current_checksum = 0;
-    //rte_memcpy(current_checksum, &crc_check, 4);
 }
 
 uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr)

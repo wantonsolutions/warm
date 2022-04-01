@@ -3,6 +3,8 @@
 
 #include "clover_structs.h"
 
+#define PERFORM_ICRC
+
 uint32_t get_psn(struct rte_mbuf *pkt);
 uint32_t readable_seq(uint32_t seq);
 uint32_t revert_seq(uint32_t seq);

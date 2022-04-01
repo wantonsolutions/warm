@@ -78,22 +78,22 @@ inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 
 inline struct rte_ipv4_hdr *get_ipv4_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + IPV4_OFFSET;
+	return (struct rte_ipv4_hdr *) ((uint8_t*)get_eth_hdr(pkt) + IPV4_OFFSET);
 }
 
 inline struct rte_udp_hdr *get_udp_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + UDP_OFFSET;
+	return (struct rte_udp_hdr *)((uint8_t*)get_eth_hdr(pkt) + UDP_OFFSET);
 }
 
 inline struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + ROCE_OFFSET;
+	return (struct roce_v2_header *)((uint8_t*)get_eth_hdr(pkt) + ROCE_OFFSET);
 }
 
 inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
+	return (struct clover_hdr *)((uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET);
 }
 
 #define ID_SPACE 1<<24 //THIS IS MUCH SAFER YOU FOOL
@@ -140,20 +140,20 @@ rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
 rte_rwlock_t qp_mapping_lock;
 
-inline void lock_qp(void) {
+static inline void lock_qp(void) {
 	rte_rwlock_write_lock(&qp_lock);
 }
 
-inline void unlock_qp(void) {
+static inline void unlock_qp(void) {
 	rte_rwlock_write_unlock(&qp_lock);
 }
 
 
-inline void lock_write_steering(void) {
+static inline void lock_write_steering(void) {
 	rte_rwlock_write_lock(&next_lock);
 }
 
-inline void unlock_write_steering(void) {
+static inline void unlock_write_steering(void) {
 	rte_rwlock_write_unlock(&next_lock);
 }
 
@@ -213,8 +213,8 @@ uint32_t get_or_create_id(uint32_t qp)
 {
 	//first try to go fast
 	uint32_t id = fast_find_id_qp(qp);
-	if (id != -1) {
-		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != qp)) {
+	if ((int32_t)id != -1) {
+		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != (int32_t)qp)) {
 			printf("QP COLLISION -- Delete this code eventually\n");
 			exit(0);
 		}
@@ -323,7 +323,8 @@ void init_buffer_states(void) {
 
 	}
 
-	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
+	//TODO I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)
+	//TODO there is probably a nice way to do this
 	struct Buffer_State * bs = &ect_buffer_states[0];
 	*(bs->head) = 1;
 }
@@ -394,7 +395,7 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	exit(0);
 }
 
-int32_t count_held_packets() {
+int32_t count_held_packets(void) {
 
 	printf(" (NOT) COUNTING HELD PACKETS!!\n");
 
@@ -452,7 +453,7 @@ void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queu
 void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct rte_mbuf * tx_pkts[DEQUEUE_BURST];
 	uint32_t left;
-	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
+	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,(void **)tx_pkts,DEQUEUE_BURST,&left);
 
 
 
@@ -488,7 +489,7 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 			*(bs->head) = (*bs->head) + 1;
 		}
 
-		for (int j=0;j<mpr.size;j++) {
+		for (uint j=0;j<mpr.size;j++) {
 			if (likely(j < mpr.size - 1))
 			{
 				rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[j + 1], void *));
@@ -503,13 +504,10 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 
 void flush_buffers(uint16_t port) {
 	//printf("&& FLUSHING BUFFERS\n");
-	struct Buffer_State_Tracker bst;
-	struct Buffer_State *bs =  &ect_buffer_states[0];
-	bst.size=1;
-	bst.buffer_states[0]=bs;
 	for(int i=0;i<MEMPOOLS;i++) {
 		general_tx(port,0,tx_queues[i]);
 	}
+
 	//printf("&& FLUSHING BUFFERS COMPLETE\n");
 
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
@@ -754,7 +752,6 @@ static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE];   //outstanding
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
 
-static uint64_t overwitten_writes = 0;
 
 inline uint64_t get_latest_key(uint32_t id)
 {
@@ -1134,7 +1131,6 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 		//This is must be done after the unlock
 		struct Connection_State *destination_cs = &Connection_States[id];
-		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 		uint32_t msn;
 		//Avoid double locking
@@ -1393,10 +1389,7 @@ void track_qp(struct rte_mbuf *pkt)
 		return;
 	}
 
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-
-
 	switch (roce_hdr->opcode)
 	{
 	case RC_ACK:
@@ -1516,9 +1509,7 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode)
 
 void true_classify(struct rte_mbuf *pkt)
 {
-	//void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
@@ -1799,14 +1790,8 @@ static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
-
-
 	const uint16_t rx_rings = core_count, tx_rings = core_count;
 	//const uint16_t rx_rings = RX_CORES, tx_rings = core_count-RX_CORES;
-
-
-	uint64_t nb_rxq = core_count;
-
 
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
@@ -1998,10 +1983,9 @@ lcore_main(void)
 			   rte_lcore_id());
 
 
-	printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
+	//printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
 	/* Run until the application is quit or killed. */
 	port=0;
-	uint64_t lcore_pkt_count = 0;
 	for (;;)
 	{
 		/*
@@ -2020,15 +2004,11 @@ lcore_main(void)
 		}
 		#endif
 
-
-		//RTE_ETH_FOREACH_DEV(port)
-		//{
-			/* Get burst of RX packets, from first and only port */
-
 		struct rte_mbuf *rx_pkts[BURST_SIZE];
+		#ifndef MAP_QP
 		struct rte_mbuf *tx_pkts[BURST_SIZE*PACKET_INFLATION];
 		uint32_t to_tx = 0;
-
+		#endif
 
 		#ifdef MAP_QP
 		if (unlikely((has_mapped_qp==0))){
@@ -2148,30 +2128,35 @@ void error_switch(void) {
 	}
 }
 
-void mode_print(){
-
+void mode_print(void){
 	#ifdef WRITE_STEER
-		printf("WRITE STEERING: ON\n");
+		printf("WRITE STEERING:\tON\n");
 	#else
-		printf("WRITE STEERING: OFF\n");
+		printf("WRITE STEERING\tOFF\n");
 	#endif
 
 	#ifdef READ_STEER
-		printf("READ STEERING: ON\n");
+		printf("READ STEERING:\tON\n");
 	#else
-		printf("READ STEERING: OFF\n");
+		printf("READ STEERING:\tOFF\n");
 	#endif
 
 	#ifdef MAP_QP
-		printf("QP MAPPING: ON\n");
+		printf("QP MAPPING:\tON\n");
 	#else
-		printf("QP MAPPING: OFF\n");
+		printf("QP MAPPING:\tOFF\n");
 	#endif
 
 	#ifdef CNS_TO_WRITE
-		printf("CNS TO WRITE: ON\n");
+		printf("CNS TO WRITE:\tON\n");
 	#else
-		printf("CNS TO WRITE: OFF\n");
+		printf("CNS TO WRITE:\tOFF\n");
+	#endif
+
+	#ifdef PERFORM_ICRC
+		printf("ICRC:\t\tON\n");
+	#else
+		printf("ICRC:\t\tOFF\n");
 	#endif
 
 
@@ -2193,8 +2178,12 @@ int main(int argc, char *argv[])
 	argc -= ret;
 	argv += ret;
 
+	printf("\n\t---Starting DPDK Switch---\n");
+	printf("\n\t---Machine Config---\n");
+
 	/* Check that there is an even number of ports to send/receive on. */
 	nb_ports = rte_eth_dev_count_avail();
+
 	printf("num ports:%u\n", nb_ports);
 
 	/* Creates a new mempool in memory to hold the mbufs. */
@@ -2203,10 +2192,10 @@ int main(int argc, char *argv[])
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "cannot create mbuf pool\n");
-	printf("created mbuf_pool %d\n");
+	printf("created mbuf_pool [size %d]\n", mbuf_pool->cache_size);
 
 
-	printf("initalizing ports with %d cores\n",rte_lcore_count());
+	printf("initalizing ports with %d cores...\n",rte_lcore_count());
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
 	if (port_init(portid, mbuf_pool, rte_lcore_count()) != 0)
@@ -2214,8 +2203,8 @@ int main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 
-	if (rte_lcore_count() > 1)
-		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+	// if (rte_lcore_count() > 1)
+	// 	printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 	//dome debugging
 	struct rte_eth_link link;
@@ -2228,8 +2217,10 @@ int main(int argc, char *argv[])
 		printf("NOT FULL DUPLEX\n");
 	}
 
-	printf("Client Threads %d\n", TOTAL_CLIENTS);
-	printf("Keyspace %d\n", KEYSPACE);
+	printf("\n\t---Software Config---\n");
+
+	printf("Client Threads:\t%d\n", TOTAL_CLIENTS);
+	printf("Keyspace:\t%d\n", KEYSPACE);
 
 	mode_print();
 
@@ -2270,10 +2261,12 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), 0);
 		}
 
-		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
+		printf("\n\t---Running DPDK Switch (%d cores)---\n",rte_lcore_count());
+		// printf("[Master Core %d] Static Initalization Complete\n", rte_lcore_id());
+		// printf("[Master Core %d] Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}
 
 	fork_lcores();
