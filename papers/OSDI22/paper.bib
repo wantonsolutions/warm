@@ -1,4 +1,4 @@
-@inproceedings {beyond,
+@inproceedings {the-machine,
 author = {Paolo Faraboschi and Kimberly Keeton and Tim Marsland and Dejan Milojicic},
 title = {Beyond Processor-centric Operating Systems},
 booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS {XV})},
@@ -8,6 +8,8 @@ url = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/f
 publisher = {{USENIX} Association},
 }
 
+
+@inproceedings{mom, author = {Ports, Dan R. K. and Li, Jialin and Liu, Vincent and Sharma, Naveen Kr. and Krishnamurthy, Arvind}, title = {Designing Distributed Systems Using Approximate Synchrony in Data Center Networks}, year = {2015}, isbn = {9781931971218}, publisher = {USENIX Association}, address = {USA}, abstract = {Distributed systems are traditionally designed independently from the underlying network, making worst-case assumptions (e.g., complete asynchrony) about its behavior. However, many of today's distributed applications are deployed in data centers, where the network is more reliable, predictable, and extensible. In these environments, it is possible to co-design distributed systems with their network layer, and doing so can offer substantial benefits.This paper explores network-level mechanisms for providing Mostly-Ordered Multicast (MOM): a best-effort ordering property for concurrent multicast operations. Using this primitive, we design Speculative Paxos, a state machine replication protocol that relies on the network to order requests in the normal case. This approach leads to substantial performance benefits: under realistic data center conditions, Speculative Paxos can provide 40% lower latency and 2.6\texttimes{} higher throughput than the standard Paxos protocol. It offers lower latency than a latency-optimized protocol (Fast Paxos) with the same throughput as a throughput-optimized protocol (batching).}, booktitle = {Proceedings of the 12th USENIX Conference on Networked Systems Design and Implementation}, pages = {43–57}, numpages = {15}, location = {Oakland, CA}, series = {NSDI'15} }
 
 @inproceedings{helios,
 author = {Nightingale, Edmund B and Hodson, Orion and McIlroy, Ross and Hawblitzel, Chris and Hunt, Galen},
@@ -664,8 +666,98 @@ month = dec,
   year = {2007},
 }
 
+, fastswap
+
+@misc{intel-rack,
+  author = {Intel},
+  title = {Intel Rack Scale Architecture: Faster Service Delivery and Lower TCO},
+  howpublished = {https://www.intel.com/content/www/us/en/architecture-and-technology/rack-scale-design-overview.html}
+}
+
 @inproceedings{cliquemap,
 title	= {CliqueMap: Productionizing an RMA-Based  Distributed Caching System},
 author	= {Aditya Akella and Amanda Strominger and Amin Vahdat and Arjun Singhvi and Dan Gibson and Harshad Deshmukh and Maggie Anderson and Milo M. K. Martin and Rob Cauble and Thomas F. Wenisch},
 year	= {2021}
 }
+
+
+
+@misc{supernic,
+      title={Disaggregating and Consolidating Network Functionalities with SuperNIC}, 
+      author={Yizhou Shan and Will Lin and Ryan Kosta and Arvind Krishnamurthy and Yiying Zhang},
+      year={2021},
+      eprint={2109.07744},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC}
+}
+
+@inproceedings{rethinking,
+author = {Calciu, Irina and Imran, M. Talha and Puddu, Ivan and Kashyap, Sanidhya and Maruf, Hasan Al and Mutlu, Onur and Kolli, Aasheesh},
+title = {Rethinking Software Runtimes for Disaggregated Memory},
+year = {2021},
+isbn = {9781450383172},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3445814.3446713},
+doi = {10.1145/3445814.3446713},
+abstract = {Disaggregated memory can address resource provisioning inefficiencies in current datacenters. Multiple software runtimes for disaggregated memory have been proposed in an attempt to make disaggregated memory practical. These systems rely on the virtual memory subsystem to transparently offer disaggregated memory to applications using a local memory abstraction. Unfortunately, using virtual memory for disaggregation has multiple limitations, including high overhead that comes from the use of page faults to identify what data to fetch and cache locally, and high dirty data amplification that comes from the use of page-granularity for tracking changes to the cached data (4KB or higher).  In this paper, we propose a fundamentally new approach to designing software runtimes for disaggregated memory that addresses these limitations. Our main observation is that we can use cache coherence instead of virtual memory for tracking applications' memory accesses transparently, at cache-line granularity. This simple idea (1) eliminates page faults from the application critical path when accessing remote data, and (2) decouples the application memory access tracking from the virtual memory page size, enabling cache-line granularity dirty data tracking and eviction. Using this observation, we implemented a new software runtime for disaggregated memory that improves average memory access time by 1.7-5X and reduces dirty data amplification by 2-10X, compared to state-of-the-art systems.},
+booktitle = {Proceedings of the 26th ACM International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {79–92},
+numpages = {14},
+keywords = {remote memory, disaggregated memory, cache coherence},
+location = {Virtual, USA},
+series = {ASPLOS 2021}
+}
+
+@article{ramcloud,
+author = {Ousterhout, John and Gopalan, Arjun and Gupta, Ashish and Kejriwal, Ankita and Lee, Collin and Montazeri, Behnam and Ongaro, Diego and Park, Seo Jin and Qin, Henry and Rosenblum, Mendel and Rumble, Stephen and Stutsman, Ryan and Yang, Stephen},
+title = {The RAMCloud Storage System},
+year = {2015},
+issue_date = {September 2015},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {33},
+number = {3},
+issn = {0734-2071},
+url = {https://doi.org/10.1145/2806887},
+doi = {10.1145/2806887},
+abstract = {RAMCloud is a storage system that provides low-latency access to large-scale datasets. To achieve low latency, RAMCloud stores all data in DRAM at all times. To support large capacities (1PB or more), it aggregates the memories of thousands of servers into a single coherent key-value store. RAMCloud ensures the durability of DRAM-based data by keeping backup copies on secondary storage. It uses a uniform log-structured mechanism to manage both DRAM and secondary storage, which results in high performance and efficient memory usage. RAMCloud uses a polling-based approach to communication, bypassing the kernel to communicate directly with NICs; with this approach, client applications can read small objects from any RAMCloud storage server in less than 5μs, durable writes of small objects take about 13.5μs. RAMCloud does not keep multiple copies of data online; instead, it provides high availability by recovering from crashes very quickly (1 to 2 seconds). RAMCloud’s crash recovery mechanism harnesses the resources of the entire cluster working concurrently so that recovery performance scales with cluster size.},
+journal = {ACM Trans. Comput. Syst.},
+month = {aug},
+articleno = {7},
+numpages = {55},
+keywords = {storage systems, low latency, large-scale systems, Datacenters}
+}
+
+@inproceedings{dredbox,
+  author={Bielski, M. and Syrigos, I. and Katrinis, K. and Syrivelis, D. and Reale, A. and Theodoropoulos, D. and Alachiotis, N. and Pnevmatikatos, D. and Pap, E.H. and Zervas, G. and Mishra, V. and Saljoghei, A. and Rigo, A. and Zazo, J. Fernando and Lopez-Buedo, S. and Torrents, M. and Zyulkyarov, F. and Enrico, M. and de Dios, O. Gonzalez},
+  booktitle={2018 Design, Automation   Test in Europe Conference   Exhibition (DATE)}, 
+  title={dReDBox: Materializing a full-stack rack-scale system prototype of a next-generation disaggregated datacenter}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={1093-1098},
+  doi={10.23919/DATE.2018.8342174}}
+
+@inproceedings{ycsb,
+author = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
+title = {Benchmarking Cloud Serving Systems with YCSB},
+year = {2010},
+isbn = {9781450300360},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/1807128.1807152},
+doi = {10.1145/1807128.1807152},
+abstract = {While the use of MapReduce systems (such as Hadoop) for large scale data analysis has been widely recognized and studied, we have recently seen an explosion in the number of systems developed for cloud data serving. These newer systems address "cloud OLTP" applications, though they typically do not support ACID transactions. Examples of systems proposed for cloud serving use include BigTable, PNUTS, Cassandra, HBase, Azure, CouchDB, SimpleDB, Voldemort, and many others. Further, they are being applied to a diverse range of applications that differ considerably from traditional (e.g., TPC-C like) serving workloads. The number of emerging cloud serving systems and the wide range of proposed applications, coupled with a lack of apples-to-apples performance comparisons, makes it difficult to understand the tradeoffs between systems and the workloads for which they are suited. We present the "Yahoo! Cloud Serving Benchmark" (YCSB) framework, with the goal of facilitating performance comparisons of the new generation of cloud data serving systems. We define a core set of benchmarks and report results for four widely used systems: Cassandra, HBase, Yahoo!'s PNUTS, and a simple sharded MySQL implementation. We also hope to foster the development of additional cloud benchmark suites that represent other classes of applications by making our benchmark tool available via open source. In this regard, a key feature of the YCSB framework/tool is that it is extensible--it supports easy definition of new workloads, in addition to making it easy to benchmark new systems.},
+booktitle = {Proceedings of the 1st ACM Symposium on Cloud Computing},
+pages = {143–154},
+numpages = {12},
+keywords = {cloud serving database, benchmarking},
+location = {Indianapolis, Indiana, USA},
+series = {SoCC '10}
+}
+
+  
+
+
+

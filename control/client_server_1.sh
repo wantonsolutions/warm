@@ -1,7 +1,7 @@
 source /home/ssgrant/.bashrc;
 cd /home/ssgrant/pDPM/clover;
 echo iwicbV15 | sudo -S ./run_client.sh 1 > output_1.dat &
-sleep 45;
+sleep 20;
 echo iwicbV15 | sudo -S killall run_client.sh;
 echo iwicbV15 | sudo -S killall init;
 cat output_1.dat;

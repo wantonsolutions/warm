@@ -1,4 +1,5 @@
 \documentclass[10pt,twocolumn]{article}
+\usepackage{usenix-2020-09}
 
 \usepackage{times}
 \usepackage{fullpage}
@@ -72,6 +73,7 @@
 \newcommand\mypara[1]{\vspace{.3em}\noindent\textbf{#1}}
 \newcommand{\urlwofont}[1]{\urlstyle{same}\url{#1}}
 
+\newcommand{\sword}{SwordBox}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Useful reviewing/feedback annotations
@@ -83,7 +85,7 @@
 
 %\title{In-network Contention Resolution for Disaggregated Memory}
 
-\title{Sword Box: Sharing Disaggregated Memory without Skewering Performance}
+\title{\sword: Sharing Disaggregated Memory\\ without Skewering Performance}
 %% Looking for a catchy title. Why Sword Box? It sounds kind of cool first off,
 %% easy to remember and say. It fits in the track of other disaggregated research
 %% i.e firebox and DredBox. 
@@ -94,33 +96,13 @@
 %% and are carefully made to look normal but in truth they actually bend
 %% https://themagicwarehouse.com/tb4002.jpg
 
-%\author{WORDS '21 Submission \#3}
-\author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
+\author{OSDI '22 Submission \#365}
+%\author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
 \date{}
 
 \maketitle
 
-\section*{Abstract}
-
-Disaggregating memory from compute incurs extreme latency
-penalties. These penalties are multiplied when remote memory is shared
-and contended for. State of the art approaches for mitigating the cost
-of contention use mostly lockless data structures for accessing and
-modifying remote memory with common case O(1) operations.
-Unfortunately in the face of even modestly contended resources
-opportunistic algorithms incur extreme performance degradation due to
-multiple round trip times, and expensive atomic memory operations such
-as compare and swap.
-
-In this work we make the observation that all memory operations in a
-rack scale disaggregation system pass through a centralized switch
-which must serialize all remote memory accesses on the wire. We use
-this implicit serialization to arbitrate access to rack scale
-memory. We use Clover (a state of the art disaggregated key value
-store) to show that our approach removes all conflict, and can provide
-serialization which allows for the removal of expensive atomic locking
-operations.
-
+\input{abstract}
 
 \input{intro}
 \input{background}
@@ -129,10 +111,11 @@ operations.
 \input{implementation}
 \input{eval}
 \input{limitations}
-\input{discussion}
 \input{conclusion}
-
+\input{discussion}
 %\section*{Acknowledgments}
+
+\newpage
 
 \balance
 \vspace{-0.3cm}
