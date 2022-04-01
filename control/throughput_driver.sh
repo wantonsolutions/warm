@@ -2,6 +2,7 @@
 #rm results.dat
 rm latest.dat
 rm latest_bandwidth.dat
+rm latest_latency.dat
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("32" "32" "32")
@@ -14,7 +15,14 @@ echo ">>>>>>>>> ($date)" >> results.dat
 #threads=("1" "2" "4" "8" "16" "24" "32" "40" "48" "56" "64")
 #threads=("1" "2")
 #threads=("1" "2" "4" "8" "16" "24" "32" "40" "48" "56" "64")
-threads=("1" "2" "4" "8" "16" "24" "32")
+threads=("1" "2" "4" "8" "16" "32" "64")
+#threads=("16" "16" "16" )
+#threads=("32" "32" "32" "32" "32" "32" )
+#threads=("1")
+#threads=("32" "32" "32" )
+#threads=("1" "24" "1" "24" "1" "24" "1" "24" "1" "24" "1" "24" )
+#threads=("1")
+#threads=("32")
 #threads=("64")
 #threads=("1")
 
@@ -29,7 +37,7 @@ packet_size=("1000")
 #opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_A")
-opmodes=("MITSUME_YCSB_MODE_W")
+opmodes=("MITSUME_YCSB_MODE_A")
 #opmodes=("MITSUME_YCSB_MODE_A")
 #keyspaces=("100" "1000" "10000" "100000")
 keyspaces=("1000")
@@ -42,8 +50,8 @@ for k in ${keyspaces[@]}; do
                 echo "Threads: $j"
                 echo "Keys: $k"
                 echo "Packet Size: $l"
-                ./throughput_bench.sh $j $k $i $l
-                #./throughput_bench_single_client.sh $j $k $i $l
+                #./throughput_bench.sh $j $k $i $l
+                ./throughput_bench_single_client.sh $j $k $i $l
                 #exit 1
             done
         done
@@ -51,4 +59,4 @@ for k in ${keyspaces[@]}; do
 done
 echo "<<<<<<<<< ($date)" >> results.dat
 
-./clean_results.sh
+./clean_results.sh 2

@@ -29,7 +29,7 @@ def div_million (list):
 
 fig, axs = plt.subplots(1,1, figsize=(5,4))
 
-def plot_data(ax,filename,title_text):
+def plot_data(ax,filename,suffix):
     df = pd.read_csv(filename)
     x_axis=df.get("concur").values
     writes=df.get("write_ops").values
@@ -43,10 +43,10 @@ def plot_data(ax,filename,title_text):
     faa=div_million(faa)
 
     print(writes)
-    ax.plot(x_axis,writes,label=write_label,color=write_color,marker=write_marker)
-    ax.plot(x_axis,reads,label=read_label,color=read_color,marker=read_marker)
-    ax.plot(x_axis,cas,label=cas_label,color=cas_color,marker=cas_marker)
-    ax.plot(x_axis,faa,label=faa_label,color=faa_color,marker=faa_marker)
+    ax.plot(x_axis,writes,label=write_label+suffix,color=write_color,marker=write_marker)
+    ax.plot(x_axis,reads,label=read_label+suffix,color=read_color,marker=read_marker)
+    ax.plot(x_axis,cas,label=cas_label+suffix,color=cas_color,marker=cas_marker)
+    ax.plot(x_axis,faa,label=faa_label+suffix,color=faa_color,marker=faa_marker)
     ax.set_title(title_text)
     ax.legend(loc='upper left')
     #ax.set_yscale('log')
@@ -56,9 +56,9 @@ def plot_data(ax,filename,title_text):
     #ax.set_ylim(bottom=1,top=150)
 
 dir='./'
-filename='single_key_single_thread_100gpbs'
+filename='single_key_single_thread'
 #plot_data(axs,dir+'faa_host_mem.dat','')
-plot_data(axs,dir+filename+'.dat','')
+plot_data(axs,dir+filename+'.dat','100gbps')
 #plot_data(axs,dir+'/multithread_1024.dat','QP: 20')
 
 figure_name=filename

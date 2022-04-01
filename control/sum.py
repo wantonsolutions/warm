@@ -3,7 +3,8 @@ import csv
 import sys
   
 # csv file name 
-filename = sys.argv[1]
+clients = int(sys.argv[1])
+filename = sys.argv[2]
 #filename = "sum.dat"
   
 # initializing the titles and rows list 
@@ -12,33 +13,21 @@ rows = []
   
 # reading csv file 
 with open(filename, 'r') as csvfile: 
-    # creating a csv reader object 
     csvreader = csv.reader(csvfile) 
-      
-    # extracting field names through first row 
-    #fields = next(csvreader) 
-  
-    # extracting each data row one by one 
     for row in csvreader: 
         rows.append(row) 
-  
-    # get total number of rows 
-    #print("Total no. of rows: %d"%(csvreader.line_num)) 
-  
-# printing the field names 
-# print('Field names are:' + ', '.join(field for field in fields)) 
-  
-#  printing first 5 rows 
-#print('\nFirst 5 rows are:\n') 
+
 sum_val = 0
 sum_thread = 0
 sum_ops = 0
 thread_val=int(float(rows[0][1]))
+
+index_counter = 0
 #print("init thread val",thread_val)
 #print("Starting Thread Value %s"%thread_val)
 for row in rows: 
-    if int(row[1]) != int(thread_val): 
-        #print("dumping")
+    if index_counter >= clients: 
+        index_counter=0
         i=0
         for col in row: 
             if i==0:
@@ -55,6 +44,7 @@ for row in rows:
         sum_thread=0
         sum_ops=0
         print()
+    index_counter = index_counter + 1
     sum_thread = int(row[1]) + sum_thread
     sum_val = int(float(row[0])) + sum_val
     sum_ops = int(float(row[6])) + sum_ops

@@ -92,29 +92,51 @@ ssh yeti0 "$clientSource2" &
 
 
 echo "FINSHED ALL THE LAUNCHING SCRIPTS WAITING"
-
-# this is the big sleep
 wait
 echo "DONE RUNNING"
+
+echo "processing bandwidth information"
+rm clean_1.dat
+rm clean_2.dat
 
 scp yeti5:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
 scp yeti0:/home/ssgrant/pDPM/clover/clean_2.dat clean_2.dat
 
+res1=`tail -1 clean_1.dat`
+res2=`tail -1 clean_2.dat`
+
+echo $res1
+echo $res2
+
+if [ -z "$res1" ] || [ -z "$res2" ]; then
+    echo "Experiment Failed"
+    exit 1
+else
+    echo "Experiment Complete"
+    echo $res1 >> results.dat
+    echo $res2 >> results.dat
+
+    echo $res1 >> latest.dat
+    echo $res2 >> latest.dat
+fi
+
+echo "Collecting stats from the middlebox"
 scp yak2:/tmp/switch_statistics.dat switch_statistics.dat
 scp yak2:/tmp/sequence_order.dat sequence_order.dat
-
-tail -1 clean_1.dat >> results.dat
-tail -1 clean_2.dat >> results.dat
-tail -1 clean_1.dat >> latest.dat
-tail -1 clean_2.dat >> latest.dat
-
 cat switch_statistics.dat >> agg_switch_statistics.dat
 cat switch_statistics.dat  | grep "Data Processed" | cut -d' ' -f 3 >> latest_bandwidth.dat
 
-sleep 10
+tail -1 switch_statistics.dat >> write_failures.dat
+tail -2 switch_statistics.dat | head -1 >> read_failures.dat 
+
+echo "Collecting Latency stats from servers"
+pushd latency_scratch
+./latency.sh
+popd
+cat latency_scratch/latency_result_latest.dat >> latest_latency.dat
+
+#if we made it here we won
+exit 0
 
 
-#'
-#source ~\.bashrc;
-#clover;
-#echo iwicbV15 | sudo -S run_client.sh 0'
+
