@@ -48,9 +48,9 @@ static int packet_counter = 0;
 #define CATCH_ECN
 
 #define WRITE_STEER
-//#define READ_STEER
-//#define MAP_QP
-//#define CNS_TO_WRITE
+#define READ_STEER
+#define MAP_QP
+#define CNS_TO_WRITE
 
 #define RX_CORES 4
 
