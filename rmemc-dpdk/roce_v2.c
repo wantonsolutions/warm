@@ -11,6 +11,8 @@
 //#include "crc32_gold.c"
 //#include <zlib.h>
 #include "zlib/zlib.h"
+//#include "crc32_slice16.c"
+//#include "google_crc.c"
 
 inline uint32_t get_psn(struct rte_mbuf *pkt)
 {
@@ -92,8 +94,15 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 
 
     ulong crcstart = 0x2144df1c;
-    ulong crc;
+    ulong crc, crc2;
     crc = crc32(crcstart, start, len) & 0xFFFFFFFF;
+    /*
+    crc2 = (~crc32_sse42_simd_(start, len, crcstart)) & 0xFFFFFFFF;
+    if (crc != crc2) {
+        printf("CRC %x CRC2 %x Not equal\n",crc, crc2);
+    }
+    */
+    //crc = crc32_16(crcstart, start, len) & 0xFFFFFFFF;
 
     //uint32_t crc2= option_13_golden_intel(start,len,crcstart) & 0xFFFFFFFF;
     //uint32_t crc3= option_13_golden_intel(start,len,crcstart);
@@ -118,6 +127,11 @@ uint32_t csum_pkt_fast(struct rte_mbuf *pkt)
 void recalculate_rdma_checksum(struct rte_mbuf *pkt)
 {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+
+	//checksumming
+	ipv4_hdr->hdr_checksum = 0;
+	ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
     uint32_t crc_check = csum_pkt_fast(pkt); //This need to be added before we can validate packets
     void *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
     rte_memcpy(current_checksum, &crc_check, 4);
@@ -134,7 +148,10 @@ int packet_is_marked(struct rte_mbuf *pkt) {
 
 inline void mark_pkt_rdma_checksum(struct rte_mbuf *pkt) {
     struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
+    uint32_t crc_check = 0;
     uint32_t *current_checksum = (void *)((uint8_t *)(ipv4_hdr) + ntohs(ipv4_hdr->total_length) - 4);
+    *current_checksum = 0;
+    //rte_memcpy(current_checksum, &crc_check, 4);
 }
 
 uint32_t get_rkey_rdma_packet(struct roce_v2_header *roce_hdr)

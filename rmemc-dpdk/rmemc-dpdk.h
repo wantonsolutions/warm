@@ -55,19 +55,14 @@
 //checksum
 struct Request_Map
 {
-  uint32_t open;
-  uint32_t id;
+  uint16_t open;
+  uint16_t was_write_swapped;
+  uint16_t rdma_op;
+  uint16_t id;
   uint32_t original_sequence;
-  uint32_t original_src_ip;
   uint32_t mapped_sequence;
-  uint32_t server_to_client_qp;
-  uint32_t mapped_destination_server_to_client_qp;
-  uint16_t server_to_client_udp_port;
-  uint32_t server_to_client_rkey;
-  uint8_t original_eth_addr[6];
-  uint8_t rdma_op;
-  uint8_t was_write_swapped;
 } Request_Map;
+
 
 struct Connection_State
 {
@@ -99,7 +94,6 @@ struct map_packet_response
 {
   uint32_t size;
   struct rte_mbuf *pkts[BURST_SIZE*BURST_SIZE*PACKET_INFLATION];
-  uint64_t timestamps[BURST_SIZE*BURST_SIZE*PACKET_INFLATION];
 } map_packet_response;
 
 

@@ -55,8 +55,8 @@ void print_request_map(struct Request_Map *rm)
 	}
 	printf("ID: %d Opcode %s\n", rm->id,ib_print_op(rm->rdma_op));
 	printf("Original Seq %d, mapped seq %d\n", readable_seq(rm->original_sequence), readable_seq(rm->mapped_sequence));
-	printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
-	printf("stcqp port %d\n", rm->server_to_client_udp_port);
+	//printf("stcqp qp %d, mapped stcqp %d\n", rm->server_to_client_qp, rm->mapped_destination_server_to_client_qp);
+	//printf("stcqp port %d\n", rm->server_to_client_udp_port);
 }
 
 void print_connection_state(struct Connection_State *cs)
