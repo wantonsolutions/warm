@@ -52,7 +52,8 @@ function run_driver () {
 
 function run_bfshell() {
     BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
-    $BF_SHELL_SCRIPT
+    SHELL_SCRIPT="$RMEM_P4/bfshell/forward.cmd"
+    $BF_SHELL_SCRIPT -f $SHELL_SCRIPT
 }
 
 #clean up the xterminal and other variables
