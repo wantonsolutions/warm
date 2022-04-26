@@ -40,7 +40,7 @@ if swports == []:
 class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
     def __init__(self):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self,
-                                                        ["basic_switching"])
+                                                        ["bs"])
 
     # The setUp() method is used to prepare the test fixture. Typically
     # you would use it to establich connection to the Thrift server.
@@ -72,8 +72,9 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         # Test Parameters
         ingress_port = swports[0]
         egress_port  = swports[1]
-        #mac_da       = "00:11:11:11:11:11"
-        mac_da       = "00:55:55:55:55:55"
+        mac_da       = "00:11:11:11:11:11"
+        #mac_da       = "00:55:55:55:55:55"
+        
 
         print("Populating table entries")
 

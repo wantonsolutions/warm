@@ -53,7 +53,13 @@ function run_driver () {
 function run_bfshell() {
     BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
     SHELL_SCRIPT="$RMEM_P4/bfshell/forward.cmd"
-    $BF_SHELL_SCRIPT -f $SHELL_SCRIPT
+    xterm -e $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
+}
+
+function run_ptf() {
+
+    cd $RMEM_P4
+    sudo -E env "PATH=$PATH" "PYTHONPATH=$PYTHONPATH" /usr/local/ssgrant/p4/bf-sde-9.3.0/install/bin/ptf --test-dir ptf-tests --log-dir /usr/local/ssgrant/p4/ptf-logs
 }
 
 #clean up the xterminal and other variables
@@ -80,6 +86,9 @@ setup_veth
 run_tofino
 run_driver
 run_bfshell
+
+sleep 20
+run_ptf
 
 #main body of execution
 sleep 4000
