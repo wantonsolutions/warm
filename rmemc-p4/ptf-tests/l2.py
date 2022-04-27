@@ -73,7 +73,6 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         ingress_port = swports[0]
         egress_port  = swports[1]
         mac_da       = "00:11:11:11:11:11"
-        #mac_da       = "00:55:55:55:55:55"
         
 
         print("Populating table entries")
@@ -82,6 +81,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         self.entries={}
         self.entries["forward"] = []
         self.entries["forward"].append(
+            # self.client.forward_table_add_with_dec_ttl(
             self.client.forward_table_add_with_set_egr(
                 self.sess_hdl, self.dev_tgt,
                 basic_switching_forward_match_spec_t(
@@ -89,20 +89,32 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
                 basic_switching_set_egr_action_spec_t(
                     action_egress_spec=egress_port)))
 
+        self.entries["update"] = []
+        self.entries["update"].append(
+            self.client.update_table_add_with_dec_ttl(
+                self.sess_hdl, self.dev_tgt,
+                basic_switching_forward_match_spec_t(
+                    ethernet_dstAddr=macAddr_to_string(mac_da))))
+
         print("Table forward: %s => set_egr(%d)" %
               (mac_da, egress_port))
+
 
         self.conn_mgr.complete_operations(self.sess_hdl)
         print("Sending packet with DST MAC=%s into port %d" %
               (mac_da, ingress_port))
         pkt = simple_tcp_packet(eth_dst=mac_da,
-                                eth_src='00:11:11:11:11:11',
+                                eth_src='12:34:45:67:89:11',
                                 ip_dst='10.0.0.1',
-                                ip_id=101,
+                                ip_id=255,
                                 ip_ttl=64,
                                 ip_ihl=5)
         send_packet(self, ingress_port, pkt)
         print("Expecting packet on port %d" % egress_port)
+
+
+        # print(pkt[TCP].ttl = 63)
+
         verify_packets(self, pkt, [egress_port])
 
     # Use this method to return the DUT to the initial state by cleaning

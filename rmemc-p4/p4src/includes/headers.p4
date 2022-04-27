@@ -18,24 +18,46 @@ limitations under the License.
 // Edit this file as needed for your P4 program
 
 // Here's an ethernet header to get started.
+#ifndef BS_HEADER
+#define BS_HEADER
 
-header_type ethernet_t {
-    fields {
-        dstAddr : 48;
-        srcAddr : 48;
-        etherType : 16;
-    }
+typedef bit<9>  egressSpec_t;
+struct metadata {
+    /* empty */
 }
 
-header ethernet_t ethernet;
-
-header_type vlan_tag_t {
-    fields {
-        pcp : 3;
-        cfi : 1;
-        vid : 12;
-        etherType : 16;
-    }
+header ethernet_t {
+    bit<48>dstAddr;
+    bit<48>srcAddr;
+    bit<16>etherType;
 }
 
-header vlan_tag_t vlan;
+header ipv4_t {
+    bit<4>version;
+    bit<4>IHL;
+    bit<8>TOS;
+    bit<16>totalLength;
+    bit<16>id;
+    bit<4>flags;
+    bit<12>fragment_offset;
+    bit<8>ttl;
+    bit<8>protocol;
+    bit<16>checksum;
+    bit<32>src_addr;
+    bit<32>dest_addr;
+}
+
+
+header vlan_tag_t {
+    bit<3> pcp;
+    bit<1>cfi;
+    bit<12>vid;
+    bit<16>etherType;
+}
+
+struct headers {
+    ethernet_t ethernet;
+    ipv4_t ipv4;
+}
+
+#endif

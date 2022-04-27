@@ -19,28 +19,30 @@ limitations under the License.
 
 // This parses an ethernet header
 
-parser start {
-    return parse_ethernet;
-}
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata)
+                {
 
-#define ETHERTYPE_VLAN 0x8100
-#define ETHERTYPE_IPV4 0x0800
-
-parser parse_ethernet {
-    extract(ethernet);
-    return select(latest.etherType) {
-        ETHERTYPE_VLAN : parse_vlan;
-//        ETHERTYPE_IPV4 : parse_ipv4;
-        default: ingress;
+    state start {
+        transition parse_ethernet;
     }
-}
 
-parser parse_vlan {
-    extract(vlan);
-    return select(latest.etherType) {
-//        ETHERTYPE_VLAN : parse_vlan;
-//        ETHERTYPE_IPV4 : parse_ipv4;
-        default: ingress;
+    #define ETHERTYPE_IPV4 0x0800
+
+    state parse_ethernet {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            ETHERTYPE_IPV4 : parse_ipv4;
+            default: accept;
+        }
     }
+
+    state parse_ipv4 {
+        packet.extract(hdr.ipv4);
+        transition accept;
+    }
+
 }
 

@@ -10,6 +10,10 @@ build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
 BIN_DIR="$SDE/install/share/tofinopd/$program"
 BIN_FILE="${BIN_DIR}/tofino.bin"
 
+XTERM_1_GEOM="100x50+3180+500"
+XTERM_2_GEOM="100x50+3780+500"
+XTERM_3_GEOM="100x50+4380+500"
+
 #parse command line arguments
 if [[ $1 == "-b" ]]; then
     echo "-b set going to build"
@@ -20,7 +24,8 @@ fi
 function build_p4 () {
     #actually build
     pushd $P4_SOURCE_DIR
-    $build_tool $program_src --with-p4c bf-p4c
+    #$build_tool $program_src --with-p4c bf-p4c --p4v 16 #this works without the 16 actually doing anything
+    $build_tool $program_src --with-p4c p4c-barefoot --p4v 16
     #sanity check that the program was actually built
     if [ ! -f $BIN_FILE ]; then
         echo "$BIN_FILE not present"
@@ -39,7 +44,7 @@ function setup_veth () {
 function run_tofino () {
     TOFINIO_SCRIPT="$SDE/run_tofino_model.sh"
     echo "launching new xterm window for the tofino model"
-    xterm -e $TOFINIO_SCRIPT -p $program &
+    xterm -geometry $XTERM_1_GEOM -e $TOFINIO_SCRIPT -p $program  &
     sleep 1
     echo "launch complete"
 }
@@ -47,17 +52,16 @@ function run_tofino () {
 function run_driver () {
     DRIVER_SCRIPT="$SDE/run_switchd.sh"
     echo "Running driver"
-    xterm -e $DRIVER_SCRIPT -p $program &
+    xterm -geometry $XTERM_2_GEOM -e $DRIVER_SCRIPT -p $program &
 }
 
 function run_bfshell() {
     BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
     SHELL_SCRIPT="$RMEM_P4/bfshell/forward.cmd"
-    xterm -e $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
+    xterm -geometry $XTERM_3_GEOM -e $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
 }
 
 function run_ptf() {
-
     cd $RMEM_P4
     sudo -E env "PATH=$PATH" "PYTHONPATH=$PYTHONPATH" /usr/local/ssgrant/p4/bf-sde-9.3.0/install/bin/ptf --test-dir ptf-tests --log-dir /usr/local/ssgrant/p4/ptf-logs
 }
@@ -79,6 +83,7 @@ function ctrl_c(){
 
 if [ ! -z $BUILD ]; then
     build_p4
+    exit 1
 fi
 
 
