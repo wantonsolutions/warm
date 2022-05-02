@@ -7,8 +7,12 @@ RMEM_P4="/home/ssgrant/warm/rmemc-p4"
 P4_SOURCE_DIR="$RMEM_P4/p4src"
 build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
 
-BIN_DIR="$SDE/install/share/tofinopd/$program"
+#build_dir="${SDE}/build/build/${program}/tofino"
+INSTALL_DIR="$SDE/install/share/tofinopd/$program"
+BIN_DIR="$INSTALL_DIR/pipe"
+CONTEXT_DIR="$INSTALL_DIR/pipe"
 BIN_FILE="${BIN_DIR}/tofino.bin"
+CONTEXT_FILE="${BIN_DIR}/context.json"
 
 XTERM_1_GEOM="100x50+3180+500"
 XTERM_2_GEOM="100x50+3780+500"
@@ -25,12 +29,26 @@ function build_p4 () {
     #actually build
     pushd $P4_SOURCE_DIR
     #$build_tool $program_src --with-p4c bf-p4c --p4v 16 #this works without the 16 actually doing anything
-    $build_tool $program_src --with-p4c p4c-barefoot --p4v 16
+    #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-files context.json,tofino.bin"
+    #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-format binary"
+    #$build_tool $program_src --with-p4c bf-p4c --p4v 16 --p4flags "--p4runtime-format binary"
+    $build_tool $program_src --with-p4c bf-p4c --p4v 16
+    #cp $BIN_FILE "$INSTALL_DIR"tofino.bin
+    #cp $CONTEXT_FILE "$INSTALL_DIR"context.json
+    #cp $build_dir/${program}/manifest.json $INSTALL_DIR/context.json
     #sanity check that the program was actually built
     if [ ! -f $BIN_FILE ]; then
         echo "$BIN_FILE not present"
         exit 1
     fi
+    mv $BIN_FILE $INSTALL_DIR
+
+    if [ ! -f $CONTEXT_FILE ]; then
+        echo "$CONTEXT_FILE not present"
+        exit 1
+    fi
+    mv $CONTEXT_FILE $INSTALL_DIR
+
 }
 
 #set up the virtual interfaces
@@ -52,6 +70,7 @@ function run_tofino () {
 function run_driver () {
     DRIVER_SCRIPT="$SDE/run_switchd.sh"
     echo "Running driver"
+    #$DRIVER_SCRIPT -p $program
     xterm -geometry $XTERM_2_GEOM -e $DRIVER_SCRIPT -p $program &
 }
 
