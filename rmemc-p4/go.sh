@@ -110,9 +110,10 @@ setup_veth
 run_tofino
 run_driver
 run_bfshell
-
 sleep 20
+
 run_ptf
+
 
 #main body of execution
 sleep 4000
