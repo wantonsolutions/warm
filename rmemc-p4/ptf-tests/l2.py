@@ -62,24 +62,24 @@ class RoceV2(Packet):
     fields_desc=[
         ByteEnumField("opcode",0, 
             { RC_SEND: "RC_SEND", RC_WRITE_ONLY: "RC_WRITE_ONLY", RC_READ_REQUEST: "RC_READ_REQUEST", RC_READ_RESPONSE: "RC_READ_RESPONSE", RC_ACK: "RC_ACK", RC_ATOMIC_ACK: "RC_ATOMIC_ACK", RC_CNS: "RC_CSN", ECN_OPCODE: "ECN_OPCODE"} ),
-        BitField("solicited_event", 0 , 1),
-        BitField("migration_request", 0, 1),
+        BitField("sol_event", 0 , 1),
+        BitField("mig_req", 0, 1),
         BitField("pad_count", 0, 2),
-        BitField("transport_header_version",0,4),
-        BitField("partition_key", 0, 16),
+        BitField("thv",0,4),
+        BitField("part_key", 0, 16),
         BitField("reserved",0,6),
         BitField("becn", 0 ,1),
         BitField("fecn", 0 ,1),
         BitField("dest_qp",0,24),
         BitField("ack",0,1),
         BitField("reserved",0,7),
-        BitField("packet_sequence_number",0,24),
+        BitField("seq_num",0,24),
              ]
 
 class ReadRequest(Packet):
     name = "ReadRequest"
     fields_desc=[
-        BitField("virtual_address", 0, 64),
+        BitField("virt_addr", 0, 64),
         BitField("rkey", 0, 32),
         BitField("dma_length", 0, 32),
         BitField("icrc",0,32),
@@ -91,7 +91,7 @@ class ReadResponse(Packet):
         BitField("reserved",0,1),
         BitField("opcode",0,2),
         BitField("credit_count",0,5),
-        BitField("sequence_number",0,24),
+        BitField("seq_num",0,24),
         BitField("ptr",0,64),
         BitField("data",0,DATA_LENGTH),
         BitField("icrc",0,32),
@@ -100,7 +100,7 @@ class ReadResponse(Packet):
 class WriteRequest(Packet):
     name = "WriteRequest"
     fields_desc=[
-        BitField("virtual_address", 0, 64),
+        BitField("virt_addr", 0, 64),
         BitField("rkey", 0, 32),
         BitField("dma_length", 0, 32),
         BitField("ptr",0,64),
@@ -114,14 +114,14 @@ class Ack(Packet):
         BitField("reserved",0,1),
         BitField("opcode",0,2),
         BitField("credit_count",0,5),
-        BitField("sequence_number",0,24),
+        BitField("m_seq_num",0,24),
         BitField("icrc",0,32),
     ]
 
 class AtomicRequest(Packet):
     name = "RoceAtomicRequest"
     fields_desc=[
-        BitField("virtual_address", 0, 64),
+        BitField("virt_addr", 0, 64),
         BitField("rkey", 0, 32),
         BitField("swap_or_add",0,64),
         BitField("compare",0,64),
@@ -134,8 +134,8 @@ class AtomicResponse(Packet):
         BitField("reserved",0,1),
         BitField("opcode",0,2),
         BitField("credit_count",0,5),
-        BitField("sequence_number",0,24),
-        BitField("original_remote_data",0,64),
+        BitField("m_seq_num",0,24),
+        BitField("original",0,64),
         BitField("icrc",0,32),
     ]
 
@@ -204,6 +204,12 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
     def __init__(self):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self,
                                                         ["bs"])
+
+
+    def io_test(self, send_packet, ingress_port, rec_packet, egress_port):
+        send_packet(self, ingress_port, send_packet)
+        verify_packets(self, rec_packet, [egress_port])
+    
 
     # The setUp() method is used to prepare the test fixture. Typically
     # you would use it to establich connection to the Thrift server.
@@ -274,13 +280,13 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
         #first example
         pkt = Ether(pkt_str)
+        pkt2=pkt.copy()
+        pkt2[IP].ttl = pkt2[IP].ttl-2
         #pkt.show()
 
-        egress_port = yak_1_port
-        send_packet(self, ingress_port, pkt)
 
-        pkt2=pkt.copy()
-        pkt2[IP].ttl = pkt2[IP].ttl-5
+
+        self.io_test(self, yeti_5_port, pkt, yak_1_port, pkt2)
         #pkt2[RoceV2].partition_key=0
         #print("Expecting packet on port %d" % egress_port)
 
@@ -289,8 +295,6 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         #pkt2.show()
 
 
-
-        verify_packets(self, pkt2, [egress_port])
 
 
         # timeout = 2

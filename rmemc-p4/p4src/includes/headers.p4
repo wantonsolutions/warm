@@ -47,6 +47,32 @@ header ipv4_t {
     bit<32>dest_addr;
 }
 
+header udp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<16> length_;
+    bit<16> checksum;
+}
+
+
+            //{ RC_SEND: "RC_SEND", RC_WRITE_ONLY: "RC_WRITE_ONLY", RC_READ_REQUEST: "RC_READ_REQUEST", RC_READ_RESPONSE: "RC_READ_RESPONSE", RC_ACK: "RC_ACK", RC_ATOMIC_ACK: "RC_ATOMIC_ACK", RC_CNS: "RC_CSN", ECN_OPCODE: "ECN_OPCODE"} ),
+header rocev2_t {
+    bit<8> opcode;
+    bit<1> sol_event;
+    bit<1> mig_req;
+    bit<2> pad_count;
+    bit<4> thv;
+    bit<16> part_key;
+    bit<6> reserved;
+    bit<1> becn;
+    bit<1> fecn;
+    bit<24> dest_qp;
+    bit<1> ack;
+    bit<7> reserved_2;
+    bit<24> seq_num;
+}
+
+
 
 header vlan_tag_t {
     bit<3> pcp;
@@ -58,6 +84,8 @@ header vlan_tag_t {
 struct headers {
     ethernet_t ethernet;
     ipv4_t ipv4;
+    udp_t udp;
+    rocev2_t rdma; 
 }
 
 #endif
