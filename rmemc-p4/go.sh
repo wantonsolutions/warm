@@ -32,7 +32,7 @@ function build_p4 () {
     #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-files context.json,tofino.bin"
     #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-format binary"
     #$build_tool $program_src --with-p4c bf-p4c --p4v 16 --p4flags "--p4runtime-format binary"
-    $build_tool $program_src --with-p4c bf-p4c --p4v 16
+    $build_tool $program_src --with-p4c bf-p4c --p4v 16 --with-thrift
     #cp $BIN_FILE "$INSTALL_DIR"tofino.bin
     #cp $CONTEXT_FILE "$INSTALL_DIR"context.json
     #cp $build_dir/${program}/manifest.json $INSTALL_DIR/context.json

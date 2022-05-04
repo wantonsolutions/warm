@@ -54,8 +54,6 @@ header udp_t {
     bit<16> checksum;
 }
 
-
-            //{ RC_SEND: "RC_SEND", RC_WRITE_ONLY: "RC_WRITE_ONLY", RC_READ_REQUEST: "RC_READ_REQUEST", RC_READ_RESPONSE: "RC_READ_RESPONSE", RC_ACK: "RC_ACK", RC_ATOMIC_ACK: "RC_ATOMIC_ACK", RC_CNS: "RC_CSN", ECN_OPCODE: "ECN_OPCODE"} ),
 header rocev2_t {
     bit<8> opcode;
     bit<1> sol_event;
@@ -72,6 +70,54 @@ header rocev2_t {
     bit<24> seq_num;
 }
 
+header read_request_t {
+    bit<64> virt_addr;
+    bit<32> rkey;
+    bit<32> dma_length;
+}
+
+header read_response_t {
+    bit<1> reserved;
+    bit<2> opcode;
+    bit<5> credit_count;
+    bit<24> m_seq_num;
+    bit<64> ptr;
+    //data
+    //icrc
+}
+
+header write_request_t {
+    bit<64> virt_addr;
+    bit<32> rkey;
+    bit<32> dma_length;
+    bit<64> ptr;
+    //data
+    //icrc
+}
+
+header ack_t {
+    bit<1> reserved;
+    bit<2> opcode;
+    bit<5> credit_count;
+    bit<24> m_seq_num;
+}
+
+header atomic_request_t {
+    bit<64> virt_addr;
+    bit<32> rkey;
+    bit<64> swap_or_add;
+    bit<64> compare;
+    //icrc
+}
+
+header atomic_response_t {
+    bit<1> reserved;
+    bit<2> opcode;
+    bit<5> credit_count;
+    bit<24> m_seq_num;
+    bit<64> original;
+    //icrc
+}
 
 
 header vlan_tag_t {
@@ -85,7 +131,14 @@ struct headers {
     ethernet_t ethernet;
     ipv4_t ipv4;
     udp_t udp;
-    rocev2_t rdma; 
+    rocev2_t roce; 
+    //Now we are going to do clover bth+headers
+    read_request_t read_req;
+    read_response_t read_resp;
+    write_request_t write_req;
+    ack_t ack;
+    atomic_request_t atomic_req;
+    atomic_response_t atomic_resp;
 }
 
 #endif

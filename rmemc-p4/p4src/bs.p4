@@ -42,7 +42,7 @@ control MyIngress(inout headers hdr,
     }
 
     action dec_ttl() {
-        hdr.ipv4.ttl = hdr.ipv4.ttl - 5;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
 
@@ -66,18 +66,59 @@ control MyIngress(inout headers hdr,
         }
     }
 
+    action write_req() {
+
+    }
+
+    action read_req() {
+
+    }
+
+    action read_resp() {
+
+    }
+
+    action ack() {
+
+    }
+
+    action cns() {
+
+    }
+
+    action atomic_ack() {
+
+    }
+
+    table multiplex_rdma {
+        key = {
+            hdr.roce.opcode: exact;
+        }
+
+        actions = {
+            write_req;
+            ack;
+            read_req;
+            read_resp;
+            cns;
+            atomic_ack;
+        }
+
+        const entries = {
+            RC_WRITE_ONLY : write_req();
+            RC_READ_REQUEST : read_req();
+            RC_READ_RESPONSE : read_resp();
+            RC_ACK : ack();
+            RC_ATOMIC_ACK : atomic_ack();
+            RC_CNS : cns();
+        }
+
+    }
 
     apply {
         forward.apply();
         update.apply();
-
-        // if(ipv4.ttl == 0) {
-        //     drop_ttl();
-        // }
-        // {
-        //     dec_ttl();
-        // }
-
+        multiplex_rdma.apply();
     }
 
 }
@@ -118,8 +159,15 @@ control MyEgress(inout headers hdr, inout metadata meta,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
-        packet.emit(hdr.ethernet);
-        packet.emit(hdr.ipv4);
+        packet.emit(hdr);
+        // packet.emit(hdr.ethernet);
+        // packet.emit(hdr.ipv4);
+        // packet.emit(hdr.udp);
+        // packet.emit(hdr.roce);
+
+        // if(hdr.write_req.isValid()) {
+        //     packet.emit(hdr.write_req);
+        // }
     }
 }
 

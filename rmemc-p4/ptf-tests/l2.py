@@ -278,15 +278,20 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
               (mac_da, ingress_port))
 
 
+
+
         #first example
-        pkt = Ether(pkt_str)
-        pkt2=pkt.copy()
-        pkt2[IP].ttl = pkt2[IP].ttl-2
-        #pkt.show()
+        for i in range(5):
+            pkt = Ether(pkt_str)
+            pkt.show()
+            pkt2=pkt.copy()
+            pkt2[UDP].chksum = i
 
+            #self.io_test(yeti_5_port, pkt, yak_1_port, pkt2)
 
-
-        self.io_test(self, yeti_5_port, pkt, yak_1_port, pkt2)
+            send_packet(self, yeti_5_port, pkt)
+            verify_packets(self, pkt2, [yak_1_port])
+        
         #pkt2[RoceV2].partition_key=0
         #print("Expecting packet on port %d" % egress_port)
 
