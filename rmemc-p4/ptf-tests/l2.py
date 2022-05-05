@@ -22,7 +22,7 @@ from ptf import config
 from ptf.testutils import *
 from ptf.thriftutils import *
 
-from basic_switching.p4_pd_rpc.ttypes import *
+from bs.p4_pd_rpc.ttypes import *
 from res_pd_rpc.ttypes import *
 #from scapy.layers.l2 import Ether
 
@@ -247,26 +247,31 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             
 
             print("Populating table entries")
-
+            self.entries={}
             # self.entries dictionary will contain all installed entry handles
 
-            self.entries={}
+
+
+
+            print("Update ", tup)
+            self.entries["update"] = []
+            self.entries["update"].append(
+                #self.client.MyIngress_update
+                self.client.MyIngress_update_table_add_with_MyIngress_dec_ttl(
+                    self.sess_hdl, self.dev_tgt,
+                    bs_MyIngress_update_match_spec_t(
+                        hdr_ethernet_dstAddr=macAddr_to_string(mac_da))))
+
+            print("Forward table ", tup)
             self.entries["forward"] = []
             self.entries["forward"].append(
                 # self.client.forward_table_add_with_dec_ttl(
-                self.client.forward_table_add_with_set_egr(
+                self.client.MyIngress_forward_table_add_with_MyIngress_set_egr(
                     self.sess_hdl, self.dev_tgt,
-                    basic_switching_forward_match_spec_t(
-                        ethernet_dstAddr=macAddr_to_string(mac_da)),
-                    basic_switching_set_egr_action_spec_t(
-                        action_egress_spec=egress_port)))
-
-            self.entries["update"] = []
-            self.entries["update"].append(
-                self.client.update_table_add_with_dec_ttl(
-                    self.sess_hdl, self.dev_tgt,
-                    basic_switching_forward_match_spec_t(
-                        ethernet_dstAddr=macAddr_to_string(mac_da))))
+                    bs_MyIngress_forward_match_spec_t(
+                        hdr_ethernet_dstAddr=macAddr_to_string(mac_da)),
+                    bs_MyIngress_set_egr_action_spec_t(
+                        action_port=egress_port)))
 
             print("Table forward: %s => set_egr(%d)" %
                 (mac_da, egress_port))
