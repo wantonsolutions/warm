@@ -16,7 +16,11 @@ limitations under the License.
 
 // This is P4 sample source for basic_switching
 #include <core.p4>
-#include <v1model.p4>
+#if __TARGET_TOFINO__ == 2
+#include <t2na.p4>
+#else
+#include <tna.p4>
+#endif
 
 #include "includes/headers.p4"
 #include "includes/parser.p4"
@@ -25,17 +29,22 @@ limitations under the License.
 //#include <tofino/constants.p4>
 
 
-control MyIngress(inout headers hdr,
+control SwitchIngress(inout headers hdr,
     inout metadata meta,
-    inout standard_metadata_t standard_metadata){
+
+    in ingress_intrinsic_metadata_t ig_intr_md,
+    in ingress_intrinsic_metadata_from_parser_t ig_prsr_md,
+    inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
+    inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
 
     action set_egr(egressSpec_t port) {
-        standard_metadata.egress_spec= port;
+        //standard_metadata.egress_spec= port;
+        ig_tm_md.ucast_egress_port = port;
         //modify_field(ig_intr_md_for_tm.ucast_egress_port, port);
     }
 
     action drop() {
-        mark_to_drop(standard_metadata);
+        //mark_to_drop(standard_metadata);
     }
 
     action nop() {
@@ -66,11 +75,62 @@ control MyIngress(inout headers hdr,
         }
     }
 
+    //T == Value
+    //I == Index type
+
+    /*
+    register<bit<32>>(4096) rocev2_dst_qp_reg;
+    */
+
+    // registerAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
+    //             void apply(inout bit<32> value, out bit<32> read_value) {
+    //                     read_value = value;
+    //             }
+    //     };
+
+    // registerAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
+    //             void apply(inout bit<32> value) {
+    //                     value = (bit<32>) 0xFEDCBAFE;
+    //                     //value = value +1;
+    //             }
+    // };
+
+    //    
     action write_req() {
+        //rocev2_dst_qp_reg_write.execute(hdr.roce.dest_qp);
+        //hdr.ipv4.src_addr=rocev2_dst_qp_reg_read.execute(hdr.roce.dest_qp);
+        //register_write(hdr.ipv4.src_addr,rocev2_dst_qp_reg, hdr.roce.dest_qp)
+        //bit<32>wide_qp = hdr.roce.dest_qp;
+
+        /* 
+        bit<32> to_hash = (bit<32>)hdr.roce.dest_qp;
+        bit<32> value = 0xFFFFFFFF;
+        rocev2_dst_qp_reg.write(to_hash, value);
+
+        hdr.roce.opcode = RC_READ_REQUEST;
+        */
+
+        // bit<32> result;
+        // rocev2_dst_qp_reg.read(to_hash, result);
+        // hdr.ipv4.src_addr = result;
+
+
+
+        //rocev2_dst_qp_reg.read(hdr.ipv4.src_addr, wide_qp);
+        //rocev2_dst_qp_reg.read(hdr.ipv4.src_addr, wide);
+        //register_read(hdr.ipv4.src_addr,rocev2_dst_qp_reg, hdr.roce.dest_qp);
 
     }
 
     action read_req() {
+
+        /*
+        bit<32> result;
+        bit<32> to_hash = (bit<32>)hdr.roce.dest_qp;
+        rocev2_dst_qp_reg.read(to_hash, result);
+        */
+        // hdr.ipv4.src_addr = result;
+        // hdr.roce.opcode = RC_WRITE_ONLY;
 
     }
 
@@ -113,69 +173,120 @@ control MyIngress(inout headers hdr,
             RC_CNS : cns();
         }
 
+        //size = 2048;
+
      }
 
     apply {
         forward.apply();
         update.apply();
+
+        //call the multiplex rdma twice
         multiplex_rdma.apply();
+        //multiplex_rdma.apply();
     }
 
 }
 
-control MyVerifyChecksum(inout headers  hdr, inout metadata meta){
-    apply{}
-}
+// control MyVerifyChecksum(inout headers  hdr, inout metadata meta){
+//     apply{}
+// }
 
-control MyComputeChecksum(inout headers  hdr, inout metadata meta){
-    apply{}
-}
+// control MyComputeChecksum(inout headers  hdr, inout metadata meta){
+//     apply{}
+// }
 
-control MyEgress(inout headers hdr, inout metadata meta,
-        inout standard_metadata_t standard_metadata) {
+// control MyEgress(inout headers hdr, inout metadata meta,
+//         in egress_intrinsic_metadata_t ig_intr_md,
+//         in egress_intrinsic_metadata_from_parser_t ig_prsr_md,
+//         inout egress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
+//         ) {
 
-        action nop() {
-        }
+//         action nop() {
+//         }
 
-        action drop() {
-            mark_to_drop(standard_metadata);
-        }
+//         action drop() {
+//             mark_to_drop(standard_metadata);
+//         }
 
-        table acl {
-            key = {
-                hdr.ethernet.dstAddr : ternary;
-                hdr.ethernet.srcAddr : ternary;
-            }
-            actions = {
-                nop;
-                drop;
-            }
-        }
+//         table acl {
+//             key = {
+//                 hdr.ethernet.dstAddr : ternary;
+//                 hdr.ethernet.srcAddr : ternary;
+//             }
+//             actions = {
+//                 nop;
+//                 drop;
+//             }
+//         }
 
-        apply {
-            acl.apply();
-        }
-}
+//         apply {
+//             acl.apply();
+//         }
+// }
 
-control MyDeparser(packet_out packet, in headers hdr) {
+// control SwitchIngressDeparser(packet_out packet, in headers hdr) {
+//     apply {
+//         packet.emit(hdr);
+//     }
+// }
+control SwitchIngressDeparser(packet_out packet,
+                              inout headers hdr,
+                              in metadata metadata,
+                              in ingress_intrinsic_metadata_for_deparser_t 
+                                ig_intr_dprsr_md
+                              ) {
     apply {
         packet.emit(hdr);
-        // packet.emit(hdr.ethernet);
-        // packet.emit(hdr.ipv4);
-        // packet.emit(hdr.udp);
-        // packet.emit(hdr.roce);
+    }
+}
+                                
 
-        // if(hdr.write_req.isValid()) {
-        //     packet.emit(hdr.write_req);
-        // }
+// V1Switch(
+//     MyParser(),
+//     MyVerifyChecksum(),
+//     MyIngress(),
+//     //MyEgress(),
+//     //MyComputeChecksum(),
+//     MyDeparser()
+// ) main;
+// Empty egress parser/control blocks
+parser EmptyEgressParser(
+        packet_in pkt,
+        out egress_intrinsic_metadata_t eg_intr_md) {
+    state start {
+        transition accept;
     }
 }
 
-V1Switch(
-    MyParser(),
-    MyVerifyChecksum(),
-    MyIngress(),
-    MyEgress(),
-    MyComputeChecksum(),
-    MyDeparser()
-) main;
+// control EmptyEgressDeparser(
+//         packet_out pkt,
+//         in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
+//     apply {}
+// }
+
+control EmptyEgressDeparser(
+        packet_out packet,
+        inout headers hdr,
+        in metadata metadata,
+        in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
+    apply {}
+}
+
+control EmptyEgress(
+        in egress_intrinsic_metadata_t eg_intr_md,
+        in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
+        inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
+        inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
+    apply {}
+}
+
+
+Pipeline(SwitchIngressParser(),
+       SwitchIngress(),
+       SwitchIngressDeparser(),
+       EmptyEgressParser(),
+       EmptyEgress(),
+       EmptyEgressDeparser()) pipe;
+
+Switch(pipe) main;

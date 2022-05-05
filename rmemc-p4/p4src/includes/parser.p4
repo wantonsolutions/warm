@@ -19,10 +19,11 @@ limitations under the License.
 
 // This parses an ethernet header
 
-parser MyParser(packet_in packet,
+parser SwitchIngressParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
-                inout standard_metadata_t standard_metadata)
+                inout ingress_intrinsic_metadata_t ig_intr_md)
+                //inout standard_metadata_t standard_metadata)
                 {
 
     state start {
