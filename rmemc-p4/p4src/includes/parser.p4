@@ -77,8 +77,8 @@ parser SwitchIngressParser(packet_in packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             ETHERTYPE_IPV4 : parse_ipv4;
-            //default: accept;
-            default : parse_ipv4;
+            default: accept;
+            //default : parse_ipv4;
         }
     }
 

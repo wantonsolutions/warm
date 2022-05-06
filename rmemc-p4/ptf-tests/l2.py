@@ -286,9 +286,10 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
 
         #first example
-        for i in range(5):
+        for i in range(2):
             pkt = Ether(pkt_str)
-            #pkt.show()
+            pkt[RoceV2].dest_qp = 5
+            pkt.show()
             pkt2=pkt.copy()
             pkt2[IP].ttl = pkt2[IP].ttl -1
 

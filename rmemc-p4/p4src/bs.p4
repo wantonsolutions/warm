@@ -78,9 +78,7 @@ control SwitchIngress(inout headers hdr,
     //T == Value
     //I == Index type
 
-    /*
-    register<bit<32>>(4096) rocev2_dst_qp_reg;
-    */
+    //register<bit<32>>(4096) rocev2_dst_qp_reg;
 
     // registerAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
     //             void apply(inout bit<32> value, out bit<32> read_value) {
@@ -96,6 +94,36 @@ control SwitchIngress(inout headers hdr,
     // };
 
     //    
+    Register<bit<32>, bit<24>>(4096, 0) rocev2_dst_qp_reg;
+
+
+    RegisterAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
+            void apply(inout bit<32> value, out bit<32> read_value) {
+                    if ( value == 0  ) {
+                        value = 1;
+                        read_value = 0;
+                    } else {
+                        read_value = value;
+                    }
+            }
+    };
+
+    RegisterAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
+            void apply(inout bit<32> value) {
+                    value = (bit<32>)hdr.roce.dest_qp;
+                    //value = value +1;
+            }
+    };
+
+    action write_dst_qp_reg(bit<24> con){
+                rocev2_dst_qp_reg_write.execute(con);
+        }
+
+    action read_dst_qp_reg(bit<24> con){
+            meta.qp_id=rocev2_dst_qp_reg_read.execute(con);
+    }
+
+
     action write_req() {
         //rocev2_dst_qp_reg_write.execute(hdr.roce.dest_qp);
         //hdr.ipv4.src_addr=rocev2_dst_qp_reg_read.execute(hdr.roce.dest_qp);
@@ -178,6 +206,24 @@ control SwitchIngress(inout headers hdr,
      }
 
     apply {
+
+        //if (false) {
+        read_dst_qp_reg(hdr.roce.dest_qp);
+
+        if (meta.qp_id == 1) {
+            hdr.ipv4.checksum = (bit<16>)meta.qp_id;
+        }
+
+        //hdr.ipv4.src_addr = (bit<32>)hdr.roce.dest_qp;
+        
+        // else {
+        //     hdr.ipv4.checksum = 0xFF;
+        // }
+        //} else {
+        //    write_dst_qp_reg(hdr.roce.dest_qp);
+        //}
+
+
         forward.apply();
         update.apply();
 
