@@ -93,34 +93,45 @@ control SwitchIngress(inout headers hdr,
     //             }
     // };
 
-    //    
-    Register<bit<32>, bit<24>>(4096, 0) rocev2_dst_qp_reg;
+    //
+
+    //Checksum<bit<16>>(HashAlgorithm_t.CSUM16) id_csum;
+    //Hash(CRC_8) id_checksum;
+    #define QP_HASH_WIDTH 12
+    #define QP_ID_TABLE_SIZE ( 1 << QP_HASH_WIDTH)
+
+    Hash<bit<1>>(HashAlgorithm_t.CRC16) id_checksum;
+    Register<bit<1>, bit<QP_HASH_WIDTH>>(QP_ID_TABLE_SIZE, 0) rocev2_dst_qp_reg;
 
 
-    RegisterAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
-            void apply(inout bit<32> value, out bit<32> read_value) {
-                    if ( value == 0  ) {
-                        value = 1;
-                        read_value = 0;
-                    } else {
-                        read_value = value;
-                    }
+    RegisterAction<bit<1>, bit<QP_HASH_WIDTH>, bit<1>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
+            void apply(inout bit<1> value, out bit<1> read_value) {
+                    //Set the value if it was not set before
+                    read_value = value;
+                    value = 1;
+                    // if ( value == 0  ) {
+                    //     value = 1;
+                    //     read_value = 0;
+                    // } else {
+                    //     read_value = value;
+                    // }
             }
     };
 
-    RegisterAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
-            void apply(inout bit<32> value) {
-                    value = (bit<32>)hdr.roce.dest_qp;
-                    //value = value +1;
-            }
-    };
+    // RegisterAction<bit<32>, bit<12>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
+    //         void apply(inout bit<32> value) {
+    //                 value = (bit<32>)hdr.roce.dest_qp;
+    //                 //value = value +1;
+    //         }
+    // };
 
-    action write_dst_qp_reg(bit<24> con){
-                rocev2_dst_qp_reg_write.execute(con);
-        }
+    // action write_dst_qp_reg(bit<24> con){
+    //             bit<12> index = (bit<12>) id_checksum.update(con);
+    //             rocev2_dst_qp_reg_write.execute(index);
+    //     }
 
-    action read_dst_qp_reg(bit<24> con){
-            meta.qp_id=rocev2_dst_qp_reg_read.execute(con);
+    action read_dst_qp_reg(bit<12> qp_hash){
+            meta.existing_id = rocev2_dst_qp_reg_read.execute(qp_hash);
     }
 
 
@@ -208,9 +219,11 @@ control SwitchIngress(inout headers hdr,
     apply {
 
         //if (false) {
-        read_dst_qp_reg(hdr.roce.dest_qp);
 
-        if (meta.qp_id == 1) {
+        bit<12> index = (bit<12>) id_checksum.get(hdr.roce.dest_qp);
+        read_dst_qp_reg(index);
+
+        if (meta.existing_id == 1) {
             hdr.ipv4.checksum = (bit<16>)meta.qp_id;
         }
 

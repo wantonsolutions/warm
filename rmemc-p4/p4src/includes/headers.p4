@@ -23,6 +23,7 @@ limitations under the License.
 
 typedef bit<9>  egressSpec_t;
 struct metadata {
+    bit<1> existing_id;
     bit<32> qp_id;
     /* empty */
 }
