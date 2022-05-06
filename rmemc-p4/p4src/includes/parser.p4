@@ -19,24 +19,66 @@ limitations under the License.
 
 // This parses an ethernet header
 
+#ifndef BS_PARSER
+#define BS_PARSER
+
+// parser SwitchIngressParser(
+//         packet_in pkt,
+//         out header_t hdr,
+//         out metadata_t ig_md,
+//         out ingress_intrinsic_metadata_t ig_intr_md) {
+
+typedef bit<16> ether_type_t;
+const ether_type_t ETHERTYPE_IPV4 = 16w0x0800;
+const ether_type_t ETHERTYPE_ARP = 16w0x0806;
+const ether_type_t ETHERTYPE_IPV6 = 16w0x86dd;
+const ether_type_t ETHERTYPE_VLAN = 16w0x8100;
+
+parser TofinoIngressParser(
+        packet_in pkt,
+        out ingress_intrinsic_metadata_t ig_intr_md) {
+    state start {
+        pkt.extract(ig_intr_md);
+        transition select(ig_intr_md.resubmit_flag) {
+            1 : parse_resubmit;
+            0 : parse_port_metadata;
+        }
+    }
+
+    state parse_resubmit {
+        // Parse resubmitted packet here.
+        transition reject;
+    }
+
+    state parse_port_metadata {
+        pkt.advance(PORT_METADATA_SIZE);
+        transition accept;
+    }
+}
+
+
 parser SwitchIngressParser(packet_in packet,
                 out headers hdr,
-                inout metadata meta,
-                inout ingress_intrinsic_metadata_t ig_intr_md)
+                out metadata ig_md,
+                out ingress_intrinsic_metadata_t ig_intr_md)
                 //inout standard_metadata_t standard_metadata)
                 {
 
+    TofinoIngressParser() tofino_parser;
+
     state start {
+        tofino_parser.apply(packet, ig_intr_md);
         transition parse_ethernet;
     }
 
-    #define ETHERTYPE_IPV4 0x0800
+    //#define ETHERTYPE_IPV4 0x0800
 
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             ETHERTYPE_IPV4 : parse_ipv4;
-            default: accept;
+            //default: accept;
+            default : parse_ipv4;
         }
     }
 
@@ -113,4 +155,6 @@ parser SwitchIngressParser(packet_in packet,
     }
 
 }
+
+#endif
 

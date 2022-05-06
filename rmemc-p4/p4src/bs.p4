@@ -183,6 +183,7 @@ control SwitchIngress(inout headers hdr,
 
         //call the multiplex rdma twice
         multiplex_rdma.apply();
+        ig_tm_md.bypass_egress = 1w1;
         //multiplex_rdma.apply();
     }
 
@@ -232,9 +233,8 @@ control SwitchIngress(inout headers hdr,
 // }
 control SwitchIngressDeparser(packet_out packet,
                               inout headers hdr,
-                              in metadata metadata,
-                              in ingress_intrinsic_metadata_for_deparser_t 
-                                ig_intr_dprsr_md
+                              in metadata meta,
+                              in ingress_intrinsic_metadata_for_deparser_t ig_intr_dprsr_md
                               ) {
     apply {
         packet.emit(hdr);
@@ -251,8 +251,18 @@ control SwitchIngressDeparser(packet_out packet,
 //     MyDeparser()
 // ) main;
 // Empty egress parser/control blocks
+// parser EmptyEgressParser(
+//         packet_in pkt,
+//         out egress_intrinsic_metadata_t eg_intr_md) {
+//     state start {
+//         transition accept;
+//     }
+// }
+
 parser EmptyEgressParser(
-        packet_in pkt,
+        packet_in packet,
+        out headers hdr,
+        out metadata meta,
         out egress_intrinsic_metadata_t eg_intr_md) {
     state start {
         transition accept;
@@ -268,18 +278,37 @@ parser EmptyEgressParser(
 control EmptyEgressDeparser(
         packet_out packet,
         inout headers hdr,
-        in metadata metadata,
+        in metadata meta,
         in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
     apply {}
 }
 
+// control EmptyEgressDeparser(
+//         packet_out pkt,
+//         inout empty_header_t hdr,
+//         in empty_metadata_t eg_md,
+//         in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
+//     apply {}
+// }
+
 control EmptyEgress(
+        inout headers hdr,
+        inout metadata meta,
         in egress_intrinsic_metadata_t eg_intr_md,
         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
         inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
     apply {}
 }
+
+
+// control EmptyEgress(
+//         in egress_intrinsic_metadata_t eg_intr_md,
+//         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
+//         inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
+//         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
+//     apply {}
+// }
 
 
 Pipeline(SwitchIngressParser(),

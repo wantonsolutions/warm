@@ -256,21 +256,21 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             print("Update ", tup)
             self.entries["update"] = []
             self.entries["update"].append(
-                #self.client.MyIngress_update
-                self.client.MyIngress_update_table_add_with_MyIngress_dec_ttl(
+                #self.client.SwitchIngress_update
+                self.client.SwitchIngress_update_table_add_with_SwitchIngress_dec_ttl(
                     self.sess_hdl, self.dev_tgt,
-                    bs_MyIngress_update_match_spec_t(
+                    bs_SwitchIngress_update_match_spec_t(
                         hdr_ethernet_dstAddr=macAddr_to_string(mac_da))))
 
             print("Forward table ", tup)
             self.entries["forward"] = []
             self.entries["forward"].append(
                 # self.client.forward_table_add_with_dec_ttl(
-                self.client.MyIngress_forward_table_add_with_MyIngress_set_egr(
+                self.client.SwitchIngress_forward_table_add_with_SwitchIngress_set_egr(
                     self.sess_hdl, self.dev_tgt,
-                    bs_MyIngress_forward_match_spec_t(
+                    bs_SwitchIngress_forward_match_spec_t(
                         hdr_ethernet_dstAddr=macAddr_to_string(mac_da)),
-                    bs_MyIngress_set_egr_action_spec_t(
+                    bs_SwitchIngress_set_egr_action_spec_t(
                         action_port=egress_port)))
 
             print("Table forward: %s => set_egr(%d)" %
@@ -288,9 +288,9 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         #first example
         for i in range(5):
             pkt = Ether(pkt_str)
-            pkt.show()
+            #pkt.show()
             pkt2=pkt.copy()
-            pkt2[UDP].chksum = i
+            pkt2[IP].ttl = pkt2[IP].ttl -1
 
             #self.io_test(yeti_5_port, pkt, yak_1_port, pkt2)
 
