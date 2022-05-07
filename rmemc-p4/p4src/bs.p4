@@ -1,20 +1,8 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+        SWORDBOX
 */
 
-// This is P4 sample source for basic_switching
+// use barefoot tofino arch
 #include <core.p4>
 #if __TARGET_TOFINO__ == 2
 #include <t2na.p4>
@@ -38,9 +26,7 @@ control SwitchIngress(inout headers hdr,
     inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
 
     action set_egr(egressSpec_t port) {
-        //standard_metadata.egress_spec= port;
         ig_tm_md.ucast_egress_port = port;
-        //modify_field(ig_intr_md_for_tm.ucast_egress_port, port);
     }
 
     action drop() {
@@ -75,118 +61,92 @@ control SwitchIngress(inout headers hdr,
         }
     }
 
-    //T == Value
-    //I == Index type
-
-    //register<bit<32>>(4096) rocev2_dst_qp_reg;
-
-    // registerAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
-    //             void apply(inout bit<32> value, out bit<32> read_value) {
-    //                     read_value = value;
-    //             }
-    //     };
-
-    // registerAction<bit<32>, bit<24>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
-    //             void apply(inout bit<32> value) {
-    //                     value = (bit<32>) 0xFEDCBAFE;
-    //                     //value = value +1;
-    //             }
-    // };
-
-    //
-
-    //Checksum<bit<16>>(HashAlgorithm_t.CSUM16) id_csum;
-    //Hash(CRC_8) id_checksum;
+    //The size of the hashed value for qp's make this larger if there are
+    //collisons, make it smaller if you start to run out of space
     #define QP_HASH_WIDTH 12
     #define QP_ID_TABLE_SIZE ( 1 << QP_HASH_WIDTH)
 
-    Hash<bit<1>>(HashAlgorithm_t.CRC16) id_checksum;
-    Register<bit<1>, bit<QP_HASH_WIDTH>>(QP_ID_TABLE_SIZE, 0) rocev2_dst_qp_reg;
+    //The size of the ID's used in the table, and the total number of ID's.
+    #define ID_SIZE 8
+    #define MAX_IDS 255
 
 
-    RegisterAction<bit<1>, bit<QP_HASH_WIDTH>, bit<1>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_read = {
+    //id_hash hashes qp to 16 bytes. It is the unique id for qp
+    Hash<bit<16>>(HashAlgorithm_t.CRC16) id_hash;
+
+    //This register is used to track the existance of ID's. Because we cant both
+    //lookup check for the id counter in a single step this is used to check if
+    //the ID exists prior either reading or writing it.
+    Register<bit<1>, bit<QP_HASH_WIDTH>>(QP_ID_TABLE_SIZE, 0) id_exists_reg;
+    RegisterAction<bit<1>, bit<QP_HASH_WIDTH>, bit<1>>(id_exists_reg) id_exists_reg_action = {
             void apply(inout bit<1> value, out bit<1> read_value) {
-                    //Set the value if it was not set before
                     read_value = value;
                     value = 1;
-                    // if ( value == 0  ) {
-                    //     value = 1;
-                    //     read_value = 0;
-                    // } else {
-                    //     read_value = value;
-                    // }
             }
     };
 
-    // RegisterAction<bit<32>, bit<12>, bit<32>>(rocev2_dst_qp_reg) rocev2_dst_qp_reg_write = {
-    //         void apply(inout bit<32> value) {
-    //                 value = (bit<32>)hdr.roce.dest_qp;
-    //                 //value = value +1;
-    //         }
-    // };
+    //Counter tracks how man threads are running. This is incremented each time a new qp shows up.
+    DirectRegister<bit<ID_SIZE>>() id_counter;
+    DirectRegisterAction<bit<ID_SIZE>,bit<ID_SIZE>>(id_counter) increment_id_counter_action = {
+        void apply(inout bit<ID_SIZE> value, out bit<ID_SIZE> read_value) {
+            read_value = value;
+            value = value + 1;
+        }
+    };
 
-    // action write_dst_qp_reg(bit<24> con){
-    //             bit<12> index = (bit<12>) id_checksum.update(con);
-    //             rocev2_dst_qp_reg_write.execute(index);
-    //     }
+    //Register for storing qp-id maps. The ID's that we will use are small ie
+    //1-255 which are easy to index into tables. but the qp is large so we need
+    //this to map between the two.
+    Register<bit<ID_SIZE>, bit<QP_HASH_WIDTH>>(MAX_IDS, 0) qp_id_reg;
 
-    action read_dst_qp_reg(bit<12> qp_hash){
-            meta.existing_id = rocev2_dst_qp_reg_read.execute(qp_hash);
+    //Read the qp-id map
+    RegisterAction<bit<ID_SIZE>, bit<QP_HASH_WIDTH>, bit<ID_SIZE>>(qp_id_reg) qp_id_reg_action_read = {
+            void apply(inout bit<ID_SIZE> value, out bit<ID_SIZE> read_value) {
+                    read_value = value;
+            }
+    };
+
+    //write the qp id map
+    RegisterAction<bit<ID_SIZE>, bit<QP_HASH_WIDTH>, bit<ID_SIZE>>(qp_id_reg) qp_id_reg_action_write = {
+            void apply(inout bit<ID_SIZE> value) {
+                    value = meta.qp_id;
+            }
+    };
+
+
+    action check_and_set_id_exists(bit<QP_HASH_WIDTH> qp_hash){
+            meta.existing_id = id_exists_reg_action.execute(qp_hash);
+    }
+
+    action gen_new_id(){
+            meta.qp_id = increment_id_counter_action.execute();
+    }
+
+    action write_new_id(bit<QP_HASH_WIDTH> qp_hash) {
+            qp_id_reg_action_write.execute(qp_hash);
+    }
+
+    action read_id(bit<QP_HASH_WIDTH> qp_hash) {
+            meta.qp_id = qp_id_reg_action_read.execute(qp_hash);
     }
 
 
     action write_req() {
-        //rocev2_dst_qp_reg_write.execute(hdr.roce.dest_qp);
-        //hdr.ipv4.src_addr=rocev2_dst_qp_reg_read.execute(hdr.roce.dest_qp);
-        //register_write(hdr.ipv4.src_addr,rocev2_dst_qp_reg, hdr.roce.dest_qp)
-        //bit<32>wide_qp = hdr.roce.dest_qp;
-
-        /* 
-        bit<32> to_hash = (bit<32>)hdr.roce.dest_qp;
-        bit<32> value = 0xFFFFFFFF;
-        rocev2_dst_qp_reg.write(to_hash, value);
-
-        hdr.roce.opcode = RC_READ_REQUEST;
-        */
-
-        // bit<32> result;
-        // rocev2_dst_qp_reg.read(to_hash, result);
-        // hdr.ipv4.src_addr = result;
-
-
-
-        //rocev2_dst_qp_reg.read(hdr.ipv4.src_addr, wide_qp);
-        //rocev2_dst_qp_reg.read(hdr.ipv4.src_addr, wide);
-        //register_read(hdr.ipv4.src_addr,rocev2_dst_qp_reg, hdr.roce.dest_qp);
-
     }
 
     action read_req() {
-
-        /*
-        bit<32> result;
-        bit<32> to_hash = (bit<32>)hdr.roce.dest_qp;
-        rocev2_dst_qp_reg.read(to_hash, result);
-        */
-        // hdr.ipv4.src_addr = result;
-        // hdr.roce.opcode = RC_WRITE_ONLY;
-
     }
 
     action read_resp() {
-
     }
 
     action ack() {
-
     }
 
     action cns() {
-
     }
 
     action atomic_ack() {
-
     }
 
     table multiplex_rdma {
@@ -218,23 +178,18 @@ control SwitchIngress(inout headers hdr,
 
     apply {
 
-        //if (false) {
+        //get the ID for the rdma packet
+        bit<12> qp_hash_index = (bit<12>) id_hash.get(hdr.roce.dest_qp);
+        check_and_set_id_exists(qp_hash_index);
 
-        bit<12> index = (bit<12>) id_checksum.get(hdr.roce.dest_qp);
-        read_dst_qp_reg(index);
-
-        if (meta.existing_id == 1) {
-            hdr.ipv4.checksum = (bit<16>)meta.qp_id;
+        if (meta.existing_id == 0) {
+            gen_new_id();
+            write_new_id(qp_hash_index);
+        } else {
+            read_id(qp_hash_index);
         }
 
-        //hdr.ipv4.src_addr = (bit<32>)hdr.roce.dest_qp;
-        
-        // else {
-        //     hdr.ipv4.checksum = 0xFF;
-        // }
-        //} else {
-        //    write_dst_qp_reg(hdr.roce.dest_qp);
-        //}
+        //From here on the metadata has the id set.
 
 
         forward.apply();
@@ -248,48 +203,6 @@ control SwitchIngress(inout headers hdr,
 
 }
 
-// control MyVerifyChecksum(inout headers  hdr, inout metadata meta){
-//     apply{}
-// }
-
-// control MyComputeChecksum(inout headers  hdr, inout metadata meta){
-//     apply{}
-// }
-
-// control MyEgress(inout headers hdr, inout metadata meta,
-//         in egress_intrinsic_metadata_t ig_intr_md,
-//         in egress_intrinsic_metadata_from_parser_t ig_prsr_md,
-//         inout egress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
-//         ) {
-
-//         action nop() {
-//         }
-
-//         action drop() {
-//             mark_to_drop(standard_metadata);
-//         }
-
-//         table acl {
-//             key = {
-//                 hdr.ethernet.dstAddr : ternary;
-//                 hdr.ethernet.srcAddr : ternary;
-//             }
-//             actions = {
-//                 nop;
-//                 drop;
-//             }
-//         }
-
-//         apply {
-//             acl.apply();
-//         }
-// }
-
-// control SwitchIngressDeparser(packet_out packet, in headers hdr) {
-//     apply {
-//         packet.emit(hdr);
-//     }
-// }
 control SwitchIngressDeparser(packet_out packet,
                               inout headers hdr,
                               in metadata meta,
@@ -301,22 +214,6 @@ control SwitchIngressDeparser(packet_out packet,
 }
                                 
 
-// V1Switch(
-//     MyParser(),
-//     MyVerifyChecksum(),
-//     MyIngress(),
-//     //MyEgress(),
-//     //MyComputeChecksum(),
-//     MyDeparser()
-// ) main;
-// Empty egress parser/control blocks
-// parser EmptyEgressParser(
-//         packet_in pkt,
-//         out egress_intrinsic_metadata_t eg_intr_md) {
-//     state start {
-//         transition accept;
-//     }
-// }
 
 parser EmptyEgressParser(
         packet_in packet,
@@ -328,12 +225,6 @@ parser EmptyEgressParser(
     }
 }
 
-// control EmptyEgressDeparser(
-//         packet_out pkt,
-//         in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
-//     apply {}
-// }
-
 control EmptyEgressDeparser(
         packet_out packet,
         inout headers hdr,
@@ -342,13 +233,6 @@ control EmptyEgressDeparser(
     apply {}
 }
 
-// control EmptyEgressDeparser(
-//         packet_out pkt,
-//         inout empty_header_t hdr,
-//         in empty_metadata_t eg_md,
-//         in egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md) {
-//     apply {}
-// }
 
 control EmptyEgress(
         inout headers hdr,
@@ -359,15 +243,6 @@ control EmptyEgress(
         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
     apply {}
 }
-
-
-// control EmptyEgress(
-//         in egress_intrinsic_metadata_t eg_intr_md,
-//         in egress_intrinsic_metadata_from_parser_t eg_intr_md_from_prsr,
-//         inout egress_intrinsic_metadata_for_deparser_t ig_intr_dprs_md,
-//         inout egress_intrinsic_metadata_for_output_port_t eg_intr_oport_md) {
-//     apply {}
-// }
 
 
 Pipeline(SwitchIngressParser(),
