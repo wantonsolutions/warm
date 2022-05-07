@@ -179,7 +179,7 @@ control SwitchIngress(inout headers hdr,
     apply {
 
         //get the ID for the rdma packet
-        bit<12> qp_hash_index = (bit<12>) id_hash.get(hdr.roce.dest_qp);
+        bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
         check_and_set_id_exists(qp_hash_index);
 
         if (meta.existing_id == 0) {
