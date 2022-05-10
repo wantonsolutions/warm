@@ -238,8 +238,6 @@ def print_min_packet(pkt):
     elif pkt[RoceV2].opcode == RC_CNS:
         op_str="CNS"
 
-    
-
     print("opcode: "+ op_str + " id: " + str(id) + " virtual address "),
     if WriteRequest in pkt:
         print(pkt[WriteRequest].virt_addr)
