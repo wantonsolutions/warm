@@ -193,7 +193,7 @@ control SwitchIngress(inout headers hdr,
 
 
         forward.apply();
-        update.apply();
+        //update.apply();
 
         //call the multiplex rdma twice
         multiplex_rdma.apply();

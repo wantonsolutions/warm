@@ -17,6 +17,7 @@ Simple PTF test for basic_switching.p4
 """
 
 import pd_base_tests
+import codecs
 
 from ptf import config
 from ptf.testutils import *
@@ -189,6 +190,26 @@ pkt_str = b"\xEC\x0D\x9A\x68\x21\xCC\xEC\x0D\x9A\x68\x21\xA0\x08\x00\x45\x02\x04
 #pkt = Ether(pkt_str)
 #pkt.show()
 
+def read_in_test_packets(test_name):
+    ingress_packets=[]
+    egress_packets=[]
+
+    trace_dir="/home/ssgrant/warm/rmemc-p4/ptf-tests/traces"
+    ingress_packet_file = open(trace_dir+"/"+test_name+"_ingress.pkttrace", 'r')
+    for line in ingress_packet_file:
+        decode_line=codecs.decode(line, "string_escape")
+        ingress_packets.append(decode_line)
+
+    egress_packet_file = codecs.open(trace_dir+"/"+test_name+"_egress.pkttrace", 'r')
+    for line in egress_packet_file:
+        decode_line=codecs.decode(line, "string_escape")
+        egress_packets.append(decode_line)
+
+    packet_pairs = [(i, o) for i, o in zip(ingress_packets,egress_packets)]
+    return packet_pairs
+
+
+
 
 print config
 
@@ -253,14 +274,14 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
 
 
-            print("Update ", tup)
-            self.entries["update"] = []
-            self.entries["update"].append(
-                #self.client.SwitchIngress_update
-                self.client.SwitchIngress_update_table_add_with_SwitchIngress_dec_ttl(
-                    self.sess_hdl, self.dev_tgt,
-                    bs_SwitchIngress_update_match_spec_t(
-                        hdr_ethernet_dstAddr=macAddr_to_string(mac_da))))
+            # print("Update ", tup)
+            # self.entries["update"] = []
+            # self.entries["update"].append(
+            #     #self.client.SwitchIngress_update
+            #     self.client.SwitchIngress_update_table_add_with_SwitchIngress_dec_ttl(
+            #         self.sess_hdl, self.dev_tgt,
+            #         bs_SwitchIngress_update_match_spec_t(
+            #             hdr_ethernet_dstAddr=macAddr_to_string(mac_da))))
 
             print("Forward table ", tup)
             self.entries["forward"] = []
@@ -283,20 +304,23 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
               (mac_da, ingress_port))
 
 
-
+        packets = read_in_test_packets("write_steer_1_key_1_thread_1_packet")
 
         #first example
-        for i in range(2):
-            pkt = Ether(pkt_str)
-            pkt[RoceV2].dest_qp = 5
-            pkt.show()
-            pkt2=pkt.copy()
-            pkt2[IP].ttl = pkt2[IP].ttl -1
+        for io_packet in packets:
+            # pkt = Ether(pkt_str)
+            # pkt[RoceV2].dest_qp = 5
+            # pkt.show()
+            # pkt2=pkt.copy()
+            # pkt2[IP].ttl = pkt2[IP].ttl -1
+            input = Ether(io_packet[0])
+            output = Ether(io_packet[1])
+
 
             #self.io_test(yeti_5_port, pkt, yak_1_port, pkt2)
 
-            send_packet(self, yeti_5_port, pkt)
-            verify_packets(self, pkt2, [yak_1_port])
+            send_packet(self, yeti_5_port, input)
+            verify_packets(self, output, [yak_1_port])
         
         #pkt2[RoceV2].partition_key=0
         #print("Expecting packet on port %d" % egress_port)
