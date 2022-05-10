@@ -163,6 +163,17 @@ yak_0_port=1
 yak_1_mac="ec:0d:9a:68:21:cc"
 yak_1_port=2
 
+def get_port_from_mac(mac_addr):
+    if mac_addr == yeti_5_mac:
+        return yeti_5_port
+    elif mac_addr == yak_0_mac:
+        return yak_0_port
+    elif mac_addr == yak_1_mac:
+        return yak_1_port
+    else:
+        return -1
+        
+
 #this set of forwarding tripples allows each of the client, memory, and metadata servers to send to one another
 #ingress port, egress port, mac_destination
 forwarding_tripples=[
@@ -304,40 +315,33 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
               (mac_da, ingress_port))
 
 
-        packets = read_in_test_packets("write_steer_1_key_1_thread_1_packet")
+        #packets = read_in_test_packets("write_steer_1_key_1_thread_1_packet")
+        packets = read_in_test_packets("write_steer_1_key_1_thread_10_packet")
 
         #first example
+        packet_counter=0
         for io_packet in packets:
-            # pkt = Ether(pkt_str)
-            # pkt[RoceV2].dest_qp = 5
-            # pkt.show()
-            # pkt2=pkt.copy()
-            # pkt2[IP].ttl = pkt2[IP].ttl -1
+
+
             input = Ether(io_packet[0])
             output = Ether(io_packet[1])
+            print(packet_counter)
+            packet_counter=packet_counter+1
+
+            src_eth=input[Ether].src
+            dst_eth=output[Ether].dst
+
+            ingress_port=get_port_from_mac(src_eth)
+            egress_port=get_port_from_mac(dst_eth)
+
+            #get ingress port
 
 
-            #self.io_test(yeti_5_port, pkt, yak_1_port, pkt2)
 
-            send_packet(self, yeti_5_port, input)
-            verify_packets(self, output, [yak_1_port])
+
+            send_packet(self, ingress_port, input)
+            verify_packets(self, output, [egress_port])
         
-        #pkt2[RoceV2].partition_key=0
-        #print("Expecting packet on port %d" % egress_port)
-
-        # print(pkt[TCP].ttl = 63)
-        #ptk2[RoceV2].partition_key=0
-        #pkt2.show()
-
-
-
-
-        # timeout = 2
-        # result = dp_poll(self, device_number=0, port_number=egress_port, timeout=timeout, exp_pkt=pkt2)
-        # pkt_result = result.packet
-        # pkt_result.show()
-        # print(pkt_result[RoceV2].partition_key)
-        # pkt2.show()
 
     # Use this method to return the DUT to the initial state by cleaning
     # all the configuration and clearing up the connection
