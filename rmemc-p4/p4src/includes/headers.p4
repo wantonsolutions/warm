@@ -84,6 +84,7 @@ header read_response_t {
     bit<5> credit_count;
     bit<24> m_seq_num;
     bit<64> ptr;
+    bit<8> data;
     //data
     //icrc
 }
@@ -93,6 +94,7 @@ header write_request_t {
     bit<32> rkey;
     bit<32> dma_length;
     bit<64> ptr;
+    bit<8> data;
     //data
     //icrc
 }

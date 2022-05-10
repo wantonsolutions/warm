@@ -188,8 +188,33 @@ control SwitchIngress(inout headers hdr,
         } else {
             read_id(qp_hash_index);
         }
-
         //From here on the metadata has the id set.
+
+        //Write Path
+        if (hdr.roce.opcode == RC_WRITE_ONLY && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
+
+            /* the shift values changes based on rdma packet size. 
+            I never figured out other packets, but this will work for 1024
+
+            the function can be found in check_and_cache_predicted_shift rmemc-dpdk.c 
+            May10 2022 -Stew
+            */
+            #define 1024_SHIFT_VALUE 10
+
+
+            //This is a write we want to cache
+            //hdr.ipv4.checksum=0;
+            //hdr.ipv4.checksum=hdr.ipv4.checksum;
+
+            /*
+            //This is a sanity check, i gues we are working in the correct endian
+            if (hdr.ipv4.totalLength == 1084){
+                hdr.ipv4.checksum=1;
+            }*
+
+
+
+        }
 
 
         forward.apply();
