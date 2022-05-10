@@ -62,7 +62,7 @@ class RoceV2(Packet):
     name = "RoceV2Packet"
     fields_desc=[
         ByteEnumField("opcode",0, 
-            { RC_SEND: "RC_SEND", RC_WRITE_ONLY: "RC_WRITE_ONLY", RC_READ_REQUEST: "RC_READ_REQUEST", RC_READ_RESPONSE: "RC_READ_RESPONSE", RC_ACK: "RC_ACK", RC_ATOMIC_ACK: "RC_ATOMIC_ACK", RC_CNS: "RC_CSN", ECN_OPCODE: "ECN_OPCODE"} ),
+            { RC_SEND: "RC_SEND", RC_WRITE_ONLY: "RC_WRITE_ONLY", RC_READ_REQUEST: "RC_READ_REQUEST", RC_READ_RESPONSE: "RC_READ_RESPONSE", RC_ACK: "RC_ACK", RC_ATOMIC_ACK: "RC_ATOMIC_ACK", RC_CNS: "RC_CNS", ECN_OPCODE: "ECN_OPCODE"} ),
         BitField("sol_event", 0 , 1),
         BitField("mig_req", 0, 1),
         BitField("pad_count", 0, 2),
@@ -208,6 +208,7 @@ def read_in_test_packets(test_name):
     trace_dir="/home/ssgrant/warm/rmemc-p4/ptf-tests/traces"
     ingress_packet_file = open(trace_dir+"/"+test_name+"_ingress.pkttrace", 'r')
     for line in ingress_packet_file:
+        #print(line)
         decode_line=codecs.decode(line, "string_escape")
         ingress_packets.append(decode_line)
 
@@ -219,7 +220,40 @@ def read_in_test_packets(test_name):
     packet_pairs = [(i, o) for i, o in zip(ingress_packets,egress_packets)]
     return packet_pairs
 
+qp_map=dict()
+qp_counter=0
 
+def print_min_packet(pkt):
+
+    global qp_counter
+    if pkt[RoceV2].dest_qp not in qp_map:
+        qp_map[pkt[RoceV2].dest_qp]=qp_counter
+        qp_counter=qp_counter+1
+
+    id=qp_map[pkt[RoceV2].dest_qp]
+
+    op_str=""
+    if pkt[RoceV2].opcode == RC_WRITE_ONLY:
+        op_str="WRITE"
+    elif pkt[RoceV2].opcode == RC_CNS:
+        op_str="CNS"
+
+    
+
+    print("opcode: "+ op_str + " id: " + str(id) + " virtual address "),
+    if WriteRequest in pkt:
+        print(pkt[WriteRequest].virt_addr)
+    if AtomicRequest in pkt:
+        print(pkt[AtomicRequest].virt_addr)
+    #pkt.show()
+
+def print_io_packet(input, output):
+    print_min_packet(input)
+    print_min_packet(output)
+    print("----")
+
+
+#packets = read_in_test_packets("write_steer_1_key_2_thread_100_packet")
 
 
 print config
@@ -316,7 +350,11 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
 
         #packets = read_in_test_packets("write_steer_1_key_1_thread_1_packet")
-        packets = read_in_test_packets("write_steer_1_key_1_thread_10_packet")
+        #packets = read_in_test_packets("write_steer_1_key_1_thread_10_packet")
+        #packets = read_in_test_packets("write_steer_1_key_1_thread_100_packet")
+        packets = read_in_test_packets("write_steer_1_key_2_thread_100_packet") #this one actually has a redirect
+        #packets = read_in_test_packets("write_steer_1_key_2_thread_100_packet")
+
 
         #first example
         packet_counter=0
@@ -325,11 +363,24 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
             input = Ether(io_packet[0])
             output = Ether(io_packet[1])
+
+            #input.show()
+
+            #removes values from test that are not ROCE (should not happen ideally)
+            if not RoceV2 in input:
+                continue
+            
+            #trims down the execution to only the write and CAS packets
+            if input[RoceV2].opcode != RC_WRITE_ONLY and input[RoceV2].opcode != RC_CNS:
+                continue
+
             print(packet_counter)
+            print_io_packet(input,output)
             packet_counter=packet_counter+1
 
             src_eth=input[Ether].src
             dst_eth=output[Ether].dst
+
 
             ingress_port=get_port_from_mac(src_eth)
             egress_port=get_port_from_mac(dst_eth)
