@@ -21,10 +21,13 @@ limitations under the License.
 #ifndef BS_HEADER
 #define BS_HEADER
 
+#define ID_SIZE 8
+#define KEY_SIZE 8
 typedef bit<9>  egressSpec_t;
 struct metadata {
     bit<1> existing_id;
-    bit<8> qp_id;
+    bit<ID_SIZE> id;
+    bit<KEY_SIZE> key;
     /* empty */
 }
 
@@ -84,7 +87,7 @@ header read_response_t {
     bit<5> credit_count;
     bit<24> m_seq_num;
     bit<64> ptr;
-    bit<8> data;
+    bit<KEY_SIZE> data;
     //data
     //icrc
 }
@@ -94,7 +97,7 @@ header write_request_t {
     bit<32> rkey;
     bit<32> dma_length;
     bit<64> ptr;
-    bit<8> data;
+    bit<KEY_SIZE> data;
     //data
     //icrc
 }

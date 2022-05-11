@@ -67,10 +67,7 @@ control SwitchIngress(inout headers hdr,
     #define QP_ID_TABLE_SIZE ( 1 << QP_HASH_WIDTH)
 
     //The size of the ID's used in the table, and the total number of ID's.
-    #define ID_SIZE 8
     #define MAX_IDS 255
-
-
     //id_hash hashes qp to 16 bytes. It is the unique id for qp
     Hash<bit<16>>(HashAlgorithm_t.CRC16) id_hash;
 
@@ -97,7 +94,7 @@ control SwitchIngress(inout headers hdr,
     //Register for storing qp-id maps. The ID's that we will use are small ie
     //1-255 which are easy to index into tables. but the qp is large so we need
     //this to map between the two.
-    Register<bit<ID_SIZE>, bit<QP_HASH_WIDTH>>(MAX_IDS, 0) qp_id_reg;
+    Register<bit<ID_SIZE>, bit<QP_HASH_WIDTH>>(QP_ID_TABLE_SIZE, 0) qp_id_reg;
 
     //Read the qp-id map
     RegisterAction<bit<ID_SIZE>, bit<QP_HASH_WIDTH>, bit<ID_SIZE>>(qp_id_reg) qp_id_reg_action_read = {
@@ -109,7 +106,7 @@ control SwitchIngress(inout headers hdr,
     //write the qp id map
     RegisterAction<bit<ID_SIZE>, bit<QP_HASH_WIDTH>, bit<ID_SIZE>>(qp_id_reg) qp_id_reg_action_write = {
             void apply(inout bit<ID_SIZE> value) {
-                    value = meta.qp_id;
+                    value = meta.id;
             }
     };
 
@@ -119,7 +116,7 @@ control SwitchIngress(inout headers hdr,
     }
 
     action gen_new_id(){
-            meta.qp_id = increment_id_counter_action.execute();
+            meta.id = increment_id_counter_action.execute();
     }
 
     action write_new_id(bit<QP_HASH_WIDTH> qp_hash) {
@@ -127,7 +124,36 @@ control SwitchIngress(inout headers hdr,
     }
 
     action read_id(bit<QP_HASH_WIDTH> qp_hash) {
-            meta.qp_id = qp_id_reg_action_read.execute(qp_hash);
+            meta.id = qp_id_reg_action_read.execute(qp_hash);
+    }
+
+
+    //Latest Key read/write
+    Register<bit<KEY_SIZE>, bit<ID_SIZE>>(MAX_IDS,0) latest_keys;
+
+    //Write to the latest key
+    RegisterAction<bit<KEY_SIZE>, bit<ID_SIZE>, bit<KEY_SIZE>>(latest_keys) write_latest_key = {
+        void apply(inout bit<KEY_SIZE> value) {
+            value = meta.key;
+        }
+
+    };
+
+    //Read the latest key
+    RegisterAction<bit<KEY_SIZE>, bit<ID_SIZE>, bit<KEY_SIZE>>(latest_keys) read_latest_key = {
+        void apply(inout bit<KEY_SIZE> value, out bit<KEY_SIZE> read_value) {
+            read_value=value;
+        }
+    };
+
+    action get_latest_key(bit<ID_SIZE> id) {
+        meta.key = read_latest_key.execute(id);
+
+    }
+
+    //The key must allready be in the metadata
+    action set_latest_key(bit<ID_SIZE> id) {
+        write_latest_key.execute(id);
     }
 
 
@@ -199,9 +225,12 @@ control SwitchIngress(inout headers hdr,
             the function can be found in check_and_cache_predicted_shift rmemc-dpdk.c 
             May10 2022 -Stew
             */
-            #define 1024_SHIFT_VALUE 10
 
+            #define SHIFT_VALUE_1024 10
+            meta.key = hdr.write_req.data;
+            set_latest_key(meta.id);
 
+            
             //This is a write we want to cache
             //hdr.ipv4.checksum=0;
             //hdr.ipv4.checksum=hdr.ipv4.checksum;
@@ -210,10 +239,9 @@ control SwitchIngress(inout headers hdr,
             //This is a sanity check, i gues we are working in the correct endian
             if (hdr.ipv4.totalLength == 1084){
                 hdr.ipv4.checksum=1;
-            }*
-
-
-
+            }*/
+        } else if (hdr.roce.opcode == RC_CNS) {
+            get_latest_key(meta.id);
         }
 
 
