@@ -154,31 +154,35 @@ control SwitchIngress(inout headers hdr,
 
     #define ADDR_WIDTH 32
     //First Write Register
-    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write;
-
+    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_low;
     //set the metadata to the vadder here
-    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write) test_first_write_low = {
+    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write_low) test_first_write_low = {
         void apply(inout bit<ADDR_WIDTH> value, out bit<ADDR_WIDTH> read_value) {
-
-
             read_value = value;
-
             if (value == 1) {
                 value = meta.vaddr.lower;
             }
-
             if (value == 0) {
                 value = 1;
             }
-
         }
     };
 
-    action check_first_write(bit <KEY_SIZE> key) {
+    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_high;
+    //set the metadata to the vadder here
+    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write_high) test_first_write_high = {
+        void apply(inout bit<ADDR_WIDTH> value, out bit<ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+
+    action check_first_write_low(bit <KEY_SIZE> key) {
         //meta.first_write.lower = 
-        
-        bit<ADDR_WIDTH> val = test_first_write_low.execute(key);
-        bit<ADDR_WIDTH> local_key = 0;
+        meta.vaddr.lower= test_first_write_low.execute(key);
+    }
+
+    action check_first_write_high(bit <KEY_SIZE> key) {
+        meta.vaddr.upper= test_first_write_high.execute(key);
     }
 
     action write_req() {
@@ -254,7 +258,11 @@ control SwitchIngress(inout headers hdr,
             meta.key = hdr.write_req.data;
             set_latest_key(meta.id);
 
-            check_first_write(meta.key);
+            //Collect the first write
+            check_first_write_low(meta.key);
+            check_first_write_high(meta.key);
+
+
 
             
             //This is a write we want to cache
