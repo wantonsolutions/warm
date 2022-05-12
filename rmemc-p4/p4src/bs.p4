@@ -130,7 +130,6 @@ control SwitchIngress(inout headers hdr,
 
     //Latest Key read/write
     Register<bit<KEY_SIZE>, bit<ID_SIZE>>(MAX_IDS,0) latest_keys;
-
     //Write to the latest key
     RegisterAction<bit<KEY_SIZE>, bit<ID_SIZE>, bit<KEY_SIZE>>(latest_keys) write_latest_key = {
         void apply(inout bit<KEY_SIZE> value) {
@@ -138,24 +137,49 @@ control SwitchIngress(inout headers hdr,
         }
 
     };
-
     //Read the latest key
     RegisterAction<bit<KEY_SIZE>, bit<ID_SIZE>, bit<KEY_SIZE>>(latest_keys) read_latest_key = {
         void apply(inout bit<KEY_SIZE> value, out bit<KEY_SIZE> read_value) {
             read_value=value;
         }
     };
-
     action get_latest_key(bit<ID_SIZE> id) {
         meta.key = read_latest_key.execute(id);
-
     }
-
     //The key must allready be in the metadata
     action set_latest_key(bit<ID_SIZE> id) {
         write_latest_key.execute(id);
     }
 
+
+    #define ADDR_WIDTH 32
+    //First Write Register
+    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write;
+
+    //set the metadata to the vadder here
+    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write) test_first_write_low = {
+        void apply(inout bit<ADDR_WIDTH> value, out bit<ADDR_WIDTH> read_value) {
+
+
+            read_value = value;
+
+            if (value == 1) {
+                value = meta.vaddr.lower;
+            }
+
+            if (value == 0) {
+                value = 1;
+            }
+
+        }
+    };
+
+    action check_first_write(bit <KEY_SIZE> key) {
+        //meta.first_write.lower = 
+        
+        bit<ADDR_WIDTH> val = test_first_write_low.execute(key);
+        bit<ADDR_WIDTH> local_key = 0;
+    }
 
     action write_req() {
     }
@@ -229,6 +253,8 @@ control SwitchIngress(inout headers hdr,
             #define SHIFT_VALUE_1024 10
             meta.key = hdr.write_req.data;
             set_latest_key(meta.id);
+
+            check_first_write(meta.key);
 
             
             //This is a write we want to cache

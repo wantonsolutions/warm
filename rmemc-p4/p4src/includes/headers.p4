@@ -23,11 +23,23 @@ limitations under the License.
 
 #define ID_SIZE 8
 #define KEY_SIZE 8
+#define VADDR_SIZE 64
+#define MAX_KEYS 4096
+
+
 typedef bit<9>  egressSpec_t;
+
+typedef struct vaddr_t {
+    bit<32> upper;
+    bit<32> lower;
+} vaddr_t ;
+
 struct metadata {
     bit<1> existing_id;
     bit<ID_SIZE> id;
     bit<KEY_SIZE> key;
+    vaddr_t vaddr;
+    vaddr_t first_write;
     /* empty */
 }
 
@@ -76,7 +88,7 @@ header rocev2_t {
 }
 
 header read_request_t {
-    bit<64> virt_addr;
+    vaddr_t virt_addr;
     bit<32> rkey;
     bit<32> dma_length;
 }
@@ -93,10 +105,10 @@ header read_response_t {
 }
 
 header write_request_t {
-    bit<64> virt_addr;
+    vaddr_t virt_addr;
     bit<32> rkey;
     bit<32> dma_length;
-    bit<64> ptr;
+    vaddr_t ptr;
     bit<KEY_SIZE> data;
     //data
     //icrc
@@ -110,10 +122,10 @@ header ack_t {
 }
 
 header atomic_request_t {
-    bit<64> virt_addr;
+    vaddr_t virt_addr;
     bit<32> rkey;
-    bit<64> swap_or_add;
-    bit<64> compare;
+    vaddr_t swap_or_add;
+    vaddr_t compare;
     //icrc
 }
 
@@ -122,7 +134,7 @@ header atomic_response_t {
     bit<2> opcode;
     bit<5> credit_count;
     bit<24> m_seq_num;
-    bit<64> original;
+    vaddr_t original;
     //icrc
 }
 
