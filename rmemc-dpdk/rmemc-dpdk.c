@@ -66,7 +66,7 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
-#define INPUT_OUTPUT_EXAMPLES
+//#define INPUT_OUTPUT_EXAMPLES
 
 #define MEMPOOLS 14
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
@@ -744,8 +744,10 @@ void cts_track_connection_state(struct rte_mbuf *pkt)
 	update_cs_seq(pkt);
 }
 
+#ifdef WRITE_DEBUG
 static uint64_t first_write[KEYSPACE];
 static uint64_t first_cns[KEYSPACE];
+#endif
 
 static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY];   //outstanding vaddr values, used for replacing addrs
 static uint64_t next_vaddr[KEYSPACE];
@@ -876,7 +878,7 @@ int get_key(struct rte_mbuf *pkt) {
 		return -1;
 	}
 
-	if (roce_hdr->opcode == RC_WRITE_ONLY && size == 1084) {
+	if (roce_hdr->opcode == RC_WRITE_ONLY) { // && size == 1084) {
 
 		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
@@ -1499,13 +1501,13 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode)
 		if (original != 0)
 		{
 			nacked_cns++;
-			printf("danger only hit here if you have the keyspace option turned on\n");
-			//exit(0);
+			printf("danger only hit here if you have the keyspace option turned on original data %X\n",original);
+			exit(0);
 		}
 	}
 }
 
-
+int swap_counter=0;
 void true_classify(struct rte_mbuf *pkt)
 {
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
@@ -2027,9 +2029,10 @@ lcore_main(void)
 			#endif
 
 			#ifdef INPUT_OUTPUT_EXAMPLES
-			#define MAX_PRINT_PACKET 100
+			#define MAX_PRINT_PACKET 10000
 			if (print_counter < MAX_PRINT_PACKET) {
 				print_raw_file(rx_pkts[i],ingress_trace_file);
+				print_packet_lite(rx_pkts[i]);
 			}
 			#endif
 
@@ -2037,6 +2040,7 @@ lcore_main(void)
 			#ifdef WRITE_STEER
 			true_classify(rx_pkts[i]);
 			#endif
+
 
 
 			#ifdef INPUT_OUTPUT_EXAMPLES
@@ -2221,8 +2225,10 @@ int main(int argc, char *argv[])
 
 	if (init == 0)
 	{
+		#ifdef WRITE_DEBUG
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
+		#endif
 		bzero(latest_key, TOTAL_ENTRY * sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
