@@ -244,6 +244,32 @@ void print_first_mapping(void)
 	}
 }
 
+FILE * open_logfile(char * filename) {
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL)
+    {
+        printf("Unable to write file out, fopen has failed\n");
+        perror("Failed: ");
+        return;
+    }
+	return fp;
+}
+
+void close_logfile(FILE * fp){
+    fclose(fp);
+}
+
+void print_raw_file(struct rte_mbuf * pkt, FILE * fp) {
+	for (int i = rte_pktmbuf_headroom(pkt); (uint16_t)i < (pkt->data_len + rte_pktmbuf_headroom(pkt)); i++)
+	{
+		uint8_t value = 0;
+		value = (uint8_t)((char *)(pkt->buf_addr))[i];
+		fprintf(fp,"\\x%02X", value);
+	}
+	fprintf(fp, "\n");
+
+}
+
 void print_raw(struct rte_mbuf *pkt)
 {
 	printf("\n\n\n\n----(start-raw) (new packet)\n\n");
@@ -278,7 +304,10 @@ void print_raw(struct rte_mbuf *pkt)
 	for (int i = rte_pktmbuf_headroom(pkt); (uint16_t)i < (pkt->data_len + rte_pktmbuf_headroom(pkt)); i++)
 	{
 		//for (int i=rte_pktmbuf_headroom(pkt) + sizeof(struct rte_ether_hdr);(uint16_t)i<(pkt->data_len + rte_pktmbuf_headroom(pkt));i++){
-		printf("%02X", (uint8_t)((char *)(pkt->buf_addr))[i]);
+		//printf("%02X", (uint8_t)((char *)(pkt->buf_addr))[i]);
+
+		//for scapy
+		printf("\\x%02X", (uint8_t)((char *)(pkt->buf_addr))[i]);
 	}
 	//printf("%c-",((char *)pkt->userdata)[itter]);
 	printf("\n");

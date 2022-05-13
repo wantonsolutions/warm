@@ -48,9 +48,9 @@ static int packet_counter = 0;
 #define CATCH_ECN
 
 #define WRITE_STEER
-#define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define READ_STEER
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
 #define RX_CORES 4
 
@@ -64,6 +64,8 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define UDP_OFFSET 34
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
+
+#define INPUT_OUTPUT_EXAMPLES
 
 #define MEMPOOLS 14
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
@@ -742,7 +744,6 @@ void cts_track_connection_state(struct rte_mbuf *pkt)
 }
 
 static uint64_t first_write[KEYSPACE];
-static uint64_t second_write[TOTAL_ENTRY][KEYSPACE];
 static uint64_t first_cns[KEYSPACE];
 static uint64_t predict_address[KEYSPACE];
 static uint64_t latest_cns_key[KEYSPACE];
@@ -1686,8 +1687,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//key, to the outstanding write of the cns that was just made
 		if (likely(predict == swap))
 		{
-//This is where the write (for all intents and purposes has been commited)
-
+			//This is where the write (for all intents and purposes has been commited)
 			*next_vaddr_p = *outstanding_write_vaddr_p;
 
 #ifdef READ_STEER
@@ -1957,6 +1957,8 @@ void all_thread_barrier(rte_atomic16_t *barrier) {
 	while(barrier->cnt < (int16_t)rte_lcore_count()) {}
 }
 
+int print_counter=0;
+
 /*
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
@@ -1985,6 +1987,14 @@ lcore_main(void)
 
 	//printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
 	/* Run until the application is quit or killed. */
+
+	#ifdef INPUT_OUTPUT_EXAMPLES
+	FILE * ingress_trace_file=open_logfile("/tmp/ingress.pkttrace");
+	FILE * egress_trace_file=open_logfile("/tmp/egress.pkttrace");
+	#endif
+
+
+
 	port=0;
 	for (;;)
 	{
@@ -2054,10 +2064,31 @@ lcore_main(void)
 			sum_processed_data(rx_pkts[i]);
 			#endif
 
+			#ifdef INPUT_OUTPUT_EXAMPLES
+			#define MAX_PRINT_PACKET 100
+			if (print_counter < MAX_PRINT_PACKET) {
+				print_raw_file(rx_pkts[i],ingress_trace_file);
+			}
+			#endif
+
 
 			#ifdef WRITE_STEER
 			true_classify(rx_pkts[i]);
 			#endif
+
+
+			#ifdef INPUT_OUTPUT_EXAMPLES
+			if (print_counter < MAX_PRINT_PACKET) {
+				print_raw_file(rx_pkts[i],egress_trace_file);
+				print_counter++;
+			}
+			if (print_counter == MAX_PRINT_PACKET){
+				close_logfile(ingress_trace_file);
+				close_logfile(egress_trace_file);
+				print_counter++;
+			}
+			#endif
+
 
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
@@ -2085,6 +2116,8 @@ lcore_main(void)
 		#endif
 	}
 }
+
+
 
 
 int coretest(__attribute__((unused)) void *arg)
@@ -2227,7 +2260,6 @@ int main(int argc, char *argv[])
 	if (init == 0)
 	{
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
-		bzero(second_write, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
 		bzero(predict_address, KEYSPACE * sizeof(uint64_t));
 		bzero(latest_cns_key, KEYSPACE * sizeof(uint64_t));
