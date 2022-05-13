@@ -152,38 +152,108 @@ control SwitchIngress(inout headers hdr,
     }
 
 
-    #define ADDR_WIDTH 32
+    #define HALF_ADDR_WIDTH 32
     //First Write Register
-    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_low;
-    //set the metadata to the vadder here
-    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write_low) test_first_write_low = {
-        void apply(inout bit<ADDR_WIDTH> value, out bit<ADDR_WIDTH> read_value) {
+    // Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_low;
+    // //set the metadata to the vadder here
+    // RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(first_write_low) test_first_write_low = {
+    //     void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+    //         read_value = value;
+    //         if (value == 1) {
+    //             value = meta.vaddr.lower;
+    //         }
+    //         if (value == 0) {
+    //             value = 1;
+    //         }
+    //     }
+    // };
+    // Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_high;
+    // //set the metadata to the vadder here
+    // RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(first_write_high) test_first_write_high = {
+    //     void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+    //         read_value = value;
+    //     }
+    // };
+    //
+    // action check_first_write_low(bit <KEY_SIZE> key) {
+    //     meta.vaddr.lower= test_first_write_low.execute(key);
+    // }
+
+    // action check_first_write_high(bit <KEY_SIZE> key) {
+    //     meta.vaddr.upper= test_first_write_high.execute(key);
+    // }
+
+
+    //Next Key Write - Takes the value from the metadata on writes
+    Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) next_vaddr_low;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(next_vaddr_low) read_then_write_next_vaddr_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
             read_value = value;
-            if (value == 1) {
-                value = meta.vaddr.lower;
-            }
-            if (value == 0) {
-                value = 1;
-            }
+            value = meta.outstanding_write_vaddr.lower;
         }
     };
 
-    Register<bit<ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_high;
-    //set the metadata to the vadder here
-    RegisterAction<bit<ADDR_WIDTH>, bit<KEY_SIZE>, bit<ADDR_WIDTH>>(first_write_high) test_first_write_high = {
-        void apply(inout bit<ADDR_WIDTH> value, out bit<ADDR_WIDTH> read_value) {
+    Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) next_vaddr_high;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(next_vaddr_high) read_then_write_next_vaddr_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+            value = meta.outstanding_write_vaddr.upper;
+        }
+    };
+
+    action get_then_set_next_vaddr_low(bit <KEY_SIZE> key) {
+        meta.next_vaddr.lower = read_then_write_next_vaddr_low.execute(key);
+    }
+
+    action get_then_set_next_vaddr_high(bit <KEY_SIZE> key) {
+        meta.next_vaddr.upper = read_then_write_next_vaddr_high.execute(key);
+    }
+
+
+    //Next Key Write - Takes the value from the metadata on writes
+    Register<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>>(MAX_IDS, 0) outstanding_write_vaddr_low;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_low) write_outstanding_write_vaddr_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.vaddr.lower;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_low) read_outstanding_write_vaddr_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
             read_value = value;
         }
     };
 
-    action check_first_write_low(bit <KEY_SIZE> key) {
-        //meta.first_write.lower = 
-        meta.vaddr.lower= test_first_write_low.execute(key);
+    //Next Key Write - Takes the value from the metadata on writes
+    Register<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>>(MAX_IDS, 0) outstanding_write_vaddr_high;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) write_outstanding_write_vaddr_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.vaddr.upper;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) read_outstanding_write_vaddr_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+
+    action set_outstanding_write_vaddr_low(bit <ID_SIZE> id) {
+        write_outstanding_write_vaddr_low.execute(id);
     }
 
-    action check_first_write_high(bit <KEY_SIZE> key) {
-        meta.vaddr.upper= test_first_write_high.execute(key);
+    action set_outstanding_write_vaddr_high(bit <ID_SIZE> id) {
+        write_outstanding_write_vaddr_high.execute(id);
     }
+
+    action get_outstanding_write_vaddr_low(bit <KEY_SIZE> id) {
+        meta.outstanding_write_vaddr.lower = read_outstanding_write_vaddr_low.execute(id);
+    }
+
+    action get_outstanding_write_vaddr_high(bit <KEY_SIZE> id) {
+        meta.outstanding_write_vaddr.upper = read_outstanding_write_vaddr_high.execute(id);
+    }
+
+
+
 
     action write_req() {
     }
@@ -247,35 +317,28 @@ control SwitchIngress(inout headers hdr,
         //Write Path
         if (hdr.roce.opcode == RC_WRITE_ONLY && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
 
-            /* the shift values changes based on rdma packet size. 
-            I never figured out other packets, but this will work for 1024
 
-            the function can be found in check_and_cache_predicted_shift rmemc-dpdk.c 
-            May10 2022 -Stew
-            */
-
-            #define SHIFT_VALUE_1024 10
             meta.key = hdr.write_req.data;
             set_latest_key(meta.id);
 
-            //Collect the first write
-            check_first_write_low(meta.key);
-            check_first_write_high(meta.key);
+            set_outstanding_write_vaddr_low(meta.key);
+            set_outstanding_write_vaddr_high(meta.key);
 
-
-
-            
-            //This is a write we want to cache
-            //hdr.ipv4.checksum=0;
-            //hdr.ipv4.checksum=hdr.ipv4.checksum;
-
-            /*
-            //This is a sanity check, i gues we are working in the correct endian
-            if (hdr.ipv4.totalLength == 1084){
-                hdr.ipv4.checksum=1;
-            }*/
         } else if (hdr.roce.opcode == RC_CNS) {
             get_latest_key(meta.id);
+            get_outstanding_write_vaddr_low(meta.id);
+            get_outstanding_write_vaddr_high(meta.id);
+
+           //Move to state machine 
+            get_then_set_next_vaddr_low(meta.id);
+            get_then_set_next_vaddr_high(meta.id);
+
+            if (meta.next_vaddr.lower != 0 && meta.next_vaddr.upper != 0) {
+                if (meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower && meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper) {
+                    hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
+                    hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
+                }
+            }
         }
 
 

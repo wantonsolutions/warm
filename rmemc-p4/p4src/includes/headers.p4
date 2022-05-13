@@ -39,7 +39,8 @@ struct metadata {
     bit<ID_SIZE> id;
     bit<KEY_SIZE> key;
     vaddr_t vaddr;
-    vaddr_t first_write;
+    vaddr_t next_vaddr;
+    vaddr_t outstanding_write_vaddr;
     /* empty */
 }
 
