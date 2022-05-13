@@ -745,10 +745,8 @@ void cts_track_connection_state(struct rte_mbuf *pkt)
 
 static uint64_t first_write[KEYSPACE];
 static uint64_t first_cns[KEYSPACE];
-static uint64_t predict_address[KEYSPACE];
-static uint64_t latest_cns_key[KEYSPACE];
 
-static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE];   //outstanding vaddr values, used for replacing addrs
+static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY];   //outstanding vaddr values, used for replacing addrs
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
 
@@ -1558,8 +1556,8 @@ void true_classify(struct rte_mbuf *pkt)
 		uint32_t id = get_or_create_id(r_qp);
 		set_latest_key(id, *key);
 
-		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
-		check_and_cache_predicted_shift(rdma_size);
+		//uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
+		//check_and_cache_predicted_shift(rdma_size);
 
 		//Experimentatiopn for working with restricted cache keyspaces. Return
 		//from here if the key is out of the cache range.
@@ -1574,7 +1572,7 @@ void true_classify(struct rte_mbuf *pkt)
 		#endif
 
 		//I can't believe that it's really only this... :)
-		outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+		outstanding_write_vaddrs[id] = wr->rdma_extended_header.vaddr;
 		unlock_write_steering();
 	}
 
@@ -1589,7 +1587,7 @@ void true_classify(struct rte_mbuf *pkt)
 
 		uint64_t *first_cns_p = &first_cns[key];
 		uint64_t *first_write_p = &first_write[key];
-		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id][key];
+		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id];
 		uint64_t *next_vaddr_p = &next_vaddr[key];
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
@@ -1623,7 +1621,7 @@ void true_classify(struct rte_mbuf *pkt)
 		//Based on the key predict where the next CNS address should go. This
 		//requires the first CNS to be set
 
-		uint64_t predict = ((be64toh(outstanding_write_vaddrs[id][key]) - be64toh(*first_write_p)) >> 10);
+		uint64_t predict = ((be64toh(outstanding_write_vaddrs[id]) - be64toh(*first_write_p)) >> 10);
 		predict = predict + be64toh(*first_cns_p);
 		predict = htobe64(0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
@@ -2217,10 +2215,8 @@ int main(int argc, char *argv[])
 	{
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
-		bzero(predict_address, KEYSPACE * sizeof(uint64_t));
-		bzero(latest_cns_key, KEYSPACE * sizeof(uint64_t));
 		bzero(latest_key, TOTAL_ENTRY * sizeof(uint64_t));
-		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
+		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
 
 #ifdef TAKE_MEASUREMENTS
