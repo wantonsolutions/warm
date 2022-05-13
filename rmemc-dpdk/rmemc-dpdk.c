@@ -1573,26 +1573,8 @@ void true_classify(struct rte_mbuf *pkt)
 		update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
 		#endif
 
-		//okay so this happens twice becasuse the order is
-		//Write 0;
-		//Write 1;
-		//Cn wNS 1 (write 1 - > write 2)
+		//I can't believe that it's really only this... :)
 		outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-		if (unlikely(first_write[*key] == 0))
-		{
-			//Write 0
-			//This is the init write. On the first write, for some reason we
-			//don't do anything. I just mark that it's received.
-			first_write[*key] = 1;
-
-		}
-		else if (unlikely(first_write[*key] == 1))
-		{
-			//Write 1
-			//Here we actually record both the first vaddr for the write, and the
-			first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
-			next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
-		}
 		unlock_write_steering();
 	}
 
@@ -1604,6 +1586,7 @@ void true_classify(struct rte_mbuf *pkt)
 		uint64_t swap = htobe64(MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add)));
 		uint32_t id = get_or_create_id(r_qp);
 		uint64_t key = get_latest_key(id);
+
 		uint64_t *first_cns_p = &first_cns[key];
 		uint64_t *first_write_p = &first_write[key];
 		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id][key];
@@ -1668,7 +1651,7 @@ void true_classify(struct rte_mbuf *pkt)
 			update_read_tail(key, *next_vaddr_p);
 #endif
 			//erase the old entries
-			*outstanding_write_vaddr_p = 0;
+			//*outstanding_write_vaddr_p = 0;
 		}
 		else
 		{
