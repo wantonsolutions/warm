@@ -240,9 +240,9 @@ def print_min_packet(pkt):
 
     print("opcode: "+ op_str + " id: " + str(id) + " virtual address "),
     if WriteRequest in pkt:
-        print(pkt[WriteRequest].virt_addr)
+        print(hex(pkt[WriteRequest].virt_addr))
     if AtomicRequest in pkt:
-        print(pkt[AtomicRequest].virt_addr)
+        print(hex(pkt[AtomicRequest].virt_addr))
     #pkt.show()
 
 def print_io_packet(input, output):
@@ -361,6 +361,10 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
             input = Ether(io_packet[0])
             output = Ether(io_packet[1])
+
+            if AtomicRequest in input:
+                input[AtomicRequest].icrc=0
+                output[AtomicRequest].icrc=0
 
             #input.show()
 

@@ -244,11 +244,11 @@ control SwitchIngress(inout headers hdr,
         write_outstanding_write_vaddr_high.execute(id);
     }
 
-    action get_outstanding_write_vaddr_low(bit <KEY_SIZE> id) {
+    action get_outstanding_write_vaddr_low(bit <ID_SIZE> id) {
         meta.outstanding_write_vaddr.lower = read_outstanding_write_vaddr_low.execute(id);
     }
 
-    action get_outstanding_write_vaddr_high(bit <KEY_SIZE> id) {
+    action get_outstanding_write_vaddr_high(bit <ID_SIZE> id) {
         meta.outstanding_write_vaddr.upper = read_outstanding_write_vaddr_high.execute(id);
     }
 
@@ -321,23 +321,39 @@ control SwitchIngress(inout headers hdr,
             meta.key = hdr.write_req.data;
             set_latest_key(meta.id);
 
-            set_outstanding_write_vaddr_low(meta.key);
-            set_outstanding_write_vaddr_high(meta.key);
+            meta.vaddr.lower=hdr.write_req.virt_addr.lower;
+            meta.vaddr.upper=hdr.write_req.virt_addr.upper;
+
+            set_outstanding_write_vaddr_low(meta.id);
+            set_outstanding_write_vaddr_high(meta.id);
 
         } else if (hdr.roce.opcode == RC_CNS) {
             get_latest_key(meta.id);
+
+            meta.vaddr.lower = hdr.atomic_req.virt_addr.lower;
+            meta.vaddr.upper = hdr.atomic_req.virt_addr.upper;
+
             get_outstanding_write_vaddr_low(meta.id);
             get_outstanding_write_vaddr_high(meta.id);
 
            //Move to state machine 
-            get_then_set_next_vaddr_low(meta.id);
-            get_then_set_next_vaddr_high(meta.id);
+            get_then_set_next_vaddr_low(meta.key);
+            get_then_set_next_vaddr_high(meta.key);
 
-            if (meta.next_vaddr.lower != 0 && meta.next_vaddr.upper != 0) {
-                if (meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower && meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper) {
+            if (meta.next_vaddr.lower != 0) {
+                //TODO I should compare both
+                if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
                     hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
                     hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
+                    //hdr.atomic_req.virt_addr.lower = 0;
+                    //hdr.atomic_req.virt_addr.upper = 0;
                 }
+                //hdr.atomic_req.virt_addr.lower=1;
+                //hdr.atomic_req.virt_addr.upper=1;
+
+            } else {
+                //hdr.atomic_req.virt_addr.lower=0;
+                //hdr.atomic_req.virt_addr.upper=0;
             }
         }
 
