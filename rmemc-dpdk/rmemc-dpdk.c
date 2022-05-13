@@ -748,7 +748,6 @@ static uint64_t first_cns[KEYSPACE];
 static uint64_t predict_address[KEYSPACE];
 static uint64_t latest_cns_key[KEYSPACE];
 
-static uint64_t outstanding_write_predicts[TOTAL_ENTRY][KEYSPACE]; //outstanding write index, contains precited addresses
 static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE];   //outstanding vaddr values, used for replacing addrs
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
@@ -1578,37 +1577,21 @@ void true_classify(struct rte_mbuf *pkt)
 		//Write 0;
 		//Write 1;
 		//Cn wNS 1 (write 1 - > write 2)
-		if (likely(first_write[*key] != 0 && first_cns[*key] != 0))
+		outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
+		if (unlikely(first_write[*key] == 0))
 		{
-			predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
-			outstanding_write_predicts[id][*key] = predict_address[*key];
-			outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-		}
-		else
-		{
-			if (first_write[*key] == 0)
-			{
-				//Write 0
-				//This is the init write. On the first write, for some reason we
-				//don't do anything. I just mark that it's received.
-				first_write[*key] = 1;
+			//Write 0
+			//This is the init write. On the first write, for some reason we
+			//don't do anything. I just mark that it's received.
+			first_write[*key] = 1;
 
-			}
-			else if (first_write[*key] == 1)
-			{
-				//Write 1
-				//Here we actually record both the first vaddr for the write, and the
-				first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
-				next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
-				outstanding_write_predicts[id][*key] = 1;
-				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-			}
-			else
-			{
-				//We should not really reach this point, I think that it's an error if we do.
-				outstanding_write_predicts[id][*key] = 1;
-				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-			}
+		}
+		else if (unlikely(first_write[*key] == 1))
+		{
+			//Write 1
+			//Here we actually record both the first vaddr for the write, and the
+			first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
+			next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
 		}
 		unlock_write_steering();
 	}
@@ -1624,7 +1607,6 @@ void true_classify(struct rte_mbuf *pkt)
 		uint64_t *first_cns_p = &first_cns[key];
 		uint64_t *first_write_p = &first_write[key];
 		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id][key];
-		uint64_t *outstanding_write_predict_p = &outstanding_write_predicts[id][key];
 		uint64_t *next_vaddr_p = &next_vaddr[key];
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
@@ -1646,15 +1628,6 @@ void true_classify(struct rte_mbuf *pkt)
 			*first_write_p = *outstanding_write_vaddr_p;
 			*next_vaddr_p = *outstanding_write_vaddr_p;
 
-			for (uint i = 0; i < TOTAL_CLIENTS; i++)
-			{
-				if (outstanding_write_predicts[i][key] == 1)
-				{
-					//printf("(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
-					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][key]) - be64toh(*first_write_p)) >> 10);
-					outstanding_write_predicts[i][key] = predict;
-				}
-			}
 			//Return and forward the packet if this is the first cns
 			#ifdef READ_STEER
 			update_read_tail(key, *next_vaddr_p);
@@ -1666,7 +1639,8 @@ void true_classify(struct rte_mbuf *pkt)
 
 		//Based on the key predict where the next CNS address should go. This
 		//requires the first CNS to be set
-		uint64_t predict = *outstanding_write_predict_p;
+
+		uint64_t predict = ((be64toh(outstanding_write_vaddrs[id][key]) - be64toh(*first_write_p)) >> 10);
 		predict = predict + be64toh(*first_cns_p);
 		predict = htobe64(0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
@@ -1694,7 +1668,6 @@ void true_classify(struct rte_mbuf *pkt)
 			update_read_tail(key, *next_vaddr_p);
 #endif
 			//erase the old entries
-			*outstanding_write_predict_p = 0;
 			*outstanding_write_vaddr_p = 0;
 		}
 		else
@@ -2264,7 +2237,6 @@ int main(int argc, char *argv[])
 		bzero(predict_address, KEYSPACE * sizeof(uint64_t));
 		bzero(latest_cns_key, KEYSPACE * sizeof(uint64_t));
 		bzero(latest_key, TOTAL_ENTRY * sizeof(uint64_t));
-		bzero(outstanding_write_predicts, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
 
