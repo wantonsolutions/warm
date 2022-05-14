@@ -1,11 +1,29 @@
 #!/bin/bash
 
+
+#Per host arguments
+HOST=`hostname`
+YAK2="yak-02.sysnet.ucsd.edu"
+PSWITCH="localhost"
+
+
 #Global variables
 program="bs"
 program_src="${program}.p4"
-RMEM_P4="/home/ssgrant/warm/rmemc-p4"
 P4_SOURCE_DIR="$RMEM_P4/p4src"
-build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
+
+if [ $HOST == $YAK2 ]; then
+    build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
+    RMEM_P4="/home/ssgrant/warm/rmemc-p4"
+elif [ $HOST == $SWITCH ]; then
+    build_tool="/root/tools/p4_build.sh"
+    RMEM_P4="/root/src/warm/rmemc-p4"
+else
+    echo "HOST=$HOST we don't have this set up, exiting"
+    exit 1
+fi
+
+
 
 #build_dir="${SDE}/build/build/${program}/tofino"
 INSTALL_DIR="$SDE/install/share/tofinopd/$program"
@@ -26,17 +44,8 @@ fi
 
 #build the program using a predefiend compiler
 function build_p4 () {
-    #actually build
     pushd $P4_SOURCE_DIR
-    #$build_tool $program_src --with-p4c bf-p4c --p4v 16 #this works without the 16 actually doing anything
-    #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-files context.json,tofino.bin"
-    #$build_tool $program_src --with-p4c p4c-barefoot --p4v 16 --p4flags "--p4runtime-format binary"
-    #$build_tool $program_src --with-p4c bf-p4c --p4v 16 --p4flags "--p4runtime-format binary"
     $build_tool $program_src --with-thrift --with-p4c bf-p4c --p4v 16 
-    #cp $BIN_FILE "$INSTALL_DIR"tofino.bin
-    #cp $CONTEXT_FILE "$INSTALL_DIR"context.json
-    #cp $build_dir/${program}/manifest.json $INSTALL_DIR/context.json
-    #sanity check that the program was actually built
     if [ ! -f $BIN_FILE ]; then
         echo "$BIN_FILE not present"
         exit 1

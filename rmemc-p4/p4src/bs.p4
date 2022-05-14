@@ -345,16 +345,8 @@ control SwitchIngress(inout headers hdr,
                 if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
                     hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
                     hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
-                    //hdr.atomic_req.virt_addr.lower = 0;
-                    //hdr.atomic_req.virt_addr.upper = 0;
                 }
-                //hdr.atomic_req.virt_addr.lower=1;
-                //hdr.atomic_req.virt_addr.upper=1;
-
-            } else {
-                //hdr.atomic_req.virt_addr.lower=0;
-                //hdr.atomic_req.virt_addr.upper=0;
-            }
+            } 
         }
 
 
