@@ -10,12 +10,16 @@
 #include <tna.p4>
 #endif
 
+
+
 #include "includes/headers.p4"
 #include "includes/parser.p4"
 
 //#include <tofino/intrinsic_metadata.p4>
 //#include <tofino/constants.p4>
 
+#define WRITE_STEER
+#define READ_STEER
 
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
@@ -70,6 +74,7 @@ control SwitchIngress(inout headers hdr,
     #define MAX_IDS 255
     //id_hash hashes qp to 16 bytes. It is the unique id for qp
     Hash<bit<16>>(HashAlgorithm_t.CRC16) id_hash;
+
 
     //This register is used to track the existance of ID's. Because we cant both
     //lookup check for the id counter in a single step this is used to check if
@@ -153,36 +158,6 @@ control SwitchIngress(inout headers hdr,
 
 
     #define HALF_ADDR_WIDTH 32
-    //First Write Register
-    // Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_low;
-    // //set the metadata to the vadder here
-    // RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(first_write_low) test_first_write_low = {
-    //     void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-    //         read_value = value;
-    //         if (value == 1) {
-    //             value = meta.vaddr.lower;
-    //         }
-    //         if (value == 0) {
-    //             value = 1;
-    //         }
-    //     }
-    // };
-    // Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) first_write_high;
-    // //set the metadata to the vadder here
-    // RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(first_write_high) test_first_write_high = {
-    //     void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-    //         read_value = value;
-    //     }
-    // };
-    //
-    // action check_first_write_low(bit <KEY_SIZE> key) {
-    //     meta.vaddr.lower= test_first_write_low.execute(key);
-    // }
-
-    // action check_first_write_high(bit <KEY_SIZE> key) {
-    //     meta.vaddr.upper= test_first_write_high.execute(key);
-    // }
-
 
     //Next Key Write - Takes the value from the metadata on writes
     Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) next_vaddr_low;
@@ -227,7 +202,7 @@ control SwitchIngress(inout headers hdr,
     Register<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>>(MAX_IDS, 0) outstanding_write_vaddr_high;
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) write_outstanding_write_vaddr_high = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.vaddr.upper;
+            value = meta.vaddr.lower;
         }
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) read_outstanding_write_vaddr_high = {
@@ -251,6 +226,110 @@ control SwitchIngress(inout headers hdr,
     action get_outstanding_write_vaddr_high(bit <ID_SIZE> id) {
         meta.outstanding_write_vaddr.upper = read_outstanding_write_vaddr_high.execute(id);
     }
+
+
+    //Next Key Write - Takes the value from the metadata on writes
+    #define WRITE_HASH_WIDTH_MAX 17 //This is the max value I can fit without fanangaling crap
+    #define WRITE_HASH_WIDTH 10
+    #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
+    Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
+    Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.vaddr.lower;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) read_write_cache_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+
+    action set_write_cache_low(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        write_write_cache_low.execute(vaddr_hash);
+    }
+    action get_write_cache_low(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        meta.write_cached_addr.lower=read_write_cache_low.execute(vaddr_hash);
+    }
+
+    Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_high;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_high) write_write_cache_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.vaddr.upper;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_high) read_write_cache_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+
+    action set_write_cache_high(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        write_write_cache_high.execute(vaddr_hash);
+    }
+    action get_write_cache_high(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        meta.write_cached_addr.upper=read_write_cache_high.execute(vaddr_hash);
+    }
+
+    Register<bit<KEY_SIZE>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_key;
+    RegisterAction<bit<KEY_SIZE>, bit<WRITE_HASH_WIDTH>, bit<KEY_SIZE>>(write_cache_key) write_write_cache_key = {
+        void apply(inout bit<KEY_SIZE> value, out bit<KEY_SIZE> read_value) {
+            value = meta.key;
+        }
+    };
+    RegisterAction<bit<KEY_SIZE>, bit<WRITE_HASH_WIDTH>, bit<KEY_SIZE>>(write_cache_key) read_write_cache_key = {
+        void apply(inout bit<KEY_SIZE> value, out bit<KEY_SIZE> read_value) {
+            read_value = value;
+        }
+    };
+
+    action set_write_cache_key(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        write_write_cache_key.execute(vaddr_hash);
+    }
+
+    action get_write_cache_key(bit <WRITE_HASH_WIDTH> vaddr_hash) {
+        meta.key=read_write_cache_key.execute(vaddr_hash);
+    }
+
+    //Read Tail
+    Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) read_tail_low;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_low) read_read_tail_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_low) write_read_tail_low = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.next_vaddr.lower;
+        }
+    };
+
+    action get_read_tail_low(bit <KEY_SIZE> key) {
+        meta.read_tail.lower=read_read_tail_low.execute(key);
+    }
+    action set_read_tail_low(bit <KEY_SIZE> key) {
+        write_read_tail_low.execute(key);
+    }
+
+    Register<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>>(MAX_KEYS, 0) read_tail_high;
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_high) read_read_tail_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            read_value = value;
+        }
+    };
+    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_high) write_read_tail_high = {
+        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+            value = meta.next_vaddr.upper;
+        }
+    };
+
+    action get_read_tail_high(bit <KEY_SIZE> key) {
+        meta.read_tail.upper=read_read_tail_high.execute(key);
+    }
+    action set_read_tail_high(bit <KEY_SIZE> key) {
+        write_read_tail_high.execute(key);
+    }
+
 
 
 
@@ -296,12 +375,12 @@ control SwitchIngress(inout headers hdr,
             RC_CNS : cns();
         }
 
-        //size = 2048;
-
      }
 
     apply {
 
+
+        #ifdef WRITE_STEER
         //get the ID for the rdma packet
         bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
         check_and_set_id_exists(qp_hash_index);
@@ -321,11 +400,23 @@ control SwitchIngress(inout headers hdr,
             meta.key = hdr.write_req.data;
             set_latest_key(meta.id);
 
+            #ifdef READ_STEER
+            //TODO mega dang use the entire 64 bit address for hashing
+            bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
+            set_write_cache_low(write_hash_index);
+            set_write_cache_high(write_hash_index);
+            set_write_cache_key(write_hash_index);
+            //update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
+            #endif //READ STEERING
+
+
             meta.vaddr.lower=hdr.write_req.virt_addr.lower;
             meta.vaddr.upper=hdr.write_req.virt_addr.upper;
 
             set_outstanding_write_vaddr_low(meta.id);
             set_outstanding_write_vaddr_high(meta.id);
+
+
 
         } else if (hdr.roce.opcode == RC_CNS) {
             get_latest_key(meta.id);
@@ -340,6 +431,11 @@ control SwitchIngress(inout headers hdr,
             get_then_set_next_vaddr_low(meta.key);
             get_then_set_next_vaddr_high(meta.key);
 
+            #ifdef READ_STEER
+            set_read_tail_low(meta.key);
+            set_read_tail_high(meta.key);
+            #endif // READ_STEERING
+
             if (meta.next_vaddr.lower != 0) {
                 //TODO I should compare both
                 if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
@@ -347,7 +443,30 @@ control SwitchIngress(inout headers hdr,
                     hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
                 }
             } 
+        } else if (hdr.roce.opcode == RC_READ_REQUEST) {
+            #ifdef READ_STEER
+
+            bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
+            get_write_cache_key(write_hash_index);
+
+            //Check if the hash of this vadder is a hit and matches
+            get_write_cache_low(write_hash_index);
+            get_write_cache_high(write_hash_index);
+            get_read_tail_low(meta.key);
+            get_read_tail_high(meta.key);                
+
+            //Check that the cache hit is legitimate, we know that this address is for a known key
+            //TODO make this simpler so that I can use both addresses
+            if (meta.write_cached_addr.lower == hdr.write_req.virt_addr.lower) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                //We found that the latest value was cached so we know the key
+                //In this case we always update the packet
+                //We could skip updating the packet if the value was allready correct
+                hdr.read_req.virt_addr.lower=meta.read_tail.lower;
+                hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+            }
+            #endif //READ STEERING
         }
+        #endif //WRITE_STEER
 
 
         forward.apply();

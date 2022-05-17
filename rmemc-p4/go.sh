@@ -10,7 +10,6 @@ PSWITCH="localhost"
 #Global variables
 program="bs"
 program_src="${program}.p4"
-P4_SOURCE_DIR="$RMEM_P4/p4src"
 
 if [ $HOST == $YAK2 ]; then
     build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
@@ -23,6 +22,7 @@ else
     exit 1
 fi
 
+P4_SOURCE_DIR="$RMEM_P4/p4src"
 
 
 #build_dir="${SDE}/build/build/${program}/tofino"
