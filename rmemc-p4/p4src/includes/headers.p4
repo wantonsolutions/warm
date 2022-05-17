@@ -29,10 +29,10 @@ limitations under the License.
 
 typedef bit<9>  egressSpec_t;
 
-typedef struct vaddr_t {
+struct vaddr_t {
     bit<32> upper;
     bit<32> lower;
-} vaddr_t ;
+}
 
 struct metadata {
     bit<1> existing_id;

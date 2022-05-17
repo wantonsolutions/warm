@@ -83,8 +83,8 @@ control SwitchIngress(inout headers hdr,
     };
 
     //Counter tracks how man threads are running. This is incremented each time a new qp shows up.
-    DirectRegister<bit<ID_SIZE>>() id_counter;
-    DirectRegisterAction<bit<ID_SIZE>,bit<ID_SIZE>>(id_counter) increment_id_counter_action = {
+    Register<bit<ID_SIZE>,bit<1>>(1,0) id_counter;
+    RegisterAction<bit<ID_SIZE>,bit<1>,bit<ID_SIZE>>(id_counter) increment_id_counter_action = {
         void apply(inout bit<ID_SIZE> value, out bit<ID_SIZE> read_value) {
             read_value = value;
             value = value + 1;
@@ -116,7 +116,7 @@ control SwitchIngress(inout headers hdr,
     }
 
     action gen_new_id(){
-            meta.id = increment_id_counter_action.execute();
+            meta.id = increment_id_counter_action.execute(0);
     }
 
     action write_new_id(bit<QP_HASH_WIDTH> qp_hash) {
