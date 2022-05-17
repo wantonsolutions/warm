@@ -15,8 +15,7 @@ if [ ${HOST} == ${YAK2} ]; then
     build_tool="/usr/local/ssgrant/p4/tools/p4_build.sh"
     RMEM_P4="/home/ssgrant/warm/rmemc-p4"
 elif [ ${HOST} == ${PSWITCH} ]; then
-    #build_tool="/root/src/warm/rmemc-p4/p4_build.sh"
-    build_tool="/root/src/warm/rmemc-p4/p4_build_2.sh"
+    build_tool="/root/src/warm/rmemc-p4/p4_build.sh"
     RMEM_P4="/root/src/warm/rmemc-p4"
 else
     echo "HOST=$HOST we don't have this set up, exiting"
@@ -24,7 +23,6 @@ else
 fi
 
 P4_SOURCE_DIR="$RMEM_P4/p4src"
-
 
 
 #build_dir="${SDE}/build/build/${program}/tofino"

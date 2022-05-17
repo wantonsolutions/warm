@@ -40,6 +40,8 @@ struct metadata {
     bit<KEY_SIZE> key;
     vaddr_t vaddr;
     vaddr_t next_vaddr;
+    vaddr_t read_tail;
+    vaddr_t write_cached_addr;
     vaddr_t outstanding_write_vaddr;
     /* empty */
 }
