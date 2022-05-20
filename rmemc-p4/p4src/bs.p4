@@ -19,7 +19,7 @@
 //#include <tofino/constants.p4>
 
 #define WRITE_STEER
-#define READ_STEER
+//#define READ_STEER
 
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
@@ -202,7 +202,7 @@ control SwitchIngress(inout headers hdr,
     Register<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>>(MAX_IDS, 0) outstanding_write_vaddr_high;
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) write_outstanding_write_vaddr_high = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.vaddr.lower;
+            value = meta.vaddr.upper;
         }
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<ID_SIZE>, bit<HALF_ADDR_WIDTH>>(outstanding_write_vaddr_high) read_outstanding_write_vaddr_high = {
@@ -382,19 +382,19 @@ control SwitchIngress(inout headers hdr,
 
         #ifdef WRITE_STEER
         //get the ID for the rdma packet
-        bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
-        check_and_set_id_exists(qp_hash_index);
-
-        if (meta.existing_id == 0) {
-            gen_new_id();
-            write_new_id(qp_hash_index);
-        } else {
-            read_id(qp_hash_index);
-        }
         //From here on the metadata has the id set.
 
         //Write Path
         if (hdr.roce.opcode == RC_WRITE_ONLY && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
+
+            bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
+            check_and_set_id_exists(qp_hash_index);
+            if (meta.existing_id == 0) {
+                gen_new_id();
+                write_new_id(qp_hash_index);
+            } else {
+                read_id(qp_hash_index);
+            }
 
 
             meta.key = hdr.write_req.data;
@@ -419,6 +419,17 @@ control SwitchIngress(inout headers hdr,
 
 
         } else if (hdr.roce.opcode == RC_CNS) {
+
+            bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
+            check_and_set_id_exists(qp_hash_index);
+            if (meta.existing_id == 0) {
+                gen_new_id();
+                write_new_id(qp_hash_index);
+            } else {
+                read_id(qp_hash_index);
+            }
+
+
             get_latest_key(meta.id);
 
             meta.vaddr.lower = hdr.atomic_req.virt_addr.lower;

@@ -124,14 +124,8 @@ function run_driver_direct () {
 
 function run_bfshell() {
     BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
-    SHELL_SCRIPT="$RMEM_P4/bfshell/forward.cmd"
+    SHELL_SCRIPT="$RMEM_P4/bfshell/set_up_ports.cmd"
     xterm -geometry $XTERM_3_GEOM -e $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
-}
-
-function run_bfshell() {
-    BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
-    SHELL_SCRIPT="$RMEM_P4/bfshell/forward.cmd"
-    $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
 }
 
 function run_ptf() {
@@ -169,10 +163,8 @@ if [ ${HOST} == ${YAK2} ]; then
     sleep 20
     run_ptf
 elif [ ${HOST} == ${PSWITCH} ]; then
-    run_driver_direct
-
-
-    #run_bfshell
+    run_driver
+    run_bfshell
 else
     echo "$HOST not set up exiting .." 
 fi
