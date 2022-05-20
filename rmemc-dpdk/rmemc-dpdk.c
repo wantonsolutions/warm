@@ -46,11 +46,12 @@ static int has_mapped_qp = 0;
 static int packet_counter = 0;
 
 #define CATCH_ECN
+//#define DEBUG_WRITES
 
 #define WRITE_STEER
-#define READ_STEER
-#define MAP_QP
-#define CNS_TO_WRITE
+//#define READ_STEER
+//#define MAP_QP
+//#define CNS_TO_WRITE
 
 #define RX_CORES 4
 
@@ -65,6 +66,8 @@ uint64_t cached_write_vaddr_mod_latest[KEYSPACE];
 #define ROCE_OFFSET 42
 #define CLOVER_OFFSET 54
 
+//#define INPUT_OUTPUT_EXAMPLES
+
 #define MEMPOOLS 14
 const char mpool_names[MEMPOOLS][10] = { "MEMPOOL0", "MEMPOOL1", "MEMPOOL2", "MEMPOOL3", "MEMPOOL4", "MEMPOOL5", "MEMPOOL6", "MEMPOOL7", "MEMPOOL8", "MEMPOOL9", "MEMPOOL10", "MEMPOOL11" };
 const char txq_names[MEMPOOLS][10]={"TXQ1","TXQ2","TXQ3","TXQ4","TXQ5","TXQ16","TXQ7","TXQ8","TXQ9","TXQ10", "TXQ11", "TXQ12", "TXQ13", "TXQ14"};
@@ -78,22 +81,22 @@ inline struct rte_ether_hdr *get_eth_hdr(struct rte_mbuf *pkt)
 
 inline struct rte_ipv4_hdr *get_ipv4_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + IPV4_OFFSET;
+	return (struct rte_ipv4_hdr *) ((uint8_t*)get_eth_hdr(pkt) + IPV4_OFFSET);
 }
 
 inline struct rte_udp_hdr *get_udp_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + UDP_OFFSET;
+	return (struct rte_udp_hdr *)((uint8_t*)get_eth_hdr(pkt) + UDP_OFFSET);
 }
 
 inline struct roce_v2_header *get_roce_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + ROCE_OFFSET;
+	return (struct roce_v2_header *)((uint8_t*)get_eth_hdr(pkt) + ROCE_OFFSET);
 }
 
 inline struct clover_hdr *get_clover_hdr(struct rte_mbuf *pkt)
 {
-	return (uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET;
+	return (struct clover_hdr *)((uint8_t*)get_eth_hdr(pkt) + CLOVER_OFFSET);
 }
 
 #define ID_SPACE 1<<24 //THIS IS MUCH SAFER YOU FOOL
@@ -140,20 +143,20 @@ rte_rwlock_t next_lock;
 rte_rwlock_t qp_lock;
 rte_rwlock_t qp_mapping_lock;
 
-inline void lock_qp(void) {
+static inline void lock_qp(void) {
 	rte_rwlock_write_lock(&qp_lock);
 }
 
-inline void unlock_qp(void) {
+static inline void unlock_qp(void) {
 	rte_rwlock_write_unlock(&qp_lock);
 }
 
 
-inline void lock_write_steering(void) {
+static inline void lock_write_steering(void) {
 	rte_rwlock_write_lock(&next_lock);
 }
 
-inline void unlock_write_steering(void) {
+static inline void unlock_write_steering(void) {
 	rte_rwlock_write_unlock(&next_lock);
 }
 
@@ -213,8 +216,8 @@ uint32_t get_or_create_id(uint32_t qp)
 {
 	//first try to go fast
 	uint32_t id = fast_find_id_qp(qp);
-	if (id != -1) {
-		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != qp)) {
+	if ((int32_t)id != -1) {
+		if(unlikely(fast_qp_lookup[qp_id_hash(qp)] != (int32_t)qp)) {
 			printf("QP COLLISION -- Delete this code eventually\n");
 			exit(0);
 		}
@@ -323,7 +326,8 @@ void init_buffer_states(void) {
 
 	}
 
-	printf("\\I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)\n");
+	//TODO I'm doing a hacking init of the general buf, this is so that I don't have to do any checks during enqueue (Stewart Grant Nov 18 2021)
+	//TODO there is probably a nice way to do this
 	struct Buffer_State * bs = &ect_buffer_states[0];
 	*(bs->head) = 1;
 }
@@ -394,7 +398,7 @@ struct Buffer_State * get_buffer_state(struct rte_mbuf *pkt) {
 	exit(0);
 }
 
-int32_t count_held_packets() {
+int32_t count_held_packets(void) {
 
 	printf(" (NOT) COUNTING HELD PACKETS!!\n");
 
@@ -452,7 +456,7 @@ void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queu
 void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 	struct rte_mbuf * tx_pkts[DEQUEUE_BURST];
 	uint32_t left;
-	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,tx_pkts,DEQUEUE_BURST,&left);
+	uint16_t dequeued = rte_ring_dequeue_burst(in_queue,(void **)tx_pkts,DEQUEUE_BURST,&left);
 
 
 
@@ -488,7 +492,7 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 			*(bs->head) = (*bs->head) + 1;
 		}
 
-		for (int j=0;j<mpr.size;j++) {
+		for (uint j=0;j<mpr.size;j++) {
 			if (likely(j < mpr.size - 1))
 			{
 				rte_prefetch0(rte_pktmbuf_mtod(mpr.pkts[j + 1], void *));
@@ -503,13 +507,10 @@ void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue) {
 
 void flush_buffers(uint16_t port) {
 	//printf("&& FLUSHING BUFFERS\n");
-	struct Buffer_State_Tracker bst;
-	struct Buffer_State *bs =  &ect_buffer_states[0];
-	bst.size=1;
-	bst.buffer_states[0]=bs;
 	for(int i=0;i<MEMPOOLS;i++) {
 		general_tx(port,0,tx_queues[i]);
 	}
+
 	//printf("&& FLUSHING BUFFERS COMPLETE\n");
 
 	for (int i=0;i<TOTAL_CLIENTS;i++) {
@@ -743,18 +744,15 @@ void cts_track_connection_state(struct rte_mbuf *pkt)
 	update_cs_seq(pkt);
 }
 
+#ifdef WRITE_DEBUG
 static uint64_t first_write[KEYSPACE];
-static uint64_t second_write[TOTAL_ENTRY][KEYSPACE];
 static uint64_t first_cns[KEYSPACE];
-static uint64_t predict_address[KEYSPACE];
-static uint64_t latest_cns_key[KEYSPACE];
+#endif
 
-static uint64_t outstanding_write_predicts[TOTAL_ENTRY][KEYSPACE]; //outstanding write index, contains precited addresses
-static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY][KEYSPACE];   //outstanding vaddr values, used for replacing addrs
+static uint64_t outstanding_write_vaddrs[TOTAL_ENTRY];   //outstanding vaddr values, used for replacing addrs
 static uint64_t next_vaddr[KEYSPACE];
 static uint64_t latest_key[TOTAL_ENTRY];
 
-static uint64_t overwitten_writes = 0;
 
 inline uint64_t get_latest_key(uint32_t id)
 {
@@ -880,7 +878,7 @@ int get_key(struct rte_mbuf *pkt) {
 		return -1;
 	}
 
-	if (roce_hdr->opcode == RC_WRITE_ONLY && size == 1084) {
+	if (roce_hdr->opcode == RC_WRITE_ONLY) { // && size == 1084) {
 
 		struct write_request *wr = (struct write_request *)clover_header;
 		uint64_t *key = (uint64_t *)&(wr->data);
@@ -1134,7 +1132,6 @@ struct rte_mbuf * generate_missing_ack(struct Request_Map *missing_write, struct
 
 		//This is must be done after the unlock
 		struct Connection_State *destination_cs = &Connection_States[id];
-		struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
 		struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 		uint32_t msn;
 		//Avoid double locking
@@ -1393,10 +1390,7 @@ void track_qp(struct rte_mbuf *pkt)
 		return;
 	}
 
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
-
-
 	switch (roce_hdr->opcode)
 	{
 	case RC_ACK:
@@ -1507,18 +1501,16 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode)
 		if (original != 0)
 		{
 			nacked_cns++;
-			printf("danger only hit here if you have the keyspace option turned on\n");
-			//exit(0);
+			printf("danger only hit here if you have the keyspace option turned on original data %X\n",original);
+			exit(0);
 		}
 	}
 }
 
-
+int swap_counter=0;
 void true_classify(struct rte_mbuf *pkt)
 {
-	//void true_classify(struct rte_ipv4_hdr *ip, struct roce_v2_header *roce, struct clover_hdr * clover) {
 	struct rte_ipv4_hdr *ipv4_hdr = get_ipv4_hdr(pkt);
-	struct rte_udp_hdr *udp_hdr = get_udp_hdr(pkt);
 	struct roce_v2_header *roce_hdr = get_roce_hdr(pkt);
 	struct clover_hdr *clover_header = get_clover_hdr(pkt);
 
@@ -1567,8 +1559,8 @@ void true_classify(struct rte_mbuf *pkt)
 		uint32_t id = get_or_create_id(r_qp);
 		set_latest_key(id, *key);
 
-		uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
-		check_and_cache_predicted_shift(rdma_size);
+		//uint32_t rdma_size = ntohl(wr->rdma_extended_header.dma_length);
+		//check_and_cache_predicted_shift(rdma_size);
 
 		//Experimentatiopn for working with restricted cache keyspaces. Return
 		//from here if the key is out of the cache range.
@@ -1582,42 +1574,8 @@ void true_classify(struct rte_mbuf *pkt)
 		update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
 		#endif
 
-		//okay so this happens twice becasuse the order is
-		//Write 0;
-		//Write 1;
-		//Cn wNS 1 (write 1 - > write 2)
-		if (likely(first_write[*key] != 0 && first_cns[*key] != 0))
-		{
-			predict_address[*key] = ((be64toh(wr->rdma_extended_header.vaddr) - be64toh(first_write[*key])) >> predict_shift_value);
-			outstanding_write_predicts[id][*key] = predict_address[*key];
-			outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-		}
-		else
-		{
-			if (first_write[*key] == 0)
-			{
-				//Write 0
-				//This is the init write. On the first write, for some reason we
-				//don't do anything. I just mark that it's received.
-				first_write[*key] = 1;
-
-			}
-			else if (first_write[*key] == 1)
-			{
-				//Write 1
-				//Here we actually record both the first vaddr for the write, and the
-				first_write[*key] = wr->rdma_extended_header.vaddr; //first write subject to change
-				next_vaddr[*key] = wr->rdma_extended_header.vaddr;	//next_vaddr subject to change
-				outstanding_write_predicts[id][*key] = 1;
-				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-			}
-			else
-			{
-				//We should not really reach this point, I think that it's an error if we do.
-				outstanding_write_predicts[id][*key] = 1;
-				outstanding_write_vaddrs[id][*key] = wr->rdma_extended_header.vaddr;
-			}
-		}
+		//I can't believe that it's really only this... :)
+		outstanding_write_vaddrs[id] = wr->rdma_extended_header.vaddr;
 		unlock_write_steering();
 	}
 
@@ -1626,14 +1584,17 @@ void true_classify(struct rte_mbuf *pkt)
 		lock_write_steering();
 		//Find value of the clover pointer. This is the value we are going to potentially swap out.
 		struct cs_request *cs = (struct cs_request *)clover_header;
-		uint64_t swap = htobe64(MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add)));
 		uint32_t id = get_or_create_id(r_qp);
 		uint64_t key = get_latest_key(id);
+
+		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id];
+		uint64_t *next_vaddr_p = &next_vaddr[key];
+
+		#ifdef DEBUG_WRITES
 		uint64_t *first_cns_p = &first_cns[key];
 		uint64_t *first_write_p = &first_write[key];
-		uint64_t *outstanding_write_vaddr_p = &outstanding_write_vaddrs[id][key];
-		uint64_t *outstanding_write_predict_p = &outstanding_write_predicts[id][key];
-		uint64_t *next_vaddr_p = &next_vaddr[key];
+		#endif 
+
 
 		//This is the first instance of the cns for this key, it is a misunderstood case
 		//For now return after setting the first instance of the key to the swap value
@@ -1647,22 +1608,17 @@ void true_classify(struct rte_mbuf *pkt)
 		//This is the first time we are seeking this key. We can't make a
 		//prediction for it so we are just going to store the address so that we
 		//can use is as an offset for performing redirections later.
-		if (unlikely(*first_cns_p == 0))
+		if (unlikely(*next_vaddr_p == 0))
 		{
 			//log_printf(INFO,"setting swap for key %"PRIu64" id: %d -- Swap %"PRIu64"\n", latest_key[id],id, swap);
-			*first_cns_p = swap;
-			*first_write_p = *outstanding_write_vaddr_p;
 			*next_vaddr_p = *outstanding_write_vaddr_p;
 
-			for (uint i = 0; i < TOTAL_CLIENTS; i++)
-			{
-				if (outstanding_write_predicts[i][key] == 1)
-				{
-					//printf("(init conflict dected) recalculating outstanding writes for key %"PRIu64" id\n",latest_key[id],id);
-					uint64_t predict = ((be64toh(outstanding_write_vaddrs[i][key]) - be64toh(*first_write_p)) >> 10);
-					outstanding_write_predicts[i][key] = predict;
-				}
-			}
+			#ifdef DEBUG_WRITES
+			*first_cns_p = swap;
+			*first_write_p = *outstanding_write_vaddr_p;
+			#endif
+
+
 			//Return and forward the packet if this is the first cns
 			#ifdef READ_STEER
 			update_read_tail(key, *next_vaddr_p);
@@ -1671,12 +1627,6 @@ void true_classify(struct rte_mbuf *pkt)
 			unlock_write_steering();
 			return;
 		}
-
-		//Based on the key predict where the next CNS address should go. This
-		//requires the first CNS to be set
-		uint64_t predict = *outstanding_write_predict_p;
-		predict = predict + be64toh(*first_cns_p);
-		predict = htobe64(0x00000000FFFFFF & predict); // THIS IS THE CORRECT MASK
 
 		//Here we have had a first cns (assuming bunk, and we eant to point to the latest in the list)
 		if (*next_vaddr_p != cs->atomic_req.vaddr)
@@ -1691,23 +1641,26 @@ void true_classify(struct rte_mbuf *pkt)
 
 		}
 
-		//given that a cns has been determined move the next address for this
-		//key, to the outstanding write of the cns that was just made
-		if (likely(predict == swap))
-		{
-//This is where the write (for all intents and purposes has been commited)
-
-			*next_vaddr_p = *outstanding_write_vaddr_p;
+		*next_vaddr_p = *outstanding_write_vaddr_p;
 
 #ifdef READ_STEER
 			update_read_tail(key, *next_vaddr_p);
 #endif
-			//erase the old entries
-			*outstanding_write_predict_p = 0;
-			*outstanding_write_vaddr_p = 0;
-		}
-		else
+
+		//given that a cns has been determined move the next address for this
+		//key, to the outstanding write of the cns that was just made
+		#ifdef DEBUG_WRITES
+		uint64_t swap = htobe64(MITSUME_GET_PTR_LH(be64toh(cs->atomic_req.swap_or_add)));
+		uint64_t write_t = be64toh(outstanding_write_vaddrs[id]);
+		uint64_t first_write_t = be64toh(*first_write_p);
+		uint64_t first_cns_t = be64toh(*first_cns_p);
+		uint64_t predict = 0x00000000FFFFFF & (((write_t - first_write_t) >> 10) + first_cns_t);
+		predict = htobe64(predict);
+		if (likely(predict != swap))
 		{
+			//This is where the write (for all intents and purposes has been commited)
+			//erase the old entries
+			//*outstanding_write_vaddr_p = 0;
 			//This is the crash condtion
 			//Fatal, unable to find the next key
 			printf("Crashing on (CNS PREDICT) ID: %d psn %d\n", id, readable_seq(roce_hdr->packet_sequence_number));
@@ -1730,6 +1683,8 @@ void true_classify(struct rte_mbuf *pkt)
 			print_packet(pkt);
 			exit(0);
 		}
+		#endif
+
 		unlock_write_steering();
 	}
 	return;
@@ -1799,14 +1754,8 @@ static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool, uint32_t core_count)
 {
 	struct rte_eth_conf port_conf = port_conf_default;
-
-
 	const uint16_t rx_rings = core_count, tx_rings = core_count;
 	//const uint16_t rx_rings = RX_CORES, tx_rings = core_count-RX_CORES;
-
-
-	uint64_t nb_rxq = core_count;
-
 
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
@@ -1972,6 +1921,8 @@ void all_thread_barrier(rte_atomic16_t *barrier) {
 	while(barrier->cnt < (int16_t)rte_lcore_count()) {}
 }
 
+int print_counter=0;
+
 /*
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
@@ -1998,10 +1949,17 @@ lcore_main(void)
 			   rte_lcore_id());
 
 
-	printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
+	//printf("@@ Switch Core %d Initalized @@\n", rte_lcore_id());
 	/* Run until the application is quit or killed. */
+
+	#ifdef INPUT_OUTPUT_EXAMPLES
+	FILE * ingress_trace_file=open_logfile("/tmp/ingress.pkttrace");
+	FILE * egress_trace_file=open_logfile("/tmp/egress.pkttrace");
+	#endif
+
+
+
 	port=0;
-	uint64_t lcore_pkt_count = 0;
 	for (;;)
 	{
 		/*
@@ -2020,15 +1978,11 @@ lcore_main(void)
 		}
 		#endif
 
-
-		//RTE_ETH_FOREACH_DEV(port)
-		//{
-			/* Get burst of RX packets, from first and only port */
-
 		struct rte_mbuf *rx_pkts[BURST_SIZE];
+		#ifndef MAP_QP
 		struct rte_mbuf *tx_pkts[BURST_SIZE*PACKET_INFLATION];
 		uint32_t to_tx = 0;
-
+		#endif
 
 		#ifdef MAP_QP
 		if (unlikely((has_mapped_qp==0))){
@@ -2074,10 +2028,33 @@ lcore_main(void)
 			sum_processed_data(rx_pkts[i]);
 			#endif
 
+			#ifdef INPUT_OUTPUT_EXAMPLES
+			#define MAX_PRINT_PACKET 10000
+			if (print_counter < MAX_PRINT_PACKET) {
+				print_raw_file(rx_pkts[i],ingress_trace_file);
+				print_packet_lite(rx_pkts[i]);
+			}
+			#endif
+
 
 			#ifdef WRITE_STEER
 			true_classify(rx_pkts[i]);
 			#endif
+
+
+
+			#ifdef INPUT_OUTPUT_EXAMPLES
+			if (print_counter < MAX_PRINT_PACKET) {
+				print_raw_file(rx_pkts[i],egress_trace_file);
+				print_counter++;
+			}
+			if (print_counter == MAX_PRINT_PACKET){
+				close_logfile(ingress_trace_file);
+				close_logfile(egress_trace_file);
+				print_counter++;
+			}
+			#endif
+
 
 			#ifdef MAP_QP
 			struct map_packet_response mpr = map_qp(rx_pkts[i]);
@@ -2105,6 +2082,8 @@ lcore_main(void)
 		#endif
 	}
 }
+
+
 
 
 int coretest(__attribute__((unused)) void *arg)
@@ -2148,30 +2127,35 @@ void error_switch(void) {
 	}
 }
 
-void mode_print(){
-
+void mode_print(void){
 	#ifdef WRITE_STEER
-		printf("WRITE STEERING: ON\n");
+		printf("WRITE STEERING:\tON\n");
 	#else
-		printf("WRITE STEERING: OFF\n");
+		printf("WRITE STEERING\tOFF\n");
 	#endif
 
 	#ifdef READ_STEER
-		printf("READ STEERING: ON\n");
+		printf("READ STEERING:\tON\n");
 	#else
-		printf("READ STEERING: OFF\n");
+		printf("READ STEERING:\tOFF\n");
 	#endif
 
 	#ifdef MAP_QP
-		printf("QP MAPPING: ON\n");
+		printf("QP MAPPING:\tON\n");
 	#else
-		printf("QP MAPPING: OFF\n");
+		printf("QP MAPPING:\tOFF\n");
 	#endif
 
 	#ifdef CNS_TO_WRITE
-		printf("CNS TO WRITE: ON\n");
+		printf("CNS TO WRITE:\tON\n");
 	#else
-		printf("CNS TO WRITE: OFF\n");
+		printf("CNS TO WRITE:\tOFF\n");
+	#endif
+
+	#ifdef PERFORM_ICRC
+		printf("ICRC:\t\tON\n");
+	#else
+		printf("ICRC:\t\tOFF\n");
 	#endif
 
 
@@ -2193,8 +2177,12 @@ int main(int argc, char *argv[])
 	argc -= ret;
 	argv += ret;
 
+	printf("\n\t---Starting DPDK Switch---\n");
+	printf("\n\t---Machine Config---\n");
+
 	/* Check that there is an even number of ports to send/receive on. */
 	nb_ports = rte_eth_dev_count_avail();
+
 	printf("num ports:%u\n", nb_ports);
 
 	/* Creates a new mempool in memory to hold the mbufs. */
@@ -2203,10 +2191,10 @@ int main(int argc, char *argv[])
 										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	if (mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "cannot create mbuf pool\n");
-	printf("created mbuf_pool %d\n");
+	printf("created mbuf_pool [size %d]\n", mbuf_pool->cache_size);
 
 
-	printf("initalizing ports with %d cores\n",rte_lcore_count());
+	printf("initalizing ports with %d cores...\n",rte_lcore_count());
 	/* Initialize all ports. */
 	RTE_ETH_FOREACH_DEV(portid)
 	if (port_init(portid, mbuf_pool, rte_lcore_count()) != 0)
@@ -2214,8 +2202,8 @@ int main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 
-	if (rte_lcore_count() > 1)
-		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+	// if (rte_lcore_count() > 1)
+	// 	printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 	//dome debugging
 	struct rte_eth_link link;
@@ -2228,21 +2216,21 @@ int main(int argc, char *argv[])
 		printf("NOT FULL DUPLEX\n");
 	}
 
-	printf("Client Threads %d\n", TOTAL_CLIENTS);
-	printf("Keyspace %d\n", KEYSPACE);
+	printf("\n\t---Software Config---\n");
+
+	printf("Client Threads:\t%d\n", TOTAL_CLIENTS);
+	printf("Keyspace:\t%d\n", KEYSPACE);
 
 	mode_print();
 
 	if (init == 0)
 	{
+		#ifdef WRITE_DEBUG
 		bzero(first_write, KEYSPACE * sizeof(uint64_t));
-		bzero(second_write, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
 		bzero(first_cns, KEYSPACE * sizeof(uint64_t));
-		bzero(predict_address, KEYSPACE * sizeof(uint64_t));
-		bzero(latest_cns_key, KEYSPACE * sizeof(uint64_t));
+		#endif
 		bzero(latest_key, TOTAL_ENTRY * sizeof(uint64_t));
-		bzero(outstanding_write_predicts, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
-		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * KEYSPACE * sizeof(uint64_t));
+		bzero(outstanding_write_vaddrs, TOTAL_ENTRY * sizeof(uint64_t));
 		bzero(next_vaddr, KEYSPACE * sizeof(uint64_t));
 
 #ifdef TAKE_MEASUREMENTS
@@ -2270,10 +2258,12 @@ int main(int argc, char *argv[])
 		for (int i=0;i<MEMPOOLS;i++) {
 			//printf("init tx mempool %d\n",i);
 			//tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), RING_F_SP_ENQ | RING_F_SC_DEQ);
-			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), NULL);
+			tx_queues[i] = rte_ring_create(txq_names[i], 4096, rte_eth_dev_socket_id(0), 0);
 		}
 
-		printf("[Master Core %d] Static Initalization Complete -- Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
+		printf("\n\t---Running DPDK Switch (%d cores)---\n",rte_lcore_count());
+		// printf("[Master Core %d] Static Initalization Complete\n", rte_lcore_id());
+		// printf("[Master Core %d] Forking %d Switch Cores\n",rte_lcore_id(),rte_lcore_count());
 	}
 
 	fork_lcores();

@@ -38,8 +38,9 @@
 #define TOTAL_ENTRY 512
 #define CS_SLOTS 1024
 
+
 //#define MITSUME_BENCHMARK_THREAD_DEFAULT 64
-#define MITSUME_BENCHMARK_THREAD_DEFAULT 32
+#define MITSUME_BENCHMARK_THREAD_DEFAULT 16
 #if !defined(MITSUME_BENCHMARK_THREAD_NUM) || (EXPAND(MITSUME_BENCHMARK_THREAD_NUM) == 1)
 
 //Only here if MYVARIABLE is not defined
@@ -117,9 +118,11 @@ struct Buffer_State_Tracker
 } Buffer_State_Tracker;
 
 
+void mode_print(void);
+
 //Locking
-void lock_qp(void);
-void unlock_qp(void);
+//void lock_qp(void);
+//void unlock_qp(void);
 void lock_mem_qp(void);
 void unlock_mem_qp(void);
 void lock_next(void);
@@ -153,6 +156,12 @@ void catch_nack(struct clover_hdr *clover_header, uint8_t opcode);
 //Packet Buffering
 void init_reorder_buf(void);
 void finish_mem_pkt(struct rte_mbuf *pkt, uint16_t port, uint32_t queue);
+void general_tx_enqueue(struct rte_mbuf * pkt);
+void general_tx_eternal(uint16_t port, uint32_t queue, struct rte_ring * in_queue);
+void general_tx(uint16_t port, uint32_t queue, struct rte_ring * in_queue);
+
+
+
 
 //qp tracking
 uint32_t key_to_qp(uint64_t key);
@@ -166,10 +175,12 @@ void init_cs_wrapper(struct rte_mbuf *pkt);
 int fully_qp_init(void);
 
 //Connection States
+void print_connection_state_status(void);
 void copy_eth_addr(uint8_t *src, uint8_t *dst);
 void init_connection_state(struct rte_mbuf *pkt);
 void init_cs_wrapper(struct rte_mbuf *pkt);
 uint32_t produce_and_update_msn(struct roce_v2_header *roce_hdr, struct Connection_State *cs);
+uint32_t produce_and_update_msn_lockless(struct roce_v2_header *roce_hdr, struct Connection_State *cs);
 uint32_t find_and_update_stc(struct roce_v2_header *roce_hdr);
 void find_and_set_stc(struct rte_mbuf *pkt);
 void update_cs_seq(struct rte_mbuf *pkt);
@@ -178,6 +189,12 @@ uint64_t get_latest_key(uint32_t id);
 void set_latest_key(uint32_t id, uint64_t key);
 void init_connection_states(void);
 void init_stc(struct rte_mbuf * pkt);
+void init_buffer_states(void);
+int32_t count_held_packets(void);
+
+
+struct rte_mbuf *** dynamicly_allocate_buffer_state_pkt_buf(void);
+uint64_t ** dynamicly_allocate_pkt_timestamps(void);
 
 //Read Caching
 uint32_t mod_hash(uint64_t vaddr);
@@ -197,11 +214,13 @@ struct Request_Map *get_empty_slot_mod(struct Connection_State *cs);
 uint32_t qp_is_mapped(uint32_t qp);
 void track_qp(struct rte_mbuf *pkt);
 int should_track(struct rte_mbuf *pkt);
+void check_id_mapping(void);
 struct map_packet_response map_qp(struct rte_mbuf *pkt);
 struct Connection_State *find_connection(struct rte_mbuf *pkt);
 struct Request_Map *find_slot_mod(struct Connection_State *source_connection, struct rte_mbuf *pkt);
 void map_qp_forward(struct rte_mbuf *pkt, uint64_t key);
 struct map_packet_response map_qp_backwards(struct rte_mbuf *pkt);
+void map_back_packet(struct rte_mbuf * pkt, struct Request_Map *mapped_request);
 
 //Packet processing
 struct rte_ether_hdr *eth_hdr_process(struct rte_mbuf *buf);

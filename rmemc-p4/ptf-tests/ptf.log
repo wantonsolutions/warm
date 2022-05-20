@@ -1,0 +1,9 @@
+13:43:58.672  root      : INFO    : ++++++++ Tue Apr 26 13:43:58 2022 ++++++++
+13:43:58.736  root      : INFO    : VXLAN support found in Scapy
+13:43:58.737  root      : INFO    : ERSPAN support found in Scapy
+13:43:58.738  root      : INFO    : GENEVE support found in Scapy
+13:43:58.738  root      : INFO    : MPLS support found in Scapy
+13:43:58.738  root      : INFO    : NVGRE support found in Scapy
+13:43:58.739  root      : INFO    : IGMP support found in Scapy
+13:43:58.750  root      : DEBUG   : No test params were provided with '--test-params' / '-t'
+13:43:58.759  root      : WARNING : Could not import file packet_driver.py

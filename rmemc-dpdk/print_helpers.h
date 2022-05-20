@@ -45,4 +45,9 @@ void print_clover_hdr(struct clover_hdr *clover_header);
 
 void print_packet(struct rte_mbuf *buf);
 
+
+FILE * open_logfile(char * filename);
+void close_logfile(FILE * fp);
+void print_raw_file(struct rte_mbuf * pkt, FILE * fp);
+
 #endif
