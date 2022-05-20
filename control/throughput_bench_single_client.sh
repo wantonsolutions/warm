@@ -40,7 +40,8 @@ echo "Start builing clover"
 buildSource=`cat build_clover.sh`
 fullBuild=$lenv$buildSource
 echo $fullBuild
-ssh yak1 $fullBuild &
+ssh yeti5 $fullBuild &
+#ssh yak1 $fullBuild &
 
 let "LCLOVER_THREADS=LCLOVER_THREADS * CLIENTS" 
 
