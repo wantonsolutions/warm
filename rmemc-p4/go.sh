@@ -58,7 +58,7 @@ function build_p4 () {
     pushd $P4_SOURCE_DIR
 
     if [ ${HOST} == ${YAK2} ]; then
-        $build_tool $program_src --with-thrift --with-p4c bf-p4c --p4v 16
+        $build_tool $program_src --with-thrift --with-p4c bf-p4c --p4v 16 -j 30
     elif [ ${HOST} == ${PSWITCH} ]; then
         $build_tool $program_src P4_ARCHITECTURE=tna P4_VERSION=p4-16 ##--with-thrift
     else
@@ -159,7 +159,6 @@ if [ ${HOST} == ${YAK2} ]; then
     setup_veth
     run_tofino
     run_driver
-    run_bfshell
     sleep 20
     run_ptf
 elif [ ${HOST} == ${PSWITCH} ]; then

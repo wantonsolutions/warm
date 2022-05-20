@@ -373,8 +373,8 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
                 continue
             
             #trims down the execution to only the write and CAS packets
-            if input[RoceV2].opcode != RC_WRITE_ONLY and input[RoceV2].opcode != RC_CNS:
-                continue
+            # if input[RoceV2].opcode != RC_WRITE_ONLY and input[RoceV2].opcode != RC_CNS:
+            #     continue
 
             print(packet_counter)
             print_io_packet(input,output)
