@@ -323,7 +323,7 @@ if [ $hname == "b09-27.sysnet.ucsd.edu" ]; then
 else
     setup_nic
     setup_hugepages
-    #disable_icrc
+    disable_icrc
     #enable_icrc
     #set_ooo
     #set_ecn

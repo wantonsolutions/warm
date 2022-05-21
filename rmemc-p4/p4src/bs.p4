@@ -19,7 +19,7 @@
 //#include <tofino/constants.p4>
 
 #define WRITE_STEER
-//#define READ_STEER
+#define READ_STEER
 
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
@@ -233,6 +233,8 @@ control SwitchIngress(inout headers hdr,
     #define WRITE_HASH_WIDTH 10
     #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
     Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
+    Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
+
     Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
@@ -300,7 +302,9 @@ control SwitchIngress(inout headers hdr,
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_low) write_read_tail_low = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.next_vaddr.lower;
+            //value = meta.next_vaddr.lower;
+            //value = hdr.atomic_req.virt_addr.lower;
+            value = meta.outstanding_write_vaddr.lower;
         }
     };
 
@@ -319,7 +323,9 @@ control SwitchIngress(inout headers hdr,
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_high) write_read_tail_high = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.next_vaddr.upper;
+            //value = meta.next_vaddr.upper;
+            //value = hdr.atomic_req.virt_addr.upper;
+            value = meta.outstanding_write_vaddr.upper;
         }
     };
 
@@ -384,8 +390,27 @@ control SwitchIngress(inout headers hdr,
         //get the ID for the rdma packet
         //From here on the metadata has the id set.
 
-        //Write Path
-        if (hdr.roce.opcode == RC_WRITE_ONLY && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
+        // bit<16> complex_cond;
+        // complex_cond=1;
+        // complex_cond = complex_cond & (bit<16>)(hdr.roce.opcode & RC_WRITE_ONLY);
+
+        // bit<16> tmp_cond = (hdr.ipv4.totalLength & 252);
+        // tmp_cond = ~tmp_cond;
+        // complex_cond = complex_cond & tmp_cond;
+
+        //complex_cond = complex_cond & ~(hdr.ipv4.totalLength & 252);
+        //complex_cond = complex_cond & ~(hdr.ipv4.totalLength & 68);
+        if (
+            //Write Packtes
+            (hdr.roce.opcode == RC_WRITE_ONLY && 
+            (hdr.ipv4.totalLength != 252 && 
+            hdr.ipv4.totalLength != 68)) ||
+            //CAS packets
+            (hdr.roce.opcode == RC_CNS) ||
+            //Read Packets
+            (hdr.roce.opcode == RC_READ_REQUEST &&
+             hdr.read_req.dma_length == 1024)
+        ) {
 
             bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
             check_and_set_id_exists(qp_hash_index);
@@ -397,86 +422,91 @@ control SwitchIngress(inout headers hdr,
             }
 
 
-            meta.key = hdr.write_req.data;
-            set_latest_key(meta.id);
-
-            #ifdef READ_STEER
-            //TODO mega dang use the entire 64 bit address for hashing
-            bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
-            set_write_cache_low(write_hash_index);
-            set_write_cache_high(write_hash_index);
-            set_write_cache_key(write_hash_index);
-            //update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
-            #endif //READ STEERING
-
-
-            meta.vaddr.lower=hdr.write_req.virt_addr.lower;
-            meta.vaddr.upper=hdr.write_req.virt_addr.upper;
-
-            set_outstanding_write_vaddr_low(meta.id);
-            set_outstanding_write_vaddr_high(meta.id);
+            //Write Path
+            if (hdr.roce.opcode == RC_WRITE_ONLY) {// && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
+            //if (complex_cond == 1) {
 
 
 
-        } else if (hdr.roce.opcode == RC_CNS) {
+                meta.key = hdr.write_req.data;
+                set_latest_key(meta.id);
 
-            bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
-            check_and_set_id_exists(qp_hash_index);
-            if (meta.existing_id == 0) {
-                gen_new_id();
-                write_new_id(qp_hash_index);
-            } else {
-                read_id(qp_hash_index);
-            }
+                meta.vaddr.lower=hdr.write_req.virt_addr.lower;
+                meta.vaddr.upper=hdr.write_req.virt_addr.upper;
 
 
-            get_latest_key(meta.id);
+                set_outstanding_write_vaddr_low(meta.id);
+                set_outstanding_write_vaddr_high(meta.id);
 
-            meta.vaddr.lower = hdr.atomic_req.virt_addr.lower;
-            meta.vaddr.upper = hdr.atomic_req.virt_addr.upper;
+                #ifdef READ_STEER
+                //TODO mega dang use the entire 64 bit address for hashing
+                bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
+                set_write_cache_low(write_hash_index);
+                set_write_cache_high(write_hash_index);
+                set_write_cache_key(write_hash_index);
+                //update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
+                #endif //READ STEERING
 
-            get_outstanding_write_vaddr_low(meta.id);
-            get_outstanding_write_vaddr_high(meta.id);
 
-           //Move to state machine 
-            get_then_set_next_vaddr_low(meta.key);
-            get_then_set_next_vaddr_high(meta.key);
 
-            #ifdef READ_STEER
-            set_read_tail_low(meta.key);
-            set_read_tail_high(meta.key);
-            #endif // READ_STEERING
+            } else if (hdr.roce.opcode == RC_CNS) {
 
-            if (meta.next_vaddr.lower != 0) {
-                //TODO I should compare both
-                if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
-                    hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
-                    hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
+
+                get_latest_key(meta.id);
+
+                meta.vaddr.lower = hdr.atomic_req.virt_addr.lower;
+                meta.vaddr.upper = hdr.atomic_req.virt_addr.upper;
+
+                get_outstanding_write_vaddr_low(meta.id);
+                get_outstanding_write_vaddr_high(meta.id);
+
+            //Move to state machine 
+                get_then_set_next_vaddr_low(meta.key);
+                get_then_set_next_vaddr_high(meta.key);
+
+
+
+                if (meta.next_vaddr.lower != 0) {
+                    //TODO I should compare both
+                    if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
+                        hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
+                        hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
+                    }
+                } 
+                #ifdef READ_STEER
+                set_read_tail_low(meta.key);
+                set_read_tail_high(meta.key);
+                #endif // READ_STEERING
+
+
+            } else if (hdr.roce.opcode == RC_READ_REQUEST) {// && hdr.read_req.dma_length == 1024) {
+
+                #ifdef READ_STEER
+
+                bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(hdr.read_req.virt_addr.lower);
+                get_write_cache_key(read_hash_index);
+
+                //Check if the hash of this vadder is a hit and matches
+                get_write_cache_low(read_hash_index);
+                get_write_cache_high(read_hash_index);
+                get_read_tail_low(meta.key);
+                get_read_tail_high(meta.key);                
+
+                //Check that the cache hit is legitimate, we know that this address is for a known key
+                //TODO make this simpler so that I can use both addresses
+                if (meta.write_cached_addr.lower == hdr.read_req.virt_addr.lower && (meta.read_tail.lower != 0) && (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                    //We found that the latest value was cached so we know the key
+                    //In this case we always update the packet
+                    //We could skip updating the packet if the value was allready correct
+
+                    hdr.read_req.virt_addr.lower=meta.read_tail.lower;
+                    hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+                    //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
                 }
-            } 
-        } else if (hdr.roce.opcode == RC_READ_REQUEST) {
-            #ifdef READ_STEER
-
-            bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
-            get_write_cache_key(write_hash_index);
-
-            //Check if the hash of this vadder is a hit and matches
-            get_write_cache_low(write_hash_index);
-            get_write_cache_high(write_hash_index);
-            get_read_tail_low(meta.key);
-            get_read_tail_high(meta.key);                
-
-            //Check that the cache hit is legitimate, we know that this address is for a known key
-            //TODO make this simpler so that I can use both addresses
-            if (meta.write_cached_addr.lower == hdr.write_req.virt_addr.lower) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
-                //We found that the latest value was cached so we know the key
-                //In this case we always update the packet
-                //We could skip updating the packet if the value was allready correct
-                hdr.read_req.virt_addr.lower=meta.read_tail.lower;
-                hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+                #endif //READ STEERING
             }
-            #endif //READ STEERING
         }
+
         #endif //WRITE_STEER
 
 
@@ -484,7 +514,7 @@ control SwitchIngress(inout headers hdr,
         //update.apply();
 
         //call the multiplex rdma twice
-        multiplex_rdma.apply();
+        //multiplex_rdma.apply();
         ig_tm_md.bypass_egress = 1w1;
         //multiplex_rdma.apply();
     }

@@ -49,7 +49,7 @@ static int packet_counter = 0;
 //#define DEBUG_WRITES
 
 #define WRITE_STEER
-//#define READ_STEER
+#define READ_STEER
 //#define MAP_QP
 //#define CNS_TO_WRITE
 
