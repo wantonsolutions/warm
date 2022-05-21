@@ -24,7 +24,8 @@ limitations under the License.
 #define ID_SIZE 8
 #define KEY_SIZE 8
 #define VADDR_SIZE 64
-#define MAX_KEYS 4096
+//#define MAX_KEYS 4096
+#define MAX_KEYS 256
 
 
 typedef bit<9>  egressSpec_t;

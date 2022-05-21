@@ -233,6 +233,8 @@ control SwitchIngress(inout headers hdr,
     #define WRITE_HASH_WIDTH 10
     #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
     Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
+    Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
+
     Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
@@ -300,7 +302,9 @@ control SwitchIngress(inout headers hdr,
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_low) write_read_tail_low = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.next_vaddr.lower;
+            //value = meta.next_vaddr.lower;
+            //value = hdr.atomic_req.virt_addr.lower;
+            value = meta.outstanding_write_vaddr.lower;
         }
     };
 
@@ -319,7 +323,9 @@ control SwitchIngress(inout headers hdr,
     };
     RegisterAction<bit<HALF_ADDR_WIDTH>, bit<KEY_SIZE>, bit<HALF_ADDR_WIDTH>>(read_tail_high) write_read_tail_high = {
         void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.next_vaddr.upper;
+            //value = meta.next_vaddr.upper;
+            //value = hdr.atomic_req.virt_addr.upper;
+            value = meta.outstanding_write_vaddr.upper;
         }
     };
 
@@ -425,6 +431,13 @@ control SwitchIngress(inout headers hdr,
                 meta.key = hdr.write_req.data;
                 set_latest_key(meta.id);
 
+                meta.vaddr.lower=hdr.write_req.virt_addr.lower;
+                meta.vaddr.upper=hdr.write_req.virt_addr.upper;
+
+
+                set_outstanding_write_vaddr_low(meta.id);
+                set_outstanding_write_vaddr_high(meta.id);
+
                 #ifdef READ_STEER
                 //TODO mega dang use the entire 64 bit address for hashing
                 bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
@@ -433,13 +446,6 @@ control SwitchIngress(inout headers hdr,
                 set_write_cache_key(write_hash_index);
                 //update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
                 #endif //READ STEERING
-
-
-                meta.vaddr.lower=hdr.write_req.virt_addr.lower;
-                meta.vaddr.upper=hdr.write_req.virt_addr.upper;
-
-                set_outstanding_write_vaddr_low(meta.id);
-                set_outstanding_write_vaddr_high(meta.id);
 
 
 
@@ -458,10 +464,7 @@ control SwitchIngress(inout headers hdr,
                 get_then_set_next_vaddr_low(meta.key);
                 get_then_set_next_vaddr_high(meta.key);
 
-                #ifdef READ_STEER
-                set_read_tail_low(meta.key);
-                set_read_tail_high(meta.key);
-                #endif // READ_STEERING
+
 
                 if (meta.next_vaddr.lower != 0) {
                     //TODO I should compare both
@@ -470,26 +473,35 @@ control SwitchIngress(inout headers hdr,
                         hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
                     }
                 } 
+                #ifdef READ_STEER
+                set_read_tail_low(meta.key);
+                set_read_tail_high(meta.key);
+                #endif // READ_STEERING
+
+
             } else if (hdr.roce.opcode == RC_READ_REQUEST) {// && hdr.read_req.dma_length == 1024) {
 
                 #ifdef READ_STEER
-                bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
-                get_write_cache_key(write_hash_index);
+
+                bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(hdr.read_req.virt_addr.lower);
+                get_write_cache_key(read_hash_index);
 
                 //Check if the hash of this vadder is a hit and matches
-                get_write_cache_low(write_hash_index);
-                get_write_cache_high(write_hash_index);
+                get_write_cache_low(read_hash_index);
+                get_write_cache_high(read_hash_index);
                 get_read_tail_low(meta.key);
                 get_read_tail_high(meta.key);                
 
                 //Check that the cache hit is legitimate, we know that this address is for a known key
                 //TODO make this simpler so that I can use both addresses
-                if (meta.write_cached_addr.lower == hdr.write_req.virt_addr.lower) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                if (meta.write_cached_addr.lower == hdr.read_req.virt_addr.lower && (meta.read_tail.lower != 0) && (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                     //We found that the latest value was cached so we know the key
                     //In this case we always update the packet
                     //We could skip updating the packet if the value was allready correct
+
                     hdr.read_req.virt_addr.lower=meta.read_tail.lower;
                     hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+                    //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
                 }
                 #endif //READ STEERING
             }
