@@ -18,8 +18,9 @@
 //#include <tofino/intrinsic_metadata.p4>
 //#include <tofino/constants.p4>
 
-#define WRITE_STEER
-//#define READ_STEER
+#define SWORDBOX_OFF 0
+#define WRITE_STEER 1
+#define READ_STEER 2
 
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
@@ -65,6 +66,18 @@ control SwitchIngress(inout headers hdr,
         }
     }
 
+    Register<bit<8>, bit<1>>(1,SWORDBOX_OFF) swordbox_mode;
+    RegisterAction<bit<8>, bit<1>, bit<8>>(swordbox_mode) get_swordbox_mode = {
+        void apply(inout bit<8> value, out bit<8> read_value) {
+            read_value = value;
+        }
+    };
+
+    action get_swordbox_mode_action(bit<1> get_val){
+        meta.swordbox_mode = get_swordbox_mode.execute(get_val);
+    }
+
+
     //The size of the hashed value for qp's make this larger if there are
     //collisons, make it smaller if you start to run out of space
     #define QP_HASH_WIDTH 12
@@ -74,8 +87,6 @@ control SwitchIngress(inout headers hdr,
     #define MAX_IDS 255
     //id_hash hashes qp to 16 bytes. It is the unique id for qp
     Hash<bit<16>>(HashAlgorithm_t.CRC16) id_hash;
-
-
     //This register is used to track the existance of ID's. Because we cant both
     //lookup check for the id counter in a single step this is used to check if
     //the ID exists prior either reading or writing it.
@@ -339,77 +350,16 @@ control SwitchIngress(inout headers hdr,
     }
 
 
-
-
-
-    action write_req() {
-    }
-
-    action read_req() {
-    }
-
-    action read_resp() {
-    }
-
-    action ack() {
-    }
-
-    action cns() {
-    }
-
-    action atomic_ack() {
-    }
-
-    table multiplex_rdma {
-        key = {
-            hdr.roce.opcode: exact;
-        }
-
-        actions = {
-            write_req;
-            ack;
-            read_req;
-            read_resp;
-            cns;
-            atomic_ack;
-        }
-
-        const entries = {
-            RC_WRITE_ONLY : write_req();
-            RC_READ_REQUEST : read_req();
-            RC_READ_RESPONSE : read_resp();
-            RC_ACK : ack();
-            RC_ATOMIC_ACK : atomic_ack();
-            RC_CNS : cns();
-        }
-
-     }
-
     #define PAYLOAD_SIZE 128
 
     apply {
 
 
         #ifdef WRITE_STEER
-        //get the ID for the rdma packet
-        //From here on the metadata has the id set.
-
-        // bit<16> complex_cond;
-        // complex_cond=1;
-        // complex_cond = complex_cond & (bit<16>)(hdr.roce.opcode & RC_WRITE_ONLY);
-
-        // bit<16> tmp_cond = (hdr.ipv4.totalLength & 252);
-        // tmp_cond = ~tmp_cond;
-        // complex_cond = complex_cond & tmp_cond;
-
-        //complex_cond = complex_cond & ~(hdr.ipv4.totalLength & 252);
-        //complex_cond = complex_cond & ~(hdr.ipv4.totalLength & 68);
         if (
             //Write Packtes
             (hdr.roce.opcode == RC_WRITE_ONLY && 
              hdr.write_req.dma_length == PAYLOAD_SIZE) ||
-            //(hdr.ipv4.totalLength != 252 && 
-            //hdr.ipv4.totalLength != 68)) ||
             //CAS packets
             (hdr.roce.opcode == RC_CNS) ||
             //Read Packets
@@ -426,20 +376,19 @@ control SwitchIngress(inout headers hdr,
                 read_id(qp_hash_index);
             }
 
+            get_swordbox_mode_action(0);
+
 
             //Write Path
             if (hdr.roce.opcode == RC_WRITE_ONLY) {// && (hdr.ipv4.totalLength != 252 && hdr.ipv4.totalLength != 68)) {
-            //if (complex_cond == 1) {
 
-
-
+                //Get the key from the data packet, and place it in metadata
                 meta.key = hdr.write_req.data;
                 set_latest_key(meta.id);
-
+                //Grab the virtual address from the packet
                 meta.vaddr.lower=hdr.write_req.virt_addr.lower;
                 meta.vaddr.upper=hdr.write_req.virt_addr.upper;
-
-
+                //put the virtual address of the write into the set of outstanding writes.
                 set_outstanding_write_vaddr_low(meta.id);
                 set_outstanding_write_vaddr_high(meta.id);
 

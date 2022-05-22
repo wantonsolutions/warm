@@ -39,6 +39,7 @@ struct metadata {
     bit<1> existing_id;
     bit<ID_SIZE> id;
     bit<KEY_SIZE> key;
+    bit<8> swordbox_mode;
     vaddr_t vaddr;
     vaddr_t next_vaddr;
     vaddr_t read_tail;
