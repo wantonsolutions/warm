@@ -1,8 +1,31 @@
 #!/bin/bash
 
+
+export LCLOVER_THREADS=$1
+export LCLOVER_KEY_RANGE=$2
+export LCLOVER_YCSB_OP_MODE=$3
+export LCLOVER_PAYLOAD_SIZE=$4
+export SWITCH_MODE=$5
+
 function clean_pswitch() {
     echo "waiting on pswitch"
     ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/setup_switch.py"
+}
+
+function set_pswitch_mode() {
+    mode=$SWITCH_MODE
+    mode_script="set_off_mode.py"
+    if [ $mode == "SWORDBOX_OFF" ];then
+        mode_script="set_off_mode.py"
+    elif [ $mode == "WRITE_STEER" ];then
+        mode_script="set_write_steering_mode.py"
+    elif [ $mode == "READ_STEER" ]; then
+        mode_script="set_read_steering_mode.py"
+    else
+        echo "BAD MODE SCRIPT $mode setting pswitch to default $mode_script"
+    fi
+
+    ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/$mode_script"
 }
 
 function kill_all_clients() {
@@ -11,11 +34,6 @@ function kill_all_clients() {
     ssh yak1 'echo iwicbV15 | sudo -S killall init'
     ssh yeti5 'echo iwicbV15 | sudo -S killall init'
 }
-
-export LCLOVER_THREADS=$1
-export LCLOVER_KEY_RANGE=$2
-export LCLOVER_YCSB_OP_MODE=$3
-export LCLOVER_PAYLOAD_SIZE=$4
 
 function build_clover() {
     #build the project
@@ -43,7 +61,6 @@ function build_clover() {
     sleep 1
     echo "BUILD COMPLETE double check"
 }
-
 
 function start_machines() {
     echo "Starting up the machines for this experiment"
@@ -84,6 +101,7 @@ function clean_up() {
 
 echo "Bencmark Script $0"
 clean_pswitch
+set_pswitch_mode
 kill_all_clients
 build_clover
 start_machines

@@ -29,8 +29,9 @@ if [ ! -z "$response" ]; then
     #     kill_switch
     # fi
 else
+    echo "THE SWITCH IS NOT RUNNING"
     echo "Go start the switch manually"
-    echo"ssh -vX pswitch  -x 'cd /root/src/warm/rmemc-p4; ./go.sh'"
+    echo "ssh -vX pswitch  -x 'cd /root/src/warm/rmemc-p4; ./go.sh'"
     exit 1
 fi
 
@@ -42,37 +43,49 @@ rm latest_latency.dat
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 
-#threads=("72")
-#opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C")
-#packet_size=("1000" "500" "250" "125" "64" "32")
-#packet_size=("500" "250" "125" "64" "32")
 #packet_size=("1000")
-#packet_size=("1000")
-#threads=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19" "20")
-threads=("32" "32" "32" "32" "32")
-packet_size=("1000")
 #packet_size=("1000" "900" "800" "700" "600" " 500")
-#opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_W")
-#opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
-#opmodes=("MITSUME_YCSB_MODE_A")
-opmodes=("MITSUME_YCSB_MODE_A")
-#opmodes=("MITSUME_YCSB_MODE_A")
-#keyspaces=("100" "1000" "10000" "100000")
+packet_size=("100")
 keyspaces=("1000")
 
-for k in ${keyspaces[@]}; do
-    for i in ${opmodes[@]}; do
-        for j in ${threads[@]}; do
-            for l in ${packet_size[@]}; do
-                echo "op modes: $i"
-                echo "Threads: $j"
-                echo "Keys: $k"
-                echo "Packet Size: $l"
-                ./throughput_bench_pswitch.sh $j $k $i $l
-            done
-        done
-    done
-done
-echo "<<<<<<<<< ($date)" >> results.dat
+#threads=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19" "20" "21" "22" "23" "24" "25" "26" "27" "28" "29" "30" "31" "32" "33" "34" "35" "36" "37" "38" "39" "40")
+#threads=("1" "2" "4" "8" "16" "24" "32" "40")
+threads=("32")
+#threads=("24" "32" "40")
+#threads=("40" "40" "40")
+#threads=("16" "24" "32" "40")
+#threads=("1" "2" "4" "8" "16" "32")
+#threads=("1")
+#threads=("32" "32" "32" "32" "32")
 
-./clean_results.sh 1
+#opmodes=( "MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_W")
+opmodes=("MITSUME_YCSB_MODE_A")
+
+switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
+# switch_modes=("SWORDBOX_OFF")
+# switch_modes=("WRITE_STEER")
+# switch_modes=("READ_STEER")
+
+for workload in ${opmodes[@]}; do
+for switch_mode in ${switch_modes[@]}; do
+for thread_count in ${threads[@]}; do
+for payload_size in ${packet_size[@]}; do
+for keys in ${keyspaces[@]}; do
+
+        echo "switch mode" "$switch_mode"
+        echo "op modes: $workload"
+        echo "Threads: $thread_count"
+        echo "Keys: $keys"
+        echo "Packet Size: $payload_size"
+        ./throughput_bench_pswitch.sh $thread_count $keys $workload $payload_size $switch_mode
+done #keys
+done #payload size
+done #thread count
+        echo "Mode: " $switch_mode " Workload: " $workload >> results.dat
+        ./clean_results.sh 1
+        rm latest.dat
+done #switch mode
+done #workload
+echo "<<<<<<<<< ($date)" >> results.dat
