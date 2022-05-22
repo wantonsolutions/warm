@@ -19,7 +19,7 @@
 //#include <tofino/constants.p4>
 
 #define WRITE_STEER
-#define READ_STEER
+//#define READ_STEER
 
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
@@ -230,19 +230,21 @@ control SwitchIngress(inout headers hdr,
 
     //Next Key Write - Takes the value from the metadata on writes
     #define WRITE_HASH_WIDTH_MAX 17 //This is the max value I can fit without fanangaling crap
-    #define WRITE_HASH_WIDTH 17
+    #define WRITE_HASH_WIDTH 19
     #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
     Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
     Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
 
-    Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
-    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
-        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.vaddr.lower;
+    #define CHOPPED_ADDR_WIDTH 8
+
+    Register<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
+    RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
+        void apply(inout bit<CHOPPED_ADDR_WIDTH> value, out bit<CHOPPED_ADDR_WIDTH> read_value) {
+            value = (bit<CHOPPED_ADDR_WIDTH>)meta.vaddr.lower;
         }
     };
-    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_low) read_write_cache_low = {
-        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+    RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_low) read_write_cache_low = {
+        void apply(inout bit<CHOPPED_ADDR_WIDTH> value, out bit<CHOPPED_ADDR_WIDTH> read_value) {
             read_value = value;
         }
     };
@@ -251,17 +253,17 @@ control SwitchIngress(inout headers hdr,
         write_write_cache_low.execute(vaddr_hash);
     }
     action get_write_cache_low(bit <WRITE_HASH_WIDTH> vaddr_hash) {
-        meta.write_cached_addr.lower=read_write_cache_low.execute(vaddr_hash);
+        meta.write_cached_addr.lower=(bit<HALF_ADDR_WIDTH>)read_write_cache_low.execute(vaddr_hash);
     }
 
-    Register<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_high;
-    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_high) write_write_cache_high = {
-        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
-            value = meta.vaddr.upper;
+    Register<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_high;
+    RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_high) write_write_cache_high = {
+        void apply(inout bit<CHOPPED_ADDR_WIDTH> value, out bit<CHOPPED_ADDR_WIDTH> read_value) {
+            value = (bit<CHOPPED_ADDR_WIDTH>)meta.vaddr.upper;
         }
     };
-    RegisterAction<bit<HALF_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<HALF_ADDR_WIDTH>>(write_cache_high) read_write_cache_high = {
-        void apply(inout bit<HALF_ADDR_WIDTH> value, out bit<HALF_ADDR_WIDTH> read_value) {
+    RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_high) read_write_cache_high = {
+        void apply(inout bit<CHOPPED_ADDR_WIDTH> value, out bit<CHOPPED_ADDR_WIDTH> read_value) {
             read_value = value;
         }
     };
@@ -270,7 +272,7 @@ control SwitchIngress(inout headers hdr,
         write_write_cache_high.execute(vaddr_hash);
     }
     action get_write_cache_high(bit <WRITE_HASH_WIDTH> vaddr_hash) {
-        meta.write_cached_addr.upper=read_write_cache_high.execute(vaddr_hash);
+        meta.write_cached_addr.upper=(bit<HALF_ADDR_WIDTH>)read_write_cache_high.execute(vaddr_hash);
     }
 
     Register<bit<KEY_SIZE>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_key;
@@ -497,7 +499,8 @@ control SwitchIngress(inout headers hdr,
 
                 //Check that the cache hit is legitimate, we know that this address is for a known key
                 //TODO make this simpler so that I can use both addresses
-                if (meta.write_cached_addr.lower == hdr.read_req.virt_addr.lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
+                if ((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                     //We found that the latest value was cached so we know the key
                     //In this case we always update the packet
                     //We could skip updating the packet if the value was allready correct
