@@ -230,7 +230,7 @@ control SwitchIngress(inout headers hdr,
 
     //Next Key Write - Takes the value from the metadata on writes
     #define WRITE_HASH_WIDTH_MAX 17 //This is the max value I can fit without fanangaling crap
-    #define WRITE_HASH_WIDTH 10
+    #define WRITE_HASH_WIDTH 17
     #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
     Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
     Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
@@ -383,6 +383,8 @@ control SwitchIngress(inout headers hdr,
 
      }
 
+    #define PAYLOAD_SIZE 128
+
     apply {
 
 
@@ -403,13 +405,14 @@ control SwitchIngress(inout headers hdr,
         if (
             //Write Packtes
             (hdr.roce.opcode == RC_WRITE_ONLY && 
-            (hdr.ipv4.totalLength != 252 && 
-            hdr.ipv4.totalLength != 68)) ||
+             hdr.write_req.dma_length == PAYLOAD_SIZE) ||
+            //(hdr.ipv4.totalLength != 252 && 
+            //hdr.ipv4.totalLength != 68)) ||
             //CAS packets
             (hdr.roce.opcode == RC_CNS) ||
             //Read Packets
             (hdr.roce.opcode == RC_READ_REQUEST &&
-             hdr.read_req.dma_length == 1024)
+             hdr.read_req.dma_length == PAYLOAD_SIZE)
         ) {
 
             bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
@@ -494,7 +497,7 @@ control SwitchIngress(inout headers hdr,
 
                 //Check that the cache hit is legitimate, we know that this address is for a known key
                 //TODO make this simpler so that I can use both addresses
-                if (meta.write_cached_addr.lower == hdr.read_req.virt_addr.lower && (meta.read_tail.lower != 0) && (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                if (meta.write_cached_addr.lower == hdr.read_req.virt_addr.lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                     //We found that the latest value was cached so we know the key
                     //In this case we always update the packet
                     //We could skip updating the packet if the value was allready correct
