@@ -6,6 +6,7 @@ export LCLOVER_KEY_RANGE=$2
 export LCLOVER_YCSB_OP_MODE=$3
 export LCLOVER_PAYLOAD_SIZE=$4
 export SWITCH_MODE=$5
+export ZIPF_DIST=$6
 
 function clean_pswitch() {
     echo "waiting on pswitch"
@@ -24,7 +25,7 @@ function set_pswitch_mode() {
     else
         echo "BAD MODE SCRIPT $mode setting pswitch to default $mode_script"
     fi
-
+    echo "setting switch to $mode with $mode_script"
     ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/$mode_script"
 }
 
@@ -60,6 +61,11 @@ function build_clover() {
     echo "BUILD COMPLETE"
     sleep 1
     echo "BUILD COMPLETE double check"
+}
+
+function set_distribution() {
+    echo "Setting Zipf to $ZIPF_DIST"
+    ssh yeti5 -x "cd /home/ssgrant/pDPM/clover/workload/; ./make_active.sh zipf/$ZIPF_DIST"
 }
 
 function start_machines() {
@@ -102,6 +108,7 @@ function clean_up() {
 echo "Bencmark Script $0"
 clean_pswitch
 set_pswitch_mode
+set_distribution
 kill_all_clients
 build_clover
 start_machines

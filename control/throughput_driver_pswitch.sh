@@ -43,43 +43,53 @@ rm latest_latency.dat
 date=`date`
 echo ">>>>>>>>> ($date)" >> results.dat
 
-#packet_size=("1000")
-#packet_size=("1000" "900" "800" "700" "600" " 500")
 packet_size=("100")
+#packet_size=("1000" "900" "800" "700" "600" " 500")
+#packet_size=("100")
 keyspaces=("1000")
 
 #threads=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19" "20" "21" "22" "23" "24" "25" "26" "27" "28" "29" "30" "31" "32" "33" "34" "35" "36" "37" "38" "39" "40")
-#threads=("1" "2" "4" "8" "16" "24" "32" "40")
+#threads=("1" "2" "4" "8" "16" "24" "32" "40" "48" "56" "64" "72" "80")
+#threads=("1" "2" "4" "8" "16" "32")
 threads=("32")
+#threads=("1" "2" "4" "8" "16" "24" "32" "40")
+#threads=("40")
+#threads=("48")
 #threads=("24" "32" "40")
 #threads=("40" "40" "40")
 #threads=("16" "24" "32" "40")
 #threads=("1" "2" "4" "8" "16" "32")
 #threads=("1")
 #threads=("32" "32" "32" "32" "32")
+zipfs=("0.00" "0.60" "0.80" "0.90" "1.00" "1.10" "1.20" "1.30" "1.40" "1.50")
+#zipfs=("0.80")
 
-#opmodes=( "MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_W")
 opmodes=("MITSUME_YCSB_MODE_A")
-
+#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
-# switch_modes=("SWORDBOX_OFF")
+#switch_modes=("SWORDBOX_OFF")
 # switch_modes=("WRITE_STEER")
-# switch_modes=("READ_STEER")
+#switch_modes=("READ_STEER")
 
 for workload in ${opmodes[@]}; do
 for switch_mode in ${switch_modes[@]}; do
 for thread_count in ${threads[@]}; do
 for payload_size in ${packet_size[@]}; do
 for keys in ${keyspaces[@]}; do
+for zipf in ${zipfs[@]}; do
 
         echo "switch mode" "$switch_mode"
         echo "op modes: $workload"
         echo "Threads: $thread_count"
         echo "Keys: $keys"
         echo "Packet Size: $payload_size"
-        ./throughput_bench_pswitch.sh $thread_count $keys $workload $payload_size $switch_mode
+        echo "zipf: $zipf"
+        ./throughput_bench_pswitch.sh $thread_count $keys $workload $payload_size $switch_mode $zipf
+done #zipf
 done #keys
 done #payload size
 done #thread count
