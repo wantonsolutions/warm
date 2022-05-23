@@ -63,7 +63,7 @@ def static_plot_attributes(ax,read_write_steering,write_steering, clover_with_bu
     ax.set_xlabel('Threads')
 
 
-figure_name='hero_1028'
+figure_name='hero_1024'
 
 #[186907,362862,678406,1135524,1753723,2058595,2138879]
 
