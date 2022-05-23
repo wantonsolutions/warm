@@ -7,9 +7,9 @@ all_registers = [
     "SwitchIngress.next_vaddr_high",
     "SwitchIngress.outstanding_write_vaddr_low",
     "SwitchIngress.outstanding_write_vaddr_high",
-    "SwitchIngress.write_cache_low",
-    "SwitchIngress.write_cache_high",
-    "SwitchIngress.write_cache_key",
+    #"SwitchIngress.write_cache_low",
+    #"SwitchIngress.write_cache_high",
+    #"SwitchIngress.write_cache_key",
     "SwitchIngress.read_tail_low",
     "SwitchIngress.read_tail_high",
 ]
@@ -29,3 +29,28 @@ mac_forwarding_table=[
     (yeti_5_port,yeti_5_mac),
     (yak_1_port,yak_1_mac),
 ]
+
+
+def set_register(table, target, name, value):
+    ks = []
+    dat = []
+    print("Setting Register: "+name+ " Size: "+ str(table.info.size) + "...")
+
+    x = table.entry_get(target)
+    for i in x:
+        ks.append(i[1])
+
+        byte_len=len(i[0][name+str(".f1")].val)
+        val='\x00'
+        if byte_len == 2:
+            val='\x00\x00'
+        elif byte_len == 3:
+            val='\x00\x00\x00'
+        elif byte_len == 4:
+            val='\x00\x00\x00\x00'
+
+        i[0][name+str(".f1")].val=val
+        dat.append(i[0])
+    
+    table.entry_mod(target,ks,dat)
+    print("Done")
