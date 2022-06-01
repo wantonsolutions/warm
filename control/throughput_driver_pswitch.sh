@@ -44,7 +44,7 @@ keyspaces=("1000")
 #threads=("40" "48" "56" "64" "72" "80")
 #threads=("1" "2" "4" "8" "16" "24" "32" "40" "48" "56")
 #threads=("1" "2" "4" "8" "16" "24" "32" "40" "48" "56" "64" "72" "80")
-threads=("1" "2" "4" "8" "16" "24" "32" "40")
+#threads=("1" "2" "4" "8" "16" "24" "32" "40")
 #threads=("16" "32" "40")
 #threads=("32")
 #threads=("40")
@@ -55,13 +55,15 @@ threads=("1" "2" "4" "8" "16" "24" "32" "40")
 #threads=("40" "40" "40")
 #threads=("16" "24" "32" "40")
 #threads=("1" "2" "4" "8" "16" "32")
-#threads=("1")
+threads=("40")
 #threads=("32" "32" "32" "32" "32")
 #zipfs=("0.00" "0.60" "0.80" "0.90" "1.00" "1.10" "1.20" "1.30" "1.40" "1.50")
 zipfs=("1.00")
 
+#opmodes=("MITSUME_YCSB_MODE_A")
+opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B")
-opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
@@ -73,6 +75,7 @@ switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
 #switch_modes=("SWORDBOX_OFF")
 #switch_modes=("WRITE_STEER")
 #switch_modes=("READ_STEER")
+trials="5"
 
 
 test_name="nill"
@@ -125,7 +128,6 @@ done #payload size
 done #thread count
         echo "Mode: " $switch_mode " Workload: " $workload >> results.dat
         ./clean_results.sh 1
-        rm latest.dat
 done #switch mode
 done #workload
 echo "<<<<<<<<< ($date)" >> results.dat

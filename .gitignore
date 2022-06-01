@@ -2,3 +2,4 @@
 ethout
 control/lenv.sh
 rmemc-dpdk/build
+latency_scratch

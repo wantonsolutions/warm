@@ -128,6 +128,14 @@ function start_machines() {
 
 }
 
+function get_latency_stats() {
+    echo "Collecting Latency stats from servers"
+    pushd latency_scratch
+    ./latency.sh
+    popd
+    cat latency_scratch/latency_result_latest.dat >> latest_latency.dat
+}
+
 
 RUN_SUCCESS="FALSE"
 
@@ -148,6 +156,7 @@ function clean_up() {
             echo "Experiment Failed"
             return
         else
+
             echo "${res}" >> $tmp
         fi
         let "i=i+1"
@@ -156,11 +165,15 @@ function clean_up() {
     RUN_SUCCESS="TRUE"
 
     combined=`python3 sum.py ${#HOSTS[@]} $tmp`
-    #todo check if the output does not exist
+
+    get_latency_stats
+    latency=`cat latency_scratch/latency_result_latest.dat`
+
     echo "Experiment Complete"
     #echo "$combined" >> results.dat
-    echo "$combined" >> bench_results.dat
+    echo "${combined}${latency}" >> bench_results.dat
 }
+
 
 
 echo "Bencmark Script $0"
@@ -182,12 +195,17 @@ for t in $(seq 1 $TRIALS); do
     done
 
 done
+get_latency_stats
+
+
+
 
 #combine results and product stderr
 #inject zipf into bench results
 #todo this is super quick and dirty, consider moving somewhere else
 sed -i "s/zipf/${ZIPF_DIST}/g" bench_results.dat
-sed -i "s/,@TAG@,//g" bench_results.dat
+sed -i "s/,@TAG@//g" bench_results.dat
+sed -i "s/,$//g" bench_results.dat
 res=`python3 stats.py bench_results.dat $TRIALS`
 
 echo "$res" >> results.dat

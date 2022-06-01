@@ -1,27 +1,24 @@
 #!/bin/bash
 
-mkdir -p yeti0
-mkdir -p yeti5
 
-rm yeti0/*
-rm yeti5/*
-
-#read latency
-scp yeti0:/tmp/read_latency* ./yeti0
-scp yeti5:/tmp/read_latency* ./yeti5
-
-#write_latency
-scp yeti0:/tmp/write_latency* ./yeti0
-scp yeti5:/tmp/write_latency* ./yeti5
+export HOSTS=("yeti5" "yeti0" "yeti1")
 
 #create agg file
 rm agg_read_latency
-cat yeti0/read_latency* >> agg_read_latency
-cat yeti5/read_latency* >> agg_read_latency
-
 rm agg_write_latency
-cat yeti0/write_latency* >> agg_write_latency
-cat yeti5/write_latency* >> agg_write_latency
+
+for host in ${HOSTS[@]}; do
+    mkdir -p $host
+    rm $host/*
+    #read latency
+    scp $host:/tmp/read_latency* ./$host
+    #write latency
+    scp $host:/tmp/write_latency* ./$host
+
+    cat $host/read_latency* >> agg_read_latency
+    cat $host/write_latency* >> agg_write_latency
+
+done
 
 mv agg_write_latency write
 mv agg_read_latency read

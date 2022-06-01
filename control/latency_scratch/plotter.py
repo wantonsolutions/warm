@@ -24,8 +24,12 @@ def cdf(data):
 
 filenames=sys.argv[1:]
 output_99=[]
+
 for file in filenames:
-    latency = np.loadtxt(file, delimiter=',', unpack=True)
+    try:
+        latency = np.loadtxt(file, delimiter=',', unpack=True)
+    except:
+        continue
 
     ##This should only happen to the read input file for the 100% write case
     if len(latency) == 0:
