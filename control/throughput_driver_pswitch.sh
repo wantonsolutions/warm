@@ -37,7 +37,7 @@ echo ">>>>>>>>> ($date)" >> results.dat
 #packet_size=("500")
 #packet_size=("1000")
 #packet_size=("1000" "900" "800" "700" "600" " 500")
-packet_size=("1000")
+packet_size=("100")
 keyspaces=("1000")
 
 #threads=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19" "20" "21" "22" "23" "24" "25" "26" "27" "28" "29" "30" "31" "32" "33" "34" "35" "36" "37" "38" "39" "40")
@@ -60,13 +60,13 @@ threads=("1" "2" "4" "8" "16" "24" "32" "40")
 #zipfs=("0.00" "0.60" "0.80" "0.90" "1.00" "1.10" "1.20" "1.30" "1.40" "1.50")
 zipfs=("1.00")
 
-#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
-#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B")
+opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_W")
-opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
+#opmodes=("MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
 #opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_W")
 switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
 #switch_modes=("SWORDBOX_OFF")
@@ -74,7 +74,6 @@ switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
 #switch_modes=("WRITE_STEER")
 #switch_modes=("READ_STEER")
 
-trials="5"
 
 test_name="nill"
 if [ ! -z $1 ]; then
@@ -87,19 +86,21 @@ if [ $test_name == "--packet-size" ]; then
     packet_size=("100" "200" "500" "1000")
     keyspaces=("1000")
     threads=("40")
-    zipfs=("0.80")
+    zipfs=("1.00")
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
+    trials="5"
 fi
 
 #conntention
 if [ $test_name == "--contention" ]; then
-    packet_size=("100")
+    packet_size=("100" "1000")
     keyspaces=("1000")
     threads=("40")
     zipfs=("0.00" "0.60" "0.80" "0.90" "1.00" "1.10" "1.20" "1.30" "1.40" "1.50")
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
+    trials="5"
 fi
 
 

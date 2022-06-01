@@ -158,7 +158,7 @@ function clean_up() {
     combined=`python3 sum.py ${#HOSTS[@]} $tmp`
     #todo check if the output does not exist
     echo "Experiment Complete"
-    echo "$combined" >> results.dat
+    #echo "$combined" >> results.dat
     echo "$combined" >> bench_results.dat
 }
 

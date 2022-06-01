@@ -1,5 +1,6 @@
 import sys
 import os
+import numpy as np
 
 read_write_steering_label='Write + Read'
 write_steering_label='Write'
@@ -52,3 +53,29 @@ def save_fig(plt):
     name=get_plot_name_from_filename()
     plt.savefig(name+'.pdf')
     plt.savefig(name+'.png')
+
+def read_from_txt(filename):
+    names  =['ops', 'threads', 'keys', 'zipf', 'ratio', 'size', 'total_ops', 'err', 'trials']
+    formats=['i',   "i",       'i',    'f',    'i',     'i',    'i',         'i',   'i']
+    db = np.loadtxt(filename, delimiter=',', dtype={'names':names, 'formats':formats})
+    return db
+
+def divide_db(db, chunks):
+    parts=[]
+    individual_size=int(len(db)/chunks)
+    bottom=0
+    top=individual_size
+    for i in range(chunks):
+        parts.append(db[bottom:top])
+        bottom=top
+        top=top+individual_size
+
+    print(parts)
+    return parts
+
+def select_feilds(db, feilds):
+    selected=dict()
+    for f in feilds:
+        selected[f]=db[f].tolist()
+        print(selected[f])
+    return selected
