@@ -17,9 +17,26 @@ default_clover_color='#8caff6ff'          #Coral
 def div_mil (list):
     return [val /1000000.0 for val in list]
 
+def div_tho (list):
+    return [val /1000.0 for val in list]
+
 def scale_mil(measurement):
-    measurement["ops"]=div_mil(measurement["ops"])
-    measurement["err"]=div_mil(measurement["err"])
+    names  =['ops', 'err']
+    for name in names:
+        if not name in measurement:
+            continue
+        measurement[name]=div_mil(measurement[name])
+
+def scale_tho(measurement):
+    names  =['read_lat', 'read_lat_err', 'write_lat', 'write_lat_err']
+    for name in names:
+        if not name in measurement:
+            continue
+        measurement[name]=div_tho(measurement[name])
+
+def scale(measurement):
+    scale_mil(measurement)
+    scale_tho(measurement)
 
 
 def plot_max_improvement(ax, m1, m2, xaxis):
@@ -54,9 +71,10 @@ def save_fig(plt):
     plt.savefig(name+'.pdf')
     plt.savefig(name+'.png')
 
+# 2003364,120,1000,1.00,50,100,1001806,1712,1628754,16548,19892,68,5
 def read_from_txt(filename):
-    names  =['ops', 'threads', 'keys', 'zipf', 'ratio', 'size', 'total_ops', 'err', 'trials']
-    formats=['i',   "i",       'i',    'f',    'i',     'i',    'i',         'i',   'i']
+    names  =['ops', 'threads', 'keys', 'zipf', 'ratio', 'size', 'total_ops', 'err', 'read_lat', 'read_lat_err', 'write_lat', 'write_lat_err', 'trials']
+    formats=['i',   "i",       'i',    'f',    'i',     'i',    'i',         'i',   'i',        'i',            'i',         'i',             'i']
     db = np.loadtxt(filename, delimiter=',', dtype={'names':names, 'formats':formats})
     return db
 
@@ -70,12 +88,10 @@ def divide_db(db, chunks):
         bottom=top
         top=top+individual_size
 
-    print(parts)
     return parts
 
 def select_feilds(db, feilds):
     selected=dict()
     for f in feilds:
         selected[f]=db[f].tolist()
-        print(selected[f])
     return selected
