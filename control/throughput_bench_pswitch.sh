@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 
 export LCLOVER_THREADS=$1
@@ -7,6 +7,9 @@ export LCLOVER_YCSB_OP_MODE=$3
 export LCLOVER_PAYLOAD_SIZE=$4
 export SWITCH_MODE=$5
 export ZIPF_DIST=$6
+export TRIALS=$7
+#export HOSTS=("yeti5" "yeti0")
+export HOSTS=("yeti5" "yeti0" "yeti1")
 
 function clean_pswitch() {
     echo "waiting on pswitch"
@@ -29,11 +32,33 @@ function set_pswitch_mode() {
     ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/$mode_script"
 }
 
+function set_rdma_size() {
+    size=$LCLOVER_PAYLOAD_SIZE
+    size_script="set_rdma_size_128.py"
+    if [ $size == "100" ]; then
+        size_script="set_rdma_size_128.py"
+    elif [ $size == "200" ]; then
+        size_script="set_rdma_size_256.py"
+    elif [ $size == "500" ];then
+        size_script="set_rdma_size_512.py"
+    elif [ $size == "1000" ];then
+        size_script="set_rdma_size_1024.py"
+    else
+        echo "BAD RDMA SIZE $size setting to default $size_script"
+    fi
+    echo "setting switch to RDMA SIZE $size with script $size_script"
+    ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/$size_script"
+}
+
 function kill_all_clients() {
-    ssh b09-27 'sudo killall memcached'
-    ssh yak0 'echo iwicbV15 | sudo -S killall init'
-    ssh yak1 'echo iwicbV15 | sudo -S killall init'
-    ssh yeti5 'echo iwicbV15 | sudo -S killall init'
+    ssh b09-27 'sudo killall memcached' &
+    ssh yak0 'echo iwicbV15 | sudo -S killall init' &
+    ssh yak1 'echo iwicbV15 | sudo -S killall init' &
+
+    for host in ${HOSTS[@]}; do
+        ssh $host 'echo iwicbV15 | sudo -S killall init' &
+    done
+    wait
 }
 
 function build_clover() {
@@ -55,6 +80,8 @@ function build_clover() {
     buildSource=`cat build_clover.sh`
     fullBuild=$lenv$buildSource
     echo $fullBuild
+
+    #here alone we treat yeti5 as special because it has a different package
     ssh yeti5 $fullBuild &
 
     wait
@@ -80,17 +107,20 @@ function start_machines() {
     echo "sshing to the memory server"
     echo "$memorySource"
     ssh yak1 $memorySource &
-    sleep 1
 
     #yak0 meta
     metaSource=`cat meta_server.sh`
     ssh yak0 $metaSource &
-    sleep 1
 
-    #yeti 5 client
-    clientSource1=`cat client_server_1.sh`
-    ssh yeti5 "$clientSource1" &
-    sleep 1
+    #start multiple clients
+
+    let "i=1"
+    for host in ${HOSTS[@]}; do
+        #yeti 5 client
+        clientSource=`cat client_server_$i.sh`
+        ssh $host "$clientSource" &
+        let "i=i+1"
+    done
 
     echo "FINSHED ALL THE LAUNCHING SCRIPTS WAITING For experiment to complete"
     wait
@@ -98,18 +128,67 @@ function start_machines() {
 
 }
 
+
+RUN_SUCCESS="FALSE"
+
 function clean_up() {
-    scp yeti5:/home/ssgrant/pDPM/clover/clean_1.dat clean_1.dat
-    tail -1 clean_1.dat >> results.dat
-    tail -1 clean_1.dat >> latest.dat
+
+    tmp="tmp_results.dat"
+    rm $tmp
+    echo "processing bandwidth information"
+    let "i=1"
+    for host in ${HOSTS[@]}; do
+        rm clean_$i.dat
+        scp $host:/home/ssgrant/pDPM/clover/clean_$i.dat clean_$i.dat
+        res=`tail -1 clean_$i.dat`
+        echo $res
+
+        if [ -z "$res" ] ; then
+            RUN_SUCCESS="FALSE"
+            echo "Experiment Failed"
+            return
+        else
+            echo "${res}" >> $tmp
+        fi
+        let "i=i+1"
+    done
+
+    RUN_SUCCESS="TRUE"
+
+    combined=`python3 sum.py ${#HOSTS[@]} $tmp`
+    #todo check if the output does not exist
+    echo "Experiment Complete"
+    echo "$combined" >> results.dat
+    echo "$combined" >> bench_results.dat
 }
 
 
 echo "Bencmark Script $0"
-clean_pswitch
+rm bench_results.dat
+
+build_clover
+set_rdma_size
 set_pswitch_mode
 set_distribution
-kill_all_clients
-build_clover
-start_machines
-clean_up
+for t in $(seq 1 $TRIALS); do
+
+    #keep retring untill success
+    RUN_SUCCESS="FALSE"
+    while [ $RUN_SUCCESS == "FALSE" ]; do
+        clean_pswitch
+        kill_all_clients
+        start_machines
+        clean_up
+    done
+
+done
+
+#combine results and product stderr
+#inject zipf into bench results
+#todo this is super quick and dirty, consider moving somewhere else
+sed -i "s/zipf/${ZIPF_DIST}/g" bench_results.dat
+sed -i "s/,@TAG@,//g" bench_results.dat
+res=`python3 stats.py bench_results.dat $TRIALS`
+
+echo "$res" >> results.dat
+echo "$res" >> latest.dat
