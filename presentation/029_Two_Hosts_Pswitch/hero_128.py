@@ -2,93 +2,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from statistics import mean
 import numpy as np
+from common import *
 
 fig, (ax1, ax2, ax3, ax4) = plt.subplots(1,4, figsize=(20,4))
-#labels =  ['2', '4', '8', '16', '32', '48', '64']
-#labels =  [16,24,32,40]
-#labels=[1,2,4,8,16,24,32,40,]
-#labels=[1,2,4,8,16,24,32,40,48,56,64,72,80,]
-#labels=[2,4,8,16,32,48,64,80,]
-labels=[3,6,12,24,48,72,96,120,]                                                                                                                                                                                  
-#labels=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,]
-
-cns_label='CAS -> Write'
-qp_mapping_label='QP mapping'
-read_write_steering_label='Write + Read'
-write_steering_label='Write'
-default_clover_label='Clover'
-
-cns_marker='x'
-qp_mapping_marker='s'
-read_write_steering_marker='+'
-write_steering_marker="*"
-default_clover_marker='.'
-
-cns_color='#00702eff'                     #indigo
-qp_mapping_color='#9470b9ff'              #ruby
-read_write_steering_color='#cf243cff'     #alice
-write_steering_color='#ed7d31ff'          #kelly
-default_clover_color='#8caff6ff'          #Coral 
-
-
-def div_mil (list):
-    return [val /1000000.0 for val in list]
-
-def scale_mil(measurement):
-    measurement["ops"]=div_mil(measurement["ops"])
-    measurement["err"]=div_mil(measurement["err"])
-
-def plot_max_improvement(ax,read_write_steering,clover_with_buffering):
-    if len(read_write_steering) > 1 and (len(read_write_steering) == len(clover_with_buffering)):
-        improvement=[]
-        for rw ,clov in zip(read_write_steering, clover_with_buffering):
-            improvement.append(rw/clov)
-        i=0
-        max_index=0
-        max_improvement=0
-
-        for value in improvement:
-            if value > max_improvement:
-                max_improvement = value
-                max_index=i
-            i=i+1
-        
-        max_improvement=round(max_improvement,2)
-        ax.text(labels[len(labels) -2], read_write_steering[len(read_write_steering)-1]/2,str(max_improvement)+"x")
-        x_1=labels[max_index]
-        x=[x_1,x_1]
-        y=[read_write_steering[max_index],clover_with_buffering[max_index]]
-
-        ax.plot(x,y,color='k',linestyle='--')
-
-def plot_max_improvement_2(ax, m1, m2):
-    m1_ops=[]
-    m2_ops=[]
-    threads=[]
-    
-    for thread in m1["threads"]:
-        if thread in m2["threads"]:
-            threads.append(thread)
-            m1_ops.append(m1["ops"][m1["threads"].index(thread)])
-            m2_ops.append(m2["ops"][m2["threads"].index(thread)])
-
-
-    improvement=[ a/b for a ,b in zip(m1_ops, m2_ops)]
-    max_improvement=max(improvement)
-    max_index=improvement.index(max_improvement)
-
-    max_improvement=round(max_improvement,2)
-    ax.text(threads[len(threads) -2], m1_ops[len(m1_ops)-1]/2,str(max_improvement)+"x")
-    x_1=threads[max_index]
-    x=[x_1,x_1]
-    y=[m1_ops[max_index],m2_ops[max_index]]
-
-    ax.plot(x,y,color='k',linestyle='--')
-
-
-
-
-
 
 def tput_err(ax,rws,ws, clover):
     scale_mil(rws)
@@ -98,77 +14,46 @@ def tput_err(ax,rws,ws, clover):
     ax.errorbar(ws["threads"],ws["ops"],ws["err"],label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
     ax.errorbar(clover["threads"],clover["ops"],clover["err"],label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
 
-    plot_max_improvement_2(ax,rws,clover)
+    plot_max_improvement(ax,rws,clover,"threads")
 
     #ax.set_yscale("log")
     ax.legend(loc='upper left', ncol=1)
     ax.set_xlabel('Threads')
 
-    
-
-def static_plot_attributes(ax,read_write_steering,write_steering, clover_with_buffering):
-    #convert to KOPS/s 
-    read_write_steering=div_mil(read_write_steering)
-    write_steering=div_mil(write_steering)
-    clover_with_buffering=div_mil(clover_with_buffering)
-
-    #plot
-    ax.plot(labels[:len(clover_with_buffering)],clover_with_buffering,label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
-    ax.plot(labels[:len(write_steering)],write_steering,label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
-    ax.plot(labels[:len(read_write_steering)],read_write_steering,label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color)
-
-    #add some decarations
-    # if len(read_write_steering) > 0:
-    #     perfect = [(read_write_steering[0]) * i  for i in labels]
-    #     #ax.plot(labels,perfect, color=cns_color, label="perfect")
-
-    plot_max_improvement(ax,read_write_steering,clover_with_buffering)
-
-
-        
-    # core_marker_x=[40,40]
-    # ymax=clover_with_buffering[7]/2
-    # core_marker_y=[-1,ymax]
-    # ax.plot(core_marker_x,core_marker_y,color='k',linestyle='--')
-    # ax.text(core_marker_x[1]+2,core_marker_y[1],"cores per NUMA")
-
-    # ax.set_ylim(bottom=0, top=12)
-    # ax.set_xlim(left=0, right=labels[len(labels)-1]+1)
-    ax.legend(loc='upper left', ncol=1)
-    ax.set_xlabel('Threads')
-
-
-figure_name='hero_128'
-
-avg_ops=[1]
-threads=[1]
-std=[1]
 
 
 ####################### YCSB C
+avg_ops=[866556,1677449,3286434,6437521,11997007,16172503,16220920,16221296,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[882,3252,3550,183620,10874,4896,6800,6800,]
 clover_with_buffering_C= {"ops": avg_ops,"threads": threads, "err": std}
-
+avg_ops=[867771,1678017,3288402,6433192,12053542,16107614,16221201,16226420,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[1487,2961,3384,60538,119171,6796,4238,4238,]
 write_steering_C=        {"ops": avg_ops,"threads": threads, "err": std}
-
+avg_ops=[867641,1678272,3282914,6440277,12016216,16165432,16219664,16219396,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[883,13447,4635,74019,8458,4664,5952,5952,]
 read_write_steering_C=   {"ops": avg_ops,"threads": threads, "err": std}
 
 tput_err(ax1,read_write_steering_C,write_steering_C,clover_with_buffering_C)
 
 ax1.set_title('0% Writes')
 ax1.set_ylabel('MOPS')
-#ax1.set_ylim(top=350)
-
-
 
 ####################### YCSB B
 
-avg_ops=[779646,1497432,2801172,4611903,7548014,9250425,9634269,9094907,]
+avg_ops=[771261,1477929,2778626,4563829,7584997,8988955,9696498,9105597,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[2048,3863,5093,71521,7035,111950,8870,8870,]
+std=[11127,22274,13403,36597,155369,7244,9522,9522,] 
 clover_with_buffering_B= {"ops": avg_ops,"threads": threads, "err": std}
-
+avg_ops=[775847,1483216,2804457,4700867,7828226,9476730,9820703,9225293,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[2431,17835,5310,14054,64580,99589,11232,11232,] 
 write_steering_B=        {"ops": avg_ops,"threads": threads, "err": std}
-
+avg_ops=[821256,1584619,3095496,5984433,11292677,15311122,16205093,16266863,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[12827,27646,51060,24129,31629,99816,40071,40071,]
 read_write_steering_B=   {"ops": avg_ops,"threads": threads, "err": std}
 
 tput_err(ax2,read_write_steering_B,write_steering_B,clover_with_buffering_B)
@@ -178,19 +63,19 @@ ax2.set_title('5% Writes')
 
 ####################### YCSB A
 
-avg_ops=[350643,1256167,1400842,1389080,1394428,]
-threads=[3,48,72,96,120,]
-std=[31567,35467,26267,1639,1639,]
+avg_ops=[350771,583653,888214,1125869,1273476,1426466,1405170,1393045,]
+threads=[3,6,12,24,48,72,96,120,]
+std=[1245,14676,19404,24274,1266,2664,1828,1828,]
 clover_with_buffering_A={"ops": avg_ops,"threads": threads, "err": std}
 
-avg_ops=[463486,811052,1343690,1962017,2337676,2547328,2337104,1833293,]
+avg_ops=[463353,805939,1324920,1958157,2330401,2539998,2279287,1849486,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[741,24033,4429,63569,1879,3158,75781,75781,]
+std=[7394,35731,2166,91332,5306,70302,48740,48740,]
 write_steering_A={"ops": avg_ops,"threads": threads, "err": std}
 
-avg_ops=[579289,1100143,2114343,4004643,7255844,9522098,10962757,12766810,]
+avg_ops=[579542,1105637,2089796,4002665,7036191,9271950,11127037,12628846,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[13700,3071,69168,17292,54123,600205,92184,92184,]
+std=[1472,40654,64325,199929,323045,370850,398494,398494,]
 read_write_steering_A={"ops": avg_ops,"threads": threads, "err": std}
 
 tput_err(ax3,read_write_steering_A,write_steering_A,clover_with_buffering_A)
@@ -198,26 +83,25 @@ ax3.set_title('50% Writes')
 
 
 ####################### Write Only
-avg_ops=[211678,359252,522902,632002,660740,731444,724635,714810,]
+avg_ops=[212850,352813,529428,621600,684549,733559,711748,706982,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[0,0,0,0,0,0,0,0,]
+std=[4605,12689,13944,20481,1304,16725,12736,12736,]
+
 clover_with_buffering_W={"ops": avg_ops,"threads": threads, "err": std}
 
-avg_ops=[423794,806729,1545074,2894566,3988856,6067806,6916010,7439997,]
+avg_ops=[423825,807568,1548658,2893532,4747502,6049855,6899267,7434914,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[0,0,0,0,0,0,0,0,]
+std=[371,769,6977,13587,5498,19697,13422,13422,]
 write_steering_W= {"ops": avg_ops,"threads": threads, "err": std}       
 
-avg_ops=[424198,806856,1543887,2734326,4756884,6070445,6746916,7460868,]
+avg_ops=[423390,807382,1548106,2859218,4748105,5791846,6817763,7339224,]
 threads=[3,6,12,24,48,72,96,120,]
-std=[0,0,0,0,0,0,0,0,]
+std=[1024,1985,61037,5600,176064,108314,240301,240301,]
+
 read_write_steering_W= {"ops": avg_ops,"threads": threads, "err": std}  
 
 tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W)
 ax4.set_title('100% Writes')
 
 plt.tight_layout()
-#ax1.tight_layout()
-plt.savefig(figure_name+'.pdf')
-plt.savefig(figure_name+'.png')
-#plt.show()
+save_fig(plt)
