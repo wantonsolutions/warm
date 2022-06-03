@@ -12,6 +12,13 @@ all_registers = [
     #"SwitchIngress.write_cache_key",
     "SwitchIngress.read_tail_low",
     "SwitchIngress.read_tail_high",
+    "SwitchIngress.read_miss_counter",
+]
+
+
+counter_registers = [
+    "SwitchIngress.id_counter",
+    "SwitchIngress.read_miss_counter",
 ]
 
 #memory
@@ -23,34 +30,18 @@ yak_1_port=52
 #client
 yeti_5_mac="ec:0d:9a:68:21:a0"
 yeti_5_port=56
+#client 2
+yeti_0_mac="ec:0d:9a:68:21:b4"
+yeti_0_port=60
+#client 3
+yeti_1_mac="ec:0d:9a:68:21:88"
+yeti_1_port=40
 
 mac_forwarding_table=[
     (yak_0_port,yak_0_mac),
     (yeti_5_port,yeti_5_mac),
+    (yeti_0_port,yeti_0_mac),
+    (yeti_1_port,yeti_1_mac),
     (yak_1_port,yak_1_mac),
 ]
 
-
-def set_register(table, target, name, value):
-    ks = []
-    dat = []
-    print("Setting Register: "+name+ " Size: "+ str(table.info.size) + "...")
-
-    x = table.entry_get(target)
-    for i in x:
-        ks.append(i[1])
-
-        byte_len=len(i[0][name+str(".f1")].val)
-        val='\x00'
-        if byte_len == 2:
-            val='\x00\x00'
-        elif byte_len == 3:
-            val='\x00\x00\x00'
-        elif byte_len == 4:
-            val='\x00\x00\x00\x00'
-
-        i[0][name+str(".f1")].val=val
-        dat.append(i[0])
-    
-    table.entry_mod(target,ks,dat)
-    print("Done")

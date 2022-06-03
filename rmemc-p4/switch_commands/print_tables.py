@@ -17,9 +17,10 @@ def print_register(table,target,name):
         #print(data[name+str(".f1")])
     print("done")
 
-def print_registers():
+
+def print_registers(name_list):
     target=gc.Target(device_id=0, pipe_id=0xffff)
-    names=all_registers
+    names=name_list
     for name in names:
         try:
             reg = bfrt_info.table_get(name)
@@ -28,4 +29,5 @@ def print_registers():
             print(name + " does not seem to exist")
 
 
-print_registers()
+print_registers(all_registers)
+#print_registers(counter_registers)

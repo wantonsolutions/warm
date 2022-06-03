@@ -61,6 +61,7 @@ def add_forwarding_rules(table):
     key_list=[]
     data_list=[]
     for entry in table:
+        print(entry)
         port=entry[0]
         mac=int(EUI(entry[1]))
         key_list.append(forward_table.make_key([gc.KeyTuple("hdr.ethernet.dstAddr", mac )]))

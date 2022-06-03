@@ -22,6 +22,14 @@
 #define WRITE_STEER 1
 #define READ_STEER 2
 
+#define RDMA_128 128
+#define RDMA_256 246
+#define RDMA_512 512
+#define RDMA_1024 1024
+
+
+#define STATISTICS
+
 control SwitchIngress(inout headers hdr,
     inout metadata meta,
 
@@ -72,15 +80,37 @@ control SwitchIngress(inout headers hdr,
             read_value = value;
         }
     };
-
     action get_swordbox_mode_action(bit<1> get_val){
         meta.swordbox_mode = get_swordbox_mode.execute(get_val);
     }
 
+    Register<bit<32>, bit<1>>(1,RDMA_128) rdma_size;
+    RegisterAction<bit<32>, bit<1>, bit<32>>(rdma_size) get_rdma_size = {
+        void apply(inout bit<32> value, out bit<32> read_value) {
+            read_value = value;
+        }
+    };
+    action get_rdma_size_action(bit<1> get_val){
+        meta.rdma_size = get_rdma_size.execute(get_val);
+    }
+
+    //#ifdef STATISTICS    
+    Register<bit<32>, bit<1>>(1,0) read_miss_counter;
+    RegisterAction<bit<32>, bit<1>, bit<32>>(read_miss_counter) inc_read_miss = {
+        void apply(inout bit<32> value, out bit<32> read_value) {
+            value=value+1;
+        }
+    };
+
+    action inc_read_miss_counter_action(bit<1> get_val){
+        inc_read_miss.execute(get_val);
+    }
+    //#endif
+
 
     //The size of the hashed value for qp's make this larger if there are
     //collisons, make it smaller if you start to run out of space
-    #define QP_HASH_WIDTH 12
+    #define QP_HASH_WIDTH 14
     #define QP_ID_TABLE_SIZE ( 1 << QP_HASH_WIDTH)
 
     //The size of the ID's used in the table, and the total number of ID's.
@@ -350,21 +380,20 @@ control SwitchIngress(inout headers hdr,
     }
 
 
-    #define PAYLOAD_SIZE 128
-
     apply {
 
-
-        #ifdef WRITE_STEER
+        get_swordbox_mode_action(0);
+        get_rdma_size_action(0);
         if (
+            (meta.swordbox_mode >= WRITE_STEER) &&
             //Write Packtes
             (hdr.roce.opcode == RC_WRITE_ONLY && 
-             hdr.write_req.dma_length == PAYLOAD_SIZE) ||
+             hdr.write_req.dma_length == meta.rdma_size) ||
             //CAS packets
             (hdr.roce.opcode == RC_CNS) ||
             //Read Packets
             (hdr.roce.opcode == RC_READ_REQUEST &&
-             hdr.read_req.dma_length == PAYLOAD_SIZE)
+             hdr.read_req.dma_length == meta.rdma_size)
         ) {
 
             bit<QP_HASH_WIDTH> qp_hash_index = (bit<QP_HASH_WIDTH>) id_hash.get(hdr.roce.dest_qp);
@@ -376,7 +405,6 @@ control SwitchIngress(inout headers hdr,
                 read_id(qp_hash_index);
             }
 
-            get_swordbox_mode_action(0);
 
 
             //Write Path
@@ -392,14 +420,15 @@ control SwitchIngress(inout headers hdr,
                 set_outstanding_write_vaddr_low(meta.id);
                 set_outstanding_write_vaddr_high(meta.id);
 
-                #ifdef READ_STEER
-                //TODO mega dang use the entire 64 bit address for hashing
-                bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
-                set_write_cache_low(write_hash_index);
-                set_write_cache_high(write_hash_index);
-                set_write_cache_key(write_hash_index);
+                //#ifdef READ_STEER
+                if (meta.swordbox_mode >= READ_STEER) {
+                    //TODO mega dang use the entire 64 bit address for hashing
+                    bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
+                    set_write_cache_low(write_hash_index);
+                    set_write_cache_high(write_hash_index);
+                    set_write_cache_key(write_hash_index);
+                }
                 //update_write_vaddr_cache(*key, wr->rdma_extended_header.vaddr);
-                #endif //READ STEERING
 
 
 
@@ -427,51 +456,52 @@ control SwitchIngress(inout headers hdr,
                         hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
                     }
                 } 
-                #ifdef READ_STEER
-                set_read_tail_low(meta.key);
-                set_read_tail_high(meta.key);
-                #endif // READ_STEERING
+
+                if (meta.swordbox_mode >= READ_STEER) {
+                    set_read_tail_low(meta.key);
+                    set_read_tail_high(meta.key);
+                }
+                
 
 
             } else if (hdr.roce.opcode == RC_READ_REQUEST) {// && hdr.read_req.dma_length == 1024) {
 
-                #ifdef READ_STEER
+                if (meta.swordbox_mode >= READ_STEER) {
 
-                bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(hdr.read_req.virt_addr.lower);
-                get_write_cache_key(read_hash_index);
+                    bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(hdr.read_req.virt_addr.lower);
+                    get_write_cache_key(read_hash_index);
 
-                //Check if the hash of this vadder is a hit and matches
-                get_write_cache_low(read_hash_index);
-                get_write_cache_high(read_hash_index);
-                get_read_tail_low(meta.key);
-                get_read_tail_high(meta.key);                
+                    //Check if the hash of this vadder is a hit and matches
+                    get_write_cache_low(read_hash_index);
+                    get_write_cache_high(read_hash_index);
+                    get_read_tail_low(meta.key);
+                    get_read_tail_high(meta.key);                
 
-                //Check that the cache hit is legitimate, we know that this address is for a known key
-                //TODO make this simpler so that I can use both addresses
-                bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
-                if ((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
-                    //We found that the latest value was cached so we know the key
-                    //In this case we always update the packet
-                    //We could skip updating the packet if the value was allready correct
+                    //Check that the cache hit is legitimate, we know that this address is for a known key
+                    //TODO make this simpler so that I can use both addresses
+                    bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
+                    if ((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+                        //We found that the latest value was cached so we know the key
+                        //In this case we always update the packet
+                        //We could skip updating the packet if the value was allready correct
 
-                    hdr.read_req.virt_addr.lower=meta.read_tail.lower;
-                    hdr.read_req.virt_addr.upper=meta.read_tail.upper;
-                    //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
+                        hdr.read_req.virt_addr.lower=meta.read_tail.lower;
+                        hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+                        //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
+                    }
+                    //#ifdef STATISTICS
+                    else {
+                        inc_read_miss_counter_action(0);
+                    }
+                    //#endif
                 }
-                #endif //READ STEERING
             }
         }
 
-        #endif //WRITE_STEER
 
 
         forward.apply();
-        //update.apply();
-
-        //call the multiplex rdma twice
-        //multiplex_rdma.apply();
         ig_tm_md.bypass_egress = 1w1;
-        //multiplex_rdma.apply();
     }
 
 }
