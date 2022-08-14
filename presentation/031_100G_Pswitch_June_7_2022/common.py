@@ -39,6 +39,33 @@ def scale(measurement):
     scale_tho(measurement)
 
 
+def get_gbps(total_bytes, duration):
+    bw=[]
+    for a,b in zip(total_bytes,duration):
+        bw_from_data= a/(b/1000) #a is the total bytes, duration is in ms
+        gbps=(bw_from_data*8.0)/1000000000.0 #convert to gbps
+        bw.append(gbps)
+    return bw
+
+def get_mpps(total_bytes, duration):
+    bw=[]
+    for a,b in zip(total_bytes,duration):
+        bw_from_data= a/(b/1000)       #a is the total packets that would have run in a second 
+        gbps=(bw_from_data)/1000000.0 #convert to mpps
+        bw.append(gbps)
+    return bw
+
+def get_mpps_and_err(measure):
+    mpps = get_mpps(measure["total_packets"],measure["duration"])
+    mpps_err = get_mpps(measure["total_packets_error"],measure["duration"])
+    return(mpps,mpps_err)
+
+def get_gbps_and_err(measure):
+    bw = get_gbps(measure["total_bytes"],measure["duration"])
+    bw_err = get_gbps(measure["total_bytes_error"],measure["duration"])
+    return(bw,bw_err)
+
+
 def plot_max_improvement(ax, m1, m2, xaxis):
     m1_ops=[]
     m2_ops=[]
@@ -73,8 +100,8 @@ def save_fig(plt):
 
 # 2003364,120,1000,1.00,50,100,1001806,1712,1628754,16548,19892,68,5
 def read_from_txt(filename):
-    names  =['ops', 'threads', 'keys', 'zipf', 'ratio', 'size', 'total_ops', 'err', 'read_lat', 'read_lat_err', 'write_lat', 'write_lat_err', 'trials']
-    formats=['i',   "i",       'i',    'f',    'i',     'i',    'i',         'i',   'i',        'i',            'i',         'i',             'i']
+    names  =['ops', 'threads', 'duration', 'zipf', 'ratio', 'size', 'total_ops', 'err', 'read_lat', 'read_lat_err', 'write_lat', 'write_lat_err', 'total_bytes', 'total_bytes_error','total_packets', 'total_packets_error','trials',  ]
+    formats=['i',   'i',       'i',        'f',    'i',     'i',    'i',         'i',   'i',        'i',            'i',         'i',             'ulonglong',   'ulonglong',        'ulonglong',     'ulonglong',          'i']
     db = np.loadtxt(filename, delimiter=',', dtype={'names':names, 'formats':formats})
     return db
 

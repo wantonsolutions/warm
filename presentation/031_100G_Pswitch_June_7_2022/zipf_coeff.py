@@ -45,7 +45,7 @@ figure_name='zipf_coeff'
 
 #[186907,362862,678406,1135524,1753723,2058595,2138879]
 
-measurements=["clover_128", "clover_1024", "write_128", "write_1024", "rw_128", "rw_1024"]
+measurements=["clover_128", "write_128","rw_128"]
 feilds=["ops", "zipf", "err"]
 md=dict() #measurement dict
 
@@ -58,13 +58,13 @@ for cdb, m in zip(chunked_db, measurements):
 
 
 ####################### 1024 YCSB A
-clover_with_buffering_A_1024= md["clover_1024"]
-write_steering_A_1024       = md["write_1024"]
-read_write_steering_A_1024  = md["rw_1024"]
-contention_err(ax1,read_write_steering_A_1024,write_steering_A_1024,clover_with_buffering_A_1024)
+# clover_with_buffering_A_1024= md["clover_1024"]
+# write_steering_A_1024       = md["write_1024"]
+# read_write_steering_A_1024  = md["rw_1024"]
+# contention_err(ax1,read_write_steering_A_1024,write_steering_A_1024,clover_with_buffering_A_1024)
 
-ax1.set_title('Zipf Coeff 50% Writes 1024 bytes')
-ax1.set_ylabel('MOPS')
+# ax1.set_title('Zipf Coeff 50% Writes 1024 bytes')
+# ax1.set_ylabel('MOPS')
 
 ####################### 128 YCSB A
 clover_with_buffering_A_128 = md["clover_128"]
