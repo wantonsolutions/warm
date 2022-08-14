@@ -10,7 +10,7 @@ trials=sys.argv[2]
 
 #print("Calculating Stats on file " + trial_file + " for " + trials + " trials")
 
-ops, threads, keys, zipf, rw_ratio, pkt_size, total_ops, read_lat, write_lat  = np.loadtxt(trial_file, delimiter=',', unpack=True)
+ops, threads, keys, zipf, rw_ratio, pkt_size, total_ops, read_lat, write_lat, bytes, total_packets  = np.loadtxt(trial_file, delimiter=',', unpack=True)
 
 avg_ops = np.mean(ops)
 avg_total = np.mean(total_ops)
@@ -21,6 +21,12 @@ read_lat_err=np.std(read_lat)
 
 avg_write_lat=np.mean(write_lat)
 write_lat_err=np.std(write_lat)
+
+avg_bytes=np.mean(bytes)
+bytes_err=np.std(bytes)
+
+avg_pkts=np.mean(total_packets)
+pkts_err=np.std(total_packets)
 
 
 if int(trials) > 1:
@@ -58,5 +64,9 @@ str(int(avg_read_lat)) + "," +
 str(int(read_lat_err)) + "," +
 str(int(avg_write_lat)) + "," +
 str(int(write_lat_err)) + "," +
+str(int(avg_bytes)) + "," +
+str(int(bytes_err)) + "," +
+str(int(avg_pkts)) + "," +
+str(int(pkts_err)) + "," +
 
 str(size))
