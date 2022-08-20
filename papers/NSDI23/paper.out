@@ -27,6 +27,8 @@
 \BOOKMARK [2][-]{subsection.6.2}{YCSB benchmarks}{section.6}% 27
 \BOOKMARK [2][-]{subsection.6.3}{Bandwidth reduction}{section.6}% 28
 \BOOKMARK [2][-]{subsection.6.4}{Tail latency}{section.6}% 29
-\BOOKMARK [2][-]{subsection.6.5}{Atomic replacement}{section.6}% 30
-\BOOKMARK [1][-]{section.7}{Limitations}{}% 31
-\BOOKMARK [1][-]{section.8}{Conclusion}{}% 32
+\BOOKMARK [2][-]{subsection.6.5}{Packet Size}{section.6}% 30
+\BOOKMARK [2][-]{subsection.6.6}{Contention}{section.6}% 31
+\BOOKMARK [2][-]{subsection.6.7}{Atomic replacement}{section.6}% 32
+\BOOKMARK [1][-]{section.7}{Limitations}{}% 33
+\BOOKMARK [1][-]{section.8}{Conclusion}{}% 34

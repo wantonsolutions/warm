@@ -4,7 +4,7 @@ from statistics import mean
 import numpy as np
 from common import *
 
-plt.rcParams.update({'font.size': 14})
+plt.rcParams.update({'font.size': 16})
 default_line_width=3
 default_marker_size=10
 
@@ -14,9 +14,9 @@ def tput_err(ax,rws,ws, clover):
     scale_mil(rws)
     scale_mil(ws)
     scale_mil(clover)
-    ax.errorbar(rws["threads"],rws["ops"],rws["err"],label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color, linewidth=default_line_width, markersize=default_marker_size)
-    ax.errorbar(ws["threads"],ws["ops"],ws["err"],label=write_steering_label,marker=write_steering_marker,color=write_steering_color,linewidth=default_line_width, markersize=default_marker_size )
     ax.errorbar(clover["threads"],clover["ops"],clover["err"],label=default_clover_label,marker=default_clover_marker, color=default_clover_color,linewidth=default_line_width, markersize=default_marker_size )
+    ax.errorbar(ws["threads"],ws["ops"],ws["err"],label=write_steering_label,marker=write_steering_marker,color=write_steering_color,linewidth=default_line_width, markersize=default_marker_size )
+    ax.errorbar(rws["threads"],rws["ops"],rws["err"],label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color, linewidth=default_line_width, markersize=default_marker_size)
 
     #plot_max_improvement(ax,rws,clover,"threads")
 
@@ -42,7 +42,7 @@ tput_err(ax1,read_write_steering_C,write_steering_C,clover_with_buffering_C)
 
 ax1.set_title('0% Writes')
 ax1.set_ylabel('MOPS')
-ax1.legend(loc='upper left', ncol=1)
+ax1.legend(loc='lower right', ncol=1)
 
 ####################### YCSB B
 avg_ops=[1487724,2655252,4818364,7666020,12365564,13979169,13716786,13427863,12837368,12382960,]
@@ -101,6 +101,6 @@ read_write_steering_W= {"ops": avg_ops,"threads": threads, "err": std}
 tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W)
 ax4.set_title('100% Writes')
 
-fig.text(0.515,0.00, "Threads", ha='center')
+fig.text(0.515,0.00, "Threads", ha='center', size=18)
 plt.tight_layout()
 save_fig(plt)

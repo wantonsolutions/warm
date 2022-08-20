@@ -27,7 +27,7 @@ layout of our testbed.
 %  \vskip -0.5em
     \caption{{Performance of {\sword} techniques applied to Clover with 128 byte packets on 4 YCSB
     benchmarks. The percentage of workload writes increases from left to
-    right. Our improvements over Clover are 1.0x, 2.8x, 32x, and 46x respectively.}}
+    right. Our improvements over Clover are 1.0x, 2.8x, 32x, and 46x respectively.\todo{These are single runs not averages, rerun and capture error}}}
     \label{fig:full_system_performance}
       \vskip -0.5em
 \end{figure*}
@@ -113,10 +113,12 @@ logic is pure overhead due to the absence of reads.
   \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
    \vskip -0.5em
-    \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.}
+    \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.\todo{These are DPDK numbers re-run with the pswitch}}
     \label{fig:bandwidth_reduction}
      \vskip -0.5em
 \end{figure}
+
+
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/99th_latency.pdf}
 %\vskip -1em
@@ -220,6 +222,32 @@ CAS guard.  Rather, these plots show that the (significant)
 logic required in {\sword} to implement these functions result in only
 marginal increase in tail latency relative to steering alone---and still
 significantly outperforms Clover alone.
+
+\subsection{Packet Size}
+\todo{Write about packet sizes}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
+
+    \caption{Performance across RDMA payload sizes using 120 client cores.
+    \todo{These numbers need to be extended to 400 cores}}
+
+    \label{fig:packet_size}
+\end{figure}
+
+\subsection{Contention}
+\todo{Write about contention}
+\begin{figure}
+  \centering
+  \includegraphics[width=0.485\textwidth]{fig/contention.pdf}
+
+    \caption{Performance as contention increases with zipf coefficient using 120 client cores.
+    \todo{These numbers need to be extended to 400 cores}}
+
+    \label{fig:packet_size}
+\end{figure}
+
 
 %The application of QP mapping and swapping
 %CNS to writes does little to effect tail latency as their performance
