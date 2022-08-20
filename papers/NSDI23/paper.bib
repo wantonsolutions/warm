@@ -1,0 +1,763 @@
+@inproceedings {the-machine,
+author = {Paolo Faraboschi and Kimberly Keeton and Tim Marsland and Dejan Milojicic},
+title = {Beyond Processor-centric Operating Systems},
+booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS {XV})},
+year = {2015},
+address = {Kartause Ittingen, Switzerland},
+url = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/faraboschi},
+publisher = {{USENIX} Association},
+}
+
+
+@inproceedings{mom, author = {Ports, Dan R. K. and Li, Jialin and Liu, Vincent and Sharma, Naveen Kr. and Krishnamurthy, Arvind}, title = {Designing Distributed Systems Using Approximate Synchrony in Data Center Networks}, year = {2015}, isbn = {9781931971218}, publisher = {USENIX Association}, address = {USA}, abstract = {Distributed systems are traditionally designed independently from the underlying network, making worst-case assumptions (e.g., complete asynchrony) about its behavior. However, many of today's distributed applications are deployed in data centers, where the network is more reliable, predictable, and extensible. In these environments, it is possible to co-design distributed systems with their network layer, and doing so can offer substantial benefits.This paper explores network-level mechanisms for providing Mostly-Ordered Multicast (MOM): a best-effort ordering property for concurrent multicast operations. Using this primitive, we design Speculative Paxos, a state machine replication protocol that relies on the network to order requests in the normal case. This approach leads to substantial performance benefits: under realistic data center conditions, Speculative Paxos can provide 40% lower latency and 2.6\texttimes{} higher throughput than the standard Paxos protocol. It offers lower latency than a latency-optimized protocol (Fast Paxos) with the same throughput as a throughput-optimized protocol (batching).}, booktitle = {Proceedings of the 12th USENIX Conference on Networked Systems Design and Implementation}, pages = {43–57}, numpages = {15}, location = {Oakland, CA}, series = {NSDI'15} }
+
+@inproceedings{helios,
+author = {Nightingale, Edmund B and Hodson, Orion and McIlroy, Ross and Hawblitzel, Chris and Hunt, Galen},
+title = {Helios: Heterogeneous Multiprocessing with Satellite Kernels},
+booktitle = {Proceedings of the 22nd Symposium on Operating Systems Principles (SOSP '09)},
+year = {2009},
+month = {October},
+abstract = {
+Helios is an operating system designed to simplify the task of writing,
+deploying, and tuning applications for heterogeneous platforms. Helios
+    introduces satellite kernels, which export a single, uniform set of OS
+    abstractions across CPUs of disparate architectures and performance
+    characteristics. Access to I/O services such as ﬁle systems are made
+    transparent via remote message passing, which extends a standard
+    microkernel message-passing abstraction to a satellite kernel
+    infrastructure. Helios retargets applications to available ISAs by
+    compiling froman intermediate language. To simplify deploying and tuning
+    application performance, Helios exposes an afﬁnity metric to developers.
+    Afﬁnity provides a hint to the operating system about whether a process
+    would beneﬁt from executing on the same platform as a service it depends
+    upon.  We developed satellite kernels for an XScale programmable I/O card
+    and for cache-coherent NUMA architectures. We ofﬂoaded several applications
+    and operating system components, often by changing only a single line of
+    metadata. We show up to a 28% performance improvement by ofﬂoading tasks to
+    the XScale I/O card. On a mail-server benchmark, we show a 39% improvement
+    in performance by automatically splitting the application among multiple
+    NUMA domains.
+},
+publisher = {Association for Computing Machinery, Inc.},
+url = {https://www.microsoft.com/en-us/research/publication/helios-heterogeneous-multiprocessing-with-satellite-kernels/},
+edition = {Proceedings of the 22nd Symposium on Operating Systems Principles (SOSP '09)},
+}
+
+@inproceedings{zombieland,
+ author = {Nitu, Vlad and Teabe, Boris and Tchana, Alain and Isci, Canturk and Hagimont, Daniel},
+ title = {Welcome to Zombieland: Practical and Energy-efficient Memory Disaggregation in a Datacenter},
+ booktitle = {Proceedings of the Thirteenth EuroSys Conference},
+ series = {EuroSys '18},
+ year = {2018},
+ isbn = {978-1-4503-5584-1},
+ location = {Porto, Portugal},
+ pages = {16:1--16:12},
+ articleno = {16},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/3190508.3190537},
+ doi = {10.1145/3190508.3190537},
+ acmid = {3190537},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {energy efficiency, memory disaggregation, virtualization},
+} 
+
+@inproceedings{Schroeder:2007:DFR:1267903.1267904,
+ author = {Schroeder, Bianca and Gibson, Garth A.},
+ title = {Disk Failures in the Real World: What Does an MTTF of 1,000,000 Hours Mean to You?},
+ booktitle = {Proceedings of the 5th USENIX Conference on File and Storage Technologies},
+ series = {FAST '07},
+ year = {2007},
+ location = {San Jose, CA},
+ articleno = {1},
+ url = {http://dl.acm.org/citation.cfm?id=1267903.1267904},
+ acmid = {1267904},
+ publisher = {USENIX Association},
+ address = {Berkeley, CA, USA},
+}
+
+@inproceedings {cachecloud,
+author = {Shelby Thomas and Geoffrey M. Voelker and George Porter},
+title = {CacheCloud: Towards Speed-of-light Datacenter Communication},
+booktitle = {10th {USENIX} Workshop on Hot Topics in Cloud Computing (HotCloud 18)},
+year = {2018},
+address = {Boston, MA},
+url = {https://www.usenix.org/conference/hotcloud18/presentation/thomas},
+publisher = {{USENIX} Association},
+}
+
+@inproceedings {legoos,
+author = {Yizhou Shan and Yutong Huang and Yilun Chen and Yiying Zhang},
+title = {LegoOS: A Disseminated, Distributed {OS} for Hardware Resource Disaggregation},
+booktitle = {13th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 18)},
+year = {2018},
+isbn = {978-1-931971-47-8},
+address = {Carlsbad, CA},
+pages = {69--87},
+url = {https://www.usenix.org/conference/osdi18/presentation/shan},
+publisher = {{USENIX} Association},
+}
+
+@inproceedings{the-multikernel,
+author = {Baumann, Andrew and Barham, Paul and Isaacs, Rebecca and Harris, Tim},
+title = {The Multikernel: A new OS architecture for scalable multicore systems},
+booktitle = {22nd Symposium on Operating Systems Principles},
+year = {2009},
+month = {October},
+abstract = {Commodity computer systems contain more and more processor cores and exhibit increasingly diverse architectural tradeoffs, including memory hierarchies, interconnects, instruction sets and variants, and IO configurations. Previous high-performance computing systems have scaled in specific cases, but the dynamic nature of modern client and server workloads, coupled with the impossibility of statically optimizing an OS for all workloads and hardware variants pose serious challenges for operating system structures.
+
+We argue that the challenge of future multicore hardware is best met by embracing the networked nature of the machine, rethinking OS architecture using ideas from distributed systems. We investigate a new OS structure, the multikernel, that treats the machine as a network of independent cores, assumes no inter-core sharing at the lowest level, and moves traditional OS functionality to a distributed system of processes that communicate via message-passing.
+
+We have implemented a multikernel OS to show that the approach is promising, and we describe how traditional scalability problems for operating systems (such as memory management) can be effectively recast using messages and can exploit insights from distributed systems and networking.  An evaluation of our prototype on multicore systems shows that, even on present-day machines, the performance of a multikernel is comparable with a conventional OS, and can scale better to support future hardware.
+
+},
+publisher = {Association for Computing Machinery, Inc.},
+url = {https://www.microsoft.com/en-us/research/publication/the-multikernel-a-new-os-architecture-for-scalable-multicore-systems/},
+edition = {22nd Symposium on Operating Systems Principles},
+}
+
+@inproceedings {clover,
+author = {Shin-Yeh Tsai and Yizhou Shan and Yiying Zhang},
+title = {Disaggregating Persistent Memory and Controlling Them Remotely: An Exploration of Passive Disaggregated Key-Value Stores},
+booktitle = {2020 {USENIX} Annual Technical Conference ({USENIX} {ATC} 20)},
+year = {2020},
+isbn = {978-1-939133-14-4},
+pages = {33--48},
+url = {https://www.usenix.org/conference/atc20/presentation/tsai},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+@article{storm,
+  author    = {Stanko Novakovic and
+               Yizhou Shan and
+               Aasheesh Kolli and
+               Michael Cui and
+               Yiying Zhang and
+               Haggai Eran and
+               Liran Liss and
+               Michael Wei and
+               Dan Tsafrir and
+               Marcos K. Aguilera},
+  title     = {Storm: a fast transactional dataplane for remote data structures},
+  journal   = {CoRR},
+  volume    = {abs/1902.02411},
+  year      = {2019},
+  url       = {http://arxiv.org/abs/1902.02411},
+  archivePrefix = {arXiv},
+  eprint    = {1902.02411},
+  timestamp = {Tue, 21 May 2019 18:03:40 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-1902-02411.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{lite,
+author = {Tsai, Shin-Yeh and Zhang, Yiying},
+title = {LITE Kernel RDMA Support for Datacenter Applications},
+year = {2017},
+isbn = {9781450350853},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3132747.3132762},
+doi = {10.1145/3132747.3132762},
+booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+pages = {306–324},
+numpages = {19},
+keywords = {RDMA, indirection, low-latency network, network stack},
+location = {Shanghai, China},
+series = {SOSP ’17}
+}
+
+@InProceedings{aguilera2019designing,
+author = {Aguilera, Marcos and Keeton, Kimberly and Novakovic, Stanko and Singhal, Sharad},
+title = {Designing Far Memory Data Structures: Think Outside the Box},
+organization = {ACM},
+booktitle = {17th Workshop on Hot Topics in Operating Systems (HotOS)},
+year = {2019},
+month = {May},
+abstract = {Technologies like RDMA and Gen-Z, which give access to memory outside the box, are gaining in popularity. These technologies provide the abstraction of far memory, where memory is attached to the network and can be accessed by remote processors without mediation by a local processor. Unfortunately, far memory is hard to use because existing data structures are mismatched to it. We argue that we need new data structures for far memory, borrowing techniques from concurrent data structures and distributed systems. We examine the requirements of these data structures and show how to realize them using simple hardware extensions},
+url = {https://www.microsoft.com/en-us/research/publication/designing-far-memory-data-structures-think-outside-the-box/},
+}
+
+@inproceedings{surf,
+author = {Zhang, Huanchen and Lim, Hyeontaek and Leis, Viktor and Andersen, David G. and Kaminsky, Michael and Keeton, Kimberly and Pavlo, Andrew},
+title = {SuRF: Practical Range Query Filtering with Fast Succinct Tries},
+year = {2018},
+isbn = {9781450347037},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3183713.3196931},
+doi = {10.1145/3183713.3196931},
+booktitle = {Proceedings of the 2018 International Conference on Management of Data},
+pages = {323–336},
+numpages = {14},
+keywords = {surf, range filter, fast succinct tries, lsm-trees, succinct data structures},
+location = {Houston, TX, USA},
+series = {SIGMOD ’18}
+}
+
+@inproceedings{10.1145/3342195.3387522,
+author = {Amaro, Emmanuel and Branner-Augmon, Christopher and Luo, Zhihong and Ousterhout, Amy and Aguilera, Marcos K. and Panda, Aurojit and Ratnasamy, Sylvia and Shenker, Scott},
+title = {Can Far Memory Improve Job Throughput?},
+year = {2020},
+isbn = {9781450368827},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3342195.3387522},
+doi = {10.1145/3342195.3387522},
+booktitle = {Proceedings of the Fifteenth European Conference on Computer Systems},
+articleno = {14},
+numpages = {16},
+location = {Heraklion, Greece},
+series = {EuroSys ’20}
+}
+
+@inproceedings {reigons,
+author = {Marcos K. Aguilera and Nadav Amit and Irina Calciu and Xavier Deguillard and Jayneel Gandhi and Stanko Novakovi{\'c} and Arun Ramanathan and Pratap Subrahmanyam and Lalith Suresh and Kiran Tati and Rajesh Venkatasubramanian and Michael Wei},
+title = {Remote regions: a simple abstraction for remote memory},
+booktitle = {2018 {USENIX} Annual Technical Conference ({USENIX} {ATC} 18)},
+year = {2018},
+isbn = {978-1-939133-01-4},
+address = {Boston, MA},
+pages = {775--787},
+url = {https://www.usenix.org/conference/atc18/presentation/aguilera},
+publisher = {{USENIX} Association},
+month = jul,
+}
+ 
+@inproceedings {cell,
+author = {Christopher Mitchell and Kate Montgomery and Lamont Nelson and Siddhartha Sen and Jinyang Li},
+title = {Balancing {CPU} and Network in the Cell Distributed B-Tree Store},
+booktitle = {2016 {USENIX} Annual Technical Conference ({USENIX} {ATC} 16)},
+year = {2016},
+isbn = {978-1-931971-30-0},
+address = {Denver, CO},
+pages = {451--464},
+url = {https://www.usenix.org/conference/atc16/technical-sessions/presentation/mitchell},
+publisher = {{USENIX} Association},
+month = jun,
+}
+
+@inproceedings {pilaf,
+author = {Christopher Mitchell and Yifeng Geng and Jinyang Li},
+title = {Using One-Sided {RDMA} Reads to Build a Fast, CPU-Efficient Key-Value Store},
+booktitle = {2013 {USENIX} Annual Technical Conference ({USENIX} {ATC} 13)},
+year = {2013},
+isbn = {978-1-931971-01-0},
+address = {San Jose, CA},
+pages = {103--114},
+url = {https://www.usenix.org/conference/atc13/technical-sessions/presentation/mitchell},
+publisher = {{USENIX} Association},
+month = jun,
+}
+
+@inproceedings {254120,
+author = {Sebastian Angel and Mihir Nanavati and Siddhartha Sen},
+title = {Disaggregation and the Application},
+booktitle = {12th {USENIX} Workshop on Hot Topics in Cloud Computing (HotCloud 20)},
+year = {2020},
+url = {https://www.usenix.org/conference/hotcloud20/presentation/angel},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+@article{10.1145/224057.224072,
+author = {Feeley, M. J. and Morgan, W. E. and Pighin, E. P. and Karlin, A. R. and Levy, H. M. and Thekkath, C. A.},
+title = {Implementing Global Memory Management in a Workstation Cluster},
+year = {1995},
+issue_date = {Dec. 3, 1995},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {29},
+number = {5},
+issn = {0163-5980},
+url = {https://doi.org/10.1145/224057.224072},
+doi = {10.1145/224057.224072},
+journal = {SIGOPS Oper. Syst. Rev.},
+month = dec,
+pages = {201–212},
+numpages = {12}
+}
+
+  
+
+@inproceedings{gms,
+author = {Feeley, M. J. and Morgan, W. E. and Pighin, E. P. and Karlin, A. R. and Levy, H. M. and Thekkath, C. A.},
+title = {Implementing Global Memory Management in a Workstation Cluster},
+year = {1995},
+isbn = {0897917154},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/224056.224072},
+doi = {10.1145/224056.224072},
+booktitle = {Proceedings of the Fifteenth ACM Symposium on Operating Systems Principles},
+pages = {201–212},
+numpages = {12},
+location = {Copper Mountain, Colorado, USA},
+series = {SOSP '95}
+}
+
+@inproceedings {memc3,
+author = {Bin Fan and David G. Andersen and Michael Kaminsky},
+title = {MemC3: Compact and Concurrent MemCache with Dumber Caching and Smarter Hashing},
+booktitle = {10th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 13)},
+year = {2013},
+isbn = {978-1-931971-00-3},
+address = {Lombard, IL},
+pages = {371--384},
+url = {https://www.usenix.org/conference/nsdi13/technical-sessions/presentation/fan},
+publisher = {{USENIX} Association},
+month = apr,
+}
+
+@inproceedings{sonuma,
+author = {Novakovic, Stanko and Daglis, Alexandros and Bugnion, Edouard and Falsafi, Babak and Grot, Boris},
+title = {Scale-out NUMA},
+year = {2014},
+isbn = {9781450323055},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2541940.2541965},
+doi = {10.1145/2541940.2541965},
+abstract = {Emerging datacenter applications operate on vast datasets that are kept in DRAM to minimize latency. The large number of servers needed to accommodate this massive memory footprint requires frequent server-to-server communication in applications such as key-value stores and graph-based applications that rely on large irregular data structures. The fine-grained nature of the accesses is a poor match to commodity networking technologies, including RDMA, which incur delays of 10-1000x over local DRAM operations. We introduce Scale-Out NUMA (soNUMA) -- an architecture, programming model, and communication protocol for low-latency, distributed in-memory processing. soNUMA layers an RDMA-inspired programming model directly on top of a NUMA memory fabric via a stateless messaging protocol. To facilitate interactions between the application, OS, and the fabric, soNUMA relies on the remote memory controller -- a new architecturally-exposed hardware block integrated into the node's local coherence hierarchy. Our results based on cycle-accurate full-system simulation show that soNUMA performs remote reads at latencies that are within 4x of local DRAM, can fully utilize the available memory bandwidth, and can issue up to 10M remote memory operations per second per core.},
+booktitle = {Proceedings of the 19th International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {3–18},
+numpages = {16},
+keywords = {numa, system-on-chips, rmda},
+location = {Salt Lake City, Utah, USA},
+series = {ASPLOS '14}
+}
+
+@inproceedings{amanda-hotnets,
+author = {Carbonari, Amanda and Beschasnikh, Ivan},
+title = {Tolerating Faults in Disaggregated Datacenters},
+year = {2017},
+isbn = {9781450355698},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3152434.3152447},
+doi = {10.1145/3152434.3152447},
+abstract = {Recent research shows that disaggregated datacenters (DDCs) are practical and that DDC resource modularity will benefit both users and operators. This paper explores the implications of disaggregation on application fault tolerance. We expect that resource failures in a DDC will be fine-grained because resources will no longer fate-share. In this context, we look at how DDCs can provide legacy applications with familiar failure semantics and discuss fate sharing granularities that are not available in existing datacenters. We argue that fate sharing and failure mitigation should be programmable, specified by the application, and primarily implemented in the SDN-based network.},
+booktitle = {Proceedings of the 16th ACM Workshop on Hot Topics in Networks},
+pages = {164–170},
+numpages = {7},
+location = {Palo Alto, CA, USA},
+series = {HotNets-XVI}
+}
+
+@inproceedings {erpc,
+author = {Anuj Kalia and Michael Kaminsky and David Andersen},
+title = {Datacenter RPCs can be General and Fast},
+booktitle = {16th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 19)},
+year = {2019},
+isbn = {978-1-931971-49-2},
+address = {Boston, MA},
+pages = {1--16},
+url = {https://www.usenix.org/conference/nsdi19/presentation/kalia},
+publisher = {{USENIX} Association},
+month = feb,
+}
+
+@inproceedings {farm,
+author = {Aleksandar Dragojevi{\'c} and Dushyanth Narayanan and Miguel Castro and Orion Hodson},
+title = {FaRM: Fast Remote Memory},
+booktitle = {11th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 14)},
+year = {2014},
+isbn = {978-1-931971-09-6},
+address = {Seattle, WA},
+pages = {401--414},
+url = {https://www.usenix.org/conference/nsdi14/technical-sessions/dragojevi{\'c}},
+publisher = {{USENIX} Association},
+month = apr,
+}
+
+@inproceedings {fasst,
+author = {Anuj Kalia and Michael Kaminsky and David G. Andersen},
+title = {FaSST: Fast, Scalable and Simple Distributed Transactions with Two-Sided ({RDMA}) Datagram RPCs},
+booktitle = {12th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 16)},
+year = {2016},
+isbn = {978-1-931971-33-1},
+address = {Savannah, GA},
+pages = {185--201},
+url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/kalia},
+publisher = {{USENIX} Association},
+month = nov,
+}
+
+@inproceedings {design-guidelines,
+author = {Anuj Kalia and Michael Kaminsky and David G. Andersen},
+title = {Design Guidelines for High Performance {RDMA} Systems},
+booktitle = {2016 {USENIX} Annual Technical Conference ({USENIX} {ATC} 16)},
+year = {2016},
+isbn = {978-1-931971-30-0},
+address = {Denver, CO},
+pages = {437--450},
+url = {https://www.usenix.org/conference/atc16/technical-sessions/presentation/kalia},
+publisher = {{USENIX} Association},
+month = jun,
+}
+
+@inproceedings {infiniswap,
+author = {Juncheng Gu and Youngmoon Lee and Yiwen Zhang and Mosharaf Chowdhury and Kang G. Shin},
+title = {Efficient Memory Disaggregation with Infiniswap},
+booktitle = {14th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 17)},
+year = {2017},
+isbn = {978-1-931971-37-9},
+address = {Boston, MA},
+pages = {649--667},
+url = {https://www.usenix.org/conference/nsdi17/technical-sessions/presentation/gu},
+publisher = {{USENIX} Association},
+month = mar,
+}
+@inproceedings {leap,
+author = {Hasan Al Maruf and Mosharaf Chowdhury},
+title = {Effectively Prefetching Remote Memory with Leap},
+booktitle = {2020 {USENIX} Annual Technical Conference ({USENIX} {ATC} 20)},
+year = {2020},
+isbn = {978-1-939133-14-4},
+pages = {843--857},
+url = {https://www.usenix.org/conference/atc20/presentation/al-maruf},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+
+@article{herd,
+author = {Kalia, Anuj and Kaminsky, Michael and Andersen, David G.},
+title = {Using RDMA Efficiently for Key-Value Services},
+year = {2014},
+issue_date = {October 2014},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {44},
+number = {4},
+issn = {0146-4833},
+url = {https://doi.org/10.1145/2740070.2626299},
+doi = {10.1145/2740070.2626299},
+abstract = {This paper describes the design and implementation of HERD, a key-value system designed to make the best use of an RDMA network. Unlike prior RDMA-based key-value systems, HERD focuses its design on reducing network round trips while using efficient RDMA primitives; the result is substantially lower latency, and throughput that saturates modern, commodity RDMA hardware.HERD has two unconventional decisions: First, it does not use RDMA reads, despite the allure of operations that bypass the remote CPU entirely. Second, it uses a mix of RDMA and messaging verbs, despite the conventional wisdom that the messaging primitives are slow. A HERD client writes its request into the server's memory; the server computes the reply. This design uses a single round trip for all requests and supports up to 26 million key-value operations per second with 5μs average latency. Notably, for small key-value items, our full system throughput is similar to native RDMA read throughput and is over 2X higher than recent RDMA-based key-value systems. We believe that HERD further serves as an effective template for the construction of RDMA-based datacenter services.},
+journal = {SIGCOMM Comput. Commun. Rev.},
+month = aug,
+pages = {295–306},
+numpages = {12},
+keywords = {infiniband, ROCE, key-value stores, RDMA}
+}
+
+@inproceedings {requirements,
+author = {Peter X. Gao and Akshay Narayan and Sagar Karandikar and Joao Carreira and Sangjin Han and Rachit Agarwal and Sylvia Ratnasamy and Scott Shenker},
+title = {Network Requirements for Resource Disaggregation},
+booktitle = {12th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 16)},
+year = {2016},
+isbn = {978-1-931971-33-1},
+address = {Savannah, GA},
+pages = {249--264},
+url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/gao},
+publisher = {{USENIX} Association},
+month = nov,
+}  
+
+@inproceedings {disandapp,
+author = {Sebastian Angel and Mihir Nanavati and Siddhartha Sen},
+title = {Disaggregation and the Application},
+booktitle = {12th {USENIX} Workshop on Hot Topics in Cloud Computing (HotCloud 20)},
+year = {2020},
+url = {https://www.usenix.org/conference/hotcloud20/presentation/angel},
+publisher = {{USENIX} Association},
+month = jul,
+}
+
+@article{Mansour_2019,
+   title={FPGA Implementation of RDMA-Based Data Acquisition System Over 100-Gb Ethernet},
+   volume={66},
+   ISSN={1558-1578},
+   url={http://dx.doi.org/10.1109/TNS.2019.2904118},
+   DOI={10.1109/tns.2019.2904118},
+   number={7},
+   journal={IEEE Transactions on Nuclear Science},
+   publisher={Institute of Electrical and Electronics Engineers (IEEE)},
+   author={Mansour, Wassim and Janvier, Nicolas and Fajardo, Pablo},
+   year={2019},
+   month={Jul},
+   pages={1138–1143}
+}
+
+@inproceedings{fastswap,
+author = {Amaro, Emmanuel and Branner-Augmon, Christopher and Luo, Zhihong and Ousterhout, Amy and Aguilera, Marcos K. and Panda, Aurojit and Ratnasamy, Sylvia and Shenker, Scott},
+title = {Can Far Memory Improve Job Throughput?},
+year = {2020},
+isbn = {9781450368827},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3342195.3387522},
+doi = {10.1145/3342195.3387522},
+abstract = {As memory requirements grow, and advances in memory technology slow, the availability of sufficient main memory is increasingly the bottleneck in large compute clusters. One solution to this is memory disaggregation, where jobs can remotely access memory on other servers, or far memory. This paper first presents faster swapping mechanisms and a far memory-aware cluster scheduler that make it possible to support far memory at rack scale. Then, it examines the conditions under which this use of far memory can increase job throughput. We find that while far memory is not a panacea, for memory-intensive workloads it can provide performance improvements on the order of 10% or more even without changing the total amount of memory available.},
+booktitle = {Proceedings of the Fifteenth European Conference on Computer Systems},
+articleno = {14},
+numpages = {16},
+location = {Heraklion, Greece},
+series = {EuroSys '20}
+}
+
+@MISC{tofino2,
+    title = "Intel Tofino 2 P4 Programmability with More Bandwidth",
+    howpublished = "\url{https://www.intel.com/content/www/us/en/products/network-io/programmable-ethernet-switch/tofino-2-series/tofino-2.html}",
+    year = 2020
+}
+
+@inproceedings{Grant2021InContRes,
+author = {Grant, Stewart and Snoeren, Alex C.},
+title = {In-network Contention Resolution for Disaggregated Memory},
+booktitle = {Proceedings of the Second Workshop on Disaggregation and Serverless (WORDS'21)},
+year = {2021},
+url = {https://wuklab.github.io/words/words21-grant.pdf},
+numpages = {7},
+location = {Virtual Event, USA},
+series = {WORDS '21}
+}
+
+@MISC{genz,
+  author = {GenZ},
+  title = {Gen-Z Consortium},
+  howpublished = {https://genzconsortium.org/},
+  year = {2018}
+}
+
+@MISC{omni-path,
+  author = {Intel},
+  title = {Intel Omni-Path Architecture},
+  howpublished = {https://tinyurl.com/ya3x4ktd},
+}
+
+@MISC{cxl,
+  author = {CLX},
+  title = {Compute Express Link},
+  howpublished = {https://www.computeexpresslink.org/},
+}
+
+@MISC{connectx,
+  author = {Nvidia},
+  title = {ConnectX SmartNICs},
+  howpublished = {https://www.nvidia.com/en-us/networking/ethernet-adapters/},
+  }
+
+@MISC{cavium,
+    author = {Cavium},
+    title = {Liquid IO II 10/25G Smart NIC Family},
+    howpublished = {https://www.marvell.com/documents/08icqisgkbtn6kstgzh4/},
+    year = 2017
+}
+
+@MISC{fungible,
+  author = {Fungible},
+  title = {The Fungible Data Processing Unit},
+  howpublished = {https://www.fungible.com/product/dpu-platform/},
+  year = 2021,
+}
+
+@misc{clio-arxiv,
+      title={Clio: A Hardware-Software Co-Designed Disaggregated Memory System}, 
+      author={Zhiyuan Guo and Yizhou Shan and Xuhao Luo and Yutong Huang and Yiying Zhang},
+      year={2021},
+      eprint={2108.03492},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC}
+}
+
+@inproceedings{corundum,
+	title="Corundum: An Open-Source 100-Gbps Nic",
+	author="Alex {Forencich} and Alex C. {Snoeren} and George {Porter} and George {Papen}",
+	booktitle="2020 IEEE 28th Annual International Symposium on Field-Programmable Custom Computing Machines (FCCM)",
+	pages="38--46",
+	notes="Sourced from Microsoft Academic - https://academic.microsoft.com/paper/3034977853",
+	year="2020"
+}
+
+@InProceedings{kv-direct,
+author = {Li, Bojie and Ruan, Zhenyuan and Xiao, Wencong and Lu, Yuanwei and Xiong, Yongqiang and Putnam, Andrew and Chen, Enhong and Zhang, Lintao},
+title = {KV-Direct: High-Performance In-Memory Key-Value Store with Programmable NIC},
+booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+year = {2017},
+month = {October},
+abstract = {Performance of in-memory key-value store (KVS) continues to be of great importance as modern KVS goes beyond the traditional object-caching workload and becomes a key infrastructure to support distributed main-memory computation in data centers. Recent years have witnessed a rapid increase of network bandwidth in data centers, shifting the bottleneck of most KVS from the network to the CPU. RDMA-capable NIC partly alleviates the problem, but the primitives provided by RDMA abstraction are rather limited. Meanwhile, programmable NICs become available in data centers, enabling in-network processing. In this paper, we present KV-Direct, a high performance KVS that leverages programmable NIC to extend RDMA primitives and enable remote direct key-value access to the main host memory.
+
+We develop several novel techniques to maximize the throughput and hide the latency of the PCIe connection between the NIC and the host memory, which becomes the new bottleneck. Combined, these mechanisms allow a single NIC KV-Direct to achieve up to 180 M key-value operations per second, equivalent to the throughput of tens of CPU cores. Compared with CPU based KVS implementation, KV-Direct improves power efficiency by 3x, while keeping tail latency below 10 μs. Moreover, KV-Direct can achieve near linear scalability with multiple NICs. With 10 programmable NIC cards in a commodity server, we achieve 1.22 billion KV operations per second, which is almost an order-of-magnitude improvement over existing systems, setting a new milestone for a general-purpose in-memory key-value store.},
+publisher = {ACM},
+url = {https://www.microsoft.com/en-us/research/publication/kv-direct-high-performance-memory-key-value-store-programmable-nic/},
+pages = {137-152},
+isbn = {978-1-4503-5085-3},
+edition = {Proceedings of the 26th Symposium on Operating Systems Principles},
+}
+
+
+
+@inproceedings {decible,
+author = {Mihir Nanavati and Jake Wires and Andrew Warfield},
+title = {Decibel: Isolation and Sharing in Disaggregated Rack-Scale Storage},
+booktitle = {14th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 17)},
+year = {2017},
+isbn = {978-1-931971-37-9},
+address = {Boston, MA},
+pages = {17--33},
+url = {https://www.usenix.org/conference/nsdi17/technical-sessions/presentation/nanavati},
+publisher = {{USENIX} Association},
+month = mar,
+}
+
+@inproceedings {aifm,
+author = {Zhenyuan Ruan and Malte Schwarzkopf and Marcos K. Aguilera and Adam Belay},
+title = {{AIFM}: High-Performance, Application-Integrated Far Memory},
+booktitle = {14th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 20)},
+year = {2020},
+isbn = {978-1-939133-19-9},
+pages = {315--332},
+url = {https://www.usenix.org/conference/osdi20/presentation/ruan},
+publisher = {{USENIX} Association},
+month = nov,
+}
+
+@inproceedings{firebox,
+author = {Karandikar, Sagar and Ou, Albert and Amid, Alon and Mao, Howard and Katz, Randy and Nikoli\'{c}, Borivoje and Asanovi\'{c}, Krste},
+title = {FirePerf: FPGA-Accelerated Full-System Hardware/Software Performance Profiling and Co-Design},
+year = {2020},
+isbn = {9781450371025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3373376.3378455},
+doi = {10.1145/3373376.3378455},
+abstract = {Achieving high-performance when developing specialized hardware/software systems requires
+understanding and improving not only core compute kernels, but also intricate and
+elusive system-level bottlenecks. Profiling these bottlenecks requires both high-fidelity
+introspection and the ability to run sufficiently many cycles to execute complex software
+stacks, a challenging combination. In this work, we enable agile full-system performance
+optimization for hardware/software systems with FirePerf, a set of novel out-of-band
+system-level performance profiling capabilities integrated into the open-source FireSim
+FPGA-accelerated hardware simulation platform. Using out-of-band call stack reconstruction
+and automatic performance counter insertion, FirePerf enables introspecting into hardware
+and software at appropriate abstraction levels to rapidly identify opportunities for
+software optimization and hardware specialization, without disrupting end-to-end system
+behavior like traditional profiling tools. We demonstrate the capabilities of FirePerf
+with a case study that optimizes the hardware/software stack of an open-source RISC-V
+SoC with an Ethernet NIC to achieve 8x end-to-end improvement in achievable bandwidth
+for networking applications running on Linux. We also deploy a RISC-V Linux kernel
+optimization discovered with FirePerf on commercial RISC-V silicon, resulting in up
+to 1.72x improvement in network performance.},
+booktitle = {Proceedings of the Twenty-Fifth International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {715–731},
+numpages = {17},
+keywords = {fpga-accelerated simulation, network performance optimization, performance profiling, agile hardware, hardware/software co-design},
+location = {Lausanne, Switzerland},
+series = {ASPLOS '20}
+}
+
+@inproceedings {ivy,
+author = {Athicha Muthitacharoen and Robert Morris and Thomer M. Gil and Benjie Chen},
+title = {Ivy: A Read/Write Peer-to-Peer File System},
+booktitle = {5th Symposium on Operating Systems Design and Implementation ({OSDI} 02)},
+year = {2002},
+address = {Boston, MA},
+url = {https://www.usenix.org/conference/osdi-02/ivy-readwrite-peer-peer-file-system},
+publisher = {{USENIX} Association},
+month = dec,
+}
+
+@misc{infiniband-spec,
+  author = {Infiniband Trade Association},
+  title = {Infiniband Specification},
+  howpublished = {https://www.afs.enea.it/asantoro/},
+  year = {2007},
+}
+
+, fastswap
+
+@misc{intel-rack,
+  author = {Intel},
+  title = {Intel Rack Scale Architecture: Faster Service Delivery and Lower TCO},
+  howpublished = {https://www.intel.com/content/www/us/en/architecture-and-technology/rack-scale-design-overview.html}
+}
+
+@inproceedings{cliquemap,
+title	= {CliqueMap: Productionizing an RMA-Based  Distributed Caching System},
+author	= {Aditya Akella and Amanda Strominger and Amin Vahdat and Arjun Singhvi and Dan Gibson and Harshad Deshmukh and Maggie Anderson and Milo M. K. Martin and Rob Cauble and Thomas F. Wenisch},
+year	= {2021}
+}
+
+
+
+@misc{supernic,
+      title={Disaggregating and Consolidating Network Functionalities with SuperNIC}, 
+      author={Yizhou Shan and Will Lin and Ryan Kosta and Arvind Krishnamurthy and Yiying Zhang},
+      year={2021},
+      eprint={2109.07744},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC}
+}
+
+@inproceedings{rethinking,
+author = {Calciu, Irina and Imran, M. Talha and Puddu, Ivan and Kashyap, Sanidhya and Maruf, Hasan Al and Mutlu, Onur and Kolli, Aasheesh},
+title = {Rethinking Software Runtimes for Disaggregated Memory},
+year = {2021},
+isbn = {9781450383172},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3445814.3446713},
+doi = {10.1145/3445814.3446713},
+abstract = {Disaggregated memory can address resource provisioning inefficiencies in current datacenters. Multiple software runtimes for disaggregated memory have been proposed in an attempt to make disaggregated memory practical. These systems rely on the virtual memory subsystem to transparently offer disaggregated memory to applications using a local memory abstraction. Unfortunately, using virtual memory for disaggregation has multiple limitations, including high overhead that comes from the use of page faults to identify what data to fetch and cache locally, and high dirty data amplification that comes from the use of page-granularity for tracking changes to the cached data (4KB or higher).  In this paper, we propose a fundamentally new approach to designing software runtimes for disaggregated memory that addresses these limitations. Our main observation is that we can use cache coherence instead of virtual memory for tracking applications' memory accesses transparently, at cache-line granularity. This simple idea (1) eliminates page faults from the application critical path when accessing remote data, and (2) decouples the application memory access tracking from the virtual memory page size, enabling cache-line granularity dirty data tracking and eviction. Using this observation, we implemented a new software runtime for disaggregated memory that improves average memory access time by 1.7-5X and reduces dirty data amplification by 2-10X, compared to state-of-the-art systems.},
+booktitle = {Proceedings of the 26th ACM International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {79–92},
+numpages = {14},
+keywords = {remote memory, disaggregated memory, cache coherence},
+location = {Virtual, USA},
+series = {ASPLOS 2021}
+}
+
+@article{ramcloud,
+author = {Ousterhout, John and Gopalan, Arjun and Gupta, Ashish and Kejriwal, Ankita and Lee, Collin and Montazeri, Behnam and Ongaro, Diego and Park, Seo Jin and Qin, Henry and Rosenblum, Mendel and Rumble, Stephen and Stutsman, Ryan and Yang, Stephen},
+title = {The RAMCloud Storage System},
+year = {2015},
+issue_date = {September 2015},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {33},
+number = {3},
+issn = {0734-2071},
+url = {https://doi.org/10.1145/2806887},
+doi = {10.1145/2806887},
+abstract = {RAMCloud is a storage system that provides low-latency access to large-scale datasets. To achieve low latency, RAMCloud stores all data in DRAM at all times. To support large capacities (1PB or more), it aggregates the memories of thousands of servers into a single coherent key-value store. RAMCloud ensures the durability of DRAM-based data by keeping backup copies on secondary storage. It uses a uniform log-structured mechanism to manage both DRAM and secondary storage, which results in high performance and efficient memory usage. RAMCloud uses a polling-based approach to communication, bypassing the kernel to communicate directly with NICs; with this approach, client applications can read small objects from any RAMCloud storage server in less than 5μs, durable writes of small objects take about 13.5μs. RAMCloud does not keep multiple copies of data online; instead, it provides high availability by recovering from crashes very quickly (1 to 2 seconds). RAMCloud’s crash recovery mechanism harnesses the resources of the entire cluster working concurrently so that recovery performance scales with cluster size.},
+journal = {ACM Trans. Comput. Syst.},
+month = {aug},
+articleno = {7},
+numpages = {55},
+keywords = {storage systems, low latency, large-scale systems, Datacenters}
+}
+
+@inproceedings{dredbox,
+  author={Bielski, M. and Syrigos, I. and Katrinis, K. and Syrivelis, D. and Reale, A. and Theodoropoulos, D. and Alachiotis, N. and Pnevmatikatos, D. and Pap, E.H. and Zervas, G. and Mishra, V. and Saljoghei, A. and Rigo, A. and Zazo, J. Fernando and Lopez-Buedo, S. and Torrents, M. and Zyulkyarov, F. and Enrico, M. and de Dios, O. Gonzalez},
+  booktitle={2018 Design, Automation   Test in Europe Conference   Exhibition (DATE)}, 
+  title={dReDBox: Materializing a full-stack rack-scale system prototype of a next-generation disaggregated datacenter}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={1093-1098},
+  doi={10.23919/DATE.2018.8342174}}
+
+@inproceedings{ycsb,
+author = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
+title = {Benchmarking Cloud Serving Systems with YCSB},
+year = {2010},
+isbn = {9781450300360},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/1807128.1807152},
+doi = {10.1145/1807128.1807152},
+abstract = {While the use of MapReduce systems (such as Hadoop) for large scale data analysis has been widely recognized and studied, we have recently seen an explosion in the number of systems developed for cloud data serving. These newer systems address "cloud OLTP" applications, though they typically do not support ACID transactions. Examples of systems proposed for cloud serving use include BigTable, PNUTS, Cassandra, HBase, Azure, CouchDB, SimpleDB, Voldemort, and many others. Further, they are being applied to a diverse range of applications that differ considerably from traditional (e.g., TPC-C like) serving workloads. The number of emerging cloud serving systems and the wide range of proposed applications, coupled with a lack of apples-to-apples performance comparisons, makes it difficult to understand the tradeoffs between systems and the workloads for which they are suited. We present the "Yahoo! Cloud Serving Benchmark" (YCSB) framework, with the goal of facilitating performance comparisons of the new generation of cloud data serving systems. We define a core set of benchmarks and report results for four widely used systems: Cassandra, HBase, Yahoo!'s PNUTS, and a simple sharded MySQL implementation. We also hope to foster the development of additional cloud benchmark suites that represent other classes of applications by making our benchmark tool available via open source. In this regard, a key feature of the YCSB framework/tool is that it is extensible--it supports easy definition of new workloads, in addition to making it easy to benchmark new systems.},
+booktitle = {Proceedings of the 1st ACM Symposium on Cloud Computing},
+pages = {143–154},
+numpages = {12},
+keywords = {cloud serving database, benchmarking},
+location = {Indianapolis, Indiana, USA},
+series = {SoCC '10}
+}
+
+  
+
+
+
