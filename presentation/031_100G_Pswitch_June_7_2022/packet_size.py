@@ -26,8 +26,6 @@ def packet_size_plot(ax,rw,w,c):
     rdma_int_to_str(c)
 
 
-
-
     ax.errorbar(c["size"],c["ops"],c["err"],label=default_clover_label,marker=default_clover_marker, color=default_clover_color)
     ax.errorbar(w["size"],w["ops"],w["err"],label=write_steering_label,marker=write_steering_marker,color=write_steering_color)
     ax.errorbar(rw["size"],rw["ops"],rw["err"],label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color)
