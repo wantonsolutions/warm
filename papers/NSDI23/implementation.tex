@@ -8,12 +8,35 @@
   \vskip -0.5em
 \end{figure}
 
-Our {\sword} prototype is implemented as an in-line middlebox using DPDK,
+Our {\sword} prototype is implemented in P4 and run on a 100Gbps 64 port
+programmable switch. Our P4 implementation includes the logic for identifying
+and tracking connections, and resolving read and write conflicts. Connection
+multiplexing is implemented separately on a DPDK middlebox discussed further in this section.
+
+an in-line middlebox using DPDK,
 but is designed to have low memory and computational overhead making
 it suitable for deployment on programmable switch hardware.  Although
 our current evaluation is based on Clover, {\sword} is intended to be
-general purpose, and comparmentalizes application-specific logic to
+general purpose, and compartmentalizes application-specific logic to
 the extent possible.
+
+\subsection{P4 implementation}
+
+P4 is a highly constrained language. For example it does not support loops.
+Architecturally P4 switches are also highly constrained. Packet parsing must be
+performed using the limited TCAM resources available on the switch, conditionals
+have a limited branching factor (4). Packets are processed in stages, and device
+memory from one stage cannot be accessed at the next, therefore branching
+conditionals which access the same variables must be aligned to the same switch
+stage if they are to read or write to the same variables. In this section we
+describe our P4 implementation of {\sword} and how it adheres to the constraints
+of P4 and programmable switches.
+
+\textbf{Parsing} {\sword} has no special requirements for packet parsing. Our
+design is focused on RoCEv2 which runs over UDP. Our prototype implements
+Ethernet, IP, UDP and RoCEV2 parsing. RoCEv2 headers are required for reading,
+and manipulating virtual addresses. One additional header is required for Clover
+to read the key out of write requests.
 
 
 
@@ -28,16 +51,11 @@ submit a filter as part of their configuration to allow traffic which does
 not need to be modified to flow freely.
 
 \subsection{Dynamic connection tracking}
-
 A key goal of our approach is to support serializer-based performance
 enhancements without modifying the far memory system
 itself---including requiring any explicit negotiation with the
 serializer.
-%For instance is designed to deal with
-%memory operations made to the wrong location via iterative pointer
-%chasing. We strongly suggest that disaggregated algorithms take this
-%approach as our middlebox solution only acts to acclerate operations
-%in the common case.
+
 We add and subtract RoCE connections to {\sword}'s management tables
 based upon the send and receipt of CAS operations. The QP and
 sequence number for the CAS are stored on send, and the ATOMIC ACK is
@@ -177,6 +195,14 @@ these options are not currently available we believe that commodity
 switches and SmartNICs could leverage hardware offloads to reduce the
 cost, as the CRC calculation is identical to Ethernet with only the
 additional need to mask RocE specified packet felids.
+
+We implemented RDMA ICRC in our DPDK prototype. To our knowledge no P4 switches
+have native RoCEv2 support, while some projects have demonstrated that it is
+possible to implement by hand, it requires many switch resources and adds
+complexity~\todo{~\cite{}} we forgot the additional complexity and turned off
+ICRC checking on our CX5 NICs similar to prior work~\cite{switchml}. In the
+future we hope that RoCEv2 checksums, like TCP, UDP,and Ethernet checksums can
+be made hardware primitives on programmable switches.
 
 \subsection{DPDK considerations}
 

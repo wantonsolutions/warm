@@ -18,17 +18,19 @@
 \BOOKMARK [3][-]{subsubsection.4.3.1}{Connection remapping}{subsection.4.3}% 18
 \BOOKMARK [3][-]{subsubsection.4.3.2}{Atomic replacement}{subsection.4.3}% 19
 \BOOKMARK [1][-]{section.5}{Implementation}{}% 20
-\BOOKMARK [2][-]{subsection.5.1}{Traffic identification}{section.5}% 21
-\BOOKMARK [2][-]{subsection.5.2}{Dynamic connection tracking}{section.5}% 22
-\BOOKMARK [2][-]{subsection.5.3}{RDMA ICRC}{section.5}% 23
-\BOOKMARK [2][-]{subsection.5.4}{DPDK considerations}{section.5}% 24
-\BOOKMARK [1][-]{section.6}{Evaluation}{}% 25
-\BOOKMARK [2][-]{subsection.6.1}{Testbed}{section.6}% 26
-\BOOKMARK [2][-]{subsection.6.2}{YCSB benchmarks}{section.6}% 27
-\BOOKMARK [2][-]{subsection.6.3}{Bandwidth reduction}{section.6}% 28
-\BOOKMARK [2][-]{subsection.6.4}{Tail latency}{section.6}% 29
-\BOOKMARK [2][-]{subsection.6.5}{Packet Size}{section.6}% 30
-\BOOKMARK [2][-]{subsection.6.6}{Contention}{section.6}% 31
-\BOOKMARK [2][-]{subsection.6.7}{Atomic replacement}{section.6}% 32
-\BOOKMARK [1][-]{section.7}{Limitations}{}% 33
-\BOOKMARK [1][-]{section.8}{Conclusion}{}% 34
+\BOOKMARK [2][-]{subsection.5.1}{P4 implementation}{section.5}% 21
+\BOOKMARK [2][-]{subsection.5.2}{Traffic identification}{section.5}% 22
+\BOOKMARK [2][-]{subsection.5.3}{Dynamic connection tracking}{section.5}% 23
+\BOOKMARK [2][-]{subsection.5.4}{RDMA ICRC}{section.5}% 24
+\BOOKMARK [2][-]{subsection.5.5}{DPDK considerations}{section.5}% 25
+\BOOKMARK [1][-]{section.6}{Evaluation}{}% 26
+\BOOKMARK [2][-]{subsection.6.1}{Testbed}{section.6}% 27
+\BOOKMARK [2][-]{subsection.6.2}{YCSB benchmarks}{section.6}% 28
+\BOOKMARK [2][-]{subsection.6.3}{Bandwidth reduction}{section.6}% 29
+\BOOKMARK [2][-]{subsection.6.4}{Tail latency}{section.6}% 30
+\BOOKMARK [2][-]{subsection.6.5}{Packet Size}{section.6}% 31
+\BOOKMARK [2][-]{subsection.6.6}{Contention}{section.6}% 32
+\BOOKMARK [2][-]{subsection.6.7}{Atomic replacement}{section.6}% 33
+\BOOKMARK [1][-]{section.7}{Limitations}{}% 34
+\BOOKMARK [1][-]{section.8}{Conclusion}{}% 35
+\BOOKMARK [2][-]{subsection.8.1}{CXL}{section.8}% 36

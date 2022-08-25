@@ -674,6 +674,12 @@ month = dec,
   howpublished = {https://www.intel.com/content/www/us/en/architecture-and-technology/rack-scale-design-overview.html}
 }
 
+@misc{cxl-spec,
+  author = {CXL Consortium},
+  title = {CXL 3.0 Specification},
+  howpublished = {https://www.computeexpresslink.org/download-the-specification},
+}
+
 @inproceedings{cliquemap,
 title	= {CliqueMap: Productionizing an RMA-Based  Distributed Caching System},
 author	= {Aditya Akella and Amanda Strominger and Amin Vahdat and Arjun Singhvi and Dan Gibson and Harshad Deshmukh and Maggie Anderson and Milo M. K. Martin and Rob Cauble and Thomas F. Wenisch},
@@ -758,6 +764,90 @@ series = {SoCC '10}
 }
 
   
+@inproceedings{blade-server,
+author = {Lim, Kevin and Chang, Jichuan and Mudge, Trevor and Ranganathan, Parthasarathy and Reinhardt, Steven K. and Wenisch, Thomas F.},
+title = {Disaggregated Memory for Expansion and Sharing in Blade Servers},
+year = {2009},
+isbn = {9781605585260},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/1555754.1555789},
+doi = {10.1145/1555754.1555789},
+abstract = {Analysis of technology and application trends reveals a growing imbalance in the peak compute-to-memory-capacity ratio for future servers. At the same time, the fraction contributed by memory systems to total datacenter costs and power consumption during typical usage is increasing. In response to these trends, this paper re-examines traditional compute-memory co-location on a single system and details the design of a new general-purpose architectural building block-a memory blade-that allows memory to be "disaggregated" across a system ensemble. This remote memory blade can be used for memory capacity expansion to improve performance and for sharing memory across servers to reduce provisioning and power costs. We use this memory blade building block to propose two new system architecture solutions-(1) page-swapped remote memory at the virtualization layer, and (2) block-access remote memory with support in the coherence hardware-that enable transparent memory expansion and sharing on commodity-based systems. Using simulations of a mix of enterprise benchmarks supplemented with traces from live datacenters, we demonstrate that memory disaggregation can provide substantial performance benefits (on average 10X) in memory constrained environments, while the sharing enabled by our solutions can improve performance-per-dollar by up to 57% when optimizing memory provisioning across multiple servers.},
+booktitle = {Proceedings of the 36th Annual International Symposium on Computer Architecture},
+pages = {267–278},
+numpages = {12},
+keywords = {memory capacity expansion, power and cost efficiencies, disaggregated memory, memory blades},
+location = {Austin, TX, USA},
+series = {ISCA '09}
+}
 
+@misc{sherman,
+  doi = {10.48550/ARXIV.2112.07320},
+  url = {https://arxiv.org/abs/2112.07320},
+  author = {Wang, Qing and Lu, Youyou and Shu, Jiwu},
+  keywords = {Distributed, Parallel, and Cluster Computing (cs.DC), Databases (cs.DB), Networking and Internet Architecture (cs.NI), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  title = {Sherman: A Write-Optimized Distributed B+Tree Index on Disaggregated Memory},
+  publisher = {arXiv},
+  year = {2021},
+  copyright = {Creative Commons Attribution Non Commercial No Derivatives 4.0 International}
+}
 
+@inproceedings {race,
+author = {Pengfei Zuo and Jiazhao Sun and Liu Yang and Shuangwu Zhang and Yu Hua},
+title = {One-sided {RDMA-Conscious} Extendible Hashing for Disaggregated Memory},
+booktitle = {2021 USENIX Annual Technical Conference (USENIX ATC 21)},
+year = {2021},
+isbn = {978-1-939133-23-6},
+pages = {15--29},
+url = {https://www.usenix.org/conference/atc21/presentation/zuo},
+publisher = {USENIX Association},
+month = jul,
+}
 
+@inproceedings {direct-cxl,
+author = {Donghyun Gouk and Sangwon Lee and Miryeong Kwon and Myoungsoo Jung},
+title = {Direct Access, {High-Performance} Memory Disaggregation with {DirectCXL}},
+booktitle = {2022 USENIX Annual Technical Conference (USENIX ATC 22)},
+year = {2022},
+isbn = {978-1-939133-29-65},
+address = {Carlsbad, CA},
+pages = {287--294},
+url = {https://www.usenix.org/conference/atc22/presentation/gouk},
+publisher = {USENIX Association},
+month = jul,
+}
+
+@misc{microsoft-cxl-first-gen,
+  doi = {10.48550/ARXIV.2203.00241},
+  url = {https://arxiv.org/abs/2203.00241},
+  author = {Li, Huaicheng and Berger, Daniel S. and Novakovic, Stanko and Hsu, Lisa and Ernst, Dan and Zardoshti, Pantea and Shah, Monish and Agarwal, Ishwar and Hill, Mark D. and Fontoura, Marcus and Bianchini, Ricardo},
+  keywords = {Operating Systems (cs.OS), Performance (cs.PF), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  title = {First-generation Memory Disaggregation for Cloud Platforms},
+  publisher = {arXiv},
+  year = {2022},
+  copyright = {Creative Commons Attribution Share Alike 4.0 International}
+}
+
+@misc{facebook-cxl-tpp,
+  doi = {10.48550/ARXIV.2206.02878},
+  url = {https://arxiv.org/abs/2206.02878},
+  author = {Maruf, Hasan Al and Wang, Hao and Dhanotia, Abhishek and Weiner, Johannes and Agarwal, Niket and Bhattacharya, Pallab and Petersen, Chris and Chowdhury, Mosharaf and Kanaujia, Shobhit and Chauhan, Prakash},
+  keywords = {Distributed, Parallel, and Cluster Computing (cs.DC), Operating Systems (cs.OS), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  title = {TPP: Transparent Page Placement for CXL-Enabled Tiered Memory},
+  publisher = {arXiv},
+  year = {2022},
+  copyright = {Creative Commons Attribution 4.0 International}
+}
+
+@inproceedings {switchml,
+author = {Amedeo Sapio and Marco Canini and Chen-Yu Ho and Jacob Nelson and Panos Kalnis and Changhoon Kim and Arvind Krishnamurthy and Masoud Moshref and Dan Ports and Peter Richtarik},
+title = {Scaling Distributed Machine Learning with {In-Network} Aggregation},
+booktitle = {18th USENIX Symposium on Networked Systems Design and Implementation (NSDI 21)},
+year = {2021},
+isbn = {978-1-939133-21-2},
+pages = {785--808},
+url = {https://www.usenix.org/conference/nsdi21/presentation/sapio},
+publisher = {USENIX Association},
+month = apr,
+}
