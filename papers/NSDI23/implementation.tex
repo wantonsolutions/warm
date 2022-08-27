@@ -38,6 +38,12 @@ Ethernet, IP, UDP and RoCEV2 parsing. RoCEv2 headers are required for reading,
 and manipulating virtual addresses. One additional header is required for Clover
 to read the key out of write requests.
 
+\textbf{Resource Utilization} {\sword} requires SRAM to cache data structure
+information. The amount of data required is dependent on the data structure
+itself. In clover we cache the last virtual address of each key, and we keep a
+cache 3x the size of the keyspace for read steering.
+
+
 
 
 \subsection{Traffic identification} Depending on the disaggregated
@@ -62,7 +68,11 @@ sequence number for the CAS are stored on send, and the ATOMIC ACK is
 used to obtain the other recever's QP. As this approach requires only
 a single packet, requests can be added and removed from our algorithm
 dynamically with little effort.
-
+%For instance is designed to deal with
+%memory operations made to the wrong location via iterative pointer
+%chasing. We strongly suggest that disaggregated algorithms take this
+%approach as our middlebox solution only acts to acclerate operations
+%in the common case.
 As some state may be dependent on the number of connections (such as
 the key-to-QP mappings), state transitions either require a lock, or
 the copying of current state over to a new epoch when new connections

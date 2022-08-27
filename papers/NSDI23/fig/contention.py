@@ -21,6 +21,7 @@ def contention_err(ax,rws,ws, clover):
     #plot_max_improvement(ax,rws,clover,"zipf")
     ax.legend( ncol=1, prop={'size': 8})
     ax.set_xlabel('zipf coefficient')
+    ax.set_ylim(0,31)
 
 def gen_tuples(ops,zipf,err):
     return {'zipf': zipf, 'ops': ops, 'err': err}
@@ -31,9 +32,10 @@ def gen_tuples(ops,zipf,err):
 
 std=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 zipf=[0.00, 0.60, 0.80, 0.90, 1.00, 1.10, 1.20, 1.30, 1.40, 1.50]
-clover=[7764629,4234248,2277200,1681447,1320832,1063940,729975,737028,505416,556716,]
-write=[10801420,6625309,3886915,2976940,2388756,1965756,1660965,1409957,968532,837804,]
-rw=[21694160,21540721,21353131,20935003,20589709,19823556,19043452,17940872,16672884,15133444,]
+clover=[3640555,3065432,1682906,1196656,999124,731036,630120,542596,457079,407156,]
+write=[8066550,4508152,2532284,1995339,1731571,1464580,1214028,1033144,966524,841748,]
+rw=[28380260,28101048,27700444,27491468,27237704,26762201,25558344,24292628,22126031,19967420,]
+
 clover_with_buffering_A_128 = gen_tuples(clover,zipf,std)
 write_steering_A_128       = gen_tuples(write,zipf,std)
 read_write_steering_A_128  = gen_tuples(rw,zipf,std)

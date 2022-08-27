@@ -10,9 +10,11 @@ read_write_steering_marker='+'
 write_steering_marker="*"
 default_clover_marker='.'
 
-read_write_steering_color='#cf243cff'     #alice
-write_steering_color='#ed7d31ff'          #kelly
-default_clover_color='#8caff6ff'          #Coral 
+read_write_steering_color='#cf243cff'     #red
+write_steering_color='#ed7d31ff'          #orange
+default_clover_color='#8caff6ff'          #blueish
+
+connection_color='#7D31ED'              #dark purple
 
 def div_mil (list):
     return [val /1000000.0 for val in list]

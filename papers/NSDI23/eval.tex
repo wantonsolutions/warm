@@ -113,7 +113,7 @@ logic is pure overhead due to the absence of reads.
   \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
    \vskip -0.5em
-    \caption{Bytes required per Clover operation for each of the three techniques for different write intensities.\todo{These are DPDK numbers re-run with the pswitch}}
+    \caption{Bytes required per Clover operation on 128 byte payloads for each of the three techniques for different write intensities.}
     \label{fig:bandwidth_reduction}
      \vskip -0.5em
 \end{figure}
@@ -230,8 +230,7 @@ significantly outperforms Clover alone.
   \centering
   \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
 
-    \caption{Performance across RDMA payload sizes using 120 client cores.
-    \todo{These numbers need to be extended to 400 cores}}
+    \caption{Performance across RDMA payload sizes using 120 client cores at a 50 percent read 50 percent write ratio.}
 
     \label{fig:packet_size}
 \end{figure}

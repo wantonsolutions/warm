@@ -13,6 +13,12 @@ def plot_optimal(ax1, optimal, x_space, bars, width):
         ax1.plot([left,right],[optimal[i],optimal[i]],linestyle=line_style,color=line_color,linewidth=2)
 
     ax1.plot([],[],linestyle=line_style,color=line_color,label="Optimal")
+
+def bw_per_op(tup):
+    bpo=[]
+    for t in tup:
+        bpo.append(t[1]/t[0])
+    return bpo
     
 
 cns_color='#00702eff'                     #indigo
@@ -27,11 +33,22 @@ default_clover_color='#8caff6ff'          #Coral
 # write = [3305, 1499, 1341]
 # clover = [2457, 1491, 3091]
 
-labels = [ '5','50', '100'] 
-optimal = [ 1254,1314, 1380]
-read_write = [ 1253,1300, 1343]
-write = [ 1499,3305, 1341]
-clover = [ 1491,2457, 3091]
+labels = [ '0','5','50', '100'] 
+optimal = [ 0, 1254,1314, 1380]
+
+clover=[(38540384,4085705128),(12619792,3588778832),(929800,  1755707042),(901140,  1676371302),]
+write=[(40399508,4282772272),(13405036,3588778832),(1763680, 3344320676),(17110764,2203168988),]
+
+
+read_write=[(39750630,4221172704),(35235112,3999323710),(27144320,3188139084),(17071776,2198105420),]
+
+clover=bw_per_op(clover)
+write=bw_per_op(write)
+read_write=bw_per_op(read_write)
+
+print(clover)
+print(write)
+print(read_write)
 
 x = np.arange(len(labels))  # the label locations
 width = 0.2  # the width of the bars
@@ -39,7 +56,7 @@ width = 0.2  # the width of the bars
 div=1
 plt.rcParams.update({'font.size': 16})
 fig, ax = plt.subplots(figsize=(8,4), dpi=80)
-plot_optimal(ax,optimal,x,3,width)
+#plot_optimal(ax,optimal,x,3,width)
 rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color,edgecolor='k')
 rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color,edgecolor='k')
 rects0 = ax.bar(x + width, read_write, width, label='Write+Read',color=read_write_steering_color,edgecolor='k')
@@ -51,11 +68,11 @@ ax.set_xticks(x)
 ax.set_xticklabels(labels)
 ax.set_xlabel("Write Ratio")
 
-handles, labels = ax.get_legend_handles_labels()
-order = [1,2,3,0]
-ax.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+#handles, labels = ax.get_legend_handles_labels()
+#order = [1,2,3]
+#ax.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
 
-#ax.legend()
+ax.legend()
 
 
 #ax.bar_label(rects1, padding=3)
@@ -64,3 +81,7 @@ figure_name="bandwidth_reduction"
 plt.tight_layout()
 plt.savefig(figure_name+'.pdf')
 plt.savefig(figure_name+'.png')
+
+
+
+
