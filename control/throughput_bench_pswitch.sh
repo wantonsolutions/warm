@@ -8,10 +8,14 @@ export LCLOVER_PAYLOAD_SIZE=$4
 export SWITCH_MODE=$5
 export ZIPF_DIST=$6
 export TRIALS=$7
-#export HOSTS=("yeti5" "yeti0")
-#export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8" "yeti4")
-#export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8")
-export HOSTS=("yeti5")
+
+export HOSTS=("yeti5" "yeti0")
+export HOSTS=("yeti5" "yeti0" "yeti8")
+export HOSTS=("yeti5" "yeti0" "yeti8" "yeti1")
+export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8")
+export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8" "yeti4")
+#export HOSTS=("yeti5" "yeti8")
+export sleep_time="20"
 
 
 
@@ -119,10 +123,11 @@ function set_distribution() {
 
 function start_machines() {
     echo "Starting up the machines for this experiment"
-    sleep_time="75"
+    num_clients="${#HOSTS[@]}"
     #start up the program
     memcachedSource=`cat memcached_server.sh`
     memcachedSource=$(sed "s|%%SLEEP%%|$sleep_time|g" <<< $memcachedSource)
+    memcachedSource=$(sed "s|%%NR_CN%%|$num_clients|g" <<< $memcachedSource)
     echo $memcachedSource
 
     ssh b09-27 $memcachedSource &
@@ -132,6 +137,7 @@ function start_machines() {
     memorySource=`cat mem_server.sh`
     memorySource=$(sed "s|%%SLEEP%%|$sleep_time|g" <<< $memorySource)
     memorySource=$(sed "s|%%ID%%|$mem_id|g" <<< $memorySource)
+    memorySource=$(sed "s|%%NR_CN%%|$num_clients|g" <<< $memorySource)
     echo "sshing to the memory server"
     echo "$memorySource"
     ssh yak1 $memorySource &
@@ -141,10 +147,10 @@ function start_machines() {
     metaSource=`cat meta_server.sh`
     metaSource=$(sed "s|%%SLEEP%%|$sleep_time|g" <<< $metaSource)
     metaSource=$(sed "s|%%ID%%|$meta_id|g" <<< $metaSource)
+    metaSource=$(sed "s|%%NR_CN%%|$num_clients|g" <<< $metaSource)
     ssh yak0 $metaSource &
 
     #start multiple clients
-
     let "i=1"
     for host in ${HOSTS[@]}; do
         #yeti 5 client
@@ -152,7 +158,9 @@ function start_machines() {
         clientSource=`cat client_server.sh`
         clientSource=$(sed "s|%%ID%%|$i|g" <<< $clientSource)
         clientSource=$(sed "s|%%SLEEP%%|$sleep_time|g" <<< $clientSource)
+        clientSource=$(sed "s|%%NR_CN%%|$num_clients|g" <<< $clientSource)
 
+        echo "SSHING to host $host"
         ssh $host "$clientSource" &
         let "i=i+1"
     done
