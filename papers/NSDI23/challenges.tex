@@ -48,9 +48,8 @@ our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5 NICs.
     \label{fig:success_rate}
 \end{figure}
 
-\subsection{Client-based conflict resolution}
+\subsection{Optimistic conflict resolution}
 %%
-
 Optimistic approaches to concurrency management, while far more
 performant than pessimistic ones in the un-contended case, can
 frequently be prohibitively expensive when contention is common.  In
@@ -83,20 +82,19 @@ sub-linear.  Nevertheless, the expected cost of each operation rises
 steadily with contention, which is a function of both the workload and
 level of concurrency.  Our measurements show that under contention the
 average bandwidth cost of Clover read and write operations can inflate
-by 2--3$\times$ (Figure~\ref{fig:bandwidth_reduction}) when compared
+by 16$\times$ (Figure~\ref{fig:bandwidth_reduction}) when compared
 to an optimal scenario in which all operations succeed on their first
 try.
 
 \paragraph{Tail latency.}
 
-Perhaps even more significant than the overheads associated with the
-expected number of retries is the cost at the tail---namely the
-latency associated with those particularly ``unlucky'' requests that
-fail repeatedly.  Note that these operations are precisely those for
-``hot'' memory locations, so likely to be ones that matter.  Our
-measurements show that under moderate contention
-(e.g., 50\% write operations with 64 threads) Clover's 99th-percentile tail
-latency increases by over 36$\times$ (Figure~\ref{fig:tail_latency}).
+Perhaps even more significant than the overheads associated with the expected
+number of retries is the cost at the tail---namely the latency associated with
+those particularly ``unlucky'' requests that fail repeatedly.  Note that these
+operations are precisely those for ``hot'' memory locations, so likely to be
+ones that matter.  Our measurements show that under contention (e.g., 50\% write
+operations with 396 threads) Clover's 99th-percentile tail latency increases by
+over 300$\times$ (Figure~\ref{fig:tail_latency}).
 
 %% Reducing the cost of each operation to exactly 1 attempt can reduce
 %% this additional latency by nearly two orders of magnitude.
@@ -122,7 +120,7 @@ classes of guarantees; we summarize both below.
 
 The strongest guarantee available in the RDMA specification is
 atomicity, through the use of special atomic requests like compare
-and swap (CAS).  Like their traditional CPU counterparts, CAS
+and swap.  Like their traditional CPU counterparts, CAS
 requests appear to execute at a single point in time, ensuring a
 total ordering on all CAS instructions and a partial ordering between
 CAS and all other instructions---i.e., all other instructions appear
@@ -137,40 +135,36 @@ are themselves atomic.
 %      \vskip -0.5em
 \end{figure}
 
-These atomic requests enable (seemingly) lock-free updates to far
-memory by allowing clients to detect data races and enabling them to
-implement safe recovery mechanisms. In practice, however, these
-atomics are famously~\cite{design-guidelines,clover} expensive,
-fundamentally because they require mutual exclusion across all queue
-pairs to deliver their semantics.  Figure~\ref{fig:rdma_concur}
-confirms that the findings of prior
-studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
-ConnectX-3) remain true on our ConnectX-5 NICs, namely that CAS
-requests have a hard performance bottleneck, while standard verbs
-(e.g., read and write) continue to scale with increased request
-concurrency.
+These atomic requests enable (seemingly) lock-free updates to far memory by
+allowing clients to detect data races and enabling them to implement safe
+recovery mechanisms. In practice, however, these atomics are famously
+expensive~\cite{design-guidelines}, fundamentally because they require mutual
+exclusion across all queue pairs to deliver their semantics.
+Figure~\ref{fig:rdma_concur} confirms that the findings of prior
+studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e., ConnectX-3)
+remain true on our ConnectX-5 NICs, namely that CAS requests have a hard
+performance bottleneck, while standard verbs (e.g., read and write) continue to
+scale with increased request concurrency.
 
 %In many disaggregated systems operation serialization is performed using RDMA
 %atomic operations implemented on a NIC. These
-Atomics are expensive both because they can block concurrent RDMA
-requests and because they require, at a minimum, a round trip over
-the PCIe bus.
+Atomics are expensive both because they can block concurrent RDMA requests and
+because they require multiple round trips over the PCIe bus.
 %while they execute and require scarce NIC resources.
-In order to provide atomicity, the NIC must ensure
-that no dependent requests are concurrent, dispatch the write, and
-then wait for the memory operation to complete.
-%The
-%time required to complete an atomic is at minimum a PCIe round trip
-%from the NIC to main memory, during which time a lock on the NIC
-%guards the memory access.
-Lock implementation is both vendor and
-transport specific~\cite{design-guidelines}. In the worst case a
-barrier is placed on all requests resulting in complete head-of-line
-blocking; in the best case locking is per connection and only causes
-other requests to block when reads or writes occur on overlapping
-ranges virtual memory. Regardless of the implementation, atomic
-requests are likely to be significantly slower than asynchronous non-blocking
-reads and writes.
+In order to provide atomicity, the NIC must ensure that no dependent requests
+are concurrent, dispatch the write, and then wait for the memory operation to
+complete. Mapping RDMA requests onto NIC memory removes the overhead of PCIe but
+still requires atomicity across queue pairs.
+%The time required to complete an atomic is at minimum a PCIe round trip from
+%the NIC to main memory, during which time a lock on the NIC guards the memory
+%access.
+Lock implementation is both vendor and transport
+specific~\cite{design-guidelines}. In the worst case a barrier is placed on all
+requests resulting in complete head-of-line blocking; in the best case locking
+is per connection and only causes other requests to block when reads or writes
+occur on overlapping ranges virtual memory. Regardless of the implementation,
+atomic requests are likely to be significantly slower than asynchronous
+non-blocking reads and writes.
 
 %% Practically speaking, the performance of atomic operations is limited
 %% by the PCIe bus.  In order to provide atomicity, the NIC must ensure
@@ -210,19 +204,17 @@ reads and writes.
     \label{fig:reorder}
 \end{figure}
 
-Hence, a scalable far memory system should avoid the use of atomic
-requests to the extent possible, instead relying upon traditional,
-lightweight RDMA verbs.  Even then, existing hardware does provide
-some guarantees.  For example, RDMA provides access to memory hosted
-on a server that likely utilizes a commodity hardware memory
-management unit (MMU).  All modern MMUs ensure coherent memory
-accesses and frequently ensure a total ordering on local memory
-requests (i.e., sequential consistency).  Unfortunately, due to the
-complexities of today's NUMA architectures and PCIe bus
-arbitration, it is possible that memory requests may not be serviced
-in the order they are dispatched.  Similarly, individual RDMA requests
-may require multiple memory accesses, potentially leading to
-write corruption and read tearing.
+Hence, a scalable far memory system should avoid the use of atomic requests to
+the extent possible, instead relying upon traditional, lightweight RDMA verbs.
+Even then, existing hardware does provide some guarantees.  For example, RDMA
+provides access to memory hosted on a server that likely utilizes a commodity
+hardware memory management unit (MMU).  All modern MMUs ensure coherent memory
+accesses and frequently ensure a total ordering on local memory requests (i.e.,
+sequential consistency).  Unfortunately, due to the complexities of today's NUMA
+architectures and PCIe bus arbitration, it is possible that memory requests may
+not be serviced in the order they are dispatched.  Similarly, individual RDMA
+requests may require multiple memory accesses, potentially leading to write
+corruption and read tearing.
 
 Figure~\ref{fig:reorder} shows that this potential reordering is not
 just an academic concern, but instead arises with some frequency. In
