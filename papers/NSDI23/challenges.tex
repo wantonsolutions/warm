@@ -135,6 +135,21 @@ are themselves atomic.
 %      \vskip -0.5em
 \end{figure}
 
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%  \vskip -0.5em
+
+    \caption{ Throughput comparison of RDMA compare-and-swap operations vs
+    writes on a single address. The values for write to host memory, and to NIC
+    memory are compared. Writes are 6.2x higher throughput than CAS on host
+    memory and 2.5x higher on NIC memory. Writes are restricted to a single
+    queue pair.
+    }
+
+    \label{fig:cas_vs_writes}
+%      \vskip -0.5em
+\end{figure}
+
 These atomic requests enable (seemingly) lock-free updates to far memory by
 allowing clients to detect data races and enabling them to implement safe
 recovery mechanisms. In practice, however, these atomics are famously
@@ -154,7 +169,9 @@ because they require multiple round trips over the PCIe bus.
 In order to provide atomicity, the NIC must ensure that no dependent requests
 are concurrent, dispatch the write, and then wait for the memory operation to
 complete. Mapping RDMA requests onto NIC memory removes the overhead of PCIe but
-still requires atomicity across queue pairs.
+still requires atomicity across queue pairs. Figure~\ref{fig:cas_vs_writes}
+shows the relative performance of CAS operations vs writes on ConnectX-5's.
+Values for NIC mapped operations are included.
 %The time required to complete an atomic is at minimum a PCIe round trip from
 %the NIC to main memory, during which time a lock on the NIC guards the memory
 %access.
