@@ -70,7 +70,8 @@ and writes are serialized, usually by leveraging expensive
 hardware-provided atomic requests like compare and
 swap~\cite{design-guidelines,clover}.  The cost of client-side
 serialization is steep, and most existing systems simply partition memory
-completely and forgo sharing~\cite{reigons,fastswap, legoos}.  On the
+completely and forgo sharing~\cite{reigons,fastswap, legoos}.  
+On the
 other hand, one recent disaggregated key-value store,
 Clover~\cite{clover}, goes to great lengths to provide lock-less reads
 while supporting concurrent writes by deploying an optimistic
