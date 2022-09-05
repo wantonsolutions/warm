@@ -1,10 +1,10 @@
 \section{Background}
 
-The literature on disaggregated memory, efficient use of RDMA verbs,
-and programmable middleboxes are each too vast to detail here.
-Rather, we briefly highlight relevant core themes from each, and then
-provide a short overview on concurrency management in Clover to
-facilitate understanding of \sword's optimizations.
+The literature on disaggregated memory, efficient use of RDMA verbs, and
+programmable middleboxes are each too vast to detail here.  Rather, we briefly
+highlight relevant core themes from each, and then provide a short overview on
+concurrency management in Sherman and Clover, to facilitate understanding of
+\sword's optimizations.
 
 \subsection{Resource disaggregation}
 
@@ -83,7 +83,7 @@ the data path.
 
 \subsection{Clover}
 
-In order to demonstrate the effectiveness of {\sword} in practice, we
+To demonstrate the effectiveness of {\sword} in practice, we
 needed to select a passive far memory system with which to experiment.
 The authors of Clover, a recently published key-value store designed
 for disaggregated persistent memory~\cite{clover}, made their
@@ -93,13 +93,13 @@ prototypical example of a key-value store for remote DRAM.  Most
 importantly for our purposes, its design makes the assumption that
 there are no remote CPU's co-resident with memory. All of Clover's
 remote memory accesses are made via one-sided RDMA requests: reads,
-writes, and compare and swaps.  In order to improve performance,
+writes, and compare and swaps.  To improve performance,
 Clover moves metadata storage off of the data path. On the data path,
 reads and writes for a given key are made exclusively to an
 append-only linked list stored in remote memory. All RDMA requests are
 made to the (presumed) tail of the list. A client may not know the
 location of the tail as other writers may concurrently push it
-forward.  When a read or a write fails to land at the tail of the list
+forward. When a read or a write fails to land at the tail of the list
 Clover iteratively traverses the structure until the tail is
 found. While this provides no liveness guarantees, in the common
 read-heavy case concurrent clients all eventually reach the end of the
@@ -108,6 +108,27 @@ end of each key's linked list to avoid traversals. When writes are
 heavy and/or when particular keys are hot, Clover's performance
 degrades substantially. Clover serializes writes with RDMA compare and swap
 requests which further impact performance.
+
+\subsection{Sherman}
+
+Sherman is a write optimized B-Tree for passive remote memory. The tree is
+augmented using entirely one-sided RDMA operations. Sherman improves it's
+performance under contention in two key ways. First it places locks for each
+node in the B-Tree on a special region of NIC memory exposed on ConnectX-5 NICs.
+This small chunk of memory exposes the same RDMA interface has host memory, but
+allows locking operations to execute at approximately 3$\times$ the throughput.
+The biggest boost in Sherman's performance comes from resolving lock conflicts
+locally. It assumes that most clients are collocated. Clients use a
+hierarchically locking scheme where locks are acquired locally prior to issuing
+a CAS to remote NIC mapped locks. Locks and unlocks each require a CAS
+operation.
+%%
+\sg{(danger zone)} We consider client side optimizations to be highly
+effective, but also highly restrictive as they assume both colocation and a
+shared address space for their clients. We focus our attention instead on the
+fundamental limitations of Shermans lock based approach.
+
+
 
 %which
 %when used frequently on the same location lead to abysmal

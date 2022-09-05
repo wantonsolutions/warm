@@ -19,6 +19,10 @@ def bw_per_op(tup):
     for t in tup:
         bpo.append(t[1]/t[0])
     return bpo
+
+def wins(a,b):
+    for v1,v2 in zip(a,b):
+        print(str(round(v1/v2,1))+"x")
     
 
 cns_color='#00702eff'                     #indigo
@@ -42,13 +46,17 @@ write=[(40399508,4282772272),(13405036,3588778832),(1763680, 3344320676),(171107
 
 read_write=[(39750630,4221172704),(35235112,3999323710),(27144320,3188139084),(17071776,2198105420),]
 
+
 clover=bw_per_op(clover)
 write=bw_per_op(write)
 read_write=bw_per_op(read_write)
 
+
 print(clover)
 print(write)
 print(read_write)
+
+wins(clover,read_write)
 
 x = np.arange(len(labels))  # the label locations
 width = 0.2  # the width of the bars

@@ -74,25 +74,23 @@ completely and forgo sharing~\cite{reigons,fastswap, legoos}.
 On the other hand some systems have been designed to share remote memory using
 new network hardware features and specialized data
 structures~\cite{clover,sherman}. Sherman, a write optimized B-Tree uses locks
-located on NIC memory. CAS operations used to implement the locks have 3x high
-throughput when executed on NIC memory as compared to host memory as they avoid
-two PCIe round trips.
+located on NIC memory. CAS has 3x higher throughput when executed on NIC memory
+vs. host memory as it avoids two PCIe round trips.
 %%
-Despite utilizing on-NIC locks Sherman is still subject to the significant
-hardware limits imposed by the CAS instruction when it is repeated executed on a
-single address (Lock acquire and release). Further, Sherman requires that
-cliques of clients are colocated to resolve most contention based conflicts
-locally.
+Despite its lock optimizations Sherman is still subject to the significant
+hardware limits imposed by CAS when it is repeatedly executed on a single
+address (Lock acquire and release). Further, Sherman requires that cliques of
+clients are colocated to resolve most contention based conflicts locally.
 %%
 Alternatively Clover~\cite{clover} eschews these limitations by using optimistic
 concurrency and a specially designed hash table to provide lock-less reads while
 supporting concurrent writes. CAS instructions are only executed to commit
 writes and never land on the same address twice - effectively bypassing the
-single address limitations of CAS.
+single address limits of CAS.
 %%
 While highly scalable for read-heavy workloads, Clover's client-based recovery
 scheme quickly becomes cost prohibitive when faced with significant levels of
-write contention.  This shortcoming is not limited to Clover, but is fundamental
+write contention. This shortcoming is not limited to Clover, but is fundamental
 to any approach based upon distributed conflict resolution.
 
 %% minimize conflicts by caching  metadata about the
@@ -143,11 +141,10 @@ We prototype {\sword} in a P4 programable switch connected to Clover machines
 each equipped with ConnectX-5 RoCE enabled NICs. Our evaluation shows that
 {\sword} dramatically increases the performance of Clover in the presence of
 write contention. Under a 50:50 read-write workload, throughput rises by almost
-35$\times$, tail latency drops by over \todo{36}$\times$ and bandwidth usage
-cuts \todo{almost in half}.  Further, we show using a DPDK implementation of
-{\sword} that by replacing compare-and-swap requests in flight with standard RDMA
-verbs, we can surpass the hardware-imposed limit on atomic requests per queue
-pair.
+35$\times$, tail latency drops by over 300$\times$ and bandwidth usage cuts by
+16$\times$. Further, we show using a DPDK implementation of {\sword} that by
+replacing compare-and-swap requests in flight with standard RDMA verbs, we can
+surpass the hardware-imposed limit on atomic requests per queue pair.
 
 %% Using RDMA transport information and clover specific application
 %% knowledge all reads and writes to contended areas are totally ordered
