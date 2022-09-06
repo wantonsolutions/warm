@@ -85,15 +85,16 @@ regardless of whether they are themselves atomic.
 Atomic primitives enable higher level serialization structures like locks and
 optimistic concurrency schemes. Unfortunately, atomics are famously
 expensive~\cite{design-guidelines}, fundamentally because they require mutual
-exclusion across all RDMA queue pairs (RDMA connections). Concurrent read and
-write operations with a data dependency on the atomic address must stall until
-the atomic completes. Atomic operations issued to host memory require two PCIe
-round trips to execute before dependent operations can be unblocked.
+exclusion across all RDMA queue pairs (details in sec~\ref{sec:qp_ordering}).
+Concurrent read and write operations with a data dependency on the atomic
+address must stall until the atomic completes. Atomic operations issued to host
+memory require two PCIe round trips to execute before dependent operations can
+be unblocked.
 %%
-An RDMA queue pair configured as a reliable connection (RC) acts similarly to a
-TCP connection. Reliable connections provide in order operation serialization
-and ensure at most once semantics. Reliable connections are required by the RDMA
-specification to execute one-sided memory operations like read, write, and CAS.
+% An RDMA queue pair configured as a reliable connection (RC) acts similarly to a
+% TCP connection. Reliable connections provide in order operation serialization
+% and ensure at most once semantics. Reliable connections are required by the RDMA
+% specification to execute one-sided memory operations like read, write, and CAS.
 
 % This work focuses
 % exclusivly on RC connections as they do not require and involvement from a CPU
@@ -127,8 +128,8 @@ serialized CAS operations vs serialized writes on a single address. CAS
 operations are issued many queue pairs (highest throughput configuration) and
 use NIC locking for serialization. Write operations are issued on a single queue
 pair, and use the serialization provided by RDMA's reliable connection to ensure
-in order execution.  Wether executed on host memory or nic mapped, writes on a
-single queue pair significantly out perform locking operations.
+in order execution. Whether executed on host or nic mapped memory, writes on a
+single queue pair significantly out perform atomic operations.
 
 %The time required to complete an atomic is at minimum a PCIe round trip from
 %the NIC to main memory, during which time a lock on the NIC guards the memory
@@ -169,8 +170,7 @@ single queue pair significantly out perform locking operations.
 
 
 \subsubsection{Queue-pair ordering}
-
-\sg{This can be trimmed down now}
+\label{sec:qp_ordering}
 
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
@@ -182,8 +182,10 @@ single queue pair significantly out perform locking operations.
     \label{fig:reorder}
 \end{figure}
 
-Hence, a scalable far memory system should avoid the use of atomic requests to
-the extent possible, instead relying upon traditional, lightweight RDMA verbs.
+Hence, a scalable far memory system should avoid the use of course grained
+locking with atomics to the extent possible, instead relying upon, lightweight
+RDMA verbs and fine grained locks.  
+%%
 Even then, existing hardware does provide some guarantees.  For example, RDMA
 provides access to memory hosted on a server that likely utilizes a commodity
 hardware memory management unit (MMU).  All modern MMUs ensure coherent memory
