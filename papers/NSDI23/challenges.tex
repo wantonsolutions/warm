@@ -58,7 +58,12 @@ regardless of whether they are themselves atomic.
 \begin{figure}[t]
   \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
 %  \vskip -0.5em
-    \caption{Achieved throughput of various RDMA verbs across twenty queue pairs as a function of request concurrency.  When using atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per queue pair.}
+
+    \caption{Achieved throughput of RDMA verbs across twenty queue pairs on data
+    independent addresses as a function of request concurrency.  When using
+    atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per
+    queue pair.}
+
     \label{fig:rdma_concur}
 %      \vskip -0.5em
 \end{figure}
@@ -67,56 +72,75 @@ regardless of whether they are themselves atomic.
   \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
 %  \vskip -0.5em
 
-    \caption{ Throughput comparison of RDMA compare-and-swap operations vs
-    writes on a single address. The values for write to host memory, and to NIC
-    memory are compared. Writes are 6.2x higher throughput than CAS on host
-    memory and 2.5x higher on NIC memory. Writes are restricted to a single
-    queue pair.
-    }
+    \caption{ Throughput comparison of serialized RDMA operations:
+    compare-and-swap operations vs writes on a single address. The performance
+    for NIC-mapped, and main memory operations are compared. Writes are 6.2x
+    higher throughput than CAS on host memory and 2.5x higher on NIC memory.
+    Writes are restricted to a single queue pair.  }
 
     \label{fig:cas_vs_writes}
 %      \vskip -0.5em
 \end{figure}
 
-Atomics are primitives which enable programmers to implement higher level
-serialization structures like traditional locks, or optimistic concurrency
-schemes. In practice, atomics are famously expensive~\cite{design-guidelines},
-fundamentally because they require mutual exclusion across all RDMA queue pairs (RDMA connections).
+Atomic primitives enable higher level serialization structures like locks and
+optimistic concurrency schemes. Unfortunately, atomics are famously
+expensive~\cite{design-guidelines}, fundamentally because they require mutual
+exclusion across all RDMA queue pairs (RDMA connections). Concurrent read and
+write operations with a data dependency on the atomic address must stall until
+the atomic completes. Atomic operations issued to host memory require two PCIe
+round trips to execute before dependent operations can be unblocked.
 %%
-An RDMA queue pair acts similarly to a TCP connection by for remote memory
-operations.  Queue pairs come in a variety of configurations -- Reliable
-connections (RC) deliver requests in order and ensure at most once semantics.
-They are required to execute one-sided memory requests like read and write. This
-work focuses exclusivly on RC connections as they do not require and involvement
-from a CPU to execute memory operations.
+An RDMA queue pair configured as a reliable connection (RC) acts similarly to a
+TCP connection. Reliable connections provide in order operation serialization
+and ensure at most once semantics. Reliable connections are required by the RDMA
+specification to execute one-sided memory operations like read, write, and CAS.
 
-Figure~\ref{fig:rdma_concur} confirms that the findings of prior
+% This work focuses
+% exclusivly on RC connections as they do not require and involvement from a CPU
+% to execute memory operations.
+
+Figure~\ref{fig:rdma_concur} illustrates the scalability of data independent
+(each instruction is issued to an isolated cache line) atomic operations
+relative to non-atomic reads and writes.  It confirms that the findings of prior
 studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e., ConnectX-3)
-remain true on our ConnectX-5 NICs, namely that CAS requests have a hard
-performance bottleneck, while standard verbs (e.g., read and write) continue to
-scale with increased request concurrency.
+remain true on our ConnectX-5 NICs, namely that atomic requests can scale with
+non-atomics but have a hard performance bottleneck, while standard verbs (e.g.,
+read and write) continue to scale with increased request concurrency.
 
 %In many disaggregated systems operation serialization is performed using RDMA
 %atomic operations implemented on a NIC. These
-Atomics are expensive both because they can block concurrent RDMA requests and
-because they require multiple round trips over the PCIe bus.
+%
+% Atomics are expensive both because they can block concurrent RDMA requests and
+% because they require multiple round trips over the PCIe bus.
+%
 %while they execute and require scarce NIC resources.
-In order to provide atomicity, the NIC must ensure that no dependent requests
-are concurrent, dispatch the write, and then wait for the memory operation to
-complete. Mapping RDMA requests onto NIC memory removes the overhead of PCIe but
-still requires atomicity across queue pairs. Figure~\ref{fig:cas_vs_writes}
-shows the relative performance of CAS operations vs writes on ConnectX-5's.
-Values for NIC mapped operations are included.
+%
+% To provide atomicity, the NIC must ensure that no dependent requests
+% are concurrent, dispatch the write, and then wait for the memory operation to
+% complete. 
+
+Melanox ConnectX-5 NICs and above provide a small region of NIC memory which can
+be mapped into the address space of RDMA applications.  Mapping RDMA requests
+onto NIC memory removes the overhead of PCIe but still requires atomicity across
+queue pairs. Figure~\ref{fig:cas_vs_writes} shows the relative performance of
+serialized CAS operations vs serialized writes on a single address. CAS
+operations are issued many queue pairs (highest throughput configuration) and
+use NIC locking for serialization. Write operations are issued on a single queue
+pair, and use the serialization provided by RDMA's reliable connection to ensure
+in order execution.  Wether executed on host memory or nic mapped, writes on a
+single queue pair significantly out perform locking operations.
+
 %The time required to complete an atomic is at minimum a PCIe round trip from
 %the NIC to main memory, during which time a lock on the NIC guards the memory
 %access.
-Lock implementation is both vendor and transport
-specific~\cite{design-guidelines}. In the worst case a barrier is placed on all
-requests resulting in complete head-of-line blocking; in the best case locking
-is per connection and only causes other requests to block when reads or writes
-occur on overlapping ranges virtual memory. Regardless of the implementation,
-atomic requests are likely to be significantly slower than asynchronous
-non-blocking reads and writes.
+
+% Lock implementation is both vendor and transport
+% specific~\cite{design-guidelines}. In the worst case a barrier is placed on all
+% requests resulting in complete head-of-line blocking; in the best case locking
+% is per connection and only causes other requests to block when reads or writes
+% occur on overlapping ranges virtual memory. Regardless of the implementation,
+% atomic requests are likely to be significantly slower than asynchronous
+% non-blocking reads and writes.
 
 %% Practically speaking, the performance of atomic operations is limited
 %% by the PCIe bus.  In order to provide atomicity, the NIC must ensure
@@ -145,6 +169,8 @@ non-blocking reads and writes.
 
 
 \subsubsection{Queue-pair ordering}
+
+\sg{This can be trimmed down now}
 
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
