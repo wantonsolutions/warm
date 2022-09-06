@@ -10,15 +10,9 @@
 
 Our {\sword} prototype is implemented in P4 and run on a 100Gbps 64 port
 programmable switch. Our P4 implementation includes the logic for identifying
-and tracking connections, and resolving read and write conflicts. Connection
-multiplexing is implemented separately on a DPDK middlebox discussed further in this section.
-
-an in-line middlebox using DPDK,
-but is designed to have low memory and computational overhead making
-it suitable for deployment on programmable switch hardware.  Although
-our current evaluation is based on Clover, {\sword} is intended to be
-general purpose, and compartmentalizes application-specific logic to
-the extent possible.
+and tracking connections, and resolving read and write conflicts in Clover.
+Connection multiplexing is implemented separately on a DPDK middlebox discussed
+further in this section.
 
 \subsection{P4 implementation}
 
@@ -44,9 +38,7 @@ itself. In clover we cache the last virtual address of each key, and we keep a
 cache 3x the size of the keyspace for read steering.
 
 
-
-
-\subsection{Traffic identification} Depending on the disaggregated
+\textbf{Traffic identification} Depending on the disaggregated
 rack architecture, memory traffic might be coresident with regular
 network traffic.  Additionally some of the traffic on the memory bus
 may not require tracking or manipulation. In the case of Clover we do
@@ -56,33 +48,31 @@ pipeline classifies requests for manipulation. In our design operators
 submit a filter as part of their configuration to allow traffic which does
 not need to be modified to flow freely.
 
-\subsection{Dynamic connection tracking}
-A key goal of our approach is to support serializer-based performance
-enhancements without modifying the far memory system
-itself---including requiring any explicit negotiation with the
-serializer.
+\textbf{Dynamic connection tracking}
+ A key goal of our approach is to support
+serializer-based performance enhancements without modifying the far memory
+system itself---including requiring any explicit negotiation with the
+serializer.  We add and subtract RoCE connections to {\sword}'s management
+tables based upon the send and receipt of CAS operations. The QP and sequence
+number for the CAS are stored on send, and the ATOMIC ACK is used to obtain the
+other recever's QP.  As this approach requires only a single packet, requests
+can be added and removed from our algorithm dynamically with little effort.
 
-We add and subtract RoCE connections to {\sword}'s management tables
-based upon the send and receipt of CAS operations. The QP and
-sequence number for the CAS are stored on send, and the ATOMIC ACK is
-used to obtain the other recever's QP. As this approach requires only
-a single packet, requests can be added and removed from our algorithm
-dynamically with little effort.
-%For instance is designed to deal with
-%memory operations made to the wrong location via iterative pointer
-%chasing. We strongly suggest that disaggregated algorithms take this
-%approach as our middlebox solution only acts to acclerate operations
-%in the common case.
-As some state may be dependent on the number of connections (such as
-the key-to-QP mappings), state transitions either require a lock, or
-the copying of current state over to a new epoch when new connections
-are added. In all of our experiments only one such transition is
-made. We begin our mapping after a specific number of clients for the
-experiment have connected. Once the total number of clients have
-connected, a switch is flipped, and the QP multiplexing algorithm
-begins. Requests which do not have mappings stored, but were in flight
-during the flip have their sequence numbers and MSN values applied to
-the connection state of the new epoch.
+%For instance is designed to deal with memory operations made to the wrong
+%location via iterative pointer chasing. We strongly suggest that disaggregated
+%algorithms take this approach as our middlebox solution only acts to acclerate
+%operations in the common case.
+\textbf{Initializing connection mapping}
+\sg{dpdk only}
+As some state may be dependent on the number of connections (such as the
+key-to-QP and lock-to-QP mappings), state transitions either require a lock, or
+the copying of current state over to a new epoch when new connections are added.
+In all of our experiments only one such transition is made. We begin our mapping
+after a specific number of clients for the experiment have connected. Once the
+total number of clients have connected, a switch is flipped, and the QP
+multiplexing algorithm begins. Requests which do not have mappings stored, but
+were in flight during the flip have their sequence numbers and MSN values
+applied to the connection state of the new epoch.
 
 %\subsection{Operation caching}
 %\label{sec:operation-caching}
@@ -194,17 +184,16 @@ Ethernet CRC, with some additional \texttt{crc32} for the
 calculation. This algorithm is highly optimized for general case CRC
 calcuation.
 
-Recalculating the CRC for modified requests is the primary overhead
-of {\sword} as it must be recalculated after a squence number
-update, which occurs on all multiplexed and demultiplexed
-requests. This overhead could be reduced by either removing the need
-for the CRC (which is not a feature available on CX series NICs) or by
-allowing an alterative, lightweight checksum which could be quickly
-updated based on changes made to the packet while in flight. While
-these options are not currently available we believe that commodity
-switches and SmartNICs could leverage hardware offloads to reduce the
-cost, as the CRC calculation is identical to Ethernet with only the
-additional need to mask RocE specified packet felids.
+Recalculating the CRC for modified requests is the primary overhead of {\sword}
+as it must be recalculated after a squence number update, which occurs on all
+multiplexed and demultiplexed requests. This overhead could be reduced by either
+removing the need for the CRC (which is not a feature available on CX series
+NICs) or by allowing an alterative, lightweight checksum which could be quickly
+updated based on changes made to the packet while in flight. While these options
+are not currently available we believe that commodity switches and SmartNICs
+could leverage hardware offloads to reduce the cost, as the CRC calculation is
+identical to Ethernet with only the additional need to mask RocE specified
+packet felids.
 
 We implemented RDMA ICRC in our DPDK prototype. To our knowledge no P4 switches
 have native RoCEv2 support, while some projects have demonstrated that it is
