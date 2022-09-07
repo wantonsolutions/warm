@@ -8,11 +8,11 @@ By physically separating compute from storage across a network, it is
 possible to dynamically adjust hardware resource allocations to suit
 changing workloads.  Considerable headway has been made at higher
 levels of the storage hierarchy; published and even production systems
-now support remoting spinning disks, SSDs, and modern non-volatile
-memory technologies~\cite{decible}.  Remote primary storage, however,
-remains a fundamental challenge due to the orders-of-magnitude
-disparity between main-board memory accesses and even rack-local
-network round trips.
+support remoting spinning disks, SSDs, and modern non-volatile
+memory technologies~\cite{decible}.  Remote primary storage---a.k.a.
+memory pooling---remains a fundamental challenge, however, due to the
+orders-of-magnitude disparity between main-board access latency and
+even intra-rack round trips.
 
 %Resource disaggregation is an architectural paradigm which separates
 %disk, CPU and memory over a network. The goal of this architecture is
@@ -30,28 +30,28 @@ network round trips.
 %magnitude difference in latency makes hiding remote memory accesses a hard
 %problem.  
 
-The hardware community has made great strides in closing the latency gap via
-novel technologies like silicon photonics and new rack-scale interconnects, but
-commercially available options remain significantly slower than on-board
-options.  Concretely, the latency of making a memory access over interconnect
-technologies like RDMA~\cite{infiniband-spec}, Gen-Z~\cite{genz}, and
-CXL~\cite{cxl} 
+The hardware community has made great strides in closing the latency
+gap via novel technologies like silicon photonics and new rack-scale
+interconnects, but commercially available options remain significantly
+slower than on-board options.  Concretely, while industrial consortia
+have proposed cache-coherent memory technologies~\cite{genz,cxl} that
+would dramatically lower access latencies, currently available
+interconnects based on RDMA~\cite{infiniband-spec}
 %%
-\todo{distinguish CXL 200-500ns latencies have been proposed}
+%\todo{distinguish CXL 200-500ns latencies have been proposed}
 %%
-remains on the order of 20$\times$ slower than a local access (e.g., 50~ns local
-versus 1~$\mu$s remote).  As a result, despite the fact that these memory
-transport technologies provide the ability to directly execute requests like
-read, write and compare and swap on remote host memory through the use of a RDMA
-capable NICs~\cite{connectx}, SoCs~\cite{cavium}, FPGA
-SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most existing
-systems coordinate with a remote CPU on the socket at which the DMA is being
-performed to assist with serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.
+remain on the order of 20$\times$ slower than a local access (e.g.,
+50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
+that current-generation memory transport technologies provide the
+ability to directly execute requests like read, write, and compare and
+swap on remote host memory through the use of RDMA-capable
+NICs~\cite{connectx}, SoCs~\cite{cavium}, FPGA
+SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
+existing systems coordinate with a remote CPU on the socket at which
+the DMA is being performed to assist with
+serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.
 %%
-The few published systems that provide fully passive remote
-memory~\cite{reigons,clover,sherman,race} focus on either read-heavy workloads,
-client colocation, or memory inefficient datastructures to amortize the costs of
-conflict detection and resolution.
+
 
 %% % and Omni-Path~\cite{omni-path}. // omni-path is dead now % 
 %Each protocol, while distinct, meets approximately the same requirements,
@@ -64,59 +64,84 @@ conflict detection and resolution.
 %%todo ask alex about the archive reference
 %%todo do a quick read of how DMA is dealt with on the other interconnects
 
-In the absence of a general-purpose CPU located alongside remote memory, it
-falls to each individual client to ensure that its reads and writes are
-serialized, usually by leveraging expensive hardware-provided atomic requests
-like compare-and-swap (CAS)~\cite{design-guidelines}. The cost of client-side
-serialization is steep, and most existing systems simply partition memory
-completely and forgo sharing~\cite{reigons,fastswap, legoos}.  
+In the absence of a general-purpose CPU located alongside remote
+memory, it falls to each individual client to ensure that its reads
+and writes are serialized, usually by leveraging expensive
+hardware-provided atomic operations at the server like
+compare-and-swap (CAS)~\cite{design-guidelines} as the latencies
+involved in client-side coordination are prohibitive.  As a result,
+most existing systems simply partition memory completely and forgo
+sharing~\cite{reigons,fastswap,legoos}.
 %%
-On the other hand some systems have been designed to share remote memory using
-new network hardware features and specialized data
-structures~\cite{clover,sherman}. Sherman, a write optimized B-Tree uses locks
-located on NIC memory. CAS has 3x higher throughput when executed on NIC memory
-vs. host memory as it avoids two PCIe round trips.
-%%
-Despite its lock optimizations Sherman is still subject to the significant
-hardware limits imposed by CAS when it is repeatedly executed on a single
-address (Lock acquire and release). Further, Sherman requires that cliques of
-clients are colocated to resolve most contention based conflicts locally.
-%%
-Alternatively Clover~\cite{clover} eschews these limitations by using optimistic
-concurrency and a specially designed hash table to provide lock-less reads while
-supporting concurrent writes. CAS instructions are only executed to commit
-writes and never land on the same address twice - effectively bypassing the
-single address limits of CAS.
-%%
-While highly scalable for read-heavy workloads, Clover's client-based recovery
-scheme quickly becomes cost prohibitive when faced with significant levels of
-write contention. This shortcoming is not limited to Clover, but is fundamental
-to any approach based upon distributed conflict resolution.
+%The few published systems that provide fully passive remote memory
+%target scenarios involving read-heavy workloads~\cite{clover}, client
+%colocation~\cite{sherman}, or memory-inefficient
+%datastructures~\cite{race} \textbf{XXX:Need to say more} where the
+%costs of conflict detection and resolution can be effectively
+%amortized.
+%
+The few published systems that do support shared access mediate
+requests to specialized data structures~\cite{clover,sherman}.
 
+For example, Sherman, a write-optimized
+B+Tree~\cite{sherman} places its locks in NIC memory at the server to
+avoid crossing the remote PCIe bus, resulting in 3$\times$ higher
+throughput.  Clover~\cite{clover} implements a hash table that
+supports lock-less reads; concurrent writes are supported through a
+client-driven optimistic concurrency protocol.  Despite their clever
+designs, however, both approaches simply delay the inevitable:
+%%
+Sherman's NIC-based locks are subject to significant hardware limits
+imposed by the CAS operation required to enforce serialization.
+Similarly, Clover's client-based recovery scheme quickly becomes cost
+prohibitive when faced with non-trivial levels of write contention.
+%
+%it is repeatedly executed on a single
+%address (Lock acquire and release). Further, Sherman requires that cliques of
+%clients are colocated to resolve most contention based conflicts locally.
+%%
+% CAS instructions are only executed to commit
+%writes and never land on the same address twice - effectively bypassing the
+%single address limits of CAS.
+%%
+%While highly scalable for read-heavy workloads,  This
+
+We argue that these shortcomings are not unique to the particular
+systems, but rather fundamental to any approach that implements
+distributed conflict resolution.
+%
 %% minimize conflicts by caching  metadata about the
 %% location of the latest writes and reads while also make use of a
 %% remote data structures which allows for lock-less reads. In the case of
 %% highly contended resources however the performance of clover
 %% diminishes sharply due to an increased number of atomic locking
 %% operations required on writes.
+%
+The obvious alternative is to deploy a centralized memory controller
+(e.g., a CXL 2.0 switch) that can serve as a serialization point and
+ensure all races are resolved before accessing memory, but effective
+realization of such a design has proven elusive.  While many proposals
+exist, none of them have yet been implemented in commercially
+available hardware.  More to the point, such designs are inherently
+unscalable as they require all accesses to be routed through the
+controller, rather than forwarded directly between the client and
+relevant server.
 
-The traditional alternative, of course, is to deploy a centralized
-memory controller that can serve as a serialization point and ensure
-all races are resolved before accessing memory.  Unfortunately, such
-designs are inherently unscalable as they require all accesses to be
-routed through the controller, rather than forwarded directly between
-the client and relevant server.  In this work we make the observation
-that such a serialization point already exists in rack-scale
-disaggregated deployments: the top-of-rack switch.  We propose to
-leverage the capabilities of modern programmable switches to cache
-sufficient information about in-flight requests to transparently
-detect and resolve conflicts before they occur.  Unlike a traditional
-centralized memory controller, our serializer need only act upon
-actual conflicts and can avoid the unnecessary costs of enforcing
-ordering among unrelated requests.  Moreover, the
-serializer serves as a performance-enhancing proxy: it can 
-allow even conflicting requests to pass through unmodified without
-jeopardizing safety, as client-based conflict resolution remains.
+In this work we make the observation that such a serialization point
+already exists in today's rack-scale disaggregated deployments: the
+top-of-rack switch.  We propose to leverage the capabilities of modern
+programmable switches to cache sufficient information about in-flight
+requests to transparently detect and resolve conflicts before they
+occur.  Unlike a traditional centralized memory controller, however,
+our serializer does not need to operate on---or even observe---all
+remote memory requests.  First, it only needs to address actual conflicts
+and can avoid the unnecessary costs of enforcing ordering among
+unrelated requests.  Second, in deployment scenarios where it may
+not be on-path for all requests, our serializer can serve as a
+performance-enhancing proxy: when deployed alongside client-based
+conflict resolution techniques, it can allow even conflicting requests
+to pass through unmodified without jeopardizing safety while
+significantly decreasing the frequency of conflict resolution.
 
 We present {\sword}, an on-path serializer
 %(implemented either
@@ -124,27 +149,35 @@ We present {\sword}, an on-path serializer
 %middle box~\cite{disandapp})
 that dramatically improves the performance of optimistic passive
 remote memory systems that support write sharing.  Like all ToRs,
-{\sword} imposes a globally observable total order on memory
-requests within a rack.  Crucially, {\sword} does not replace the
-underlying optimistic concurrency scheme: all remote memory operations
-are still suitably guarded to ensure that clients can detect and
-recover from conflicts.  Rather, because {\sword} understands the
-disaggregated memory protocol, it can inspect the total ordering and
-detect which guards will fail.  If suitably provisioned (i.e., it has
-the appropriate metadata cached), it can transparently modify requests
-in flight to account for the preceding operations and decrease the
-likelihood the guard will trip.  Moreover, if {\sword} is configured
-to explicitly manage the RDMA connections themselves, it can enforce
-per-server ordering and remove the expensive guards entirely.
+{\sword} imposes a globally observable total order on memory requests
+(i.e., packets) within a rack.  In scenarios where {\sword} has the
+resources to explicitly manage all RDMA connections, it can enforce
+per-server ordering at the ToR and remove the expensive CAS operations
+from all in-flight packets, avoiding their associated performance
+bottlenecks entirely.  More generally, however, {\sword} can be
+deployed alongside an underlying optimistic concurrency scheme: remote
+memory operations remain guarded to ensure that clients can detect and
+recover from conflicts of which {\sword} may not be aware.  Instead,
+because {\sword} understands the disaggregated memory protocol, it can
+inspect the total ordering of requests that it does see and detect
+which guards are doomed to fail.  In such cases,
+%If suitably provisioned (i.e., it has the
+%appropriate metadata cached),
+it modifies requests in
+flight to account for the preceding operations and decrease the
+likelihood the guard will trip.
 
-We prototype {\sword} in a P4 programable switch connected to Clover machines
-each equipped with ConnectX-5 RoCE enabled NICs. Our evaluation shows that
-{\sword} dramatically increases the performance of Clover in the presence of
-write contention. Under a 50:50 read-write workload, throughput rises by almost
-35$\times$, tail latency drops by over 300$\times$ and bandwidth usage cuts by
-16$\times$. Further, we show using a DPDK implementation of {\sword} that by
-replacing compare-and-swap requests in flight with standard RDMA verbs, we can
-surpass the hardware-imposed limit on atomic requests per queue pair.
+We prototype {\sword} in two scenarios using a rack of servers
+equipped with ConnectX-5 RoCE-enabled NICs.  First, we use a
+DPDK-based implementation to replace CAS requests in flight with
+standard RDMA verbs, allowing systems like Sherman to overcome the
+hardware-imposed limit on atomic requests per queue pair.  Second, we
+implement \sword\ on a P4 programmable switch to accelerate Clover's
+optimistic concurrency protocol. Our evaluation shows that {\sword}
+dramatically increases the performance of Clover in the presence of
+write contention: Under a 50:50 read-write workload, throughput rises
+by almost 35$\times$, tail latency drops by over 300$\times$ and
+bandwidth usage drops by 16$\times$.
 
 %% Using RDMA transport information and clover specific application
 %% knowledge all reads and writes to contended areas are totally ordered

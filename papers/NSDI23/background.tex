@@ -1,17 +1,17 @@
-\section{Background}
+\section{Background and related work}
 
-The literature on disaggregated memory, efficient use of RDMA verbs, and
-programmable middleboxes are each too vast to detail here.  Rather, we briefly
-highlight relevant core themes from each, and then provide a short overview on
-concurrency management in Sherman and Clover, to facilitate understanding of
-\sword's optimizations.
+The literature on disaggregated memory, efficient use of RDMA verbs,
+and programmable middleboxes are each too vast to detail here.
+Rather, we briefly highlight relevant core themes from each and 
+provide a short overview of Sherman and Clover, the two example
+systems we use to demonstrate \sword's optimizations.
 
 \subsection{Resource disaggregation}
 
 Within the disaggregation community there is a divide between software
 and hardware-based approaches to remote memory management.  The use of
 dedicated hardware to access and control memory over the network is
-often referred to as memory disaggregation, in which custom hardware
+often referred to as memory disaggregation or pooling, in which custom hardware
 is used to interpose on either the caching or paging
 system~\cite{dredbox,rethinking}.  Alternatively, approaches that rely
 entirely on commodity hardware to manage remote memory are generally
@@ -21,19 +21,20 @@ likely to see deployment in the short term; our techniques presume
 only standards-compliant RDMA NICs and are designed to leverage the
 scalability of today's programmable switching hardware.
 
-Choosing how to expose remote memory to application remains an open
+Choosing how to expose remote memory to applications remains an open
 problem. Full transparency implies that existing applications can make
 use of remote memory without modification. Many systems leverage
-virtual memory and use remote memory as a swap device fetching and
+virtual memory and use remote memory as a swap device, fetching and
 evicting pages to and from remote
 memory~\cite{fastswap,GMS,infiniswap,leap,ramcloud}. Transparency
 comes at a cost, however, and systems that make remote accesses
 explicit typically have far higher performance for similar
 operations~\cite{aifm}.  Most existing transparent remote memory
 systems do not support sharing, as unmanaged contention for resources
-such as shared locks can have disastrous performance implications.  We
-hope that {\sword} may enable progress in this space by dramatically
-decreasing the frequency of data races.
+such as shared locks can have disastrous performance implications.
+%We
+%hope that {\sword} may enable progress in this space by dramatically
+%decreasing the frequency of data races.
 
 
 %We
@@ -43,7 +44,7 @@ decreasing the frequency of data races.
 %API's to users, such as POSIX, PUT/GET, or language integrated
 %runtimes.
 
-\subsection{RDMA key-value stores}
+\subsection{RDMA-optimized data structures}
 
 Given the challenges inherent in full-blown remote memory, many have
 focused on more constrained, but broadly applicable storage
@@ -52,15 +53,80 @@ of work to build fast in-memory key-value
 stores~\cite{farm,MemC3,herd,pilaf,sonuma,storm}. In their quest for
 high performance, these works provide deep insights into the
 trade-offs between different RDMA verbs and the spectrum of
-remote-memory data structures. In each, however, it is assumed that a
+remote-memory data structures. In most, however, it is assumed that a
 remote CPU is co-resident with memory to provide some degree of
-serialization for writes and metadata manipulation. Yet, in the context of
-truly passive far memory no such co-resident CPU exists.  In
-its absence clients must enforce serialization for potentially
-conflicting operations through RDMA atomic requests. These special
-hardware-supported requests are expensive and known to (dramatically)
+serialization for writes and metadata manipulation. Yet, in the
+context of truly passive far memory no such co-resident CPU exists;
+in its absence clients must enforce serialization for potentially
+conflicting operations through RDMA atomic requests. These
+hardware operations are expensive and known to (dramatically)
 underperform fully asynchronous verbs, both in terms of throughput and
-scalability~\cite{design-guidelines}.
+scalability~\cite{design-guidelines}.  We consider accelerating two
+different systems that employ such operations.
+
+\subsubsection{Sherman}
+
+Sherman~\cite{sherman} is a write-optimized B+Tree for passive remote memory. The
+tree is augmented using entirely one-sided RDMA operations. Sherman
+improves performance under contention in two key ways. First, it
+places locks for each node in the B+Tree in a special region of NIC
+memory exposed by ConnectX-5 NICs.  This small chunk of memory exposes
+the same RDMA interface has host memory, but allows locking operations
+to execute with approximately 3$\times$ the throughput.  Second,
+Sherman's clients employ a hierarchical locking scheme to reduce the
+contention for server-hosted locks.  This client-local optimization
+significantly improves performance in cases where clients are
+collocated; \sword\ seeks to achieve similar efficiencies at the rack
+scale.
+
+%where locks are acquired locally prior
+%to issuing a CAS to remote NIC mapped locks. Locks and unlocks each
+%require a CAS operation.
+
+%The biggest
+%boost in Sherman's performance comes from resolving lock conflicts
+%locally. It assumes that most clients are collocated.
+
+
+%%
+%\sg{(danger zone)} We consider client side optimizations to be highly
+%effective, but also highly restrictive as they assume both colocation and a
+%shared address space for their clients. We focus our attention instead on the
+%fundamental limitations of Shermans lock based approach.
+
+\subsubsection{Clover}
+
+%To demonstrate the effectiveness of {\sword} in practice, we
+%needed to select a passive far memory system with which to experiment.
+%The authors of Clover, a recently published key-value store designed
+%for disaggregated persistent memory~\cite{clover}, made their
+%implementation publicly available and helped us deploy it on our
+%testbed. While Clover targets persistent storage it is also a
+%prototypical example of a key-value store for remote DRAM.  Most
+%importantly for our purposes, its design makes the assumption that
+%there are no remote CPU's co-resident with memory. All of
+Clover~\cite{clover} implements a shared remote key-value store using
+%remote memory accesses are made via
+one-sided RDMA requests: reads, writes, and CAS.  To improve
+performance, Clover moves metadata storage off of the data path. On
+the data path, reads and writes for a given key are made exclusively
+to an append-only linked list stored in remote memory. All RDMA
+requests are made to the (presumed) tail of the list and writes are
+guarded by CAS operations. A client may not know the location of the
+tail as other writers concurrently push it forward. When a read or a
+write fails to land at the tail of the list Clover iteratively
+traverses the structure until the tail is found. While this provides
+no liveness guarantees, in the common read-heavy case concurrent
+clients all eventually reach the end of the list. To speed up
+operations clients keep caches (i.e., hints) of the end of each key's
+linked list to avoid traversals. When writes are heavy and/or when
+particular keys are hot, Clover's performance degrades substantially.
+By implementing a similar cache at the ToR, \sword\ dramatically
+decreases the likelihood of accesses to stale tail locations.
+%Clover serializes writes with RDMA compare and swap
+%requests which further impact performance.
+
+
 
 \subsection{Programmable middleboxes}
 
@@ -80,53 +146,6 @@ assume that, like programmable switches, these middleboxes are highly
 resource-constrained with a small amount of SRAM intended for
 forwarding packets and limited functionality for executing programs in
 the data path.
-
-\subsection{Clover}
-
-To demonstrate the effectiveness of {\sword} in practice, we
-needed to select a passive far memory system with which to experiment.
-The authors of Clover, a recently published key-value store designed
-for disaggregated persistent memory~\cite{clover}, made their
-implementation publicly available and helped us deploy it on our
-testbed. While Clover targets persistent storage it is also a
-prototypical example of a key-value store for remote DRAM.  Most
-importantly for our purposes, its design makes the assumption that
-there are no remote CPU's co-resident with memory. All of Clover's
-remote memory accesses are made via one-sided RDMA requests: reads,
-writes, and compare and swaps.  To improve performance,
-Clover moves metadata storage off of the data path. On the data path,
-reads and writes for a given key are made exclusively to an
-append-only linked list stored in remote memory. All RDMA requests are
-made to the (presumed) tail of the list. A client may not know the
-location of the tail as other writers may concurrently push it
-forward. When a read or a write fails to land at the tail of the list
-Clover iteratively traverses the structure until the tail is
-found. While this provides no liveness guarantees, in the common
-read-heavy case concurrent clients all eventually reach the end of the
-list. To speed up operations clients keep caches (i.e., hints) of the
-end of each key's linked list to avoid traversals. When writes are
-heavy and/or when particular keys are hot, Clover's performance
-degrades substantially. Clover serializes writes with RDMA compare and swap
-requests which further impact performance.
-
-\subsection{Sherman}
-
-Sherman is a write optimized B-Tree for passive remote memory. The tree is
-augmented using entirely one-sided RDMA operations. Sherman improves it's
-performance under contention in two key ways. First it places locks for each
-node in the B-Tree on a special region of NIC memory exposed on ConnectX-5 NICs.
-This small chunk of memory exposes the same RDMA interface has host memory, but
-allows locking operations to execute at approximately 3$\times$ the throughput.
-The biggest boost in Sherman's performance comes from resolving lock conflicts
-locally. It assumes that most clients are collocated. Clients use a
-hierarchically locking scheme where locks are acquired locally prior to issuing
-a CAS to remote NIC mapped locks. Locks and unlocks each require a CAS
-operation.
-%%
-\sg{(danger zone)} We consider client side optimizations to be highly
-effective, but also highly restrictive as they assume both colocation and a
-shared address space for their clients. We focus our attention instead on the
-fundamental limitations of Shermans lock based approach.
 
 
 

@@ -1,29 +1,34 @@
 \begin{abstract}
 
-Effectively sharing passive remote memory has proven challenging
-despite the advent of sophisticated RDMA hardware.
+Effectively sharing passive remote memory remains an open problem.
+While emerging standards like CXL promise cache-coherent memory
+pooling, the spec-compliant hardware is not yet commercially
+avaialble and its feasability at scale remains unproven.
 %Fundamentally, any
 %design must choose a serialization point and then ensure in-order
 %communication and operation from that point on.
-Most performant
-existing solutions employ optimistic concurrency approaches that defer
-serialization until the remote memory server and rely upon heavyweight
-RDMA atomics to ensure consistency.  Unfortunately,
-such approaches degrade rapidly under contention, and atomic
-operations scale poorly on existing hardware.
+%Most performant
+As a result, existing RDMA-based systems employ optimistic concurrency
+approaches that defer serialization to the remote memory server and
+rely upon heavyweight RDMA atomics to ensure consistency.
+Unfortunately, atomic operations scale poorly causing these approaches
+to degrade rapidly under contention.
 
 We present \sword, an alternative approach that leverages the de-facto
 serialization point in rack-scale disaggregated systems---the
 top-of-rack switch---to \emph{transparently} resolve data races in
-flight, avoiding the latency involved in client-based reconciliation.
-Moreover, {\sword} can exploit RDMA transport ordering to remove the
-need for heavyweight atomic verbs.  Under a 50:50 read-write workload,
-our DPDK-based prototype dramatically improves the
-performance of Clover, a state-of-the-art disaggregated key-value
-store: throughput rises by nearly $35\times$, tail latency drops by
-over $300\times$, and bandwidth usage cuts almost in half.
-Further, by removing RDMA atomics, we 
-avoid hardware-imposed scalability limits.
+flight.  In cases where \sword\ has sufficient resources to interpose
+on all requests, it can remove heavyweight atomic verbs and replace
+them with simple write operations, avoiding the hardware performance
+bottleneck entirely.  More generally, however, it can safely operate
+on only a subset of the requests, dynamically adjusting contending
+requests to avoid expensive client-based resolution in those cases.
+Under a 50:50 read-write workload, our P4-based prototype
+dramatically improves the performance of Clover, a state-of-the-art
+disaggregated key-value store: throughput rises by nearly $35\times$,
+tail latency drops by over $300\times$, and bandwidth usage drops by a
+factor of 16.  %Further, by removing RDMA atomics, we avoid
+%hardware-imposed scalability limits.
 %of $\approx$2.7 MOP/s per queue pair.
   
 %% Disaggregating memory from compute incurs extreme latency
