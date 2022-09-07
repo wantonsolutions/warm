@@ -84,7 +84,7 @@ The few published systems that do support shared access mediate
 requests to specialized data structures~\cite{clover,sherman}.
 
 For example, Sherman, a write-optimized
-B-Tree~\cite{sherman} places its locks in NIC memory at the server to
+B+Tree~\cite{sherman} places its locks in NIC memory at the server to
 avoid crossing the remote PCIe bus, resulting in 3$\times$ higher
 throughput.  Clover~\cite{clover} implements a hash table that
 supports lock-less reads; concurrent writes are supported through a
