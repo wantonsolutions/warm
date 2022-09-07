@@ -851,3 +851,21 @@ url = {https://www.usenix.org/conference/nsdi21/presentation/sapio},
 publisher = {USENIX Association},
 month = apr,
 }
+
+@inproceedings{netlock,
+author = {Yu, Zhuolong and Zhang, Yiwen and Braverman, Vladimir and Chowdhury, Mosharaf and Jin, Xin},
+title = {NetLock: Fast, Centralized Lock Management Using Programmable Switches},
+year = {2020},
+isbn = {9781450379557},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3387514.3405857},
+doi = {10.1145/3387514.3405857},
+abstract = {Lock managers are widely used by distributed systems. Traditional centralized lock managers can easily support policies between multiple users using global knowledge, but they suffer from low performance. In contrast, emerging decentralized approaches are faster but cannot provide flexible policy support. Furthermore, performance in both cases is limited by the server capability.We present NetLock, a new centralized lock manager that co-designs servers and network switches to achieve high performance without sacrificing flexibility in policy support. The key idea of NetLock is to exploit the capability of emerging programmable switches to directly process lock requests in the switch data plane. Due to the limited switch memory, we design a memory management mechanism to seamlessly integrate the switch and server memory. To realize the locking functionality in the switch, we design a custom data plane module that efficiently pools multiple register arrays together to maximize memory utilization We have implemented a NetLock prototype with a Barefoot Tofino switch and a cluster of commodity servers. Evaluation results show that NetLock improves the throughput by 14.0-18.4x, and reduces the average and 99% latency by 4.7-20.3x and 10.4-18.7x over DSLR, a state-of-the-art RDMA-based solution, while providing flexible policy support.},
+booktitle = {Proceedings of the Annual Conference of the ACM Special Interest Group on Data Communication on the Applications, Technologies, Architectures, and Protocols for Computer Communication},
+pages = {126–138},
+numpages = {13},
+keywords = {Data plane, Lock Management, Programmable Switches, Centralized},
+location = {Virtual Event, USA},
+series = {SIGCOMM '20}
+}
