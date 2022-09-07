@@ -14,9 +14,9 @@
 Passive memory systems suffer from two fundamental sources of overhead: The
 additional expense incurred by leveraging any hardware-enforced consistency
 semantics at the memory servers, and the costs of resolving conflicts from afar.
-Before introducing our approaches to avoiding both, we characterize the
+Before introducing our approach to avoiding both, we characterize the
 potential benefits by quantifying each using microbenchmarks in the context of
-Clover and Sherman on our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5
+Sherman and Clover on our testbed RDMA hardware, NVIDIA Mellanox ConnectX-5
 NICs.
 
 
@@ -50,7 +50,7 @@ classes of guarantees; we summarize both below.
 The strongest guarantee available in the RDMA specification is atomicity,
 through the use of special atomic requests like fetch-and-add (FAA) and CAS.
 Like their traditional CPU counterparts, atomic requests appear to execute at a
-single point in time, ensuring a total ordering on all data dependent
+single point in time, ensuring a total ordering on all data-dependent
 instructions and a partial ordering between all other instructions---i.e., all
 other instructions appear to occur strictly before or after the atomic,
 regardless of whether they are themselves atomic.
@@ -62,51 +62,38 @@ regardless of whether they are themselves atomic.
     \caption{Achieved throughput of RDMA verbs across twenty queue pairs on data
     independent addresses as a function of request concurrency.  When using
     atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per
-    queue pair.}
+    queue pair, up to about 55 MOPS in aggregate.}
 
     \label{fig:rdma_concur}
 %      \vskip -0.5em
 \end{figure}
 
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
-%  \vskip -0.5em
 
-    \caption{ Throughput comparison of serialized RDMA operations:
-    compare-and-swap operations vs writes on a single address. The performance
-    for NIC-mapped, and main memory operations are compared. Writes are 6.2x
-    higher throughput than CAS on host memory and 2.5x higher on NIC memory.
-    Writes are restricted to a single queue pair.  }
-
-    \label{fig:cas_vs_writes}
-%      \vskip -0.5em
-\end{figure}
-
-Atomic primitives enable higher level serialization structures like locks and
+Atomic primitives enable higher-level serialization structures like locks and
 optimistic concurrency schemes. Unfortunately, atomics are famously
 expensive~\cite{design-guidelines}, fundamentally because they require mutual
-exclusion across all RDMA queue pairs (details in sec~\ref{sec:qp_ordering}).
-Concurrent read and write operations with a data dependency on the atomic
-address must stall until the atomic completes. Atomic operations issued to host
-memory require two PCIe round trips to execute before dependent operations can
-be unblocked.
+exclusion across all RDMA queue pairs---concurrent read and write operations with a data dependency on the atomic
+address must stall until the atomic completes.
+%(see Section~\ref{sec:qp_ordering}).
 %%
 % An RDMA queue pair configured as a reliable connection (RC) acts similarly to a
 % TCP connection. Reliable connections provide in order operation serialization
 % and ensure at most once semantics. Reliable connections are required by the RDMA
 % specification to execute one-sided memory operations like read, write, and CAS.
-
+%
 % This work focuses
 % exclusivly on RC connections as they do not require and involvement from a CPU
 % to execute memory operations.
-
-Figure~\ref{fig:rdma_concur} illustrates the scalability of data independent
-(each instruction is issued to an isolated cache line) atomic operations
-relative to non-atomic reads and writes.  It confirms that the findings of prior
-studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e., ConnectX-3)
-remain true on our ConnectX-5 NICs, namely that atomic requests can scale with
-non-atomics but have a hard performance bottleneck, while standard verbs (e.g.,
-read and write) continue to scale with increased request concurrency.
+%
+Figure~\ref{fig:rdma_concur} illustrates the scalability of
+data-independent (each instruction is issued to an isolated cache
+line) atomic operations in comparison to standard reads and writes.
+We confirm that the findings of prior
+studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
+ConnectX-3) remain true on our ConnectX-5 NICs, namely that atomic
+requests scale with non-atomics only to a point.  CAS operations have
+a hard performance ceiling, while standard verbs (e.g., read and
+write) continue to scale with increased request concurrency.
 
 %In many disaggregated systems operation serialization is performed using RDMA
 %atomic operations implemented on a NIC. These
@@ -120,16 +107,10 @@ read and write) continue to scale with increased request concurrency.
 % are concurrent, dispatch the write, and then wait for the memory operation to
 % complete. 
 
-Melanox ConnectX-5 NICs and above provide a small region of NIC memory which can
-be mapped into the address space of RDMA applications.  Mapping RDMA requests
-onto NIC memory removes the overhead of PCIe but still requires atomicity across
-queue pairs. Figure~\ref{fig:cas_vs_writes} shows the relative performance of
-serialized CAS operations vs serialized writes on a single address. CAS
-operations are issued many queue pairs (highest throughput configuration) and
-use NIC locking for serialization. Write operations are issued on a single queue
-pair, and use the serialization provided by RDMA's reliable connection to ensure
-in order execution. Whether executed on host or nic mapped memory, writes on a
-single queue pair significantly out perform atomic operations.
+
+%Whether executed on host or
+%NIC-mapped memory, writes on a single queue pair significantly out
+%perform atomic operations.
 
 %The time required to complete an atomic is at minimum a PCIe round trip from
 %the NIC to main memory, during which time a lock on the NIC guards the memory
@@ -182,33 +163,34 @@ single queue pair significantly out perform atomic operations.
     \label{fig:reorder}
 \end{figure}
 
-Hence, a scalable far memory system should avoid the use of course grained
-locking with atomics to the extent possible, instead relying upon, lightweight
-RDMA verbs and fine grained locks.  
+Hence, a scalable far memory system should avoid the use of atomics to the extent possible, instead relying upon lightweight
+RDMA verbs.  
 %%
-Even then, existing hardware does provide some guarantees.  For example, RDMA
-provides access to memory hosted on a server that likely utilizes a commodity
-hardware memory management unit (MMU).  All modern MMUs ensure coherent memory
-accesses and frequently ensure a total ordering on local memory requests (i.e.,
-sequential consistency).  Unfortunately, due to the complexities of today's NUMA
-architectures and PCIe bus arbitration, it is possible that memory requests may
-not be serviced in the order they are dispatched.  Similarly, individual RDMA
-requests may require multiple memory accesses, potentially leading to write
-corruption and read tearing.
+Even then, existing hardware does provide some guarantees.  For example,
+%RDMA
+%provides access to memory hosted on a server that likely utilizes a commodity
+all modern hardware memory management units (MMUs) ensure coherent
+memory accesses and frequently ensure a total ordering on local memory
+requests (i.e., sequential consistency).  Unfortunately, due to the
+complexities of today's NUMA architectures and PCIe bus arbitration,
+it is possible that memory requests may not be serviced in the order
+they are dispatched by the server's NIC.  Similarly, individual RDMA
+requests may require multiple memory accesses, potentially leading to
+write corruption and read tearing.
 
 Figure~\ref{fig:reorder} shows that this potential reordering is not
 just an academic concern, but instead arises with some frequency. In
-this example, we issue RDMA read, write and CAS requests at a rate
-of 1 million requests per second to 1,024 different memory locations
-according to a Zipf distribution, and spread these requests across 32
+this example, we issue RDMA read, write and CAS requests at a rate of
+one million requests per second to 1,024 different memory locations
+according to a Zipf distribution and spread these requests across 32
 different queue pairs. Each request is routed through a middlebox that
-keeps a global request counter for each RDMA request.  We track the
-order of responses relative to the order the corresponding request was
-issued from the middlebox.  The plot shows the distribution of
-sequence-number gaps between responses.  As expected, the vast
-majority differ by one (i.e., the same order they were
-dispatched), but a non-trivial number are out of order by one to five
-requests, and some by up to 15.
+keeps a global request counter for each RDMA request (i.e., ground
+truth regarding request ordering).  We track the order of responses
+relative to the order the corresponding request was issued from the
+middlebox.  The plot shows the distribution of sequence-number gaps
+between responses.  As expected, the vast majority differ by one
+(i.e., the same order they were dispatched), but a non-trivial number
+are out of order by one to five requests, and some by up to 15.
 
 %% RDMA read and write operations to detect reordering across 1000 keys
 %% on a zipf distribution. Specifically we monitor a stream of key value
@@ -224,9 +206,9 @@ requests, and some by up to 15.
 \begin{figure}[t]
   \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
   \vskip -0.5em
-\caption{Max throughput per QP on RoCEv2 RC connections. Each QP gets a single
-core, and issues in-lined writes. Single connection only offer a fraction of the
-available NIC bandwidth.} 
+\caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
+core, and issues in-lined writes. A single connection only offers a fraction of the
+total NIC throughput.} 
   \vskip -0.5em
   \label{fig:qp_bottleneck}
 \end{figure}
@@ -234,7 +216,7 @@ available NIC bandwidth.}
 Happily, the RDMA specification provides the ability to provide
 partial ordering amongst a subset of requests~\cite{infiniband-spec}.
 Specifically, RDMA provides three different types of queue pairs (QP)
-with differing ordering (and reliability) guarantees. Unreliable
+with differing ordering---and reliability---guarantees. Unreliable
 connections and datagrams (UC \& UD) provide no ordering guarantees
 while reliable connections (RC) provide TCP-like in-order processing
 of requests on that QP.  As a result, requests on an individual RC are
@@ -256,15 +238,15 @@ across multiple RC are not.
 % a NIC should ensure that all operations over a given queue pair are
 %serviced in the order they arrive.
 
+
 In general, this can provide sequential consistency if all requests
 relating to a given memory location arrive on the same RC queue pair.
-Unsurprisingly, RC's ordering guarantee comes with its own
+Unsurprisingly, however, RC's ordering guarantee comes with its own
 scalability limitations.  Figure~\ref{fig:qp_bottleneck} shows that
-the performance of individual queue pairs fall far short of line
-rate on our NICs; we observe increased performance until at least
-seven queue pairs are used in parallel.  Moreover, as traditionally
-conceived, a QP is intended to be established between a single
-client and server---limiting its utility in a disaggregated setting.
+the performance of individual queue pairs fall far short of line rate
+on our NICs; we do not observe full performance until at least seven queue pairs are used simultaneously.  Moreover, as traditionally
+conceived, a QP is intended to be established between a single client
+and server---limiting its utility in a disaggregated setting.
 
 %% \todo{I think that this was written with a misunderstanding about what the charts were}
 %% As expected, when all requests are issued on the same queue pair, they are
@@ -285,6 +267,44 @@ client and server---limiting its utility in a disaggregated setting.
 %%  on different queue pairs.  Second, the performance of a single queue
 %%  pair on commercial NICs is significantly less than line rate (likely
 %%  precisely because of the need to enforce ordering constraints).
+
+\subsection{NIC-based memory}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%  \vskip -0.5em
+
+  \caption{ Throughput comparison of serialized RDMA operations in
+    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
+    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory despite being restricted to a single queue pair.  }
+
+    \label{fig:cas_vs_writes}
+%      \vskip -0.5em
+\end{figure}
+
+Regardless of how operations are serialized,
+accesses to main memory on a remote server require multiple PCIe
+round trips to
+%execute before dependent operations can be unblocked.
+complete.
+Sherman exploits the fact that newer Mellanox NICs like the ConnectX-5
+provide a small region of NIC memory that can be mapped into the
+address space of RDMA applications,
+%.  Mapping RDMA requests onto NIC memory
+removing the remote PCIe overhead for frequently accessed data like its B+Tree locks.
+%but still requires atomicity across queue pairs.
+Figure~\ref{fig:cas_vs_writes} compares the performance of
+serialized CAS and write operations to addresses in main vs.
+NIC-hosted device memory. CAS operations are issued across many
+queue pairs to achieve maximum throughput while the write operations are
+issued on a single queue pair to enforce serialization.
+%leverage the serialization provided
+%by RDMA's reliable connection abstraction to ensure in-order
+%execution.
+While the use of NIC-hosted memory boosts CAS throughput
+from approximately 3 to around 9 MOPS, write operations remain
+dramatically more efficient in either case.
+
 
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
@@ -341,10 +361,11 @@ try.
 Perhaps even more significant than the overheads associated with the expected
 number of retries is the cost at the tail---namely the latency associated with
 those particularly ``unlucky'' requests that fail repeatedly.  Note that these
-operations are precisely those for ``hot'' memory locations, so likely to be
-ones that matter.  Our measurements show that under contention (e.g., 50\% write
-operations with 396 threads) Clover's 99th-percentile tail latency increases by
-over 300$\times$ (Figure~\ref{fig:tail_latency}).
+operations are precisely those for hot memory locations, so likely to be
+ones that matter.  Under contention
+%(e.g., 50\% write operations with 396 threads)
+Clover's 99th-percentile tail latency increases by
+over 300$\times$ (Figure~\ref{fig:tail_latency}) in our experiments.
 
 %% Reducing the cost of each operation to exactly 1 attempt can reduce
 %% this additional latency by nearly two orders of magnitude.
