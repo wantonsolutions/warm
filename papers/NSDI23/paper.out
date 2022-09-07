@@ -1,37 +1,37 @@
-\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
-\BOOKMARK [1][-]{section.2}{Background}{}% 2
-\BOOKMARK [2][-]{subsection.2.1}{Resource disaggregation}{section.2}% 3
-\BOOKMARK [2][-]{subsection.2.2}{RDMA key-value stores}{section.2}% 4
-\BOOKMARK [2][-]{subsection.2.3}{Programmable middleboxes}{section.2}% 5
-\BOOKMARK [2][-]{subsection.2.4}{Clover}{section.2}% 6
-\BOOKMARK [1][-]{section.3}{Serialization overheads}{}% 7
-\BOOKMARK [2][-]{subsection.3.1}{Client-based conflict resolution}{section.3}% 8
-\BOOKMARK [2][-]{subsection.3.2}{RDMA semantics}{section.3}% 9
-\BOOKMARK [3][-]{subsubsection.3.2.1}{Atomic requests}{subsection.3.2}% 10
-\BOOKMARK [3][-]{subsubsection.3.2.2}{Queue-pair ordering}{subsection.3.2}% 11
-\BOOKMARK [1][-]{section.4}{On-path serialization}{}% 12
-\BOOKMARK [2][-]{subsection.4.1}{System overview}{section.4}% 13
-\BOOKMARK [2][-]{subsection.4.2}{Conflict avoidance}{section.4}% 14
-\BOOKMARK [3][-]{subsubsection.4.2.1}{Write steering}{subsection.4.2}% 15
-\BOOKMARK [3][-]{subsubsection.4.2.2}{Read steering}{subsection.4.2}% 16
-\BOOKMARK [2][-]{subsection.4.3}{Enforcing ordering}{section.4}% 17
-\BOOKMARK [3][-]{subsubsection.4.3.1}{Connection remapping}{subsection.4.3}% 18
-\BOOKMARK [3][-]{subsubsection.4.3.2}{Atomic replacement}{subsection.4.3}% 19
-\BOOKMARK [1][-]{section.5}{Implementation}{}% 20
-\BOOKMARK [2][-]{subsection.5.1}{P4 implementation}{section.5}% 21
-\BOOKMARK [2][-]{subsection.5.2}{Traffic identification}{section.5}% 22
-\BOOKMARK [2][-]{subsection.5.3}{Dynamic connection tracking}{section.5}% 23
-\BOOKMARK [2][-]{subsection.5.4}{RDMA ICRC}{section.5}% 24
-\BOOKMARK [2][-]{subsection.5.5}{DPDK considerations}{section.5}% 25
-\BOOKMARK [1][-]{section.6}{Evaluation}{}% 26
-\BOOKMARK [2][-]{subsection.6.1}{Testbed}{section.6}% 27
-\BOOKMARK [2][-]{subsection.6.2}{YCSB benchmarks}{section.6}% 28
-\BOOKMARK [2][-]{subsection.6.3}{Bandwidth reduction}{section.6}% 29
-\BOOKMARK [2][-]{subsection.6.4}{Tail latency}{section.6}% 30
-\BOOKMARK [2][-]{subsection.6.5}{Packet Size}{section.6}% 31
-\BOOKMARK [2][-]{subsection.6.6}{Contention}{section.6}% 32
-\BOOKMARK [2][-]{subsection.6.7}{Atomic replacement}{section.6}% 33
-\BOOKMARK [1][-]{section.7}{Limitations}{}% 34
-\BOOKMARK [1][-]{section.8}{Conclusion}{}% 35
-\BOOKMARK [2][-]{subsection.8.1}{CXL}{section.8}% 36
-\BOOKMARK [1][-]{appendix.A}{Appendix}{}% 37
+\BOOKMARK [1][-]{section.1}{\376\377\000I\000n\000t\000r\000o\000d\000u\000c\000t\000i\000o\000n}{}% 1
+\BOOKMARK [1][-]{section.2}{\376\377\000B\000a\000c\000k\000g\000r\000o\000u\000n\000d}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{\376\377\000R\000e\000s\000o\000u\000r\000c\000e\000\040\000d\000i\000s\000a\000g\000g\000r\000e\000g\000a\000t\000i\000o\000n}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{\376\377\000R\000D\000M\000A\000\040\000k\000e\000y\000-\000v\000a\000l\000u\000e\000\040\000s\000t\000o\000r\000e\000s}{section.2}% 4
+\BOOKMARK [2][-]{subsection.2.3}{\376\377\000P\000r\000o\000g\000r\000a\000m\000m\000a\000b\000l\000e\000\040\000m\000i\000d\000d\000l\000e\000b\000o\000x\000e\000s}{section.2}% 5
+\BOOKMARK [2][-]{subsection.2.4}{\376\377\000C\000l\000o\000v\000e\000r}{section.2}% 6
+\BOOKMARK [2][-]{subsection.2.5}{\376\377\000S\000h\000e\000r\000m\000a\000n}{section.2}% 7
+\BOOKMARK [1][-]{section.3}{\376\377\000S\000e\000r\000i\000a\000l\000i\000z\000a\000t\000i\000o\000n\000\040\000o\000v\000e\000r\000h\000e\000a\000d\000s}{}% 8
+\BOOKMARK [2][-]{subsection.3.1}{\376\377\000R\000D\000M\000A\000\040\000s\000e\000m\000a\000n\000t\000i\000c\000s}{section.3}% 9
+\BOOKMARK [3][-]{subsubsection.3.1.1}{\376\377\000A\000t\000o\000m\000i\000c\000\040\000r\000e\000q\000u\000e\000s\000t\000s}{subsection.3.1}% 10
+\BOOKMARK [3][-]{subsubsection.3.1.2}{\376\377\000Q\000u\000e\000u\000e\000-\000p\000a\000i\000r\000\040\000o\000r\000d\000e\000r\000i\000n\000g}{subsection.3.1}% 11
+\BOOKMARK [2][-]{subsection.3.2}{\376\377\000O\000p\000t\000i\000m\000i\000s\000t\000i\000c\000\040\000c\000o\000n\000f\000l\000i\000c\000t\000\040\000r\000e\000s\000o\000l\000u\000t\000i\000o\000n}{section.3}% 12
+\BOOKMARK [1][-]{section.4}{\376\377\000O\000n\000-\000p\000a\000t\000h\000\040\000s\000e\000r\000i\000a\000l\000i\000z\000a\000t\000i\000o\000n}{}% 13
+\BOOKMARK [2][-]{subsection.4.1}{\376\377\000S\000y\000s\000t\000e\000m\000\040\000o\000v\000e\000r\000v\000i\000e\000w}{section.4}% 14
+\BOOKMARK [2][-]{subsection.4.2}{\376\377\000E\000n\000f\000o\000r\000c\000i\000n\000g\000\040\000l\000o\000c\000k\000\040\000o\000r\000d\000e\000r\000i\000n\000g}{section.4}% 15
+\BOOKMARK [2][-]{subsection.4.3}{\376\377\000L\000o\000c\000k\000i\000n\000g\000\040\000A\000l\000g\000o\000r\000i\000t\000h\000m}{section.4}% 16
+\BOOKMARK [3][-]{subsubsection.4.3.1}{\376\377\000C\000o\000n\000n\000e\000c\000t\000i\000o\000n\000\040\000r\000e\000m\000a\000p\000p\000i\000n\000g}{subsection.4.3}% 17
+\BOOKMARK [3][-]{subsubsection.4.3.2}{\376\377\000A\000t\000o\000m\000i\000c\000\040\000r\000e\000p\000l\000a\000c\000e\000m\000e\000n\000t}{subsection.4.3}% 18
+\BOOKMARK [2][-]{subsection.4.4}{\376\377\000C\000o\000n\000f\000l\000i\000c\000t\000\040\000a\000v\000o\000i\000d\000a\000n\000c\000e}{section.4}% 19
+\BOOKMARK [3][-]{subsubsection.4.4.1}{\376\377\000W\000r\000i\000t\000e\000\040\000s\000t\000e\000e\000r\000i\000n\000g}{subsection.4.4}% 20
+\BOOKMARK [3][-]{subsubsection.4.4.2}{\376\377\000R\000e\000a\000d\000\040\000s\000t\000e\000e\000r\000i\000n\000g}{subsection.4.4}% 21
+\BOOKMARK [1][-]{section.5}{\376\377\000I\000m\000p\000l\000e\000m\000e\000n\000t\000a\000t\000i\000o\000n}{}% 22
+\BOOKMARK [2][-]{subsection.5.1}{\376\377\000P\0004\000\040\000i\000m\000p\000l\000e\000m\000e\000n\000t\000a\000t\000i\000o\000n}{section.5}% 23
+\BOOKMARK [2][-]{subsection.5.2}{\376\377\000R\000D\000M\000A\000\040\000I\000C\000R\000C}{section.5}% 24
+\BOOKMARK [2][-]{subsection.5.3}{\376\377\000D\000P\000D\000K\000\040\000c\000o\000n\000s\000i\000d\000e\000r\000a\000t\000i\000o\000n\000s}{section.5}% 25
+\BOOKMARK [1][-]{section.6}{\376\377\000E\000v\000a\000l\000u\000a\000t\000i\000o\000n}{}% 26
+\BOOKMARK [2][-]{subsection.6.1}{\376\377\000T\000e\000s\000t\000b\000e\000d}{section.6}% 27
+\BOOKMARK [2][-]{subsection.6.2}{\376\377\000A\000t\000o\000m\000i\000c\000\040\000r\000e\000p\000l\000a\000c\000e\000m\000e\000n\000t}{section.6}% 28
+\BOOKMARK [2][-]{subsection.6.3}{\376\377\000Y\000C\000S\000B\000\040\000b\000e\000n\000c\000h\000m\000a\000r\000k\000s}{section.6}% 29
+\BOOKMARK [2][-]{subsection.6.4}{\376\377\000B\000a\000n\000d\000w\000i\000d\000t\000h\000\040\000r\000e\000d\000u\000c\000t\000i\000o\000n}{section.6}% 30
+\BOOKMARK [2][-]{subsection.6.5}{\376\377\000T\000a\000i\000l\000\040\000l\000a\000t\000e\000n\000c\000y}{section.6}% 31
+\BOOKMARK [2][-]{subsection.6.6}{\376\377\000P\000a\000c\000k\000e\000t\000\040\000S\000i\000z\000e}{section.6}% 32
+\BOOKMARK [2][-]{subsection.6.7}{\376\377\000C\000o\000n\000t\000e\000n\000t\000i\000o\000n}{section.6}% 33
+\BOOKMARK [1][-]{section.7}{\376\377\000L\000i\000m\000i\000t\000a\000t\000i\000o\000n\000s}{}% 34
+\BOOKMARK [1][-]{section.8}{\376\377\000C\000o\000n\000c\000l\000u\000s\000i\000o\000n}{}% 35
+\BOOKMARK [2][-]{subsection.8.1}{\376\377\000C\000X\000L}{section.8}% 36
+\BOOKMARK [1][-]{appendix.A}{\376\377\000A\000p\000p\000e\000n\000d\000i\000x}{}% 37
