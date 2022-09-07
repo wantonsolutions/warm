@@ -14,7 +14,7 @@ metadata server, and 7 Clover clients. Physically, the machines are identical:
 each is equipped with two Intel Xeon E5-2640 CPUs and 256 GB of main memory
 evenly spread across the NUMA domains. Each server is equipped with a Mellanox
 ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of which are connected
-to a 100-Gbps Edgecore Wedge-100 programable switch running
+to a 100-Gbps Edgecore Wedge-100 programmable switch running
 \sword.Figure~\ref{fig:overview} shows the layout of our testbed.
 
 
@@ -97,28 +97,31 @@ process is 2.8 million requests per second per core.)
 Despite this restriction, these results show that replacing CAS with write
 avoids the memory server NIC's hardware bottleneck, enabling increased
 scalability with a more performant {\sword}---such as one implemented on a
-programmable switch. ~\sg{Our limitations here are due to programability issues
+programmable switch. ~\sg{Our limitations here are due to programmability issues
 on the programmable switch, multiplexing across connections inflates state
-reuqirements and makes storing dynamic connection state tricky given only a
+requirements and makes storing dynamic connection state tricky given only a
 static number of fixed width registers.}
 
 
 
 \subsection{Conflict avoidance}
 
-The YCSB benchmark consists of varying read and write workloads which
-have been shown to emulate many common datacenter
-operations~\cite{ycsb}. We show how \sword's read and write steering
-improve the
+While atomic replacement is feasible, it requires \sword\ to
+explicitly manage all the RDMA connections to a given (set of)
+server(s).  Here, we consider the more general case where
+\sword\ serves as a performance-enhancing proxy and attempts to avoid
+failed operations by steering requests in flight.  We use various
+workloads from the YCSB benchmark~\cite{ycsb} to demonstrate the
+effectiveness of steering when applied to Clover.
 %a
 %breakdown of our techniques, mainly read and write caching, QP mapping, and
 %atomic replacement with respect to their effect to system
-performance of four different
-YCSB workloads. We choose YCSB-B (95\% read and 5\% write) as our baseline, and
-YCSB-A (50\% read and 50\% write) to demonstrate how our algorithm performs
-under high contention.  We also show the performance boosts obtained while
-running a 100\% write workload which is intended to emulate other programmatic
-workloads which are update heavy.
+%% performance of four different
+%% YCSB workloads. We choose YCSB-B (95\% read and 5\% write) as our baseline, and
+%% YCSB-A (50\% read and 50\% write) to demonstrate how our algorithm performs
+%% under high contention.  We also show the performance boosts obtained while
+%% running a 100\% write workload which is intended to emulate other programmatic
+%% workloads which are update heavy.
 
 \subsubsection{Throughput}
 
@@ -189,7 +192,9 @@ logic is pure overhead due to the absence of reads.
   \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
    \vskip -0.5em
-    \caption{Bytes required per Clover operation on 128 byte payloads for each of the three techniques for different write intensities.}
+    \caption{Average number of bytes required per 128-byte Clover
+      operation using each of the three techniques for various write
+      intensities.}
     \label{fig:bandwidth_reduction}
      \vskip -0.5em
 \end{figure}
@@ -252,44 +257,45 @@ read requests fail as discussed above.
 %% page fault to complete before continuing. We therefore consider poor
 %% tail latency to be a fundamental barrier to the widespread adoption of
 %% far memory systems.
-Optimistic concurrency is well known to exhibit
-poor tail latency under contention, and Clover is no exception to this
-rule. Our techniques significantly reduce latency as steering
-ensures that nearly all requests succeed on the first try.
+Optimistic concurrency is well known to exhibit poor tail latency
+under contention, and Clover is no exception.  \sword\ significantly
+reduces latency as steering ensures that nearly all requests succeed
+on the first try.
 %
 Figure~\ref{fig:tail_latency} shows the 99th-percentile tail latencies
 associated with \sword's read and write steering in comparison to
 default Clover at varying write intensities. Clover's p99 read latency
-(left-hand plot) at 5\% writes is 91~$\mu$s, around 7.5$\times$ its
+at 5\% writes is 91~$\mu$s, around 7.5$\times$ its
 baseline our our testbed. With read and write steering the tail
 latency drops to 38~$\mu$s---a 2.3$\times$ improvement over
 Clover even in this low-contention regime. At 50\% writes the
-performance increase is roughly double.  As discussed above, in either
-case applying write steering alone actually hurts performance, as it
-makes reads more likely to fail.
-%read performance is improves by 2$\times$
-%relative to Clover with the exception of write steering alone. When
-%write steering is applied without the aid of read steering the writes
-%quickly out-pace the reads, leading the vast majority of reads to fail
-%on their first attempt.
-Given that these tests were conducted with a
-Zipf distribution across 64 cores it is highly likely that more than
-one thread is writing to the hottest keys at any point during the
-run. This leads some read requests to fail 10s of times before
-succeeding.
-
+performance increase is roughly double.
+%% As discussed above, in either
+%% case applying write steering alone actually hurts performance, as it
+%% makes reads more likely to fail.
+%% %read performance is improves by 2$\times$
+%% %relative to Clover with the exception of write steering alone. When
+%% %write steering is applied without the aid of read steering the writes
+%% %quickly out-pace the reads, leading the vast majority of reads to fail
+%% %on their first attempt.
+%% Given that these tests were conducted with a
+%% Zipf distribution across 64 cores it is highly likely that more than
+%% one thread is writing to the hottest keys at any point during the
+%% run. This leads some read requests to fail 10s of times before
+%% succeeding.
+%
 %Because of this property we suggest
 %that read and write steering be used in concert unless the workload is
 %explicitly known.
-
-Writes (right-hand side of Figure~\ref{fig:tail_latency}) perform
+%
+Writes perform
 worse than reads under contention in default Clover. Write+read
 steering provides a 2.7, 37.1, and 25.2$\times$
 improvement in tail latency, respectively, across 5, 50, and 100\%
 write workloads.  As one might expect, performing write steering alone
 privledges writes over reads, dropping their tail latencies even
-further---but likely insufficiently enough to make up for the dramatic
-spike in read tail latency
+further---at the cost of a dramatic
+spike in read tail latency.
 
 %% Figure~\ref{fig:tail_latency} also shows the performance of queue pair
 %% mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
