@@ -14,7 +14,7 @@ metadata server, and 7 Clover clients. Physically, the machines are identical:
 each is equipped with two Intel Xeon E5-2640 CPUs and 256 GB of main memory
 evenly spread across the NUMA domains. Each server is equipped with a Mellanox
 ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of which are connected
-to a 100-Gbps Edgecore Wedge-100 programable switch running
+to a 100-Gbps Edgecore Wedge-100 programmable switch running
 \sword.Figure~\ref{fig:overview} shows the layout of our testbed.
 
 
@@ -27,11 +27,13 @@ on the Onyx switch to redirect the RDMA traffic to \sword;
 
 \subsection{Atomic replacement}
 
-We show the ability of swapping compare-and-swap requests to writes to overcome
-hardware atomic bottlenecks by running a micro-benchmark that focuses
-exclusively on CAS performance. Specifically, we extract the CAS request alone
-from Shermans's write operation and repeatedly generate it from one client to a
-single memory server (while routing it through {\sword} as before).
+We show that \sword\ is able to overcome the NIC's hardware bottleneck
+by replacing CAS operations with writes serialized on a given QP by
+running a micro-benchmark that focuses exclusively on CAS
+performance. Specifically, we extract the CAS request from
+Shermans's lock operation and repeatedly generate it from one client
+to a single memory server (while routing it through {\sword} as
+before).
 
 %Here we remove clover from the
 %mix and run a simple benchmark of RDMA CAS operations between two
@@ -70,6 +72,15 @@ the memory-side NIC.
 %      \vskip -0.5em
 \end{figure}
 
+\begin{figure*}
+    \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
+%  \vskip -0.5em
+    \caption{{Performance of {\sword} techniques applied to Clover with 128-byte packets on 4 YCSB
+    benchmarks. The percentage of workload writes increases from left to
+    right. Our improvements over Clover are 1.0x, 2.8x, 32x, and 46x respectively.\todo{These are single runs not averages, rerun and capture error}}}
+    \label{fig:full_system_performance}
+      \vskip -0.5em
+\end{figure*}
 
 We measure the server throughput in terms of RDMA requests per second as we
 increase contention by adding client threads.  Figure~\ref{fig:cas_vs_swap}
@@ -86,38 +97,33 @@ process is 2.8 million requests per second per core.)
 Despite this restriction, these results show that replacing CAS with write
 avoids the memory server NIC's hardware bottleneck, enabling increased
 scalability with a more performant {\sword}---such as one implemented on a
-programmable switch. ~\sg{Our limitations here are due to programability issues
+programmable switch. ~\sg{Our limitations here are due to programmability issues
 on the programmable switch, multiplexing across connections inflates state
-reuqirements and makes storing dynamic connection state tricky given only a
+requirements and makes storing dynamic connection state tricky given only a
 static number of fixed width registers.}
 
 
 
-\subsection{YCSB benchmarks}
+\subsection{Conflict avoidance}
 
-\begin{figure*}
-    \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
-%  \vskip -0.5em
-    \caption{{Performance of {\sword} techniques applied to Clover with 128 byte packets on 4 YCSB
-    benchmarks. The percentage of workload writes increases from left to
-    right. Our improvements over Clover are 1.0x, 2.8x, 32x, and 46x respectively.\todo{These are single runs not averages, rerun and capture error}}}
-    \label{fig:full_system_performance}
-      \vskip -0.5em
-\end{figure*}
-
-The YCSB benchmark consists of varying read and write workloads which
-have been shown to emulate many common datacenter
-operations~\cite{ycsb}. We show how \sword's read and write steering
-improve the
+While atomic replacement is feasible, it requires \sword\ to
+explicitly manage all the RDMA connections to a given (set of)
+server(s).  Here, we consider the more general case where
+\sword\ serves as a performance-enhancing proxy and attempts to avoid
+failed operations by steering requests in flight.  We use various
+workloads from the YCSB benchmark~\cite{ycsb} to demonstrate the
+effectiveness of steering when applied to Clover.
 %a
 %breakdown of our techniques, mainly read and write caching, QP mapping, and
 %atomic replacement with respect to their effect to system
-performance on two
-YCSB benchmarks. We choose YCSB-B (95\% read and 5\% write) as our baseline, and
-YCSB-A (50\% read and 50\% write) to demonstrate how our algorithm performs
-under high contention.  We also show the performance boosts obtained while
-running a 100\% write workload which is intended to emulate other programmatic
-workloads which are update heavy.
+%% performance of four different
+%% YCSB workloads. We choose YCSB-B (95\% read and 5\% write) as our baseline, and
+%% YCSB-A (50\% read and 50\% write) to demonstrate how our algorithm performs
+%% under high contention.  We also show the performance boosts obtained while
+%% running a 100\% write workload which is intended to emulate other programmatic
+%% workloads which are update heavy.
+
+\subsubsection{Throughput}
 
 Figure~\ref{fig:full_system_performance} shows the relative
 performance gains from each of \sword's techniques. At 5\% reads write
@@ -180,13 +186,15 @@ logic is pure overhead due to the absence of reads.
 %%\todo{say something real about the the memory utilization takeaways}
 
 
-\subsection{Bandwidth reduction}
+\subsubsection{Bandwidth reduction}
 
 \begin{figure}
   \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
    \vskip -0.5em
-    \caption{Bytes required per Clover operation on 128 byte payloads for each of the three techniques for different write intensities.}
+    \caption{Average number of bytes required per 128-byte Clover
+      operation using each of the three techniques for various write
+      intensities.}
     \label{fig:bandwidth_reduction}
      \vskip -0.5em
 \end{figure}
@@ -217,21 +225,21 @@ retry.
 %per Clover operation under three different workloads for default
 %Clover as well as {\sword}'s two steering techniques.
 
-We calculate the optimal expected cost of a Clover operation by
-averaging the cost of a successful operation across reads and
-writes. We get the weighted average by multiplying the cost of a read
-and write by the appropriate workload percentage. Each write consists
-of an RDMA write followed by a CAS, along with the responses for each
-message. A read consists of an RDMA read and read response, and
-usually an additional metadata read made asynchronously with the main
-read to fetch the latest position of the tail in case the first memory
-read fails. Clover performs this second read opportunistically (in
-around 99 percent of all reads in these workloads), however sometimes
-it is omitted leading to a small over-approximation in our estimate of
-``optimal''.
+%% We calculate the optimal expected cost of a Clover operation by
+%% averaging the cost of a successful operation across reads and
+%% writes. We get the weighted average by multiplying the cost of a read
+%% and write by the appropriate workload percentage. Each write consists
+%% of an RDMA write followed by a CAS, along with the responses for each
+%% message. A read consists of an RDMA read and read response, and
+%% usually an additional metadata read made asynchronously with the main
+%% read to fetch the latest position of the tail in case the first memory
+%% read fails. Clover performs this second read opportunistically (in
+%% around 99 percent of all reads in these workloads), however sometimes
+%% it is omitted leading to a small over-approximation in our estimate of
+%% ``optimal''.
 
-Figure~\ref{fig:bandwidth_reduction} show the average bytes per
-operation for each strategy across all three write workloads. We
+Figure~\ref{fig:bandwidth_reduction} plots the average bytes per
+operation for each strategy across all four workloads. We
 calculate the value for each technique by summing the total bandwidth
 across a run and dividing by the total number of operations. Clover's
 bandwidth usage increases with contention, growing by 1.8$\times$ at
@@ -240,85 +248,65 @@ applying read and write steering. Write steering alone causes
 significant inflation in the cost of operations at 50\% writes because many
 read requests fail as discussed above.
 
-\subsection{Tail latency}
+\subsubsection{Tail latency}
 
-Perhaps the most critical variable that governs overall system
-performance is tail latency. In the context of disaggregated memory
-systems, reads and writes are often deeply integrated into the
-computational logic of a program and the whole program must wait for a
-page fault to complete before continuing. We therefore consider poor
-tail latency to be a fundamental barrier to the widespread adoption of
-far memory systems.  Optimistic concurrency is well known to exhibit
-poor tail latency under contention, and Clover is no exception to this
-rule. Our techniques significantly reduce latency as steering
-ensures that nearly all requests succeed on the first try.
-
+%% Perhaps the most critical variable that governs overall system
+%% performance is tail latency. In the context of disaggregated memory
+%% systems, reads and writes are often deeply integrated into the
+%% computational logic of a program and the whole program must wait for a
+%% page fault to complete before continuing. We therefore consider poor
+%% tail latency to be a fundamental barrier to the widespread adoption of
+%% far memory systems.
+Optimistic concurrency is well known to exhibit poor tail latency
+under contention, and Clover is no exception.  \sword\ significantly
+reduces latency as steering ensures that nearly all requests succeed
+on the first try.
+%
 Figure~\ref{fig:tail_latency} shows the 99th-percentile tail latencies
-associated with each of \sword's techniques in comparison with default
-Clover. Clover's read latency (left-hand plot) at 5\% reads is
-91~$\mu$s, around 7.5$\times$ its baseline our our testbed. With read
-and write steering the tail latency of reads drops to 38~$\mu$s---a
-2.3$\times$ improvement over Clover even in this low-contention
-regime. At 50\% writes the performance increase is roughly double.  As
-discussed above, in either case applying write steering alone actually
-hurts performance, as it makes reads more likely to fail.
-%read performance is improves by 2$\times$
-%relative to Clover with the exception of write steering alone. When
-%write steering is applied without the aid of read steering the writes
-%quickly out-pace the reads, leading the vast majority of reads to fail
-%on their first attempt.
-Given that these tests were conducted with a
-Zipf distribution across 64 cores it is highly likely that more than
-one thread is writing to the hottest keys at any point during the
-run. This leads some read requests to fail 10s of times before
-succeeding.
-
+associated with \sword's read and write steering in comparison to
+default Clover at varying write intensities. Clover's p99 read latency
+at 5\% writes is 91~$\mu$s, around 7.5$\times$ its
+baseline our our testbed. With read and write steering the tail
+latency drops to 38~$\mu$s---a 2.3$\times$ improvement over
+Clover even in this low-contention regime. At 50\% writes the
+performance increase is roughly double.
+%% As discussed above, in either
+%% case applying write steering alone actually hurts performance, as it
+%% makes reads more likely to fail.
+%% %read performance is improves by 2$\times$
+%% %relative to Clover with the exception of write steering alone. When
+%% %write steering is applied without the aid of read steering the writes
+%% %quickly out-pace the reads, leading the vast majority of reads to fail
+%% %on their first attempt.
+%% Given that these tests were conducted with a
+%% Zipf distribution across 64 cores it is highly likely that more than
+%% one thread is writing to the hottest keys at any point during the
+%% run. This leads some read requests to fail 10s of times before
+%% succeeding.
+%
 %Because of this property we suggest
 %that read and write steering be used in concert unless the workload is
 %explicitly known.
-
-Writes (right-hand side of Figure~\ref{fig:tail_latency}) perform
+%
+Writes perform
 worse than reads under contention in default Clover. Write+read
-steering provides a 2.7$\times$, 37.1$\times$, and 25.2$\times$
+steering provides a 2.7, 37.1, and 25.2$\times$
 improvement in tail latency, respectively, across 5, 50, and 100\%
 write workloads.  As one might expect, performing write steering alone
 privledges writes over reads, dropping their tail latencies even
-further---but likely insufficiently enough to make up for the dramatic
-spike in read tail latency
+further---at the cost of a dramatic
+spike in read tail latency.
 
-Figure~\ref{fig:tail_latency} also shows the performance of queue pair
-mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
-to write+read steering.  Because the requests are already likely to
-succeed, there is no reason to expect any significant drop in tail
-latency by vectoring the requests to a particular QP or removing the
-CAS guard.  Rather, these plots show that the (significant) 
-logic required in {\sword} to implement these functions result in only
-marginal increase in tail latency relative to steering alone---and still
-significantly outperforms Clover alone.
+%% Figure~\ref{fig:tail_latency} also shows the performance of queue pair
+%% mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
+%% to write+read steering.  Because the requests are already likely to
+%% succeed, there is no reason to expect any significant drop in tail
+%% latency by vectoring the requests to a particular QP or removing the
+%% CAS guard.  Rather, these plots show that the (significant) 
+%% logic required in {\sword} to implement these functions result in only
+%% marginal increase in tail latency relative to steering alone---and still
+%% significantly outperforms Clover alone.
 
-\subsection{Packet Size}
-\todo{Write about packet sizes}
-
-\begin{figure}
-  \centering
-  \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
-
-    \caption{Performance across RDMA payload sizes using 120 client cores at a 50 percent read 50 percent write ratio.}
-
-    \label{fig:packet_size}
-\end{figure}
-
-\subsection{Contention}
-\todo{Write about contention}
-\begin{figure}
-  \centering
-  \includegraphics[width=0.485\textwidth]{fig/contention.pdf}
-
-    \caption{Performance as contention increases with zipf coefficient using 120 client cores.
-    \todo{These numbers need to be extended to 400 cores}}
-
-    \label{fig:packet_size}
-\end{figure}
 
 
 %The application of QP mapping and swapping

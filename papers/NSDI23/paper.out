@@ -1,0 +1,38 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Background and related work}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{Resource disaggregation}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{RDMA-optimized data structures}{section.2}% 4
+\BOOKMARK [3][-]{subsubsection.2.2.1}{Sherman}{subsection.2.2}% 5
+\BOOKMARK [3][-]{subsubsection.2.2.2}{Clover}{subsection.2.2}% 6
+\BOOKMARK [2][-]{subsection.2.3}{Programmable middleboxes}{section.2}% 7
+\BOOKMARK [1][-]{section.3}{Serialization overheads}{}% 8
+\BOOKMARK [2][-]{subsection.3.1}{RDMA semantics}{section.3}% 9
+\BOOKMARK [3][-]{subsubsection.3.1.1}{Atomic requests}{subsection.3.1}% 10
+\BOOKMARK [3][-]{subsubsection.3.1.2}{Queue-pair ordering}{subsection.3.1}% 11
+\BOOKMARK [2][-]{subsection.3.2}{NIC-based memory}{section.3}% 12
+\BOOKMARK [2][-]{subsection.3.3}{Optimistic conflict resolution}{section.3}% 13
+\BOOKMARK [1][-]{section.4}{On-path serialization}{}% 14
+\BOOKMARK [2][-]{subsection.4.1}{System overview}{section.4}% 15
+\BOOKMARK [2][-]{subsection.4.2}{Enforcing lock ordering}{section.4}% 16
+\BOOKMARK [2][-]{subsection.4.3}{Locking Algorithm}{section.4}% 17
+\BOOKMARK [3][-]{subsubsection.4.3.1}{Connection remapping}{subsection.4.3}% 18
+\BOOKMARK [3][-]{subsubsection.4.3.2}{Atomic replacement}{subsection.4.3}% 19
+\BOOKMARK [2][-]{subsection.4.4}{Conflict avoidance}{section.4}% 20
+\BOOKMARK [3][-]{subsubsection.4.4.1}{Write steering}{subsection.4.4}% 21
+\BOOKMARK [3][-]{subsubsection.4.4.2}{Read steering}{subsection.4.4}% 22
+\BOOKMARK [1][-]{section.5}{Implementation}{}% 23
+\BOOKMARK [2][-]{subsection.5.1}{P4 implementation}{section.5}% 24
+\BOOKMARK [2][-]{subsection.5.2}{RDMA ICRC}{section.5}% 25
+\BOOKMARK [2][-]{subsection.5.3}{DPDK considerations}{section.5}% 26
+\BOOKMARK [1][-]{section.6}{Evaluation}{}% 27
+\BOOKMARK [2][-]{subsection.6.1}{Testbed}{section.6}% 28
+\BOOKMARK [2][-]{subsection.6.2}{Atomic replacement}{section.6}% 29
+\BOOKMARK [2][-]{subsection.6.3}{YCSB benchmarks}{section.6}% 30
+\BOOKMARK [2][-]{subsection.6.4}{Bandwidth reduction}{section.6}% 31
+\BOOKMARK [2][-]{subsection.6.5}{Tail latency}{section.6}% 32
+\BOOKMARK [2][-]{subsection.6.6}{Packet Size}{section.6}% 33
+\BOOKMARK [2][-]{subsection.6.7}{Contention}{section.6}% 34
+\BOOKMARK [1][-]{section.7}{Limitations}{}% 35
+\BOOKMARK [1][-]{section.8}{Conclusion}{}% 36
+\BOOKMARK [2][-]{subsection.8.1}{CXL}{section.8}% 37
+\BOOKMARK [1][-]{appendix.A}{Appendix}{}% 38
