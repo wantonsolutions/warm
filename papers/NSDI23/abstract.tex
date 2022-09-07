@@ -2,8 +2,8 @@
 
 Effectively sharing passive remote memory remains an open problem.
 While emerging standards like CXL promise cache-coherent memory
-pooling, the spec-compliant hardware is not yet commercially
-avaialble and its feasability at scale remains unproven.
+pooling, spec-compliant hardware is not yet commercially
+available and its feasibility at scale remains unproven.
 %Fundamentally, any
 %design must choose a serialization point and then ensure in-order
 %communication and operation from that point on.
@@ -14,16 +14,16 @@ rely upon heavyweight RDMA atomics to ensure consistency.
 Unfortunately, atomic operations scale poorly causing these approaches
 to degrade rapidly under contention.
 
-We present \sword, an alternative approach that leverages the de-facto
+We present \sword, an alternative approach that leverages the \textit{de facto}
 serialization point in rack-scale disaggregated systems---the
-top-of-rack switch---to \emph{transparently} resolve data races in
+top-of-rack switch---to transparently resolve data races in
 flight.  In cases where \sword\ has sufficient resources to interpose
 on all requests, it can remove heavyweight atomic verbs and replace
 them with simple write operations, avoiding the hardware performance
 bottleneck entirely.  More generally, however, it can safely operate
 on only a subset of the requests, dynamically adjusting contending
 requests to avoid expensive client-based resolution in those cases.
-Under a 50:50 read-write workload, our P4-based prototype
+Under a YCSB-A workload, our P4-based prototype
 dramatically improves the performance of Clover, a state-of-the-art
 disaggregated key-value store: throughput rises by nearly $35\times$,
 tail latency drops by over $300\times$, and bandwidth usage drops by a

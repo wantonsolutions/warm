@@ -64,7 +64,7 @@ underperform fully asynchronous verbs, both in terms of throughput and
 scalability~\cite{design-guidelines}.  We consider accelerating two
 different systems that employ such operations.
 
-\subsubsection{Sherman}
+\paragraph{Sherman.}
 
 Sherman~\cite{sherman} is a write-optimized B+Tree for passive remote memory. The
 tree is augmented using entirely one-sided RDMA operations. Sherman
@@ -94,7 +94,7 @@ scale.
 %shared address space for their clients. We focus our attention instead on the
 %fundamental limitations of Shermans lock based approach.
 
-\subsubsection{Clover}
+\paragraph{Clover.}
 
 %To demonstrate the effectiveness of {\sword} in practice, we
 %needed to select a passive far memory system with which to experiment.
