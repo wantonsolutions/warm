@@ -224,3 +224,18 @@ computation and calculate the CRC only if the packet has been
 modified. Adding a packet handoff between TX and RX increases latency,
 however the head-of-line blocking incurred by having a single core
 perform both mapping and CRC calculations is too high for our purposes.
+
+We find that by using an array size of
+3$\times$ the vast majority of reads succeed first try.
+%One advantage
+%of this technique is that it is a generalized cache for recent RDMA
+%reads, and requires little computation to maintain a hot cache.
+For
+performance reasons we forgo heavyweight hash functions and use
+the \texttt{murmur3} bit scrambler to attain an approximately even
+hash of virtual addresses in only a few cycles.
+%---which can likely be
+%implemented on programable switch hardware.
+
+
+
