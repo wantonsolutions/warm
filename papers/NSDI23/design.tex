@@ -1,18 +1,23 @@
 \section{On-path serialization}
 
-Given the overhead of remote conflict resolution and the performance bottlenecks
-associated with RDMA hardware serialization, this section discusses how an
-on-path serializer can dramatically increase real-world performance by
-alleviating both issues. To ground our discussion, we address both in the
-context of Sherman and Clover, both state-of-the-art far memory systems.  First,
-we show how we can accelerate locking by leveraging our ability to rewrite RDMA
-requests after their ordering is determined to replace expensive
-compare-and-swap requests with simple write verbs and rely upon the semantics of
-RDMA RC queue pairs to provide serializability.  Additionally, we can leverage
-this same functionality to multiplex independent operations across multiple QP
-to improve scalability.  Second we describe how to effectively do away with the
-need for most retries by ``fixing'' operations issued with stale hints in
-flight.  
+In this section, we show an on-path serializer can address both the
+the performance bottlenecks associated with RDMA hardware and the
+overhead of remote conflict resolution.  First, we describe how to
+accelerate locking as used in Sherman by leveraging the ability to
+rewrite RDMA requests after their ordering is determined to replace
+expensive CAS requests with simple write verbs and rely upon the
+semantics of RDMA RC queue pairs to provide serializability.
+%Additionally, we can leverage
+%this same functionality to multiplex independent operations across multiple QP
+%to improve scalability.
+Second we show how knowledge of the likely instruction ordering can
+enable many conflicts to be avoided---rather than just detected---by
+modifying operations in flight, thereby avoiding Clover's expensive conflict
+resolution machinery.
+
+%describe how to effectively do away with the
+%need for most retries by ``fixing'' operations issued with stale hints in
+%flight.  
 
 %% \subsection{System overview}
 
