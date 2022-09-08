@@ -1,68 +1,37 @@
 \section{Evaluation}
 \label{s:results}
 
-Our testbed experiments demonstrate that {\sword} delivers significant
-performance boosts in terms of overall throughput and latency for
-Clover. We discuss the relative impact of each of our techniques across
-various workloads, and demonstrate that replacing compare-and-swap
-requests with writes eliminates hardware bottlenecks.
+We use two distinct prototype implementations to demonstrate the
+potential performance benefits \sword\ can provide.  We use a
+DPDK-based implementation to perform a micro-benchmark where we
+explicitly manage RDMA connections to remove the atomic operations
+used by Sherman's locking mechanism.  We use a P4 implementation of
+\sword\ installed on a programmable switch to show the impact of
+in-flight conflict resolution at rack scale in Clover.
+
+%We discuss the relative impact of each of our techniques across
+%various workloads, and demonstrate that replacing compare-and-swap
+%requests with writes eliminates hardware bottlenecks.
 
 \subsection{Testbed} 
 
-\textbf{p4 testbed} Our testbed consists of 9 machines: a Clover memory server,
-metadata server, and 7 Clover clients. Physically, the machines are identical:
-each is equipped with two Intel Xeon E5-2640 CPUs and 256 GB of main memory
-evenly spread across the NUMA domains. Each server is equipped with a Mellanox
-ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of which are connected
-to a 100-Gbps Edgecore Wedge-100 programmable switch running
-\sword.Figure~\ref{fig:overview} shows the layout of our testbed.
-
-
-\textbf{dpdk testbed} Our testbed consists of three machines: a lock request
-driver memory server, and a dpdk implementation of {\sword}.  Physically, the
-machines are the same as above except they are connected to a 100-Gbps Mellanox
-Onyx Switch. The lock request driver is are configured with default routing
-settings: clients send directly to the memory servers. We install OpenFlow rules
-on the Onyx switch to redirect the RDMA traffic to \sword; 
+Our testbed consists of a rack of nine identical machines equipped
+with two Intel Xeon E5-2640 CPUs and 256 GB of main memory evenly
+spread across the NUMA domains. Each server is equipped with a
+Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of
+which are connected to the same 100-Gbps ToR.  Our DPDK-based
+micro-benchmarks use only three machines: a load generator, a memory
+server, and a machine hosting our DPDK implementation of {\sword}.
+The load generator is configured with default routing settings---it
+sends traffic directly to the memory server.  We install OpenFlow
+rules on a Mellanox Onyx switch to redirect the traffic to the DPDK
+box.  For the P4-based Clover experiments, we replace the Onyx switch
+with an Edgecore Wedge-100 programmable switch running \sword.
+%Figure~\ref{fig:overview} shows the layout of our testbed.
+We configure one server as a Clover memory server, one as a metadata
+server, and the remaining seven as Clover clients.
 
 \subsection{Atomic replacement}
-
-We show that \sword\ is able to overcome the NIC's hardware bottleneck
-by replacing CAS operations with writes serialized on a given QP by
-running a micro-benchmark that focuses exclusively on CAS
-performance. Specifically, we extract the CAS request from
-Shermans's lock operation and repeatedly generate it from one client
-to a single memory server (while routing it through {\sword} as
-before).
-
-%Here we remove clover from the
-%mix and run a simple benchmark of RDMA CAS operations between two
-%servers. \sword is routed to via a different set of OpenFlow rules.
-
-Each client thread is bound to a its own queue pair, and all client
-threads issue CAS requests to the same shared virtual address.  We
-set the number of cores on the {\sword} middlebox to 24 so that in our maximal
-test case each client thread flows through exactly one middlebox core
-for the lowest degree of interference between QP.
-
-%All requests are routed
-%through our middlebox.
-In the default case (labeled CAS in Figure~\ref{fig:cas_vs_swap}),
-{\sword} lets CAS requests flow through without interference, each
-on their own queue pair.  In the CAS$\rightarrow$Write configuration
-{\sword} needs to rely upon the ordering semantics of RCs (because all
-the requests are for the same memory address and therefore
-conflict), so maps all client requests to the same QP at the server.
-Due to DPDK queue-to-core partitioning requirements all TX for a
-destination QP must be done by a specific core on the
-middlebox. Because of this requirement all requests in this
-configuration must flow through a single core prior to being issued to
-the memory-side NIC.
-
-%all client cores request the same address, and as such all are routed
-%onto the same destination QP. Note that this configuration has the
-%highest degree of contention for our middlebox as 24 client threads
-%must be multiplexed to and from a single client connection. Further
 
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/cas_vs_swap.pdf}
@@ -82,37 +51,79 @@ the memory-side NIC.
       \vskip -0.5em
 \end{figure*}
 
-We measure the server throughput in terms of RDMA requests per second as we
-increase contention by adding client threads.  Figure~\ref{fig:cas_vs_swap}
-shows the performance gained by converting CAS requests to writes. Both
-configurations hit distinct bottlenecks: CAS requests bottleneck due to being
-applied to a single key (c.f. Figure~\ref{fig:rdma_concur}). In the case of
-converting CAS to write, the bottleneck is the processing power of the CPU cores
-in our DPDK-based {\sword} prototype. (The maximum throughput our prototype can
-process is 2.8 million requests per second per core.)
+We show that \sword\ is able to overcome the NIC hardware bottleneck
+by replacing CAS operations with writes serialized on a given QP by
+running a micro-benchmark that focuses exclusively on CAS
+performance. Specifically, we extract the CAS request from Shermans's
+lock operation and repeatedly generate it from one client to a single
+memory server (while routing it through {\sword} using OpenFlow rules).
+
+%Here we remove clover from the
+%mix and run a simple benchmark of RDMA CAS operations between two
+%servers. \sword is routed to via a different set of OpenFlow rules.
+
+Each client thread is bound to a its own queue pair, and all client
+threads issue CAS requests to the same shared virtual address.  We
+set the number of cores on the {\sword} middlebox to 24 so that in our maximal
+test case each client thread flows through exactly one middlebox core
+for the lowest degree of interference between QP.
+
+%All requests are routed
+%through our middlebox.
+In the default case (labeled CAS), {\sword} lets CAS requests flow
+through without modification, each on their own queue pair.  In the
+CAS$\rightarrow$Write configuration {\sword} maps all client requests
+to the same QP at the server to ensure serialization and replaces the
+CAS operation with a simple write.
+%
+%all client cores request the same address, and as such all are routed
+%onto the same destination QP. Note that this configuration has the
+%highest degree of contention for our middlebox as 24 client threads
+%must be multiplexed to and from a single client connection. Further
+%
+%We measure the server throughput in terms of RDMA requests per second as we
+%increase contention by adding client threads.
+Figure~\ref{fig:cas_vs_swap} shows a significant increase in
+performance when \sword\ converts CAS-guarded requests to
+QP-serialized writes.  Each configuration hits a distinct hardware
+limit: CAS requests bottleneck at the server NIC due to being applied
+to a single key (c.f. Figure~\ref{fig:rdma_concur}).  When converting
+CAS to serialized write operations, the bottleneck moves to the our
+software-based middlebox.
+%cores in our
+%DPDK-based {\sword} prototype.
+Specifically, DPDK requires all TX for a destination QP to be done by
+the same core; hence,
+%a specific core on the middlebox. Because of this
+%requirement
+all requests must flow through a single core prior to being issued to
+the memory-side NIC, limiting the forwarding performance of our
+DPDK-base connection remapping implementation to the maximum per-core
+throughput of our middlebox: 2.8 million requests per second.
 %In this configuration all requests to the memory server must be processed by
 %the same TX core. As such our bottleneck is approximately 2.8 MOPS. Hardware
 %implemented CRC, cache tuning, and better lock management for TX queues could
 %yield higher per core performance in the future.
-Despite this restriction, these results show that replacing CAS with write
-avoids the memory server NIC's hardware bottleneck, enabling increased
-scalability with a more performant {\sword}---such as one implemented on a
-programmable switch. ~\sg{Our limitations here are due to programmability issues
-on the programmable switch, multiplexing across connections inflates state
-requirements and makes storing dynamic connection state tricky given only a
-static number of fixed width registers.}
+%% Despite this restriction, these results show that replacing CAS with write
+%% avoids the memory server NIC's hardware bottleneck, enabling increased
+%% scalability with a more performant {\sword}---such as one implemented on a
+%% programmable switch. ~\sg{Our limitations here are due to programmability issues
+%% on the programmable switch, multiplexing across connections inflates state
+%% requirements and makes storing dynamic connection state tricky given only a
+%% static number of fixed width registers.}
 
 
 
 \subsection{Conflict avoidance}
 
 While atomic replacement is feasible, it requires \sword\ to
-explicitly manage all the RDMA connections to a given (set of)
-server(s).  Here, we consider the more general case where
-\sword\ serves as a performance-enhancing proxy and attempts to avoid
-failed operations by steering requests in flight.  We use various
-workloads from the YCSB benchmark~\cite{ycsb} to demonstrate the
-effectiveness of steering when applied to Clover.
+explicitly manage and remap all the RDMA connections to a given (set
+of) server(s)---a resource-intensive task.  Here, we consider the more
+general and lightweight case where \sword\ serves as a
+performance-enhancing proxy and attempts to avoid failed operations by
+steering requests in flight.  We use various workloads from the YCSB
+benchmark~\cite{ycsb} to demonstrate the effectiveness of steering
+when applied to Clover.
 %a
 %breakdown of our techniques, mainly read and write caching, QP mapping, and
 %atomic replacement with respect to their effect to system

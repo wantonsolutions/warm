@@ -1,86 +1,126 @@
 \section{On-path serialization}
 
-Given the overhead of remote conflict resolution and the performance bottlenecks
-associated with RDMA hardware serialization, this section discusses how an
-on-path serializer can dramatically increase real-world performance by
-alleviating both issues. To ground our discussion, we address both in the
-context of Sherman and Clover, both state-of-the-art far memory systems.  First,
-we show how we can accelerate locking by leveraging our ability to rewrite RDMA
-requests after their ordering is determined to replace expensive
-compare-and-swap requests with simple write verbs and rely upon the semantics of
-RDMA RC queue pairs to provide serializablity.  Additionally, we can leverage
-this same functionality to multiplex independent operations across multiple QP
-to improve scalability.  Second we describe how to effectively do away with the
-need for most retries by ``fixing'' operations issued with stale hints in
-flight.  
+In this section, we show an on-path serializer can address both the
+the performance bottlenecks associated with RDMA hardware and the
+overhead of remote conflict resolution.  First, we describe how to
+accelerate locking as used in Sherman by leveraging the ability to
+rewrite RDMA requests after their ordering is determined to replace
+expensive CAS requests with simple write verbs and rely upon the
+semantics of RDMA RC queue pairs to provide serializability.
+%Additionally, we can leverage
+%this same functionality to multiplex independent operations across multiple QP
+%to improve scalability.
+Second we show how knowledge of the likely instruction ordering can
+enable many conflicts to be avoided---rather than just detected---by
+modifying operations in flight, thereby avoiding Clover's expensive conflict
+resolution machinery.
 
-\subsection{System overview}
+%describe how to effectively do away with the
+%need for most retries by ``fixing'' operations issued with stale hints in
+%flight.  
 
-\todo{total rewrite}
-Any asynchronous data structure which allows for lockless reads and
-writes must have a mechanism in place to resolve conflicts. When
-memory is close, conflict resolution strategies can make many reads
-and writes quickly; in the uncommon case of a conflict, the cost of
-resolution is typically amortized by the unlikelihood of the conflict
-itself. In the case of far memory the cost of a conflict is severe. In
-contrast to opportunistic algorithms in a shared-cache architecture,
-in a rack-scale disaggregated system conflicts can be detected at the
-top-of-rack switch and resolved in the data path. Our solution,
-\sword, leverages programmable ToR switches to allow developers with
-knowledge of the disaggregated memory protocol to resolve conflicts
-transparently in flight as the operations flow traverse the ToR.
+%% \subsection{System overview}
 
-\subsection{Enforcing lock ordering}
+%% \todo{total rewrite}
+%% Any asynchronous data structure which allows for lock-less reads and
+%% writes must have a mechanism in place to resolve conflicts. When
+%% memory is close, conflict resolution strategies can make many reads
+%% and writes quickly; in the uncommon case of a conflict, the cost of
+%% resolution is typically amortized by the unlikelihood of the conflict
+%% itself. In the case of far memory the cost of a conflict is severe. In
+%% contrast to opportunistic algorithms in a shared-cache architecture,
+%% in a rack-scale disaggregated system conflicts can be detected at the
+%% top-of-rack switch and resolved in the data path. Our solution,
+%% \sword, leverages programmable ToR switches to allow developers with
+%% knowledge of the disaggregated memory protocol to resolve conflicts
+%% transparently in flight as the operations flow traverse the ToR.
 
-Sherman and future far memory systems like sherman which use lock based
-approaches to guard remote data will incur the cost of using RDMA atomics. 
+\subsection{Enforcing ordering}
 
 If {\sword} is able to ensure that requests will not be reordered between when
 it operates on them and their arrival at a memory server---because, for example,
 it is directly connected over a single link---we can leverage the ordering
 semantics provided by RDMA queue pairs to completely eliminate data races.
 %%
-In that case, there is no need to incur the expense of RDMA atomic requests;
-{\sword} can simply replace them with lightweight verbs to dramatically increase
-the scalability of a given memory server.  Importantly, this optimization can be
-applied selectively to only the set of servers (or locks) for which {\sword} is
-suitably located and sufficiently provisioned to manage; locking operations
-destined for other servers and/or keys can be left unmodified.
+In that case, there is no need to incur the expense of RDMA atomic
+requests; {\sword} can simply replace them with lightweight verbs to
+dramatically increase the scalability of a given memory server.
+Importantly, this optimization can be applied selectively to only the
+set of servers (or memory ranges, i.e., locks) for which {\sword} is
+suitably located and sufficiently provisioned to manage; atomic
+operations destined for other servers and/or memory addresses can be
+left unmodified.
 
-\subsection{Locking Algorithm}
+\subsubsection{Shared locks}
 \label{sec:locking-algorithm}
-Implementing locks with CAS is straightforward, the following algorithm is
-common and is used to implement locks for nodes in Sherman. The CAS operation
-has the arguments $CAS(old\_value,new\_value)$. Locks are unlocked by default
-with a value of 0. Lock requests are issued as CAS(0,1), which return the old
-value of 0 back when successful, and 1 when the lock is taken. Unlocks are the
-same but inverted.
 
-We improve the performance of lock operations by storing the lock value on the
-switch. CAS operations are swapped with write operations in flight. When a lock
-operation arrives CAS(0,1), the switch checks it's lookup table for the address
-of the lock. If it is unlocked, the CAS(0,1) is swapped with a Write(1), and
-forwarded to remote memory. When the response comes back, the switch reverts the
-write response to a CAS response and sets the value of the CAS response to 0. In
-the other case when the lock was taken, the switch still forward Write(1) to the
-memory server, when the write response returns however it is mapped to CAS(1) so
-that the sender knows the lock acquisition failed. Again unlock is identical but
-inverse.
+One common way to limit the impact of expensive RDMA atomics is to use
+them to guard only a subset of the remote data.  For example, Sherman
+uses CAS operations to implement its node locks.
+%Sherman and future far memory systems like sherman which use lock based
+%approaches to guard remote data will incur the cost of using RDMA atomics. 
+%
+%Implementing locks with CAS is straightforward, the following algorithm is
+%common and is used to implement locks for nodes in Sherman. The
+%CAS operations are of the form \texttt{CAS(old\_value,new\_value)}.
+Sherman's locks are simply specific (NIC-hosted) memory locations
+that store either a one (locked) or zero (free).  Hence, lock requests
+are expressed as \texttt{CAS(0,1)}, which fail if the lock is
+unavailable (i.e., the stored value is currently not 0) or atomically
+set the value to 1---acquiring the lock---if successful. Unlock
+operations are the inverse.
 
-This technique does not reduce contention on the lock, but simply removes the
-CAS hardware bottleneck. An alternative approach to this locking scheme would be
-to use the switch as a lock server similar to
-Netlock~\cite{netlock}.~\todo{help!}Our goals are orthogonal to Netlock as we
-want to acclerate existing protocols, not require any endhost code
-modifications, keep switch logic to a minimum, and maintain only soft state on
-the switch. By propagating requests to endhosts we ensure that no state is lost
-on switch failure. And that any async read operations can be issued to remote
-memory directly without needed to be interpreted by the switch.  By forwarding
-all requests we remove the need for the switch to implement go-back-n
-retransmissions. The switch is only required to store the current state of the
-lock, and track outstanding requests to modify their return values. In the
-following section we will see that tracking outstanding requests is required
-when swapping CAS to write across multiple connections.
+Presuming communication between the ToR and the memory server is
+reliable and in-order (as provided by an RDMA QP), it is conceptually
+straightforward for \sword\ to cache the current value of the lock at
+the ToR.  Indeed, one could implement the lock server at the ToR
+itself~\cite{netlock}, but that would require a redesign of the
+underlying system; our goal is to support selective deployment where
+\sword\ may not be on-path for all servers, dictating that we do not
+make any changes to the existing system.  Moreover, our approach does
+not require terminating RDMA connections at the switch, which would
+require extensive buffering to support go-back-n retransmissions.
+
+%
+%This technique does not reduce contention on the lock, but simply removes the
+%CAS hardware bottleneck. An alternative approach to this locking scheme would b%e
+%% to use the switch as a lock server similar to
+%% Netlock~\cite{netlock}.~\todo{help!}Our goals are orthogonal to
+%% Netlock as we want to acclerate existing protocols, not require any
+%% endhost code modifications, keep switch logic to a minimum, and
+%% maintain only soft state on the switch. By propagating requests to
+%% endhosts we ensure that no state is lost on switch failure. And
+%% that any async read operations can be issued to remote memory
+%% directly without needed to be interpreted by the switch.  By
+%% Forwarding all requests we remove the need for the switch to
+%% implement go-back-n retransmissions. The switch is only required to
+%% store the current state of the lock, and track outstanding requests
+%% to modify their return values. In the following section we will see
+%% that tracking outstanding requests is required when swapping CAS to
+%% write across multiple connections.
+
+
+
+In our design, \sword\ uses its local cache to determine whether an
+arriving CAS operation will succeed or fail.  (If it does not have the
+current value at the target address cached, it allows the atomic to
+pass through unmodified and populates its cache with the response.)
+Moreover, \sword\ forwards all operations for a given address over the
+same QP to maintain ordering between the ToR and destination server,
+allowing it to replace the CAS operation with a lightweight write in
+flight.  When a lock (CAS) operation arrives, the switch checks its
+cache for the state of the lock. If it is unlocked, the CAS operation
+is replaced with a write and forwarded over a specific QP to the
+remote server. When the (successful) response comes back,
+\sword\ updates its cache and converts the write response to a CAS
+success response before forwarding it back over the original QP to the
+client. In the case when the lock is already held, the switch still
+forwards a write request to the memory server---to ensure the client
+and server agree regarding the total number of RDMA verbs communicated
+between them---but the response will be replaced with a CAS failure so
+that the sender knows the lock acquisition failed.
+%Again, unlock is similar.
+
 
 % One might ask why not host all locks on the switch thereby
 % reducing bandwidth to end hosts and saving latency? By forwarding all traffic to
@@ -100,28 +140,25 @@ when swapping CAS to write across multiple connections.
 
 \subsubsection{Connection remapping}
 
-Our key insight is that if all operations---across all client connections---that
-share server state are vectored to the same queue pair, RDMA's ordering
-semantics will provide sufficient serialization.  In general, the determination
-of which operations share state is application specific and requires inspecting
-each packet, extracting the relevant pieces of metadata, and vectoring the
-packet to the correct connection. \todo{double check} In the case of Sherman,
-lock locations can be identified by inspecting CAS requests. Each CAS virtual
-address corresponds to a node lock in the Sherman B-Tree lock locations can be
-identified by inspecting CAS requests. Each CAS virtual address corresponds to a
-node lock in the Sherman B-Tree.
-
-
+Atomic replacement only works when all operations---across all client
+connections---that share server state are vectored to the same queue
+pair.  In general, the determination of which operations share state
+is application specific and requires inspecting each packet to
+extracting the relevant pieces of metadata. \todo{double check} In the
+case of Sherman, lock locations can be identified by inspecting CAS
+requests. Each CAS virtual address corresponds to a node lock in the
+Sherman B+Tree.
 %%While removing locking operations is a general principle here we consider a
 %%solution for RDMA.  %Different transports with different ordering guarantees
 %%would require bespoke solutions.  
-
 The challenge, of course, is that the RDMA specification stipulates
 that each client establish its own queue pair with a given server, so
-operations for a given lock from different clients will arrive on
-separate queue pairs.  \sword, then, must interpose on the
-full set of queue pairs terminated by a given (set of) server(s) and
-vector operations to queue pairs accordingly.
+operations for a given lock from different clients will arrive at the
+ToR on distinct queue pairs.  \sword, then, must interpose on the full
+set of queue pairs terminated by a given (set of) server(s) and vector
+operations to queue pairs accordingly.  This seems reasonable, as the
+ToR is usually on-path for all servers in a rack in traditional
+topologies.
 
 \paragraph{Sequence-space stitching.}
 
@@ -129,13 +166,13 @@ Multiplexing and demultiplexing RDMA requests across established
 connections requires a significant amount of care. Requests on a
 single connection must have monotonic sequence numbers from both the
 sender's and receiver's perspectives. If monotonicity is broken, the
-NIC will invoke an expensive go-back-$n$ protocol or issue explicit
-congestion notifications. To ensure monotonic sequence numbers on
-shared connections {\sword} tracks the outstanding sequence number per QP and
+server NIC will trigger retransmission or issue explicit congestion
+notifications. To ensure monotonic sequence numbers on shared
+connections {\sword} tracks the outstanding sequence number per QP and
 injects the appropriate sequence number into the packet after the
 mapping decision has been made.  (Ironically, there is no need to
-ensure any particular ordering among requests from separate clients, so
-any total ordering suffices.)
+ensure any particular ordering among requests from separate clients,
+so any total ordering suffices.)
 %% This monotonic sequence number increment and QP mapping is the
 %% serialization point which replaces the use of the RDMA CAS
 %% request. As long as a packet is given an atomically incremental
@@ -145,12 +182,12 @@ any total ordering suffices.)
 %% to the ordering requirements of RDMA reliable connections.
 
 When an RDMA request arrives at {\sword} from a client, it is
-mapped to the appropriate queue pair for the relevant key and a
+mapped to the appropriate queue pair for the relevant lock and a
 \emph{stub} is stored to aid in mapping the request back, much like a
 network address translator (NAT). The stub keeps track of the original
 request's sequence number, IP address, MAC address, and queue
 pair. Stubs are stored in an array of size $n$ indexed by their
-sequence number$\pmod n$ to ensure $O(1)$ lookup when demultiplexing
+sequence number $\pmod n$ to ensure $O(1)$ lookup when demultiplexing
 the response.
 %%
 In addition to sequence numbers, a \emph{message} sequence number
@@ -196,11 +233,12 @@ insert it into the queue pair.
 
 \subsubsection{Atomic replacement} 
 
-Once any potentially conflicting operations are mapped to a single
-queue pair, {\sword} is free to replace atomic requests such as
-compare-and-swap with lightweight alternatives.  From a RoCEv2 perspective
+%Once any potentially conflicting operations are mapped to a single
+%queue pair, {\sword} is free to replace atomic requests such as
+%compare-and-swap with lightweight alternatives.
+From a RoCEv2 perspective
 the per-packet transformation from CAS to write can be applied easily
-in the data path.  RoCEv2 CAS and write headers only differ by a few
+in the data path; RoCEv2 CAS and write headers only differ by a few
 fields. CAS can be thought of as a special case of a write, where the
 write is conditional and the length is preset to 8 bytes.
 %%
@@ -238,66 +276,81 @@ indicates success or failure to the sender (see Section~\ref{sec:locking-algorit
 
 
 
-\begin{figure}
-\center
-  \includegraphics[width=0.45\textwidth]{fig/overview_2.pdf}
-  %%
- \vskip 0.5em
-\caption{Clients, Metadata and Remote Memory servers are
-Clover components. {\sword} is run on a separate server connected to the same ToR.
-Routing to {\sword} is effected by adding OpenFlow rules to redirect Clover traffic to \sword.
-\todo{redo diagram}}
-%%
-\label{fig:overview} \end{figure}
+%% \begin{figure}
+%% \center
+%%   \includegraphics[width=0.45\textwidth]{fig/overview_2.pdf}
+%%   %%
+%%  \vskip 0.5em
+%% \caption{Clients, Metadata and Remote Memory servers are
+%% Clover components. {\sword} is run on a separate server connected to the same ToR.
+%% Routing to {\sword} is effected by adding OpenFlow rules to redirect Clover traffic to \sword.
+%% \todo{redo diagram}}
+%% %%
+%% \label{fig:overview} \end{figure}
 
 \sg{This might be where we should state that we did not build this part on the
 programmable switch.}
 
 \subsection{Conflict avoidance}
 
-In an system using optimistic concurrency like Clover he single biggest impact
-an on-path serializer like {\sword} can have is to dramatically decrease the
-likelihood of a failed RDMA request due to a stale hint.  Specifically, because
-{\sword} can observe and modify operations as they go by, it can ``correct'' any
-requests it knows to be likely to fail.  Note that such replacement is strictly
-a performance enhancement---because the requests continue to be processed by the
-server as usual, any subsequent reordering will cause the request to fail (and
-be retried by Clover), just as it would have without rewriting.
+While atomic replacement can alleviate the NIC hardware bottleneck
+that limits systems like Sherman, it does not address the underlying
+contention for shared data structures.  Systems like Clover that
+eschew locks in favor of optimistic concurrency therefore see little
+benefit.  In these cases, however, \sword\ can have an even greater
+impact by adjusting doomed-to-fail optimistic requests in flight, a process we term \emph{steering}.
+%
+%like Clover he single biggest impact
+%an on-path serializer like {\sword} can have is to dramatically decrease the
+%likelihood of a failed RDMA request due to a stale hint.  Specifically, because
+%{\sword} can observe and modify operations as they go by, it can ``correct'' any
+%requests it knows to be likely to fail.
+Note that steering is strictly a performance
+enhancement---because the requests continue to be (guarded by atomics
+when necessary and) processed by the server as usual, any unexpected
+reordering will cause the request to fail (and be retried by Clover),
+just as it would have without rewriting.
 
-Figure~\ref{fig:overview} shows how {\sword} interacts with systems
-using cover as an example. Clover is implemented as a data path program written
-in P4 and loaded onto a P4 TOR switch.  Client machines need not be directly
-attached to the ToR, although they likely would be in most rack-scale
-deployments.  Similarly, the topological location of Clover's metadata server is
-irrelevant, but we expect it is also likely connected to the same switch.  For
-the purposes of our discussion, we presume that {\sword} first places all
-received RDMA requests into a total order before processing them; likewise
-responses from a given server are totally ordered before processing.
+%% Figure~\ref{fig:overview} shows how {\sword} interacts with systems
+%% using cover as an example. Clover is implemented as a data path program written
+%% in P4 and loaded onto a P4 TOR switch.  Client machines need not be directly
+%% attached to the ToR, although they likely would be in most rack-scale
+%% deployments.  Similarly, the topological location of Clover's metadata server is
+%% irrelevant, but we expect it is also likely connected to the same switch.  For
+%% the purposes of our discussion, we presume that {\sword} first places all
+%% received RDMA requests into a total order before processing them; likewise
+%% responses from a given server are totally ordered before processing.
 
 \subsubsection{Write steering}
 
-Recall that writes (committed with compare-and-swap requests) in
-Clover are destined to the presumed tail of a key's linked list, but
-the target of any individual RDMA request may be out of date due to
-races with concurrent updates.  To prevent such requests from
-failing, {\sword} maintains a cache of the location of the most-recent writes
-for each key. If a write (CAS request) arrives at {\sword}
-destined for a stale virtual address (i.e., an address other than the
-one currently cached for that key), {\sword} replaces it with
-the cached address.
+Recall that writes in Clover are destined to the presumed tail of a
+key's linked list, but the target of any individual RDMA request may
+be out of date due to races with concurrent updates.  Clover detects
+concurrent updates by breaking writes (i.e., list appends) into two
+RDMA operations: one write to create a new node, and a CAS operation
+to update the next pointer of the node at the tail of the list---the
+latter fails when another node was added concurrently.  To prevent
+such stale CAS requests from failing, {\sword} maintains a cache of
+the location of the (next pointer of the) node at the tail of each
+key's linked list. If a CAS request arrives at {\sword} destined for a
+stale virtual address (i.e., an address other than the one currently
+cached for that key), {\sword} redirects the corresponding Clover
+write request by replacing its target with the cached address.
 
-While conceptually simple, the actual implementation is somewhat
-involved due to the design of both Clover and the RDMA protocol and
-our desire to remain transparent to both.  Specifically, Clover RDMA
-CAS requests do not explicitly specify the operation of which they are
-a part.  {\sword} infers the operation by checking the size of the
-RDMA request and then extracts the key from the appropriate the
-location in the packet.  The key is then used as an index into a
-lookup table to find the virtual address of the latest write for that
-key.  Our strategy requires only 64 bytes of data per key---the size
-of the RDMA virtual address.  Because it modifies the content of the
-RDMA request, {\sword} also needs to recompute the RDMA ICRC checksum
-to prevent the server from rejecting the request as malformed.
+%While conceptually simple, the actual implementation is somewhat
+%involved due to the design of both Clover and the RDMA protocol and
+%our desire to remain transparent to both.  Specifically,
+Unfortunately, Clover RDMA CAS requests do not explicitly specify the
+write operation of which they are a part.  {\sword} infers the
+operation by checking the size of the RDMA request and then extracts
+the key from the appropriate the location in the packet.  The key is
+used as an index into a lookup table to find the virtual address of
+the latest write for that key.  Our strategy requires 64 bytes of
+data per key---the size of the RDMA virtual address.
+%% Because it
+%% modifies the content of the RDMA request, {\sword} also needs to
+%% recompute the RDMA ICRC checksum to prevent the server from rejecting
+%% the request as malformed.
 
 %By
 %performing this lookup in the data path all writes succeed regardless
@@ -305,8 +358,10 @@ to prevent the server from rejecting the request as malformed.
 
 \subsubsection{Read steering}
 
-Reads present a slightly more complicated case. Writes contain the key
-to which they pertain---which allows for a table lookup---but Clover's
+While Clover 
+%Reads present a slightly more complicated case. W
+writes contain the key
+to which they pertain---which allows for a table lookup---Clover's
 RDMA read requests only contain the target virtual address and a size.
 %When a
 %read fails it must be retried, as mentioned earlier reads are
@@ -318,31 +373,22 @@ RDMA read requests only contain the target virtual address and a size.
 %for which the read is for, without additional data in the packet the
 %value must be determined another way.
 As reads can be for arbitrarily old virtual addresses a naive solution
-that stored the lineage of each key would effectively require
-caching the entire contents of Clover's metadata server.  Our solution
-is to hash the address of each write into an array somewhat larger than
-the size of the key space, and store the key along with the address.
-Hash collisions are resolved by replacing the old address and key with
-the new values, allowing keys with higher update rates to maintain
-longer histories in the table. 
+that stored the lineage of each key would effectively require caching
+the entire contents of Clover's metadata server.  Instead,
+\sword\ hashes the address of each write into an array somewhat larger
+than the size of the key space and stores the key along with the
+address.  Collisions are resolved by replacing the old
+%address
+%and key with the new values
+entry, allowing keys with higher update rates to
+maintain longer histories in the table.
 
 When reads arrive {\sword} looks up their destination address in the
 table; if the address has a hit the associated key is used to look up
-the current tail in the write cache and the RDMA read is redirected to
+the current tail in the write cache and the RDMA read is steered to
 the cached location.  Should a miss occur---either because the hash
 bucket was overwritten by another key, or because the tail address is
 not cached---the read is left unmodified.  If it fails to arrive at
 the current tail, Clover's default recovery mechanism kicks in and
 performs a lookup to the metadata server for the last known address
-and the process repeats. We find that by using an array size of
-3$\times$ the vast majority of reads succeed first try. One advantage
-of this technique is that it is a generalized cache for recent RDMA
-reads, and requires little computation to maintain a hot cache. For
-performance reasons we forgo heavyweight hash functions and use
-the \texttt{murmur3} bit scrambler to attain an approximately even
-hash of virtual addresses in only a few cycles.
-%---which can likely be
-%implemented on programable switch hardware.
-
-
-
+and the process repeats.
