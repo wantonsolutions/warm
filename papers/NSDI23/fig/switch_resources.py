@@ -33,7 +33,8 @@ with open(inputfilename, newline='') as infh:
     #print(values[0])
 
 #remove unwanted fields
-rm_field_list=["TCAM","8-bitActionSlots","16-bitActionSlots","32-bitActionSlots","TernaryMatchInputxbar"]
+#rm_field_list=["TCAM","8-bitActionSlots","16-bitActionSlots","32-bitActionSlots","TernaryMatchInputxbar"]
+rm_field_list=[]
 for val in rm_field_list:
     rm_index=headers.index(val)
     headers.pop(rm_index)
@@ -48,7 +49,7 @@ for val in rm_field_list:
 maxes=[]
 for i in range(len(values[0])):
     vlist=[]
-    for j in range(len(labels)):
+    for j in range(len(labels)-1):
         vlist.append(values[j][i])
     #print(vlist)
     maxes.append(max(vlist))
@@ -71,9 +72,14 @@ width = 0.65       # the width of the bars: can also be len(x) sequence
 
 colors=[default_clover_color,connection_color, write_steering_color,read_write_steering_color]
 
-for i in range(len(labels)-1, -1, -1):
+for i in range(len(labels)-2, -1, -1):
     ax.bar(headers, values[i], width, label=labels[i],color=colors[i],edgecolor='k')
 
+#plot the simple switch
+i=len(labels)-1
+print(headers)
+#ax.scatter(headers, values[i], label=labels[i],color="green", markerfacecolor='None', marker="_", markersize=13, alpha=0.9)
+ax.scatter(headers, values[i], label=labels[i], marker="o", linewidth=1, edgecolor='k', color="green")
 
 ax.set_xticks(np.arange(len(headers)))
 ax.set_xticklabels(headers,rotation=60, ha='right')
