@@ -239,7 +239,7 @@ hash of virtual addresses in only a few cycles.
 
 \subsection{DPDK vs P4}
 
-\{sword}is implemented in P4 and run on a programmable switch, however its
+{\sword} is implemented in P4 and run on a programmable switch, however its
 connection mapping functionality is only implemented in DPDK due to hardware
 limitations on the programmable switch, and on ConnextX-5 NICs. In this section
 we describe why the space and logical complexity of tracking outstanding
@@ -248,16 +248,17 @@ current hardware and suggest small hardware modifications which would make the
 implementation simple.
 
 \textbf{Connection Mapping:} Connection mapping requires the storage of a 64 bit
-mapping entry for each in flight request. These map entries are space concern on
-programmable switches. Mapped entries are stored per connection. When an request
-is mapped to a connection the entry is generated, when a response returns the
-entry is removed.In the worst case, any connection may need to store
-outstanding requests for the total number of connected clients as each client
-could asynchronously issue a request for the same lock concurrently. 
+mapping entry for each in flight request (old\_seq, new\_seq, conn\_id,
+cas\_to\_write, opcode). These map entries are space concern on programmable
+switches. Mapped entries are stored per connection. When an request is mapped to
+a connection the entry is generated, when a response returns the entry is
+removed.In the worst case, any connection may need to store outstanding requests
+for the total number of connected clients as each client could asynchronously
+issue a request for the same lock concurrently. 
 
 We use connection sequence numbers to look up requests as they are unique for
 each connection, have no collisions, and only require an offset for lookup
-($sequence_number \% max_clients$). The programmable switch requires that all
+($sequence\_number \% max\_clients$). The programmable switch requires that all
 storage be allocated at compile time, so we need to provision for the worst case
 scenario.  The space requirement grows $O(n^2)$ with the number of clients as
 each connection must be statically allocated with enough space to handel a worst
@@ -270,18 +271,22 @@ of the total SRAM assuming the compiler packs requests perfectly. Unfortunately
 this is unlikely the case.  Making this mater worse is that much of switch
 memory is allocated into 8 and 16 bit registers. Only a few are allocated to
 read and write 32 bits. 2 pipeline stages are the minimum for connection
-remapping storage. In the worst case 8 are required (an entire pipeline). While
-expensive this is not a prohibitive cost to implementation.
+remapping storage. In the worst case (using 8 bit registers) 8 are required (an
+entire pipeline). While expensive this is not a prohibitive cost to
+implementation.
 
-We could use a shared hash table with the lookup $concat(qp_id,Sequence_number)$
-however due to stage lookups we would need to double the size of the shared hash
-table for each hash collision. It also increases the size of each entry from 64
-to 88 requiring 3 stages to store. as we need to store qp information in each
-entry to detect collisions.  Each collision detection also requires an
-additional stage to run a conditional comparison. A chain of 2 collisions
-therefore would require 8 stages, our entire egress pipeline to resolve. Given
-that we are processing millions of packets per second on a maximum sized hash
-table of 16k entries, collisions of 3 or more are common.
+We could use a hash table shared by all connections as a lookup for mapping
+entries using the key $concat(qp\_id,sequence\_number)$ which would conceptually
+reduce the space complexity. However if a collision occurs the collision lookup
+must be done in a following stage of the pipeline. This increases the space cost
+by the size of the longest collision chain. It also increases the size of each
+entry from 64 to 88 as the original queue pair id must be stored alongside the
+map entry to detect collisions. This requiring 3 stages to store. Detecting a
+collision requires an additional stage to run a conditional statement on the
+queue pair id. A chain of 2 collisions therefore would require 8 stages -- our
+entire egress pipeline to resolve. Given that we are processing millions of
+packets per second on a maximum sized hash table of 16k entries, collisions of 3
+or more are common.
 
 \textbf{RDMA Coalescing:} Our greatest unmet challenge with connection mapping
 in P4 dealing with RDMA coalescing. When a response is mapped back to a client
@@ -305,8 +310,7 @@ response. Given that a 64 bit entry requires two stages duplicating is not an
 option as it would easily exhaust all pipeline stages and never guarantee
 correctness.
 
-\sg{I don't actually know if this would work, it's a complex guess}
-
+\sg{I don't actually know if the following would work, it's an educated guess:}
 Another option is to use packet recirculation. We could duplicate data once, and
 perform a look back to the prior entry to determine if it was coalesce and then
 generate another packet to handle the handle the coalesced ack. 
@@ -316,18 +320,17 @@ dramatically increases complexity and inverts the order of packet delivery on
 the clients.
 
 \textbf{Conditional Complexity:} The final difficulty in implementing connection
-mapping on a programmable switch is the complexity of conditional statements. In
-P4 architectures branching is limited. At any conditional a max of 4 paths can
-exist.  In clover we reduced the total number of branching statements to 4 for
-each of the read, write, CAS, and ACK pathways. Connection remapping requires
-complex logic and arithmetic for generating message sequence numbers, storing
-request stubs across different register sizes, and detecting, and generating
-coalesced ACKs.  Separately none of these issues are enough to prevent the
-implementation of connection remapping on a programmable switch. However in
-concert the P4 complier was not able to synthesize a program which could fit
-into our 16 stages of the Tofino 1. Future hardware such as Tofino 2 and 3 would
-likely be able to support this functionality due to having over double the
-pipeline logic.
+mapping in P4 are conditional statements. In P4 architectures branching is
+limited. At any conditional a max of 4 paths can exist.  In clover we reduced
+the total number of branching statements to 4 for each of the read, write, CAS,
+and ACK pathways. Connection remapping requires complex logic and arithmetic for
+generating message sequence numbers, storing request stubs across different
+register sizes, and detecting, and generating coalesced ACKs.  Separately none
+of these issues are enough to prevent the implementation of connection remapping
+on a programmable switch. However in concert the P4 complier was not able to
+synthesize a program which could fit into our 16 stages of the Tofino 1. Future
+hardware such as Tofino 2 and 3 would likely be able to support this
+functionality due to having over double the pipeline logic.
 
 \subsubsection{Potential Fixes}
 
@@ -344,6 +347,12 @@ a prohibitively hard task with static registers and single stage lookups.
 calculating coalesced ACKs. The fix for this is simple: Turn off ACK coalescing
 on the NIC, as it is only a performance optimization. This fix alone would allow
 our design to fit onto a Tofino chip.
+
+\textbf{Complex Conditionals} Increasing the branching factor of conditionals
+would greatly decrease the complexity of implementing many complex protocol
+features. In some cases branching to 4 or more statements would have allowed
+lookups in the following stage to be implemented in a single stage rather than
+two.
 
 
 
