@@ -73,8 +73,8 @@ clover_w=[0,373384,8439914,10522757]
 write_w=[0,21083,37016,40251]
 read_w=[0,21361,44432,41735]
 
-wins(clover_r,read_r)
-wins(clover_w,read_w)
+# wins(clover_r,read_r)
+# wins(clover_w,read_w)
 
 clover_r=div_thousand_rw(clover_r)
 write_r=div_thousand_rw(write_r)
@@ -83,8 +83,14 @@ clover_w=div_thousand_rw(clover_w)
 write_w=div_thousand_rw(write_w)
 read_w=div_thousand_rw(read_w)
 
+def shuffle_x(arr,distance):
+    for i in range(len(arr)):
+        arr[i].xy=(arr[i].xy[0]+distance,arr[i].xy[1])
+    return
+
 
 x = np.arange(len(labels))  # the label locations
+print(x)
 width = master_width/3  # the width of the bars
 
 div=1
@@ -92,11 +98,16 @@ div=1
 widths=[x - (width * 2 + width/2),x - (width + width/2), x - width/2, x + width/2, x + (width + width/2), x + (width * 2 + width/2)]
 i=0
 rects_clover_r = ax1.bar(widths[i], clover_r, width, label='Clover',color=default_clover_color,edgecolor='k'); i=i+1
-rects_clover_w = ax1.bar(widths[i], clover_w, width, label='Clover',color=default_clover_color,edgecolor='k',hatch='/'); i=i+1
 rects_write_r = ax1.bar(widths[i], write_r, width, label='Write',color=write_steering_color,edgecolor='k'); i=i+1
-rects_write_w = ax1.bar(widths[i], write_w, width, label='Write',color=write_steering_color,edgecolor='k',hatch='/'); i=i+1
 rects_read_r = ax1.bar(widths[i], read_r, width, label='Write+Read',color=read_write_steering_color,edgecolor='k'); i=i+1
+rects_clover_w = ax1.bar(widths[i], clover_w, width, label='Clover',color=default_clover_color,edgecolor='k',hatch='/'); i=i+1
+rects_write_w = ax1.bar(widths[i], write_w, width, label='Write',color=write_steering_color,edgecolor='k',hatch='/'); i=i+1
 rects_read_w = ax1.bar(widths[i] , read_w, width, label='Write+Read',color=read_write_steering_color,edgecolor='k',hatch='/'); i=i+1
+
+shuffle=[]
+
+shuffle_x([rects_clover_r[0],rects_write_r[0],rects_read_r[0]],width + width/2)
+shuffle_x([rects_clover_w[3],rects_write_w[3],rects_read_w[3]],-(width + width/2))
 
 
 
@@ -114,8 +125,6 @@ p2= Patch(facecolor='white', edgecolor='k', hatch="/", label='write_latency')
 custom_lines = [rects_clover_r,rects_write_r,rects_read_r,p1,p2]
 
 ax1.legend(custom_lines, ["Clover", "Write", "Write+Read", "read latency", "write latency"])
-
-#//ax.bar_label(rects2, padding=3)
 figure_name="99th_latency_dense"
 plt.tight_layout()
 plt.savefig(figure_name+'.pdf')
