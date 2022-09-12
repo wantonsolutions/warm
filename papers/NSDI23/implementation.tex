@@ -354,9 +354,53 @@ features. In some cases branching to 4 or more statements would have allowed
 lookups in the following stage to be implemented in a single stage rather than
 two.
 
-\section{Failures}
+\subsection{Failures}
 
-\todo{write}
+Steering requests prior to the completion of CAS is safe in most cases while the
+switch is operating correctly and no client failures exist. However in subtle
+cases saftey violations can be introduced if proper measures are not taken. We
+take advantage of the fact that Clover has built in recovery mechanisms. When a
+failure is detected we rely on clover to recover by triggering it's default
+mechanism. By default when clover detects a failure, it traverses the list of
+keys recursively by issuing reads until it finds the new tail.
+
+The primary safty issue introduced is a broken list. For example if a list A->B
+exists and there are outstanding writes C and D. If concurrent requests connect
+B->C and C->D but the CAS for B->C fails and C->D succeeds this creates a broken
+chain.
+
+In the common case B->C will never fail as the switch will steer requests to
+known successful locations. If a successful client request was not routed
+through {\sword} a CAS can return with a failed operation because it was not
+issued to the tail of the list. In this case {\sword} will see the failed
+response and begin by marking the key as invalid. All responses on that key will
+then be changed to failed CAS which will trigger Clovers recovery mechanism.
+\sg{On swordbox we have two options one of which is to examine the failed CAS,
+assuming that it was a correct write that CAS should point to the next valid
+location. Here the switch can simply update its value for the tail of the list
+to the next pointer of the failed CAS}. The second option is to clear the cache
+and then proactively wait for a successful CAS before steering again.
+
+A trickier case in when the CAS operation for B->C is dropped prior to being
+processed by the NIC i.e the packet is dropped due to congestion. Typically this
+will not happen because the NIC generates pause frames before it becomes too
+congested, in our single TOR setup pause frames prevented packet drops due to
+the close loop design of clover. If the drop does occur however it is difficult
+to detect that the chain has been broken. In the common case the client which
+issued the CAS initially will retry. \sg{I did this on the dpdk box} If the same
+request is issued twice {\sword} could attempt to allow the packet to repair the
+broken chain by issuing it again, however this would incur significant buffering
+on the switch to track potentially lost packets. In the case of a retried CAS we
+mark the key a broken and force all clients to retry by marking their next CAS
+as failed.
+
+If a client cas fails, while another succeeds, and {\sword} also fails before
+being able to correct the fault clients the clients could be left in a state
+where some data is detached, and no mechanism which currently exists would
+detect the detachment. Here we suggest that if {\sword} fails clients trigger a
+\textit{read from the start} recovery to ensure that data remains consistent.
+
+\todo{add a diagram}
 
 
 
