@@ -44,9 +44,9 @@ server, and the remaining seven as Clover clients.
 \begin{figure*}
     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
 %  \vskip -0.5em
-    \caption{Performance of {\sword} techniques applied to Clover with 128-byte packets on 4 YCSB
+    \caption{Steering applied to Clover with 128-byte packets on 4 YCSB
     benchmarks. The percentage of workload writes increases from left to
-    right. Our improvements over Clover are 1.0x, 2.8x, 32x, and 46x respectively.}
+    right. \sword\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times$ respectively.}
     \label{fig:full_system_performance}
       \vskip -0.5em
 \end{figure*}
@@ -54,7 +54,7 @@ server, and the remaining seven as Clover clients.
 We show that \sword\ is able to overcome the NIC hardware bottleneck
 by replacing CAS operations with writes serialized on a given QP by
 running a micro-benchmark that focuses exclusively on CAS
-performance. Specifically, we extract the CAS request from Shermans's
+performance. Specifically, we extract the CAS request from Sherman's
 lock operation and repeatedly generate it from one client to a single
 memory server (while routing it through {\sword} using OpenFlow rules).
 
@@ -136,37 +136,37 @@ when applied to Clover.
 
 \subsubsection{Throughput}
 
-Figure~\ref{fig:full_system_performance} shows the relative
-performance gains from each of \sword's techniques. At 5\% reads write
-steering provides minimal performance improvement as the vast majority
-of writes succeed on their first try. Individual writes, however, can
-lead to many stale reads immediately thereafter which leads write steering
-to offer a 1.17$\times$ throughput improvement.
+Figure~\ref{fig:full_system_performance} shows the impact of \sword's
+techniques at various levels of contention.  A read-only workload
+exhibits no contention, so \sword\ simply passes through all
+operations unmodified achieving a maximum throughput of approximately
+40 million operations per second in our testbed.  Clover (shown in
+blue) performance decreases markedly with even 5\% writes; write
+steering alone (orange) provides minimal performance improvement as
+the vast majority of writes succeed on their first try---it is the
+reads that are failing.  Steering both reads and writes (red) restores
+performance, although to a slightly lower overall throughput as even
+successful Clover writes require two RDMA operations instead of one.
+%Individual writes, however, can
+%lead to many stale reads immediately thereafter which leads write steering
+%to offer a 1.17$\times$ throughput improvement.
 %
 %Applying QP mapping to the
 %read majorly case adds too much computational overhead to give a
 %benefit when writes are low, and only a few compare and swap
 %operations exist.
 %
-At 50\% writes, Clover is well outside of it target workload:
-at 64 threads, over half of all write requests fail. Here applying write
-steering improves performance by over 1.73$\times$ at 64 threads.
-
-Write steering alone is insufficient at this level of contention.
-Because all writes succeed they easily out-pace reads causing the
-majority of reads to fail at 64 threads.  (The resulting impact on
-tail latency is clearly shown in Figure~\ref{fig:tail_latency}.)
-Applying both read and write steering, on the other hand, yields a
-2.82$\times$ throughput improvement as nearly all requests succeed.
+At 50\% writes, over half of all write requests fail so applying write
+steering almost doubles performance.  The steered writes, however,
+then out-pace reads causing the majority of reads to fail unless
+\sword\ also applies read steering.  (The impact on tail latency is
+clearly shown in Figure~\ref{fig:tail_latency}.)  Of course, in a
+100\% write workload write steering alone is sufficient
 %
 %This workload leads to enough common case failures that
 %performance overhead of performing QP mapping still yields a
 %performance boost.
 %
-Write-only workloads are antagonistic to Clover's optimistic
-approach: write and write+read steering yield 3.89$\times$ and
-3.63$\times$ throughput improvements respectively; the read-steering
-logic is pure overhead due to the absence of reads.
 %in the workload.
 
 
@@ -214,28 +214,28 @@ logic is pure overhead due to the absence of reads.
 \begin{figure}
     \includegraphics[width=0.485\textwidth]{fig/99th_latency_dense.pdf}
 %\vskip -1em
-    \caption{99th-percentile tail latencies of reads (solid) and writes
+    \caption{99th-percentile tail latencies of read (solid) and write
       (striped) Clover operations for workloads of various write
-      intensities when applying each of {\sword}'s techniques.  Each
+      intensities.  Each
       measurement taken over a Zipf distribution of requests with 64
-      clients. (Note the logarithmic $y$ axes.)}
+      clients. (Note the logarithmic $y$ axis.)}
     \label{fig:tail_latency}
       \vskip -0.5em
 \end{figure}
 
 
-Placing memory operations in-band with regular network traffic can be
-problematic as applications' remote memory usage has the potential to
-vary dramatically per application.  Under contention, memory operation
-can require additional packet exchanges which inflate the bandwidth
-necessary to service the same number of memory requests. Our
-in-network steering algorithms remove the need for requests to
-retry.
-
+%Placing memory operations in-band with regular network traffic can be
+%problematic as applications' remote memory usage has the potential to
+%vary dramatically per application.
+Under contention, Clover's remote operations can require additional
+packet exchanges which inflate the bandwidth necessary to service the
+same number of memory accesses.  \sword's steering algorithms
+remove the need for requests to retry, eliminating the overhead.
+%
 %Figure~\ref{fig:bandwidth_reduction} shows the average bytes
 %per Clover operation under three different workloads for default
 %Clover as well as {\sword}'s two steering techniques.
-
+%
 %% We calculate the optimal expected cost of a Clover operation by
 %% averaging the cost of a successful operation across reads and
 %% writes. We get the weighted average by multiplying the cost of a read
@@ -248,16 +248,17 @@ retry.
 %% around 99 percent of all reads in these workloads), however sometimes
 %% it is omitted leading to a small over-approximation in our estimate of
 %% ``optimal''.
-
+%
 Figure~\ref{fig:bandwidth_reduction} plots the average bytes per
-operation for each strategy across all four workloads. We
-calculate the value for each technique by summing the total bandwidth
-across a run and dividing by the total number of operations. Clover's
-bandwidth usage increases with contention, growing by 1.8$\times$ at
-50\% and 2.24$\times$ at 100\% writes---all of which is recovered by
-applying read and write steering. Write steering alone causes
-significant inflation in the cost of operations at 50\% writes because many
-read requests fail as discussed above.
+operation for each strategy across the three workloads with writes.
+(The read-only workload, not shown, never needs to retry.) We calculate the value
+for each technique by summing the total bandwidth across a run and
+dividing by the total number of operations. Clover's bandwidth usage
+increases with contention, growing by 1.8$\times$ at 50\% and
+2.24$\times$ at 100\% writes---all of which is recovered by applying
+read and write steering. Write steering alone causes significant
+inflation in the cost of operations at 50\% writes because many read
+requests fail as discussed above.
 
 \subsubsection{Tail latency}
 
@@ -276,11 +277,11 @@ on the first try.
 Figure~\ref{fig:tail_latency} shows the 99th-percentile tail latencies
 associated with \sword's read and write steering in comparison to
 default Clover at varying write intensities. Clover's p99 read latency
-at 5\% writes is 91~$\mu$s, around 7.5$\times$ its
-baseline our our testbed. With read and write steering the tail
-latency drops to 38~$\mu$s---a 2.3$\times$ improvement over
-Clover even in this low-contention regime. At 50\% writes the
-performance increase is roughly double.
+(solid blue) at 5\% writes is 91~$\mu$s, around 7.5$\times$ its
+baseline our our testbed. With read and write steering (solid red) the read tail
+latency drops to 38~$\mu$s---a 2.3$\times$ improvement over Clover
+even in this low-contention regime. At 50\% writes the performance
+increase from steering roughly doubles again.
 %% As discussed above, in either
 %% case applying write steering alone actually hurts performance, as it
 %% makes reads more likely to fail.
@@ -299,14 +300,13 @@ performance increase is roughly double.
 %that read and write steering be used in concert unless the workload is
 %explicitly known.
 %
-Writes perform
-worse than reads under contention in default Clover. Write+read
-steering provides a 2.7, 37.1, and 25.2$\times$
-improvement in tail latency, respectively, across 5, 50, and 100\%
-write workloads.  As one might expect, performing write steering alone
-privledges writes over reads, dropping their tail latencies even
-further---at the cost of a dramatic
-spike in read tail latency.
+Writes (hashed) perform worse than reads (solid) under contention in
+default Clover. Combined write and read steering provides a 2.7, 37.1,
+and 25.2$\times$ improvement in write tail latency, respectively, across 5,
+50, and 100\% write workloads.  As one might expect, performing write
+steering alone privledges writes over reads, dropping their tail
+latencies slightly further---at the cost of a dramatic spike in read
+tail latency.
 
 %% Figure~\ref{fig:tail_latency} also shows the performance of queue pair
 %% mapping and atomic replacement (CAS$\rightarrow$Write) when applied in addition
