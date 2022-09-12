@@ -369,6 +369,7 @@ exists and there are outstanding writes C and D. If concurrent requests connect
 B->C and C->D but the CAS for B->C fails and C->D succeeds this creates a broken
 chain.
 
+\textbf{Cas fails due to not being the tail}
 In the common case B->C will never fail as the switch will steer requests to
 known successful locations. If a successful client request was not routed
 through {\sword} a CAS can return with a failed operation because it was not
@@ -381,6 +382,7 @@ location. Here the switch can simply update its value for the tail of the list
 to the next pointer of the failed CAS}. The second option is to clear the cache
 and then proactively wait for a successful CAS before steering again.
 
+\textbf{Packet is dropped after Swordbox, and before NIC processing}
 A trickier case in when the CAS operation for B->C is dropped prior to being
 processed by the NIC i.e the packet is dropped due to congestion. Typically this
 will not happen because the NIC generates pause frames before it becomes too
@@ -394,14 +396,48 @@ on the switch to track potentially lost packets. In the case of a retried CAS we
 mark the key a broken and force all clients to retry by marking their next CAS
 as failed.
 
+\textbf{Packet dropped, client failure}
+
+If a client's packet is dropped after \sword commits the CAS and the client
+fails before issuing another request, there is no retry to mark the key as
+invalid. In this case we need to refer to a timeout. On each key we keep a 32
+bit register used to mark outstanding requets. Each key also has a counter which
+counts the total number of CAS issued on the key. When a CAS is proccessed by
+\sword it increments the counter, and then marks a bit in the 32 bit counter
+modulo the packet counter. The number of the request is stored in the connection
+state of the client. When a response comes back on the client connection it the
+bit in the connection counter is set back to 0.
+
+\textbf{Client sends CAS, packet dropped before hitting the nic, and client
+dies/disconnects before retry}
+
 If a client cas fails, while another succeeds, and {\sword} also fails before
 being able to correct the fault clients the clients could be left in a state
 where some data is detached, and no mechanism which currently exists would
 detect the detachment. Here we suggest that if {\sword} fails clients trigger a
 \textit{read from the start} recovery to ensure that data remains consistent.
 
-\todo{add a diagram}
 
+\textbf{Read Steering}
+
+Reads also represent a tricky case upon write failure. If we use the same write
+tail to steer reads we can end up with inconsistent reads as they may be on a
+detached tail. Assuming that we will not attempt to repair the broken chain by
+inserting a write, the read is invalid.
+
+We can remedy this by only steering reads to locations that have had their CAS
+acked. This requires maintaining the write ack tail. And will come at the cost
+of performance. under contention.
+
+
+\subsubsection{Thoughts}
+
+\sg{A naive option would be to keep track of uncommited CAS, and then reissue
+them from the switch. This would defer the atomicity to the switch after it was
+effectivly atomicized by the switch. This is the definition of non-soft state
+though.}
+
+\sg{The key bit is that we can trigger a fault on all future calls to a broken key.}
 
 
 
