@@ -198,7 +198,7 @@ packet felids.
 We implemented RDMA ICRC in our DPDK prototype. To our knowledge no P4 switches
 have native RoCEv2 support, while some projects have demonstrated that it is
 possible to implement by hand, it requires many switch resources and adds
-complexity~\todo{~\cite{}} we forgot the additional complexity and turned off
+complexity~\cite{p4-telem} we forgot the additional complexity and turned off
 ICRC checking on our CX5 NICs similar to prior work~\cite{switchml}. In the
 future we hope that RoCEv2 checksums, like TCP, UDP,and Ethernet checksums can
 be made hardware primitives on programmable switches.
