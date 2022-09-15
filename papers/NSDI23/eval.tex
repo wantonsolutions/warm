@@ -254,8 +254,8 @@ operation for each strategy across the three workloads with writes.
 (The read-only workload, not shown, never needs to retry.) We calculate the value
 for each technique by summing the total bandwidth across a run and
 dividing by the total number of operations. Clover's bandwidth usage
-increases with contention, growing by 1.8$\times$ at 50\% and
-2.24$\times$ at 100\% writes---all of which is recovered by applying
+increases with contention, growing by 2.5$\times$ at 5\% and
+16$\times$ at 50\% writes---all of which is recovered by applying
 read and write steering. Write steering alone causes significant
 inflation in the cost of operations at 50\% writes because many read
 requests fail as discussed above.
