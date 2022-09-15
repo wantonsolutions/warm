@@ -5,6 +5,15 @@ import numpy as np
 
 from common import *
 
+def wins(clover,reads):
+    for a,b in zip(clover,reads):
+        try:
+            win=str(a/b)
+        except:
+            win="1"
+
+        print("win " + win + "x")
+
 plt.rcParams.update({'font.size': 12})
 fig, ax1 = plt.subplots(1,1, figsize=(5,3))
 default_line_width=3
@@ -40,7 +49,7 @@ clover_with_buffering_A_128 = gen_tuples(clover,zipf,std)
 write_steering_A_128       = gen_tuples(write,zipf,std)
 read_write_steering_A_128  = gen_tuples(rw,zipf,std)
 
-
+wins(rw,clover)
 contention_err(ax1,read_write_steering_A_128,write_steering_A_128,clover_with_buffering_A_128)
 
 #ax1.set_title('Zipf Coeff 50% Writes 128 bytes')

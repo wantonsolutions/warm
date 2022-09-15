@@ -25,20 +25,12 @@ def div_thousand_rw (list):
 
 def wins(clover,reads):
     for a,b in zip(clover,reads):
-        read_win=0
-        write_win=0
         try:
-            read_win=str(a[0]/b[0])
+            win=str(a/b)
         except:
-            read_win="1"
-        
-        try:
-            write_win=str(a[1]/b[1])
-        except:
-            write_win="1"
+            win="1"
 
-
-        print("read win " + read_win + "x\t write win " + write_win + "x")
+        print("win " + win + "x")
 
 cns_color='#00702eff'                     #indigo
 qp_mapping_color='#9470b9ff'              #ruby
@@ -82,6 +74,9 @@ read_r=div_thousand_rw(read_r)
 clover_w=div_thousand_rw(clover_w)
 write_w=div_thousand_rw(write_w)
 read_w=div_thousand_rw(read_w)
+
+wins(clover_r,read_r)
+wins(clover_w,read_w)
 
 def shuffle_x(arr,distance):
     for i in range(len(arr)):
