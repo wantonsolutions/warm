@@ -356,88 +356,136 @@ two.
 
 \subsection{Failures}
 
-Steering requests prior to the completion of CAS is safe in most cases while the
-switch is operating correctly and no client failures exist. However in subtle
-cases saftey violations can be introduced if proper measures are not taken. We
-take advantage of the fact that Clover has built in recovery mechanisms. When a
-failure is detected we rely on clover to recover by triggering it's default
-mechanism. By default when clover detects a failure, it traverses the list of
-keys recursively by issuing reads until it finds the new tail.
+Our goal is ensure that under failure \sword does not introduce any correctness
+issues. Clover ensures end-to-end correctness for packet failures and client
+failures. A key difference between default clover, and \sword enhanced Clover is
+a change in atomic domain. In clover atomic operations are executed by a memory
+side RDMA NIC, in \sword atomic decision are made at the switch. This
+introduces a potential for correctness issues if packets are lost between the
+switch, and memory server, and if clients fail during such events.
 
-The primary safty issue introduced is a broken list. For example if a list A->B
-exists and there are outstanding writes C and D. If concurrent requests connect
-B->C and C->D but the CAS for B->C fails and C->D succeeds this creates a broken
-chain.
+The primary saftey issue introduced by \sword is a broken list. For example if a
+list A->B exists and there are outstanding writes C and D. If concurrent
+requests connect B->C and C->D but the CAS for B->C fails and C->D succeeds this
+creates a broken chain. Subsequent requests will be steered to the disconnected
+chain. One option would be to detect chain breakages and ask clients to reset by
+traversing the chain from root to tail. While tempting this approach could cause
+inconsistancies as clients might read and write data only to be notified of the
+link breakage further down the line. As such we task \sword with enforcing
+atomicity on lost CAS operations between itself and downstream memory servers.
 
-\textbf{Cas fails due to not being the tail}
-In the common case B->C will never fail as the switch will steer requests to
-known successful locations. If a successful client request was not routed
-through {\sword} a CAS can return with a failed operation because it was not
-issued to the tail of the list. In this case {\sword} will see the failed
-response and begin by marking the key as invalid. All responses on that key will
-then be changed to failed CAS which will trigger Clovers recovery mechanism.
-\sg{On swordbox we have two options one of which is to examine the failed CAS,
-assuming that it was a correct write that CAS should point to the next valid
-location. Here the switch can simply update its value for the tail of the list
-to the next pointer of the failed CAS}. The second option is to clear the cache
-and then proactively wait for a successful CAS before steering again.
+First we note that RDMA congestion control makes this problem an unlikely
+occurrence on a single hop. During testing we never witnessed packet drop
+between the switch egress port, and RDMA NIC, however corrupted packets, and
+drops could occur.
 
-\textbf{Packet is dropped after Swordbox, and before NIC processing}
-A trickier case in when the CAS operation for B->C is dropped prior to being
-processed by the NIC i.e the packet is dropped due to congestion. Typically this
-will not happen because the NIC generates pause frames before it becomes too
-congested, in our single TOR setup pause frames prevented packet drops due to
-the close loop design of clover. If the drop does occur however it is difficult
-to detect that the chain has been broken. In the common case the client which
-issued the CAS initially will retry. \sg{I did this on the dpdk box} If the same
-request is issued twice {\sword} could attempt to allow the packet to repair the
-broken chain by issuing it again, however this would incur significant buffering
-on the switch to track potentially lost packets. In the case of a retried CAS we
-mark the key a broken and force all clients to retry by marking their next CAS
-as failed.
+If a packet is dropped between \sword and a memory servers NIC, the client will
+time out eventually and retry the operation. We track the last sequence number
+of each client CAS operation, and the virtual address it was steered to. As
+clients are closed loop this is limited to 88 bits per client connection. If we
+see that a client retries a CAS we steer that CAS to the same location it was
+steered to rather than the end of the list.
 
-\textbf{Packet dropped, client failure}
+In the less likely case that during a dropped packet a client dies, and fails to
+retry the chain could potentially remain disconnected indefinitely. To remedy
+this final case we keep an additional bit set on each client connection marked
+to 1 if a CAS has not been ACKd, and 0 otherwise. Periodically, or upon being
+notified of a client failure, our P4 control plane checks the state of client
+connections and sees if any outstanding CAS operations were never ACKed. If so
+\sword generates the dropped CAS from it's connection table information to
+reconnect the list.
 
-If a client's packet is dropped after \sword commits the CAS and the client
-fails before issuing another request, there is no retry to mark the key as
-invalid. In this case we need to refer to a timeout. On each key we keep a 32
-bit register used to mark outstanding requets. Each key also has a counter which
-counts the total number of CAS issued on the key. When a CAS is proccessed by
-\sword it increments the counter, and then marks a bit in the 32 bit counter
-modulo the packet counter. The number of the request is stored in the connection
-state of the client. When a response comes back on the client connection it the
-bit in the connection counter is set back to 0.
-
-\textbf{Client sends CAS, packet dropped before hitting the nic, and client
-dies/disconnects before retry}
-
-If a client cas fails, while another succeeds, and {\sword} also fails before
-being able to correct the fault clients the clients could be left in a state
-where some data is detached, and no mechanism which currently exists would
-detect the detachment. Here we suggest that if {\sword} fails clients trigger a
-\textit{read from the start} recovery to ensure that data remains consistent.
+Note, it is only when CAS packets are dropped from \sword to memory that these
+precautions must be taken. Packets dropped prior to reaching \sword, and on the
+reverse path after operations are committed, and handled by RDMA's go-back-n and
+Clovers recovery mechanisms.
 
 
-\textbf{Read Steering}
 
-Reads also represent a tricky case upon write failure. If we use the same write
-tail to steer reads we can end up with inconsistent reads as they may be on a
-detached tail. Assuming that we will not attempt to repair the broken chain by
-inserting a write, the read is invalid.
-
-We can remedy this by only steering reads to locations that have had their CAS
-acked. This requires maintaining the write ack tail. And will come at the cost
-of performance. under contention.
+% Steering requests prior to the completion of CAS is safe in most cases while the
+% switch is operating correctly and no client failures exist. However in subtle
+% cases saftey violations can be introduced if proper measures are not taken. We
+% take advantage of the fact that Clover has built in recovery mechanisms. When a
+% failure is detected we rely on clover to recover by triggering it's default
+% mechanism. By default when clover detects a failure, it traverses the list of
+% keys recursively by issuing reads until it finds the new tail.
 
 
-\subsubsection{Thoughts}
+% \textbf{Cas fails due to not being the tail}
+% In the common case B->C will never fail as the switch will steer requests to
+% known successful locations. If a successful client request was not routed
+% through {\sword} a CAS can return with a failed operation because it was not
+% issued to the tail of the list. In this case {\sword} will see the failed
+% response and begin by marking the key as invalid. All responses on that key will
+% then be changed to failed CAS which will trigger Clovers recovery mechanism.
+% \sg{On swordbox we have two options one of which is to examine the failed CAS,
+% assuming that it was a correct write that CAS should point to the next valid
+% location. Here the switch can simply update its value for the tail of the list
+% to the next pointer of the failed CAS}. The second option is to clear the cache
+% and then proactively wait for a successful CAS before steering again.
 
-\sg{A naive option would be to keep track of uncommited CAS, and then reissue
-them from the switch. This would defer the atomicity to the switch after it was
-effectivly atomicized by the switch. This is the definition of non-soft state
-though.}
+% \textbf{Packet is dropped after Swordbox, and before NIC processing}
+% A trickier case in when the CAS operation for B->C is dropped prior to being
+% processed by the NIC i.e the packet is dropped due to congestion. Typically this
+% will not happen because the NIC generates pause frames before it becomes too
+% congested, in our single TOR setup pause frames prevented packet drops due to
+% the close loop design of clover. If the drop does occur however it is difficult
+% to detect that the chain has been broken. In the common case the client which
+% issued the CAS initially will retry. \sg{I did this on the dpdk box} If the same
+% request is issued twice {\sword} could attempt to allow the packet to repair the
+% broken chain by issuing it again, however this would incur significant buffering
+% on the switch to track potentially lost packets. In the case of a retried CAS we
+% mark the key a broken and force all clients to retry by marking their next CAS
+% as failed.
 
-\sg{The key bit is that we can trigger a fault on all future calls to a broken key.}
+% \textbf{Packet dropped, client failure}
+
+% If a client's packet is dropped after \sword commits the CAS and the client
+% fails before issuing another request, there is no retry to mark the key as
+% invalid. In this case we need to refer to a timeout. On each key we keep a 32
+% bit register used to mark outstanding requets. Each key also has a counter which
+% counts the total number of CAS issued on the key. When a CAS is processed by
+% \sword it increments the counter, and then marks a bit in the 32 bit counter
+% modulo the packet counter. The number of the request is stored in the connection
+% state of the client. When a response comes back on the client connection it the
+% bit in the connection counter is set back to 0. When a CAS is issued, if the bit
+% in our CAS tracker is set to 1, then a dropped CAS has been identified. In this
+% case the key is marked as invalid and clients must attempt to retry the request.
+% Out of band the client connections are checked by our control plane, if a rarely
+% written key is unacked for a long period of time the key is marked as invalid
+% Out of band the client connections are checked by our control plane, if a rarely
+% written key is unacked for a long period of time the key is marked as invalid.
+
+% \textbf{Client sends CAS, packet dropped before hitting the nic, and client
+% dies/disconnects before retry}
+
+% If a client cas fails, while another succeeds, and {\sword} also fails before
+% being able to correct the fault clients the clients could be left in a state
+% where some data is detached, and no mechanism which currently exists would
+% detect the detachment. Here we suggest that if {\sword} fails clients trigger a
+% \textit{read from the start} recovery to ensure that data remains consistent.
+
+
+% \textbf{Read Steering}
+
+% Reads also represent a tricky case upon write failure. If we use the same write
+% tail to steer reads we can end up with inconsistent reads as they may be on a
+% detached tail. Assuming that we will not attempt to repair the broken chain by
+% inserting a write, the read is invalid.
+
+% We can remedy this by only steering reads to locations that have had their CAS
+% acked. This requires maintaining the write ack tail. And will come at the cost
+% of performance. under contention.
+
+
+% \subsubsection{Thoughts}
+
+% \sg{A naive option would be to keep track of uncommited CAS, and then reissue
+% them from the switch. This would defer the atomicity to the switch after it was
+% effectivly atomicized by the switch. This is the definition of non-soft state
+% though.}
+
+% \sg{The key bit is that we can trigger a fault on all future calls to a broken key.}
 
 
 
