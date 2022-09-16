@@ -21,7 +21,9 @@ limitations under the License.
 #ifndef BS_HEADER
 #define BS_HEADER
 
-#define ID_SIZE 8
+#define ID_SIZE 16
+//The size of the ID's used in the table, and the total number of ID's.
+#define MAX_IDS (1 << ID_SIZE)
 #define KEY_SIZE 8
 #define VADDR_SIZE 64
 //#define MAX_KEYS 4096

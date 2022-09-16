@@ -74,6 +74,26 @@ control SwitchIngress(inout headers hdr,
         }
     }
 
+//     // Indirect counter with `size’ independent counter entries, where
+// // every entry has a data plane size specified by type W.
+// extern Counter<W, I> {
+// // Constructor
+// // @type_param W : width of the counter entry.
+// // @type_param I : width of the counter index.
+// // @param type : counter type. Packet and byte counters are
+// //
+// supported.
+// Counter(bit<32> size, CounterType_t type);
+// // Increment the counter.
+// // @param index : index of the counter to be incremented.
+// // @param adjust_byte_count : optional parameter indicating value
+// //
+// to be subtracted from counter value.
+// void count(in I index, @optional in bit<32> adjust_byte_count);
+
+    Counter<bit<64>, bit<1>>(1,CounterType_t.BYTES) total_byte_counter;
+    Counter<bit<64>, bit<1>>(1,CounterType_t.PACKETS) total_packets_counter;
+
     Register<bit<8>, bit<1>>(1,SWORDBOX_OFF) swordbox_mode;
     RegisterAction<bit<8>, bit<1>, bit<8>>(swordbox_mode) get_swordbox_mode = {
         void apply(inout bit<8> value, out bit<8> read_value) {
@@ -95,14 +115,14 @@ control SwitchIngress(inout headers hdr,
     }
 
     //#ifdef STATISTICS    
-    Register<bit<32>, bit<1>>(1,0) read_miss_counter;
-    RegisterAction<bit<32>, bit<1>, bit<32>>(read_miss_counter) inc_read_miss = {
+    Register<bit<32>, bit<2>>(4,0) read_miss_counter;
+    RegisterAction<bit<32>, bit<2>, bit<32>>(read_miss_counter) inc_read_miss = {
         void apply(inout bit<32> value, out bit<32> read_value) {
             value=value+1;
         }
     };
 
-    action inc_read_miss_counter_action(bit<1> get_val){
+    action inc_read_miss_counter_action(bit<2> get_val){
         inc_read_miss.execute(get_val);
     }
     //#endif
@@ -113,8 +133,6 @@ control SwitchIngress(inout headers hdr,
     #define QP_HASH_WIDTH 14
     #define QP_ID_TABLE_SIZE ( 1 << QP_HASH_WIDTH)
 
-    //The size of the ID's used in the table, and the total number of ID's.
-    #define MAX_IDS 255
     //id_hash hashes qp to 16 bytes. It is the unique id for qp
     Hash<bit<16>>(HashAlgorithm_t.CRC16) id_hash;
     //This register is used to track the existance of ID's. Because we cant both
@@ -273,15 +291,19 @@ control SwitchIngress(inout headers hdr,
     #define WRITE_HASH_WIDTH_MAX 17 //This is the max value I can fit without fanangaling crap
     #define WRITE_HASH_WIDTH 19
     #define WRITE_CACHE_SIZE (1 << WRITE_HASH_WIDTH)
-    Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
-    Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
+    // Hash<bit<32>>(HashAlgorithm_t.CRC32) write_cache_hash;
+    // Hash<bit<32>>(HashAlgorithm_t.CRC32) read_cache_hash;
+
+    CRCPolynomial<bit<32>>(0x82608EDB,false,false,false,32w0xFFFFFFFF,32w0xFFFFFFFF) crc32fp;
+    Hash<bit<32>>(HashAlgorithm_t.CUSTOM,crc32fp) write_cache_hash;
+    Hash<bit<32>>(HashAlgorithm_t.CUSTOM,crc32fp) read_cache_hash;
 
     #define CHOPPED_ADDR_WIDTH 8
 
     Register<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>>(WRITE_CACHE_SIZE, 0) write_cache_low;
     RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_low) write_write_cache_low = {
         void apply(inout bit<CHOPPED_ADDR_WIDTH> value, out bit<CHOPPED_ADDR_WIDTH> read_value) {
-            value = (bit<CHOPPED_ADDR_WIDTH>)meta.vaddr.lower;
+            value = (bit<CHOPPED_ADDR_WIDTH>)meta.vaddr.lower[15:8];
         }
     };
     RegisterAction<bit<CHOPPED_ADDR_WIDTH>, bit<WRITE_HASH_WIDTH>, bit<CHOPPED_ADDR_WIDTH>>(write_cache_low) read_write_cache_low = {
@@ -293,6 +315,8 @@ control SwitchIngress(inout headers hdr,
     action set_write_cache_low(bit <WRITE_HASH_WIDTH> vaddr_hash) {
         write_write_cache_low.execute(vaddr_hash);
     }
+
+    //!!TODO  start here, it seems that the half width adder is not quite right. My guess here is that it should also be the cached addr
     action get_write_cache_low(bit <WRITE_HASH_WIDTH> vaddr_hash) {
         meta.write_cached_addr.lower=(bit<HALF_ADDR_WIDTH>)read_write_cache_low.execute(vaddr_hash);
     }
@@ -384,6 +408,14 @@ control SwitchIngress(inout headers hdr,
 
         get_swordbox_mode_action(0);
         get_rdma_size_action(0);
+
+        //Check the traffic going to the memory server, it should be the bottleneck
+        //if (hdr.ethernet.dstAddr == 0xec0d9a6821d0|| hdr.ethernet.srcAddr == 0xec0d9a6821d0) {
+        if (hdr.ethernet.dstAddr[15:0] == 0x21cc || hdr.ethernet.srcAddr[15:0] == 0x21cc) {
+            total_byte_counter.count(0); // ,hdr.ipv4.totalLength);
+            total_packets_counter.count(0);
+        }
+
         if (
             (meta.swordbox_mode >= WRITE_STEER) &&
             //Write Packtes
@@ -423,7 +455,12 @@ control SwitchIngress(inout headers hdr,
                 //#ifdef READ_STEER
                 if (meta.swordbox_mode >= READ_STEER) {
                     //TODO mega dang use the entire 64 bit address for hashing
-                    bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(hdr.write_req.virt_addr.lower);
+                    // bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) write_cache_hash.get(
+                    //     { 
+                    //         hdr.write_req.virt_addr.upper, 
+                    //         hdr.write_req.virt_addr.lower 
+                    //     });
+                    bit<WRITE_HASH_WIDTH> write_hash_index = (bit<WRITE_HASH_WIDTH>) hdr.write_req.virt_addr.lower[26:7];
                     set_write_cache_low(write_hash_index);
                     set_write_cache_high(write_hash_index);
                     set_write_cache_key(write_hash_index);
@@ -447,8 +484,6 @@ control SwitchIngress(inout headers hdr,
                 get_then_set_next_vaddr_low(meta.key);
                 get_then_set_next_vaddr_high(meta.key);
 
-
-
                 if (meta.next_vaddr.lower != 0) {
                     //TODO I should compare both
                     if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
@@ -468,7 +503,12 @@ control SwitchIngress(inout headers hdr,
 
                 if (meta.swordbox_mode >= READ_STEER) {
 
-                    bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(hdr.read_req.virt_addr.lower);
+                    bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) hdr.read_req.virt_addr.lower[26:7];
+                    // bit<WRITE_HASH_WIDTH> read_hash_index = (bit<WRITE_HASH_WIDTH>) read_cache_hash.get(
+                    //     {hdr.read_req.virt_addr.upper,
+                    //      hdr.read_req.virt_addr.lower
+                    //      });
+
                     get_write_cache_key(read_hash_index);
 
                     //Check if the hash of this vadder is a hit and matches
@@ -479,8 +519,11 @@ control SwitchIngress(inout headers hdr,
 
                     //Check that the cache hit is legitimate, we know that this address is for a known key
                     //TODO make this simpler so that I can use both addresses
-                    bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
-                    if ((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
+
+                    //bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
+                    bit<CHOPPED_ADDR_WIDTH> chopped_lower = hdr.read_req.virt_addr.lower[15:8];
+                    //if ((meta.read_tail.lower != 0)) {
+                    if (((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower) && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                         //We found that the latest value was cached so we know the key
                         //In this case we always update the packet
                         //We could skip updating the packet if the value was allready correct
@@ -488,12 +531,16 @@ control SwitchIngress(inout headers hdr,
                         hdr.read_req.virt_addr.lower=meta.read_tail.lower;
                         hdr.read_req.virt_addr.upper=meta.read_tail.upper;
                         //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
-                    }
-                    //#ifdef STATISTICS
-                    else {
+                        //if (chopped_lower == 0) {
+                        inc_read_miss_counter_action(1);
+                        //}
+                    } else {
                         inc_read_miss_counter_action(0);
                     }
-                    //#endif
+
+                    // if (chopped_lower == 0) {
+                    //     inc_read_miss_counter_action(2);
+                    // }
                 }
             }
         }

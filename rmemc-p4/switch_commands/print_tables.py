@@ -3,6 +3,7 @@ from common import *
 def print_register(table,target,name):
     print("Printing Register: "+name+ " Size: "+ str(table.info.size) + "...")
     x = table.entry_get(target)
+    total_set=0
     for i in x:
         key = i[1]
         key = i[1]['$REGISTER_INDEX'].value
@@ -12,10 +13,12 @@ def print_register(table,target,name):
         data = data[name+str(".f1")].val
         data =int.from_bytes(data, byteorder='big', signed=False)
         if(data != 0):
-            print("Key: "+ str(key) + "   Value: " + str(data))
+            print("Key: "+ str(key) + "   Value: " + str(data) + " Hvalue: " + str(hex(data)))
+            total_set=total_set+1
 
         #print(data[name+str(".f1")])
-    print("done")
+    print("Register: " + str(total_set) + "/" + str(table.info.size) +" full")
+
 
 
 def print_registers(name_list):
@@ -29,5 +32,5 @@ def print_registers(name_list):
             print(name + " does not seem to exist")
 
 
-print_registers(all_registers)
-#print_registers(counter_registers)
+#print_registers(all_registers)
+print_registers(counter_registers)
