@@ -1,0 +1,40 @@
+%\section{Discussion and future work}
+%
+While our prototype focuses on Clover, we believe the
+%Our approach only measures the benefits which clover observers by using our in
+%network contention resolution. However our
+approach is general, and in the future we would like to add support
+for additional disaggregated memory systems. For example Remote
+Regions~\cite{reigons} implements a POSIX file system API for remote
+memory.
+%Our approach could also be used to remove contention in
+%a much more standardized remote memory environment.
+
+More broadly, each of these systems is designed with a different set
+of assumptions than we anticipate are appropriate for future
+deployments.  As others have also observed~\cite{mom}, in-network
+serialization occurs naturally in today's network fabrics, so it seems
+fruitful to consider how to design algorithms and data structures
+under the assumption most conflicts can be resolved using small
+amounts of high-speed compute in the network itself. We aim to explore
+the design space of such algorithms and data structures for
+disaggregation in the future.
+
+%%
+\subsection{CXL} 
+
+CXL is a CPU-to-Device interconnect layered on PCIe 5.0 designed to provide a
+coherent interface to devices, accelerators and memory~\cite{cxl-spec}.  .
+Although at the time of writing CXL is not a commercially available technology,
+research prototypes have have reported remote memory access latencies between
+200-426ns~\cite{direct-cxl,microsoft-cxl-first-gen,facebook-cxl-tpp}.
+
+CXL removes the DIMM slot constraint on per server memory capacity and
+provides a way forward for high capacity memory pooling between many CPUs. The CXL protocols do
+not provide opportunities for reducing or removing contention to shared memory.
+CLX.cache for instance exposes MESI states to the host CPU, and levees
+coordination to them. This interface suggests that CXL devices will suffer from
+identical lock contention problems as traditional memory with inflated costs for
+coordination. Given that PCIe root complexes lack programmability our techniques
+will likely not be applicable to CXL. We leave resolving CXL memory contention
+to future work.

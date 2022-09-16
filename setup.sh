@@ -70,6 +70,7 @@ function setup_hugepages {
     sudo mkdir -p /mnt/hugetlbfs ; sudo mount -t hugetlbfs none /mnt/hugetlbfs
 
     #TODO set this up so that it maps correctly on yak0, 1 and 2
+    hostname
     sudo numactl --physcpubind="$numasocket" --localalloc LD_PRELOAD=libhugetlbfs.so HUGETLB_MORECORE=yes ls
     echo "HUGEPAGE INFO"
     cat /proc/meminfo | grep Huge
