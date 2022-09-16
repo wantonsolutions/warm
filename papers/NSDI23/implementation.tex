@@ -400,6 +400,25 @@ precautions must be taken. Packets dropped prior to reaching \sword, and on the
 reverse path after operations are committed, and handled by RDMA's go-back-n and
 Clovers recovery mechanisms.
 
+\textbf{Connection Remapped Failures}
+
+Failures are simpler when mapping connections as a dropped message will prevent
+subsequent operations on keys mapped to that QP from executing.  RDMA in order
+delivery prevents any data corruption from occurring as no CAS further down the
+chain will be committed if a prior one fails. Retransmission in this case is
+more complex. A single failed packet will require that all in-flight requests
+from all clients on that QP be retransmitted. If a single message is dropped, a
+following message will trigger a go-back-n response from the memory side NIC. We
+propagate the go-back-n message to all clients with outstanding requests using
+the same mechanism we use to repair coalesced acks, but in reverse.  Retransmit
+requests can be serviced in any order, as none had yet been delivered to memory,
+and if any clients die before retransmitting the structure remains safe in spite
+of their failure.
+
+One aspect which requires care is maintaining {\sword} state when dealing with
+go-back-n. In the case of Sherman, the value of the lock when a CAS is issued is
+stored in the request mapping stub. If go-back-n is invoked the state of the
+lock is reverted to the value it had just prior to issuing the failed request.
 
 
 % Steering requests prior to the completion of CAS is safe in most cases while the
