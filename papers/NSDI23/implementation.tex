@@ -356,69 +356,110 @@ two.
 
 \subsection{Failures}
 
-Our goal is ensure that under failure \sword does not introduce any correctness
-issues. Clover ensures end-to-end correctness for packet failures and client
-failures. A key difference between default clover, and \sword enhanced Clover is
-a change in atomic domain. In clover atomic operations are executed by a memory
-side RDMA NIC, in \sword atomic decision are made at the switch. This
-introduces a potential for correctness issues if packets are lost between the
-switch, and memory server, and if clients fail during such events.
+Clover and Sherman both provide their own degrees of fault tolerance. Clover
+never acquires any resources so failures do not result in any stranding, and
+Sherman periodically detects if locks were kept by a dead client. At an
+operational level they rely on RDMA to provide in order delivery of their
+messages and react to failed CAS operations by retrying their operations.
 
-The primary saftey issue introduced by \sword is a broken list. For example if a
-list A->B exists and there are outstanding writes C and D. If concurrent
-requests connect B->C and C->D but the CAS for B->C fails and C->D succeeds this
-creates a broken chain. Subsequent requests will be steered to the disconnected
-chain. One option would be to detect chain breakages and ask clients to reset by
-traversing the chain from root to tail. While tempting this approach could cause
-inconsistancies as clients might read and write data only to be notified of the
-link breakage further down the line. As such we task \sword with enforcing
-atomicity on lost CAS operations between itself and downstream memory servers.
+{\sword} must therefore be able to detect packet retransmissions. If a packet is
+dropped in transit sword must not treat the repeated packet as a new operation.
+On each RDMA connection we track it's last sequence number, the transformation
+{\sword} applied (steering), and if it was ACK'd.  If a retransmission occurs
+the same operation is reapplied. This mechanism alone ensures safety in the
+majority of packet loss scenarios. However, client failures can cause complex
+failure cases.  In practice we consider these failure concerns to be unlikely
+during development no packet drops occurred between {\sword} and the memory side
+NIC due to clients issuing closed loop operations.
 
-First we note that RDMA congestion control makes this problem an unlikely
-occurrence on a single hop. During testing we never witnessed packet drop
-between the switch egress port, and RDMA NIC, however corrupted packets, and
-drops could occur.
 
-If a packet is dropped between \sword and a memory servers NIC, the client will
-time out eventually and retry the operation. We track the last sequence number
-of each client CAS operation, and the virtual address it was steered to. As
-clients are closed loop this is limited to 88 bits per client connection. If we
-see that a client retries a CAS we steer that CAS to the same location it was
-steered to rather than the end of the list.
+The largest safety concern occurs if a linked-list is broken.  If CAS(A->B) is
+issued before CAS(A->C), CAS(A->C) will be write steered to CAS(B->C). If
+CAS(A->B) is dropped, CAS(B->C) can still succeed. This creates a broken chain
+because the pointer A->B does not exist but B-C does, and {\sword} will mark C
+as the tail of the list. In this case the operation CAS(A->B) must be re-issued
+to repair the chain.  If the client which issued CAS(A->B) is alive it will
+retransmit after a timeout. {\sword} will identify it as a retransmit, and the
+packet will be steered to the correct location, reconnecting the chain. However,
+if the client side NIC were to fail prior to reissuing the CAS the chain will
+remain broken.Here we use an out of band mechanism to repair the chain, on
+occasion our control plane queries the switch to check for incomplete CAS
+requests, marked as sent but not completed.
 
-In the less likely case that during a dropped packet a client dies, and fails to
-retry the chain could potentially remain disconnected indefinitely. To remedy
-this final case we keep an additional bit set on each client connection marked
-to 1 if a CAS has not been ACKd, and 0 otherwise. Periodically, or upon being
-notified of a client failure, our P4 control plane checks the state of client
-connections and sees if any outstanding CAS operations were never ACKed. If so
-\sword generates the dropped CAS from it's connection table information to
-reconnect the list.
+\textbf{Connection Remapped Failures:} Unlike in the prior scenario, when
+connections are mapped no data corruption can occur. Queue pair operation
+ordering ensures that CAS operation on keys are executed in order, and RDMA
+go-back-n is triggered if any message is lost.  Retransmissions are more complex
+when connection mapping is turned on. If a packet is dropped, and a following
+packet is delivered from another client on the same QP, go-back-n will be
+triggered by the memory side nic, and all inflight requests on that QP will
+become invalidated. When {\sword} sees a go-back-n ack, it triggers the same
+mechanism used for ACK coalescing but in reverse. All clients with outstanding
+messages are broadcast a go-back-n and asked to retransmit. Note that because no
+operations are committed the order and completion of any client operations does
+not matter. Clients can fail freely without any concern for data structure
+safety.
 
-Note, it is only when CAS packets are dropped from \sword to memory that these
-precautions must be taken. Packets dropped prior to reaching \sword, and on the
-reverse path after operations are committed, and handled by RDMA's go-back-n and
-Clovers recovery mechanisms.
+% Retransmission in this
+% case is more complex. A single failed packet will require that all in-flight
+% requests from all clients on that QP be retransmitted. If a single message is
+% dropped, a following message will trigger a go-back-n response from the memory
+% side NIC. We propagate the go-back-n message to all clients with outstanding
+% requests using the same mechanism we use to repair coalesced acks, but in
+% reverse.  Retransmit requests can be serviced in any order, as none had yet been
+% delivered to memory, and if any clients die before retransmitting the structure
+% remains safe in spite of their failure.
 
-\textbf{Connection Remapped Failures}
+% One aspect which requires care is maintaining {\sword} state when dealing with
+% go-back-n. In the case of Sherman, the value of the lock when a CAS is issued is
+% stored in the request mapping stub. If go-back-n is invoked the state of the
+% lock is reverted to the value it had just prior to issuing the failed request.
+ 
 
-Failures are simpler when mapping connections as a dropped message will prevent
-subsequent operations on keys mapped to that QP from executing.  RDMA in order
-delivery prevents any data corruption from occurring as no CAS further down the
-chain will be committed if a prior one fails. Retransmission in this case is
-more complex. A single failed packet will require that all in-flight requests
-from all clients on that QP be retransmitted. If a single message is dropped, a
-following message will trigger a go-back-n response from the memory side NIC. We
-propagate the go-back-n message to all clients with outstanding requests using
-the same mechanism we use to repair coalesced acks, but in reverse.  Retransmit
-requests can be serviced in any order, as none had yet been delivered to memory,
-and if any clients die before retransmitting the structure remains safe in spite
-of their failure.
+% Our goal is ensure that under failure \sword does not introduce any correctness
+% issues. Clover ensures end-to-end correctness for packet failures and client
+% failures. A key difference between default clover, and \sword enhanced Clover is
+% a change in atomic domain. In clover atomic operations are executed by a memory
+% side RDMA NIC, in \sword atomic decision are made at the switch. This
+% introduces a potential for correctness issues if packets are lost between the
+% switch, and memory server, and if clients fail during such events.
 
-One aspect which requires care is maintaining {\sword} state when dealing with
-go-back-n. In the case of Sherman, the value of the lock when a CAS is issued is
-stored in the request mapping stub. If go-back-n is invoked the state of the
-lock is reverted to the value it had just prior to issuing the failed request.
+% The primary saftey issue introduced by \sword is a broken list. For example if a
+% list A->B exists and there are outstanding writes C and D. If concurrent
+% requests connect B->C and C->D but the CAS for B->C fails and C->D succeeds this
+% creates a broken chain. Subsequent requests will be steered to the disconnected
+% chain. One option would be to detect chain breakages and ask clients to reset by
+% traversing the chain from root to tail. While tempting this approach could cause
+% inconsistancies as clients might read and write data only to be notified of the
+% link breakage further down the line. As such we task \sword with enforcing
+% atomicity on lost CAS operations between itself and downstream memory servers.
+
+% First we note that RDMA congestion control makes this problem an unlikely
+% occurrence on a single hop. During testing we never witnessed packet drop
+% between the switch egress port, and RDMA NIC, however corrupted packets, and
+% drops could occur.
+
+% If a packet is dropped between \sword and a memory servers NIC, the client will
+% time out eventually and retry the operation. We track the last sequence number
+% of each client CAS operation, and the virtual address it was steered to. As
+% clients are closed loop this is limited to 88 bits per client connection. If we
+% see that a client retries a CAS we steer that CAS to the same location it was
+% steered to rather than the end of the list.
+
+% In the less likely case that during a dropped packet a client dies, and fails to
+% retry the chain could potentially remain disconnected indefinitely. To remedy
+% this final case we keep an additional bit set on each client connection marked
+% to 1 if a CAS has not been ACKd, and 0 otherwise. Periodically, or upon being
+% notified of a client failure, our P4 control plane checks the state of client
+% connections and sees if any outstanding CAS operations were never ACKed. If so
+% \sword generates the dropped CAS from it's connection table information to
+% reconnect the list.
+
+% Note, it is only when CAS packets are dropped from \sword to memory that these
+% precautions must be taken. Packets dropped prior to reaching \sword, and on the
+% reverse path after operations are committed, and handled by RDMA's go-back-n and
+% Clovers recovery mechanisms.
+
 
 
 % Steering requests prior to the completion of CAS is safe in most cases while the
