@@ -100,3 +100,22 @@ complexity~\cite{p4-telem} we forgot the additional complexity and turned off
 ICRC checking on our CX5 NICs similar to prior work~\cite{switchml}. In the
 future we hope that RoCEv2 checksums, like TCP, UDP,and Ethernet checksums can
 be made hardware primitives on programmable switches.
+
+\subsection{CXL} 
+\label{sec:cxl}
+
+CXL is a CPU-to-Device interconnect layered on PCIe 5.0 designed to provide a
+coherent interface to devices, accelerators and memory~\cite{cxl-spec}.  .
+Although at the time of writing CXL is not a commercially available technology,
+research prototypes have have reported remote memory access latencies between
+200-426ns~\cite{direct-cxl,microsoft-cxl-first-gen,facebook-cxl-tpp}.
+
+CXL removes the DIMM slot constraint on per server memory capacity and provides
+a way forward for high capacity memory pooling between many CPUs. The CXL
+protocols do not provide opportunities for reducing or removing contention to
+shared memory.  CLX.cache for instance exposes MESI states to the host CPU, and
+levees coordination to them. This interface suggests that CXL devices will
+suffer from identical lock contention problems as traditional memory with
+inflated costs for coordination. Given that PCIe root complexes lack
+programmability our techniques will likely not be applicable to CXL. We leave
+resolving CXL memory contention to future work.

@@ -233,46 +233,67 @@ requests, and reversing the effects of ACK coalescing is prohibitively hard on
 current hardware and suggest small hardware modifications which would make the
 implementation simple.
 
-\textbf{Connection Mapping:} Connection mapping requires the storage of a 64 bit
-mapping entry for each in flight request (old\_seq, new\_seq, conn\_id,
-cas\_to\_write, opcode). These map entries are space concern on programmable
-switches. Mapped entries are stored per connection. When an request is mapped to
-a connection the entry is generated, when a response returns the entry is
-removed.In the worst case, any connection may need to store outstanding requests
-for the total number of connected clients as each client could asynchronously
-issue a request for the same lock concurrently. 
+\textbf{Connection Mapping:} When a packet is mapped to a queue pair a 64 bit
+map entry is required to map the response back to it's sender. In the worst case
+a connection may have a mapped entry for every connected client. Because switch
+registers are allocated at compile time, statically provisioning for the worst
+case requires $O(n^2)$ space complexity ($n$ entries for every connection).
+Supporting only 512 clients requires 2MB of SRAM (1/16 a Tofino's total buffer
+space) given this constraint. Storing these 64 bit entries takes 2 pipeline
+stages in the best case, and 8 in the worst case (8bit registers).
 
-We use connection sequence numbers to look up requests as they are unique for
-each connection, have no collisions, and only require an offset for lookup
-($sequence\_number \% max\_clients$). The programmable switch requires that all
-storage be allocated at compile time, so we need to provision for the worst case
-scenario.  The space requirement grows $O(n^2)$ with the number of clients as
-each connection must be statically allocated with enough space to handel a worst
-case burst.
+In the worst number of in flight requests with $n$ close looped clients is $n$,
+so $n^2$ is dramatic over provisioning. However, space efficient alternatives
+are even harder to implement. A hash table for instance has much better space
+utilization, but collisions are impractically hard to deal with. For each
+potentially collision, additional pipeline stages must be allocated, and entries
+must include QP ids to check for collisions. This increases a single hash table
+lookup to 4 stages, which is multiplied for each potential collision. At
+millions of packets per second collisions of 3 or more are common which exceeds
+the pipeline length of Tofinio switches.
 
-Given static allocation if we want to support 512 client threads (the order of
-our experiments), in the worst case we need 1024 * 1024 * 8 bytes of connection
-storage. 8MB is not much storage, but on our Tofino switch this represents 1/4
-of the total SRAM assuming the compiler packs requests perfectly. Unfortunately
-this is unlikely the case.  Making this mater worse is that much of switch
-memory is allocated into 8 and 16 bit registers. Only a few are allocated to
-read and write 32 bits. 2 pipeline stages are the minimum for connection
-remapping storage. In the worst case (using 8 bit registers) 8 are required (an
-entire pipeline). While expensive this is not a prohibitive cost to
-implementation.
 
-We could use a hash table shared by all connections as a lookup for mapping
-entries using the key $concat(qp\_id,sequence\_number)$ which would conceptually
-reduce the space complexity. However if a collision occurs the collision lookup
-must be done in a following stage of the pipeline. This increases the space cost
-by the size of the longest collision chain. It also increases the size of each
-entry from 64 to 88 as the original queue pair id must be stored alongside the
-map entry to detect collisions. This requiring 3 stages to store. Detecting a
-collision requires an additional stage to run a conditional statement on the
-queue pair id. A chain of 2 collisions therefore would require 8 stages -- our
-entire egress pipeline to resolve. Given that we are processing millions of
-packets per second on a maximum sized hash table of 16k entries, collisions of 3
-or more are common.
+
+% \textbf{Connection Mapping:} Connection mapping requires the storage of a 64 bit
+% mapping entry for each in flight request (old\_seq, new\_seq, conn\_id,
+% cas\_to\_write, opcode). These map entries are space concern on programmable
+% switches. Mapped entries are stored per connection. When an request is mapped to
+% a connection the entry is generated, when a response returns the entry is
+% removed.In the worst case, any connection may need to store outstanding requests
+% for the total number of connected clients as each client could asynchronously
+% issue a request for the same lock concurrently. 
+
+% We use connection sequence numbers to look up requests as they are unique for
+% each connection, have no collisions, and only require an offset for lookup
+% ($sequence\_number \% max\_clients$). The programmable switch requires that all
+% storage be allocated at compile time, so we need to provision for the worst case
+% scenario.  The space requirement grows $O(n^2)$ with the number of clients as
+% each connection must be statically allocated with enough space to handel a worst
+% case burst.
+
+% Given static allocation if we want to support 512 client threads (the order of
+% our experiments), in the worst case we need 1024 * 1024 * 8 bytes of connection
+% storage. 8MB is not much storage, but on our Tofino switch this represents 1/4
+% of the total SRAM assuming the compiler packs requests perfectly. Unfortunately
+% this is unlikely the case.  Making this mater worse is that much of switch
+% memory is allocated into 8 and 16 bit registers. Only a few are allocated to
+% read and write 32 bits. 2 pipeline stages are the minimum for connection
+% remapping storage. In the worst case (using 8 bit registers) 8 are required (an
+% entire pipeline). While expensive this is not a prohibitive cost to
+% implementation.
+
+% We could use a hash table shared by all connections as a lookup for mapping
+% entries using the key $concat(qp\_id,sequence\_number)$ which would conceptually
+% reduce the space complexity. However if a collision occurs the collision lookup
+% must be done in a following stage of the pipeline. This increases the space cost
+% by the size of the longest collision chain. It also increases the size of each
+% entry from 64 to 88 as the original queue pair id must be stored alongside the
+% map entry to detect collisions. This requiring 3 stages to store. Detecting a
+% collision requires an additional stage to run a conditional statement on the
+% queue pair id. A chain of 2 collisions therefore would require 8 stages -- our
+% entire egress pipeline to resolve. Given that we are processing millions of
+% packets per second on a maximum sized hash table of 16k entries, collisions of 3
+% or more are common.
 
 \textbf{RDMA Coalescing:} Our greatest unmet challenge with connection mapping
 in P4 dealing with RDMA coalescing. When a response is mapped back to a client
