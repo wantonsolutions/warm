@@ -8,71 +8,97 @@
   \vskip -0.5em
 \end{figure}
 
-Our {\sword} prototype is implemented in P4 and run on a 100Gbps 64 port
-programmable switch. Our P4 implementation includes the logic for identifying
-and tracking connections, and resolving read and write conflicts in Clover.
-Connection multiplexing is implemented separately on a DPDK middlebox discussed
-further in this section.
+We implement {\sword} in P4 and DPDK. Our P4 implementation includes the logic
+for identifying and tracking connections, and resolving read and write conflicts
+in Clover. Connection multiplexing is implemented separately on a DPDK
+middlebox discussed further in this section.
 
 \subsection{P4 implementation}
 
-P4 is a highly constrained language. For example it does not support loops.
-Architecturally P4 switches are also highly constrained. Packet parsing must be
-performed using the limited TCAM resources available on the switch, conditionals
-have a limited branching factor (4). Packets are processed in stages, and device
-memory from one stage cannot be accessed at the next, therefore branching
-conditionals which access the same variables must be aligned to the same switch
-stage if they are to read or write to the same variables. In this section we
-describe our P4 implementation of {\sword} and how it adheres to the constraints
-of P4 and programmable switches.
+Read and write steering are straightforward to implement in P4. P4
+\textit{registers} maintain state in SRAM. We use registers to store connection
+state, virtual addresses, and outstanding requests. Registers in P4 are highly
+constrained, the number of registers is vendor specific and their width 32, 16,
+8 bits are predefined. P4 switches execute in stages, 16 ingress and 16 egress
+on our switch. Register lookups are done once per packet, and are pinned to a
+stage.  Therefore our p4 logic must be pipelined correctly so that write
+requests store their address in thee same stage that CAS and read requests look
+them up. One constraint with fixed with registers is that large lookups must be
+done across multiple stages. We use two stages to lookup virtual addresses (64
+bits) with two 32 bit registers, and single stage lookups for queue pairs,
+sequence numbers, and connection id's. {\sword} switch resource utilization is
+detailed in Appendix~\ref{sec:appendix_resources}.
+%%
+Parsing and traffic identification are simple in P4. We use the same header
+parser at the P4 simple switch to parse up to the UDP header, and created our
+own header parser for RoCEv2 and Clover headers.  {\sword} uses RoCEv2 header
+information, and clover headers to identify traffic for steering. When Clover
+traffic is identified the connection is added to our connection tracker, and a
+connection id is generated. RDMA invariant CRC's are tricky as P4 hardware does
+not support generating them directly. We bypass them in P4 by turning off the
+ICRC check on our CX5 NICs, the ethernet CRC provides the same integrity check
+at rack scale. In DPDK we implement the ICRC
+recalculation(Appendix~\ref{sec:appendix_icrc}).
 
-\textbf{Parsing} {\sword} has no special requirements for packet parsing. Our
-design is focused on RoCEv2 which runs over UDP. Our prototype implements
-Ethernet, IP, UDP and RoCEV2 parsing. RoCEv2 headers are required for reading,
-and manipulating virtual addresses. One additional header is required for Clover
-to read the key out of write requests.
+% P4 is a highly constrained language. For example it does not support loops.
+% Architecturally P4 switches are also highly constrained. Packet parsing must be
+% performed using the limited TCAM resources available on the switch, conditionals
+% have a limited branching factor (4). Packets are processed in stages, and device
+% memory from one stage cannot be accessed at the next, therefore branching
+% conditionals which access the same variables must be aligned to the same switch
+% stage if they are to read or write to the same variables. In this section we
+% describe our P4 implementation of {\sword} and how it adheres to the constraints
+% of P4 and programmable switches.
 
-\textbf{Resource Utilization} {\sword} requires SRAM to cache data structure
-information. The amount of data required is dependent on the data structure
-itself. In clover we cache the last virtual address of each key, and we keep a
-cache 3x the size of the keyspace for read steering.
+% \textbf{Parsing} {\sword} has no special requirements for packet parsing. Our
+% design is focused on RoCEv2 which runs over UDP. Our prototype implements
+% Ethernet, IP, UDP and RoCEV2 parsing. RoCEv2 headers are required for reading,
+% and manipulating virtual addresses. One additional header is required for Clover
+% to read the key out of write requests.
+
+% \textbf{Resource Utilization} {\sword} requires SRAM to cache data structure
+% information. The amount of data required is dependent on the data structure
+% itself. In clover we cache the last virtual address of each key, and we keep a
+% cache 3x the size of the keyspace for read steering.
 
 
-\textbf{Traffic identification} Depending on the disaggregated
-rack architecture, memory traffic might be coresident with regular
-network traffic.  Additionally some of the traffic on the memory bus
-may not require tracking or manipulation. In the case of Clover we do
-not interpose upon or modify traffic to the metadata server as it is
-not in the read/write path. The first stage of our packet-processing
-pipeline classifies requests for manipulation. In our design operators
-submit a filter as part of their configuration to allow traffic which does
-not need to be modified to flow freely.
+% \textbf{Traffic identification} Depending on the disaggregated
+% rack architecture, memory traffic might be coresident with regular
+% network traffic.  Additionally some of the traffic on the memory bus
+% may not require tracking or manipulation. In the case of Clover we do
+% not interpose upon or modify traffic to the metadata server as it is
+% not in the read/write path. The first stage of our packet-processing
+% pipeline classifies requests for manipulation. In our design operators
+% submit a filter as part of their configuration to allow traffic which does
+% not need to be modified to flow freely.
 
-\textbf{Dynamic connection tracking}
- A key goal of our approach is to support
-serializer-based performance enhancements without modifying the far memory
-system itself---including requiring any explicit negotiation with the
-serializer.  We add and subtract RoCE connections to {\sword}'s management
-tables based upon the send and receipt of CAS operations. The QP and sequence
-number for the CAS are stored on send, and the ATOMIC ACK is used to obtain the
-other recever's QP.  As this approach requires only a single packet, requests
-can be added and removed from our algorithm dynamically with little effort.
+% \textbf{Dynamic connection tracking}
+%  A key goal of our approach is to support
+% serializer-based performance enhancements without modifying the far memory
+% system itself---including requiring any explicit negotiation with the
+% serializer.  We add and subtract RoCE connections to {\sword}'s management
+% tables based upon the send and receipt of CAS operations. The QP and sequence
+% number for the CAS are stored on send, and the ATOMIC ACK is used to obtain the
+% other recever's QP.  As this approach requires only a single packet, requests
+% can be added and removed from our algorithm dynamically with little effort.
 
 %For instance is designed to deal with memory operations made to the wrong
 %location via iterative pointer chasing. We strongly suggest that disaggregated
 %algorithms take this approach as our middlebox solution only acts to acclerate
 %operations in the common case.
-\textbf{Initializing connection mapping}
-\sg{dpdk only}
-As some state may be dependent on the number of connections (such as the
-key-to-QP and lock-to-QP mappings), state transitions either require a lock, or
-the copying of current state over to a new epoch when new connections are added.
-In all of our experiments only one such transition is made. We begin our mapping
-after a specific number of clients for the experiment have connected. Once the
-total number of clients have connected, a switch is flipped, and the QP
-multiplexing algorithm begins. Requests which do not have mappings stored, but
-were in flight during the flip have their sequence numbers and MSN values
-applied to the connection state of the new epoch.
+
+
+% \textbf{Initializing connection mapping}
+% \sg{dpdk only}
+% As some state may be dependent on the number of connections (such as the
+% key-to-QP and lock-to-QP mappings), state transitions either require a lock, or
+% the copying of current state over to a new epoch when new connections are added.
+% In all of our experiments only one such transition is made. We begin our mapping
+% after a specific number of clients for the experiment have connected. Once the
+% total number of clients have connected, a switch is flipped, and the QP
+% multiplexing algorithm begins. Requests which do not have mappings stored, but
+% were in flight during the flip have their sequence numbers and MSN values
+% applied to the connection state of the new epoch.
 
 %\subsection{Operation caching}
 %\label{sec:operation-caching}
@@ -169,73 +195,35 @@ applied to the connection state of the new epoch.
 % requests to client side user space using IB verbs or a different transport layer
 % entirely.
 
-\subsection{RDMA ICRC}
 
-RDMA requests are not intended to be modified in flight, and care must
-be taken not to corrupt them. RDMA invariant CRCs (ICRC) are
-calculated at the time of sending and are designed to ensure the
-integrity of the payload. When we modify requests their ICRC must be
-recalculated or the packet will be rejected by the receiving NIC. Such
-an error would cause an extreme performance hit as any dropped packet
-triggers a timeout, and go back n retransmission.  FPGA
-implementations of RDMA ICRC have been built in the
-past~\cite{Mansour_2019}; the required CRC calculation is identical to
-Ethernet CRC, with some additional \texttt{crc32} for the
-calculation. This algorithm is highly optimized for general case CRC
-calcuation.
+% \subsection{DPDK considerations}
 
-Recalculating the CRC for modified requests is the primary overhead of {\sword}
-as it must be recalculated after a squence number update, which occurs on all
-multiplexed and demultiplexed requests. This overhead could be reduced by either
-removing the need for the CRC (which is not a feature available on CX series
-NICs) or by allowing an alterative, lightweight checksum which could be quickly
-updated based on changes made to the packet while in flight. While these options
-are not currently available we believe that commodity switches and SmartNICs
-could leverage hardware offloads to reduce the cost, as the CRC calculation is
-identical to Ethernet with only the additional need to mask RocE specified
-packet felids.
+% {\sword} is implemented in DPDK for ease of programmability, but
+% requires that all requests are processed without the aid of RDMA
+% hardware on the NIC. Using DPDK introduces issues in terms of
+% performance as individual cores on the server have low packet
+% processing capabilities relative to dedicated networking hardware. As
+% such our design is multithreaded and requires the use of careful
+% atomics for performance.  Our design partitions cores into TX and RX
+% groups. RX cores are configured via RSS and perform traffic
+% identification, write steering and mapping. We completely removed the
+% need for any explicit locking between cores and share as little state
+% as is theoretically possible. Each TX core serializes requests by
+% making atomic fetch-and-add updates to a shared region of memory
+% containing connection sequence and message-sequence numbers. RX cores
+% are handed packets from TX cores using DPDKs lock-less ring
+% library. TX cores check packets to determine if they require CRC
+% computation and calculate the CRC only if the packet has been
+% modified. Adding a packet handoff between TX and RX increases latency,
+% however the head-of-line blocking incurred by having a single core
+% perform both mapping and CRC calculations is too high for our purposes.
 
-We implemented RDMA ICRC in our DPDK prototype. To our knowledge no P4 switches
-have native RoCEv2 support, while some projects have demonstrated that it is
-possible to implement by hand, it requires many switch resources and adds
-complexity~\cite{p4-telem} we forgot the additional complexity and turned off
-ICRC checking on our CX5 NICs similar to prior work~\cite{switchml}. In the
-future we hope that RoCEv2 checksums, like TCP, UDP,and Ethernet checksums can
-be made hardware primitives on programmable switches.
-
-\subsection{DPDK considerations}
-
-{\sword} is implemented in DPDK for ease of programmability, but
-requires that all requests are processed without the aid of RDMA
-hardware on the NIC. Using DPDK introduces issues in terms of
-performance as individual cores on the server have low packet
-processing capabilities relative to dedicated networking hardware. As
-such our design is multithreaded and requires the use of careful
-atomics for performance.  Our design partitions cores into TX and RX
-groups. RX cores are configured via RSS and perform traffic
-identification, write steering and mapping. We completely removed the
-need for any explicit locking between cores and share as little state
-as is theoretically possible. Each TX core serializes requests by
-making atomic fetch-and-add updates to a shared region of memory
-containing connection sequence and message-sequence numbers. RX cores
-are handed packets from TX cores using DPDKs lock-less ring
-library. TX cores check packets to determine if they require CRC
-computation and calculate the CRC only if the packet has been
-modified. Adding a packet handoff between TX and RX increases latency,
-however the head-of-line blocking incurred by having a single core
-perform both mapping and CRC calculations is too high for our purposes.
-
-We find that by using an array size of
-3$\times$ the vast majority of reads succeed first try.
-%One advantage
-%of this technique is that it is a generalized cache for recent RDMA
-%reads, and requires little computation to maintain a hot cache.
-For
-performance reasons we forgo heavyweight hash functions and use
-the \texttt{murmur3} bit scrambler to attain an approximately even
-hash of virtual addresses in only a few cycles.
-%---which can likely be
-%implemented on programable switch hardware.
+% We find that by using an array size of
+% 3$\times$ the vast majority of reads succeed first try.
+% For
+% performance reasons we forgo heavyweight hash functions and use
+% the \texttt{murmur3} bit scrambler to attain an approximately even
+% hash of virtual addresses in only a few cycles.
 
 \subsection{DPDK vs P4}
 
