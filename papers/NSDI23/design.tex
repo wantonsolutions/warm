@@ -141,24 +141,22 @@ that the sender knows the lock acquisition failed.
 \subsubsection{Connection remapping}
 
 Atomic replacement only works when all operations---across all client
-connections---that share server state are vectored to the same queue
-pair.  In general, the determination of which operations share state
-is application specific and requires inspecting each packet to
-extracting the relevant pieces of metadata. \todo{double check} In the
-case of Sherman, lock locations can be identified by inspecting CAS
-requests. Each CAS virtual address corresponds to a node lock in the
-Sherman B+Tree.
+connections---that share server state are vectored to the same queue pair.  In
+general, the determination of which operations share state is application
+specific and requires inspecting each packet to extracting the relevant pieces
+of metadata. In the case of Sherman, lock locations can be identified by
+inspecting CAS requests. Each CAS virtual address corresponds to a node lock in
+the Sherman B+Tree.
 %%While removing locking operations is a general principle here we consider a
 %%solution for RDMA.  %Different transports with different ordering guarantees
 %%would require bespoke solutions.  
-The challenge, of course, is that the RDMA specification stipulates
-that each client establish its own queue pair with a given server, so
-operations for a given lock from different clients will arrive at the
-ToR on distinct queue pairs.  \sword, then, must interpose on the full
-set of queue pairs terminated by a given (set of) server(s) and vector
-operations to queue pairs accordingly.  This seems reasonable, as the
-ToR is usually on-path for all servers in a rack in traditional
-topologies.
+The challenge, of course, is that the RDMA specification stipulates that each
+client establish its own queue pair with a given server, so operations for a
+given lock from different clients will arrive at the ToR on distinct queue
+pairs.  \sword, then, must interpose on the full set of queue pairs terminated
+by a given (set of) server(s) and vector operations to queue pairs accordingly.
+This seems reasonable, as the ToR is usually on-path for all servers in a rack
+in traditional topologies.
 
 \paragraph{Sequence-space stitching.}
 
@@ -288,8 +286,8 @@ indicates success or failure to the sender (see Section~\ref{sec:locking-algorit
 %% %%
 %% \label{fig:overview} \end{figure}
 
-\sg{This might be where we should state that we did not build this part on the
-programmable switch.}
+% \sg{This might be where we should state that we did not build this part on the
+% programmable switch.}
 
 \subsection{Conflict avoidance}
 
