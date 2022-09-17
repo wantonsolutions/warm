@@ -24,7 +24,8 @@ def div_million (list):
     return [val /1e6 for val in list]
 
 
-fig, axs = plt.subplots(1,1, figsize=(5,4))
+plt.rcParams.update({'font.size': 18})
+fig, axs = plt.subplots(1,1, figsize=(8,4))
 
 def plot_data(ax,filename,title_text):
     df = pd.read_csv(filename)
@@ -38,9 +39,12 @@ def plot_data(ax,filename,title_text):
     cas=div_million(cas)
 
     print(writes)
-    ax.plot(x_axis,writes,label=write_label,color=write_color,marker=write_marker)
-    ax.plot(x_axis,reads,label=read_label,color=read_color,marker=read_marker)
-    ax.plot(x_axis,cas,label=cas_label,color=cas_color,marker=cas_marker)
+    lwidth=3
+    marker_size=10
+
+    ax.plot(x_axis,writes,label=write_label,color=write_color,marker=write_marker, markersize=marker_size, linewidth=lwidth)
+    ax.plot(x_axis,reads,label=read_label,color=read_color,marker=read_marker, markersize=marker_size, linewidth=lwidth)
+    ax.plot(x_axis,cas,label=cas_label,color=cas_color,marker=cas_marker, markersize=marker_size, linewidth=lwidth)
     ax.set_title(title_text)
     ax.legend(loc='upper left')
 

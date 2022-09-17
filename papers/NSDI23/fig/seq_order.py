@@ -63,13 +63,19 @@ def plot_charts(source_filename, sequence_output_filename):
     gap=[ a * -1 if a < 0 else a for a in gap ] 
 
     plt.rcParams.update({'font.size': 16})
-    plt.hist(gap, color=qp_mapping_color, density=True,bins=15, edgecolor='black')
+    fig, axs = plt.subplots(1,1, figsize=(8,4))
+    v = axs.hist(gap, color=qp_mapping_color, density=True,bins=15, edgecolor='black')
+    print(v) #ordered req
 
-    plt.ylabel("probability")
-    plt.yscale('log')
-    plt.xlabel("sequence number delta")
-    plt.xlim(0,15)
-    plt.xticks(range(1,16,2))
+    axs.set_ylabel("probability")
+    axs.set_yscale('log')
+    axs.set_xlabel("sequence number delta")
+    axs.set_xlim(0,15)
+    tick_val = range(1,14,2)
+    ticks_loc = [x + 0.5 for x in tick_val]
+    tick_val = [str(x) for x in tick_val]
+    axs.set_xticks(ticks_loc)#,ticks_loc)
+    axs.set_xticklabels(tick_val)
     #plt.plot(x,y, label="sequence_steps")
     plt.tight_layout()
     plt.savefig(sequence_output_filename)
