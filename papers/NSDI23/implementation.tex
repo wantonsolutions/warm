@@ -15,19 +15,17 @@ middlebox discussed further in this section.
 
 \subsection{P4 implementation}
 
-Read and write steering are straightforward to implement in P4. P4
-\textit{registers} maintain state in SRAM. We use registers to store connection
-state, virtual addresses, and outstanding requests. Registers in P4 are highly
-constrained, the number of registers is vendor specific and their width 32, 16,
-8 bits are predefined. P4 switches execute in stages, 16 ingress and 16 egress
-on our switch. Register lookups are done once per packet, and are pinned to a
-stage.  Therefore our p4 logic must be pipelined correctly so that write
-requests store their address in thee same stage that CAS and read requests look
-them up. One constraint with fixed with registers is that large lookups must be
-done across multiple stages. We use two stages to lookup virtual addresses (64
-bits) with two 32 bit registers, and single stage lookups for queue pairs,
-sequence numbers, and connection id's. {\sword} switch resource utilization is
-detailed in Appendix~\ref{sec:appendix_resources}.
+Steering is straightforward to implement in P4. We use P4 \textit{registers} to
+store connection state, virtual addresses, and outstanding requests. Switch
+registers are constrained to 32, 16 and 8 bit blocks, and are bound to specific
+switch pipeline stages~\cite{netcache}. Packets visit each stage exactly once,
+so register reads and writes must be pipelined correctly so that the same stage
+which stores a virtual address on a write, is the same that produces the address
+for CAS and read. Because registers are fixed width, some lookups take multiple
+stages.  We use two stages lookups for virtual addresses (64 bits) with two 32
+bit registers, and a single stage for queue pairs, sequence numbers, and
+connection id's. {\sword} switch resource utilization is detailed in
+Appendix~\ref{sec:appendix_resources}.
 %%
 Parsing and traffic identification are simple in P4. We use the same header
 parser at the P4 simple switch to parse up to the UDP header, and created our

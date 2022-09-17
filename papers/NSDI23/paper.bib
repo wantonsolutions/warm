@@ -890,3 +890,21 @@ series = {SIGCOMM '20}
   pages={1-9},
   doi={10.1109/INDIS51933.2020.00006}}
 
+@inproceedings{netcache,
+author = {Jin, Xin and Li, Xiaozhou and Zhang, Haoyu and Soul\'{e}, Robert and Lee, Jeongkeun and Foster, Nate and Kim, Changhoon and Stoica, Ion},
+title = {NetCache: Balancing Key-Value Stores with Fast In-Network Caching},
+year = {2017},
+isbn = {9781450350853},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3132747.3132764},
+doi = {10.1145/3132747.3132764},
+abstract = {We present NetCache, a new key-value store architecture that leverages the power and flexibility of new-generation programmable switches to handle queries on hot items and balance the load across storage nodes. NetCache provides high aggregate throughput and low latency even under highly-skewed and rapidly-changing workloads. The core of NetCache is a packet-processing pipeline that exploits the capabilities of modern programmable switch ASICs to efficiently detect, index, cache and serve hot key-value items in the switch data plane. Additionally, our solution guarantees cache coherence with minimal overhead. We implement a NetCache prototype on Barefoot Tofino switches and commodity servers and demonstrate that a single switch can process 2+ billion queries per second for 64K items with 16-byte keys and 128-byte values, while only consuming a small portion of its hardware resources. To the best of our knowledge, this is the first time that a sophisticated application-level functionality, such as in-network caching, has been shown to run at line rate on programmable switches. Furthermore, we show that NetCache improves the throughput by 3-10x and reduces the latency of up to 40% of queries by 50%, for high-performance, in-memory key-value stores.},
+booktitle = {Proceedings of the 26th Symposium on Operating Systems Principles},
+pages = {121–136},
+numpages = {16},
+keywords = {Programmable switches, Caching, Key-value stores},
+location = {Shanghai, China},
+series = {SOSP '17}
+}
+
