@@ -49,8 +49,6 @@ function clean_p4() {
     rm -r $SDE/install/lib/tofinopd/$program
     rm -r $SDE/install/share/p4/targets/tofino/$program.conf
     rm -r $SDE/logs/p4-build/tofino/$program
-
-
 }
 
 #build the program using a predefiend compiler
@@ -124,7 +122,8 @@ function run_driver_direct () {
 
 function run_bfshell() {
     BF_SHELL_SCRIPT="$SDE/run_bfshell.sh"
-    SHELL_SCRIPT="$RMEM_P4/bfshell/set_up_ports.cmd"
+    #SHELL_SCRIPT="$RMEM_P4/bfshell/set_up_ports.cmd"
+    SHELL_SCRIPT="$RMEM_P4/bfshell/set_up_ports_100G.cmd"
     xterm -geometry $XTERM_3_GEOM -e $BF_SHELL_SCRIPT -f $SHELL_SCRIPT &
 }
 
@@ -170,7 +169,7 @@ fi
 
 
 #main body of execution
-sleep 4000
+sleep 4000000
 
 #clean up the execution
 clean_up
