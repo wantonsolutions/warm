@@ -27,7 +27,7 @@ implementation provides.
 
 Steering is straightforward to implement in P4. We use P4 registers to
 store connection state, virtual addresses, and outstanding
-requests. Switch registers are constrained to 32, 16 and 8 bit-blocks,
+requests. Switch registers are constrained to 32, 16 and 8-bit blocks,
 and are bound to specific switch pipeline
 stages~\cite{netcache}. Packets visit each stage exactly once, so
 register reads and writes must be pipelined correctly so that the same
@@ -341,7 +341,7 @@ Replicating entries across stages would allow for multiple lookups
 per packet but a server can coalesce
 %. However as mentioned above map entires consume 2MB of SRAM. Further,
 an arbitrary number of ACKs so no fixed number of duplications suffice
-(and we frequently observed coalescing of 10 or more requests).
+(and we frequently observe coalescing of 10 or more requests).
 Recirculation is another alternative, but inflates bandwidth usage in
 the common case and causes responses to be delivered in reverse order.
 Of course, the complexity could be avoided entirely if it were possible
