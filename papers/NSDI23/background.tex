@@ -22,13 +22,12 @@ only standards-compliant RDMA NICs and are designed to leverage the
 scalability of today's programmable switching hardware.
 
 Choosing how to expose remote memory to applications remains an open
-problem. Full transparency implies that existing applications can make
-use of remote memory without modification. Many systems leverage
+problem. Full transparency allows existing applications to use remote memory without modification. Many systems leverage
 virtual memory and use remote memory as a swap device, fetching and
 evicting pages to and from remote
 memory~\cite{fastswap,GMS,infiniswap,leap,ramcloud}. Transparency
 comes at a cost, however, and systems that make remote accesses
-explicit typically have far higher performance for similar
+explicit typically have higher performance for similar
 operations~\cite{aifm}.  Most existing transparent remote memory
 systems do not support sharing, as unmanaged contention for resources
 such as shared locks can have disastrous performance implications.
@@ -121,7 +120,7 @@ clients all eventually reach the end of the list. To speed up
 operations clients keep caches (i.e., hints) of the end of each key's
 linked list to avoid traversals. When writes are heavy and/or when
 particular keys are hot, Clover's performance degrades substantially.
-By implementing a similar cache at the ToR, \sword\ dramatically
+By implementing a similar, shared cache at the ToR, \sword\ 
 decreases the likelihood of accesses to stale tail locations.
 %Clover serializes writes with RDMA compare and swap
 %requests which further impact performance.
