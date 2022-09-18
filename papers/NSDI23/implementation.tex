@@ -3,7 +3,7 @@
 \begin{figure}
   \center
     \includegraphics[width=0.45\textwidth]{fig/packet_processing.pdf}
-    \caption{\sword's packet processing pipeline}
+    \caption{\sword's DPDK packet-processing pipeline}
     \label{fig:system}
   \vskip -0.5em
 \end{figure}
@@ -25,28 +25,30 @@ implementation provides.
 
 \subsection{P4 implementation}
 
-Steering is straightforward to implement in P4. We use P4 \textit{registers} to
-store connection state, virtual addresses, and outstanding requests. Switch
-registers are constrained to 32, 16 and 8 bit blocks, and are bound to specific
-switch pipeline stages~\cite{netcache}. Packets visit each stage exactly once,
-so register reads and writes must be pipelined correctly so that the same stage
-which stores a virtual address on a write, is the same that produces the address
-for CAS and read. Because registers are fixed width, some lookups take multiple
-stages.  We use two stages lookups for virtual addresses (64 bits) with two 32
-bit registers, and a single stage for queue pairs, sequence numbers, and
-connection id's. {\sword} switch resource utilization is detailed in
+Steering is straightforward to implement in P4. We use P4 registers to
+store connection state, virtual addresses, and outstanding
+requests. Switch registers are constrained to 32, 16 and 8 bit-blocks,
+and are bound to specific switch pipeline
+stages~\cite{netcache}. Packets visit each stage exactly once, so
+register reads and writes must be pipelined correctly so that the same
+stage which stores a virtual address on a write, is the same that
+produces the address for CAS and read. Because registers are fixed
+width, some lookups take multiple stages.  We use two-stage lookups
+for (64-bit) virtual addresses with two 32-bit registers, and a single
+stage for queue pairs, sequence numbers, and connection IDs. \sword's
+switch resource utilization is detailed in
 Appendix~\ref{sec:appendix_resources}.
-%%
-Parsing and traffic identification are simple in P4. We use the same header
-parser at the P4 simple switch to parse up to the UDP header, and created our
-own header parser for RoCEv2 and Clover headers.  {\sword} uses RoCEv2 header
-information, and clover headers to identify traffic for steering. When Clover
-traffic is identified the connection is added to our connection tracker, and a
-connection id is generated. RDMA invariant CRC's are tricky as P4 hardware does
-not support generating them directly. We bypass them in P4 by turning off the
-ICRC check on our CX5 NICs, the ethernet CRC provides the same integrity check
-at rack scale. In DPDK we implement the ICRC
-recalculation(Appendix~\ref{sec:appendix_icrc}).
+
+%Parsing and traffic identification are simple in P4.
+We use the header parser from the P4 simple switch to parse up to the
+UDP header, and create our own header parser for RoCEv2 and Clover
+headers.  {\sword} uses RoCEv2 and Clover header information to
+identify traffic for steering. When Clover traffic is identified the
+connection is added to a connection tracker, and a connection ID is
+generated. RDMA invariant CRCs are tricky as P4 hardware does not
+support generating them directly. We bypass them in P4 by turning off
+the ICRC check on our CX5 NICs---the Ethernet CRC provides guarantees.
+%at rack scale.
 
 % P4 is a highly constrained language. For example it does not support loops.
 % Architecturally P4 switches are also highly constrained. Packet parsing must be
@@ -235,40 +237,48 @@ recalculation(Appendix~\ref{sec:appendix_icrc}).
 
 \subsection{DPDK vs P4}
 
-{\sword} is implemented in P4 and run on a programmable switch, however its
-connection mapping functionality is only implemented in DPDK due to hardware
-limitations on the programmable switch, and on ConnextX-5 NICs. Implementing
-{\sword} in DPDK is simple as it is written in C. In this section we describe
-why tracking outstanding requests and un-coalescing ACKs is made untenable by
-current hardware, and suggest small hardware modifications which would make the
-implementation simple.
+While our P4 prototype has limited functionality due to hardware
+limitations of our programmable switch, the DPDK
+\sword\ implementation (shown in Figure~\ref{fig:system}) consists of
+3,392 lines of C and includes all of the features described in the
+previous section---including ICRC recalculation (see
+Appendix~\ref{sec:appendix_icrc}).  In this section we describe why
+tracking outstanding requests and un-coalescing ACKs is challenging in
+current RMT hardware, and suggest small hardware modifications which
+would make the implementation simpler.
 
-\textbf{Connection Mapping:} When a packet is mapped to a queue pair a 64 bit
-map entry is required to map the response back to it's sender. In the worst case
-a connection may have a mapped entry for every connected client. Because switch
-registers are allocated at compile time, statically provisioning for the worst
-case requires $O(n^2)$ space complexity ($n$ entries for every connection).
-Supporting only 512 clients requires 2MB of SRAM (1/16 a Tofino's total buffer
-space) given this constraint. Storing these 64 bit entries takes 2 pipeline
-stages in the best case, and 8 in the worst case (8bit registers).
 
-In the worst number of in flight requests with $n$ close looped clients is $n$,
-so $n^2$ is dramatic over provisioning. However, space efficient alternatives
+\textbf{Connection mapping.} When a packet is mapped to a queue pair a
+64-bit map entry is required to map the response back to its
+sender. In the worst case a connection may have a mapped entry for
+every connected client. Because switch registers are allocated at
+compile time, statically provisioning for the worst case requires
+$O(n^2)$ space complexity ($n$ entries for every connection).
+Supporting only 512 clients requires 2MB of SRAM (1/16th of a Tofino's
+total buffer space) given this constraint. Storing these 64-bit
+entries takes 2 pipeline stages in the best case, and 8 in the worst
+(8-bit registers).
+
+%In the worst number of in flight requests with $n$ close looped clients is $n$,
+%so $n^2$ is dramatic over provisioning. However, s
+Space-efficient alternatives
 are even harder to implement. A hash table for instance has much better space
-utilization, but collisions are impractically hard to deal with. For each
-potentially collision, additional pipeline stages must be allocated, and entries
-must include QP ids to check for collisions. This increases a single hash table
-lookup to 4 stages, which is multiplied for each potential collision. At
-millions of packets per second collisions of 3 or more are common which exceeds
-the pipeline length of Tofinio switches.
+utilization, but collisions are hard to deal with. For each
+potential collision, additional pipeline stages must be allocated and entries
+must include QP IDs to check for collisions---increasing a single hash table
+lookup to four stages.
+%, which is multiplied for each potential collision.
+At millions of packets per second collisions of three or more are
+common which exceeds the pipeline length of Tofino switches.
 
-\textbf{(Fix) Dynamic Memory Allocation:} 
+%\textbf{(Fix) Dynamic Memory Allocation:} 
 %%
-If registers could be resized at runtime, or dynamically mapped with a virtual
-we could resize our entry tables at runtime and steal from space from under
-utilized connections. This has the potential to decrease our memory utilization
-to clost to $O(n)$. This is a trivial task with an allocator and pointers, but a
-prohibitively hard task with static registers and single stage lookups.
+%If registers could be resized at runtime, or dynamically mapped with
+%a virtual we could resize our entry tables at runtime and steal from
+%space from under utilized connections. This has the potential to
+%decrease our memory utilization to clost to $O(n)$. This is a trivial
+%task with an allocator and pointers, but a prohibitively hard task
+%with static registers and single stage lookups.
 
 
 
@@ -314,29 +324,28 @@ prohibitively hard task with static registers and single stage lookups.
 % or more are common.
 
 
-\textbf{Request Coalescing:} is the largest barrier to implementing connection
-mapping in P4. Recall that memory side NICs frequently summarize multiple ACKs
-into a single ACK. When mapping, these ACKs must be iteratively reconstructed if
-the original requests were generated by different clients.
+\textbf{Request coalescing.} Recall that server NICs frequently
+summarize multiple ACKs into a single ACK.  In order to perform QP
+mapping, these ACKs must be iteratively reconstructed if the
+original requests were generated by different clients.
 %%
-In P4 this functionality is prohibitively hard to engineer. A nondeterministic
-number of entries must be looked up for every packet (up to the number of
-clients). In P4 each stage of the pipeline holds unique data and supports a
-single lookup of the specified register size (8,16,32), as such we are unable to
-look up a variable number of requests to generated coalesced ACKs.
-
-Duplicating mapped entries into multiple stages would allow for multiple lookups
-per packet. However as mentioned above map entires consume 2MB of SRAM. Further,
-an arbitrary number of ACKs can be coalesced so no fixed number of duplications
-would be sufficient (Acks coalescing 10 or more requests occured frequently). A
-final alternative is to recirculate packets to attempt to trigger prior acks,
-however this unnecessarily inflates bandwidth in the common case, and would
-cause responses to be delivered in reverse order.
-
-\textbf{(Fix) Turn off Coalescing:} None of the coalescing complexity is
-required if the performance optimization could be turned of as a NIC feature. As
-coalescing is not strictly required we hope future RDMA NICs will make it a
-configurable feature.
+Implementing this functionality in P4 is extremely challenging. A
+variable number---up to the number of clients---of entries must be
+matched against every packet.  Yet, each stage of a P4 pipeline holds
+unique data and supports only a single lookup.
+%of the specified register
+%size (8,16,32), as such we are unable to look up a variable number of
+%requests to generated coalesced ACKs.
+Replicating entries across stages would allow for multiple lookups
+per packet but a server can coalesce
+%. However as mentioned above map entires consume 2MB of SRAM. Further,
+an arbitrary number of ACKs so no fixed number of duplications suffice
+(and we frequently observed coalescing of 10 or more requests).
+Recirculation is another alternative, but inflates bandwidth usage in
+the common case and causes responses to be delivered in reverse order.
+Of course, the complexity could be avoided entirely if it were possible
+to disable the coalescing performance optimization on server NICs.
+%We are not aware of a way to do so on ConnectX-5s.
 
 % The most complex part of connection remapping is
 % calculating coalesced ACKs. The fix for this is simple: Turn off ACK coalescing
