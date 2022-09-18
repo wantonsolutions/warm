@@ -48,7 +48,7 @@ connection is added to a connection tracker, and a connection ID is
 generated. RDMA invariant CRCs are tricky as P4 hardware does not
 support generating them directly. Like some prior
 work~\cite{switchml}, we bypass them in P4 by turning off the ICRC
-check on our CX5 NICs---the Ethernet CRC provides guarantees.
+check on our CX5 NICs---the Ethernet CRC provides similar guarantees.
 %at rack scale.
 
 % P4 is a highly constrained language. For example it does not support loops.

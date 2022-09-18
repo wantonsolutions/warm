@@ -19,10 +19,10 @@ additional bandwidth on an already saturated link.
 \begin{figure}
   \centering
   \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
-
+\vskip 0.5em
     \caption{Performance across RDMA payload sizes using 400 client cores at a
     50:50 read/write ratio.}
-
+\vskip 0.5em
     \label{fig:packet_size}
 \end{figure}
 
@@ -45,10 +45,10 @@ bottleneck with very hot keys.
 \begin{figure}
   \centering
   \includegraphics[width=0.485\textwidth]{fig/contention.pdf}
-
-    \caption{Performance as contention increases with zipf coefficient using 400
-    client cores on a 50\% write workload}
-
+\vskip 0.5em
+    \caption{Performance as a function of Zipf coefficient using 400
+    client cores on a 50\% write workload.}
+\vskip 0.5em
     \label{fig:contention}
 \end{figure}
 
@@ -65,10 +65,10 @@ the ingress pipeline.
 %\textbf{Switch Resource Utilization}
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
-%  \vskip -0.5em
+  \vskip -0.5em
     \caption{Breakdown of switch resource utilization by \sword\ component.}
     \label{fig:switch_resources}
-%      \vskip -0.5em
+      \vskip -0.5em
 \end{figure}
 
 
@@ -109,22 +109,22 @@ RoCE-specified packet felids.
 %% future we hope that RoCEv2 checksums, like TCP, UDP,and Ethernet checksums can
 %% be made hardware primitives on programmable switches.
 
-\subsection{CXL} 
-\label{sec:cxl}
+%% \subsection{CXL} 
+%% \label{sec:cxl}
 
-CXL is a CPU-to-Device interconnect layered on PCIe 5.0 designed to
-provide a coherent interface to devices, accelerators and
-memory~\cite{cxl-spec}.  Although at the time of writing CXL is not a
-commercially available technology, research prototypes have have
-reported remote memory access latencies between
-200-426ns~\cite{direct-cxl,microsoft-cxl-first-gen,facebook-cxl-tpp}.
+%% CXL is a CPU-to-Device interconnect layered on PCIe 5.0 designed to
+%% provide a coherent interface to devices, accelerators and
+%% memory~\cite{cxl-spec}.  Although at the time of writing CXL is not a
+%% commercially available technology, research prototypes have have
+%% reported remote memory access latencies between
+%% 200-426ns~\cite{direct-cxl,microsoft-cxl-first-gen,facebook-cxl-tpp}.
 
-CXL removes the DIMM slot constraint on per server memory capacity and provides
-a way forward for high capacity memory pooling between many CPUs. The CXL
-protocols do not provide opportunities for reducing or removing contention to
-shared memory.  CLX.cache for instance exposes MESI states to the host CPU, and
-levees coordination to them. This interface suggests that CXL devices will
-suffer from identical lock contention problems as traditional memory with
-inflated costs for coordination. Given that PCIe root complexes lack
-programmability our techniques will likely not be applicable to CXL. We leave
-resolving CXL memory contention to future work.
+%% CXL removes the DIMM slot constraint on per server memory capacity and provides
+%% a way forward for high capacity memory pooling between many CPUs. The CXL
+%% protocols do not provide opportunities for reducing or removing contention to
+%% shared memory.  CLX.cache for instance exposes MESI states to the host CPU, and
+%% levees coordination to them. This interface suggests that CXL devices will
+%% suffer from identical lock contention problems as traditional memory with
+%% inflated costs for coordination. Given that PCIe root complexes lack
+%% programmability our techniques will likely not be applicable to CXL. We leave
+%% resolving CXL memory contention to future work.
