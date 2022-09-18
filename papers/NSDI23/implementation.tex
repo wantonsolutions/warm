@@ -41,12 +41,12 @@ Appendix~\ref{sec:appendix_resources}.
 
 %Parsing and traffic identification are simple in P4.
 We use the header parser from the P4 simple switch to parse up to the
-UDP header, and create our own header parser for RoCEv2 and Clover
+UDP header and create our own header parser for RoCEv2 and Clover
 headers.  {\sword} uses RoCEv2 and Clover header information to
 identify traffic for steering. When Clover traffic is identified the
-connection is added to a connection tracker, and a connection ID is
-generated. RDMA invariant CRCs are tricky as P4 hardware does not
-support generating them directly. Like some prior
+connection is added to a connection tracker and a connection ID is
+generated. RDMA invariant CRCs (ICRCs) are tricky as P4 hardware does
+not support generating them directly. Like some prior
 work~\cite{switchml}, we bypass them in P4 by turning off the ICRC
 check on our CX5 NICs---the Ethernet CRC provides similar guarantees.
 %at rack scale.
@@ -246,7 +246,7 @@ previous section---including ICRC recalculation (see
 Appendix~\ref{sec:appendix_icrc}).  In this section we describe why
 tracking outstanding requests and un-coalescing ACKs is challenging in
 current RMT hardware, and suggest small hardware modifications which
-would make the implementation simpler.
+would make a P4 implementation simpler.
 
 
 \textbf{Connection mapping.} When a packet is mapped to a queue pair a
@@ -344,8 +344,8 @@ an arbitrary number of ACKs so no fixed number of duplications suffice
 (and we frequently observe coalescing of 10 or more requests).
 Recirculation is another alternative, but inflates bandwidth usage in
 the common case and causes responses to be delivered in reverse order.
-Of course, the complexity could be avoided entirely if it were possible
-to disable the coalescing performance optimization on server NICs.
+Of course, the issue could be avoided entirely if it were possible
+to disable coalescing on server NICs.
 %We are not aware of a way to do so on ConnectX-5s.
 
 % The most complex part of connection remapping is
