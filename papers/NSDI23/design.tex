@@ -36,6 +36,7 @@ conflict resolution machinery in many cases.
 %% transparently in flight as the operations flow traverse the ToR.
 
 \subsection{Enforcing ordering}
+\label{ea}
 
 If {\sword} is able to ensure that requests will not be reordered between when
 it operates on them and their arrival at a memory server---because, for example,
@@ -290,6 +291,7 @@ indicates success or failure to the sender (see Section~\ref{sec:locking-algorit
 % programmable switch.}
 
 \subsection{Conflict avoidance}
+\label{ca}
 
 While atomic replacement can alleviate the NIC hardware bottleneck
 that limits systems like Sherman, it does not address the underlying
@@ -463,8 +465,8 @@ In the normal case, the client will eventually timeout and retransmit
 \texttt{CAS(A,B)}, which \sword\ will identify as a retransmission and
 \emph{not} steer to the ``new'' tail, thereby repairing the list.  (In
 the mean time, the missing link is immaterial because
-subsequent requests are being steered by \sword.)  If, however, client
-were to fail prior to reissuing the CAS the chain will remain broken.
+subsequent requests are being steered by \sword.)  If, however, the client
+were to fail prior to retransmitting the CAS the chain will remain broken.
 Here we use an out-of-band mechanism to repair the chain: on occasion
 our control plane queries the switch to check for outstanding CAS
 requests and simply retransmits them (spurious retransmissions are

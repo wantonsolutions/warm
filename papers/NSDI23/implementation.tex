@@ -8,10 +8,20 @@
   \vskip -0.5em
 \end{figure}
 
-We implement {\sword} in P4 and DPDK. Our P4 implementation includes the logic
-for identifying and tracking connections, and resolving read and write conflicts
-in Clover. Connection multiplexing is implemented separately on a DPDK
-middlebox discussed further in this section.
+We implement \sword\ in DPDK and P4.  The P4 prototype
+supports conflict avoidance (\S\ref{ca}) in Clover at 100-Gbps line
+rate, but does not perform the queue-pair remapping necessary to
+enforce ordering (\S\ref{ea}) that our full-featured DPDK
+implementation provides.
+
+%all of the functionality described
+%previously; the P4 prototype does  but includes sufficient logic
+%to perform conflict avoidance in
+%for identifying and
+%tracking connections, and resolving read and write conflicts in
+%Clover.
+%Connection multiplexing is implemented separately on a DPDK
+%middlebox discussed further in this section.
 
 \subsection{P4 implementation}
 
