@@ -1,12 +1,12 @@
 \section{Evaluation}
 \label{s:results}
 
-We use two distinct prototype implementations to demonstrate the
-potential performance benefits \sword\ can provide.  We use a
-DPDK-based implementation to perform a micro-benchmark where we
+%We use two distinct prototype implementations to demonstrate the
+%potential performance benefits \sword\ can provide.
+We use our
+DPDK implementation to perform a micro-benchmark where we
 explicitly manage RDMA connections to remove the atomic operations
-used by Sherman's locking mechanism.  We use a P4 implementation of
-\sword\ installed on a programmable switch to show the impact of
+used by Sherman's locking mechanism.  We use the P4 implementation installed on a programmable switch to show the impact of
 in-flight conflict resolution at rack scale in Clover.
 
 %We discuss the relative impact of each of our techniques across
@@ -17,9 +17,8 @@ in-flight conflict resolution at rack scale in Clover.
 
 Our testbed consists of a rack of nine identical machines equipped
 with two Intel Xeon E5-2640 CPUs and 256 GB of main memory evenly
-spread across the NUMA domains. Each server is equipped with a
-Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot, all of
-which are connected to the same 100-Gbps ToR.  Our DPDK-based
+spread across the NUMA domains. Each server is equipped with an
+nVIDIA Mellanox ConnectX-5 100-Gbps NIC installed in a 16x PCIe slot and connected to a 100-Gbps ToR.  Our DPDK-based
 micro-benchmarks use only three machines: a load generator, a memory
 server, and a machine hosting our DPDK implementation of {\sword}.
 The load generator is configured with default routing settings---it
@@ -57,24 +56,24 @@ running a micro-benchmark that focuses exclusively on CAS
 performance. Specifically, we extract the CAS request from Sherman's
 lock operation and repeatedly generate it from one client to a single
 memory server (while routing it through {\sword} using OpenFlow rules).
-
 %Here we remove clover from the
 %mix and run a simple benchmark of RDMA CAS operations between two
 %servers. \sword is routed to via a different set of OpenFlow rules.
-
-Each client thread is bound to a its own queue pair, and all client
-threads issue CAS requests to the same shared virtual address.  We
-set the number of cores on the {\sword} middlebox to 24 so that in our maximal
-test case each client thread flows through exactly one middlebox core
-for the lowest degree of interference between QP.
+Each client thread is bound to its own queue pair, and all client
+threads issue CAS requests to the same shared virtual address.  We set the number of cores on the
+{\sword} middlebox to 24 so that in our maximal test case each client
+thread flows through exactly one middlebox core for the lowest degree
+of interference between QP.
 
 %All requests are routed
 %through our middlebox.
-In the default case (labeled CAS), {\sword} lets CAS requests flow
-through without modification, each on their own queue pair.  In the
-CAS$\rightarrow$Write configuration {\sword} maps all client requests
-to the same QP at the server to ensure serialization and replaces the
-CAS operation with a simple write.
+Figure~\ref{fig:cas_vs_swap} shows the results when all requests are
+directed at the same address in the remote server's main memory.  In
+the default case (labeled CAS in blue), {\sword} lets CAS requests
+flow through without modification, each on their own queue pair.  In
+the CAS$\rightarrow$Write (green) configuration {\sword} maps all
+client requests to the same QP at the server to ensure serialization
+and replaces the CAS operation with a simple write.
 %
 %all client cores request the same address, and as such all are routed
 %onto the same destination QP. Note that this configuration has the
@@ -83,23 +82,22 @@ CAS operation with a simple write.
 %
 %We measure the server throughput in terms of RDMA requests per second as we
 %increase contention by adding client threads.
-Figure~\ref{fig:cas_vs_swap} shows a significant increase in
-performance when \sword\ converts CAS-guarded requests to
-QP-serialized writes.  Each configuration hits a distinct hardware
-limit: CAS requests bottleneck at the server NIC due to being applied
-to a single key (c.f. Figure~\ref{fig:rdma_concur}).  When converting
-CAS to serialized write operations, the bottleneck moves to the our
-software-based middlebox.
+We see a significant increase in performance when \sword\ converts
+CAS-guarded requests to QP-serialized writes.  Each configuration hits
+a distinct hardware limit: CAS requests bottleneck at the server NIC
+due to being applied to a single key
+(c.f. Figure~\ref{fig:rdma_concur}).  When converting CAS to
+serialized write operations, the bottleneck moves to the DPDK
+middlebox.
 %cores in our
 %DPDK-based {\sword} prototype.
 Specifically, DPDK requires all TX for a destination QP to be done by
 the same core; hence,
 %a specific core on the middlebox. Because of this
 %requirement
-all requests must flow through a single core prior to being issued to
-the memory-side NIC, limiting the forwarding performance of our
-DPDK-base connection remapping implementation to the maximum per-core
-throughput of our middlebox: 2.8 million requests per second.
+all requests must flow through a single core prior to being forwarded, limiting the forwarding performance of our
+DPDK implementation to the maximum per-core
+throughput of our middlebox: 2.8 MOPS.
 %In this configuration all requests to the memory server must be processed by
 %the same TX core. As such our bottleneck is approximately 2.8 MOPS. Hardware
 %implemented CRC, cache tuning, and better lock management for TX queues could
@@ -122,7 +120,7 @@ of) server(s)---a resource-intensive task.  Here, we consider the more
 general and lightweight case where \sword\ serves as a
 performance-enhancing proxy and attempts to avoid failed operations by
 steering requests in flight.  We use various workloads from the YCSB
-benchmark~\cite{ycsb} to demonstrate the effectiveness of steering
+benchmark~\cite{ycsb} to evaluate steering
 when applied to Clover.
 %a
 %breakdown of our techniques, mainly read and write caching, QP mapping, and
@@ -253,7 +251,7 @@ Figure~\ref{fig:bandwidth_reduction} plots the average bytes per
 operation for each strategy across the three workloads with writes.
 (The read-only workload, not shown, never needs to retry.) We calculate the value
 for each technique by summing the total bandwidth across a run and
-dividing by the total number of operations. Clover's bandwidth usage
+dividing by the number of operations. Clover's bandwidth usage
 increases with contention, growing by 2.5$\times$ at 5\% and
 16$\times$ at 50\% writes---all of which is recovered by applying
 read and write steering. Write steering alone causes significant
@@ -278,7 +276,7 @@ at varying write intensities. Clover's p99 read latency (solid blue) at 5\%
 writes is 70~$\mu$s, around 10$\times$ its baseline our our testbed. With read
 and write steering (solid red) the read tail latency drops to 8~$\mu$s---a
 8$\times$ improvement over Clover even in this low-contention regime. At 50\%
-writes the performance increase from steering increases dramatically.
+writes the performance increase from steering increases dramatically: p99 read latency drops by over 300$\times$.
 %% As discussed above, in either % case applying write steering alone actually
 %hurts performance, as it % makes reads more likely to fail.  % %read
 %performance is improves by 2$\times$ % %relative to Clover with the exception
@@ -294,7 +292,7 @@ writes the performance increase from steering increases dramatically.
 %concert unless the workload is explicitly known.
 %
 Writes (hashed) have slightly more than double the latency of reads as they
-require 2x round trips, and atomics are slower to execute than other operations.
+require two round trips and atomics are slower to execute than other operations.
 Combined write and read steering provides a 17, 189, and 252$\times$ improvement
 in write tail latency, respectively, across 5, 50, and 100\% write workloads.
 As one might expect, performing write steering alone privileges writes over
