@@ -25,7 +25,8 @@ width = 0.75  # the width of the bars
 
 div=1
 
-fig, ax = plt.subplots()
+plt.rcParams.update({'font.size': 18})
+fig, ax = plt.subplots(1,1, figsize=(8,4))
 rects1 = ax.bar(x, success_percentage, width, label='Operation Success',color=default_clover_color,edgecolor='k')
 
 # Add some text for labels, title and custom x-axis tick labels, etc.

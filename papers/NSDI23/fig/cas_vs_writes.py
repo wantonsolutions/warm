@@ -24,19 +24,24 @@ device_memory=[cas_multi_qp_device[1],write_single_qp_dev[1]]
 def div_mil(a):
     return[x/1000000.0 for x in a]
 
+x = np.arange(len(labels))
+print(x)
+
 main_memory=div_mil(main_memory)
 device_memory=div_mil(device_memory)
 
-width=0.75
+width=0.4
 plt.rcParams.update({'font.size': 16})
+#fig, ax = plt.subplots()
+fig, ax = plt.subplots(1,1, figsize=(8,4))
 
-fig, ax = plt.subplots()
+ax.bar(x + width/2, device_memory, width, label="Device Memory", edgecolor='k')
+ax.bar(x - width/2, main_memory, width, label="Main Memory", edgecolor='k')
+ax.set_xticks(x,labels)
 
-ax.bar(labels, device_memory, width, label="Device Memory", edgecolor='k')
-ax.bar(labels, main_memory, width, label="Main Memory", edgecolor='k')
 xalign=0.92
-ax.text(xalign,9,str(round(main_memory[1]/main_memory[0],1))+"x")
-ax.text(xalign,20,str(round(device_memory[1]/device_memory[0],1))+"x")
+ax.text(xalign-(width/2),10,str(round(main_memory[1]/main_memory[0],1))+"x")
+ax.text(xalign+(width/2),10,str(round(device_memory[1]/device_memory[0],1))+"x")
 
 
 
@@ -44,7 +49,7 @@ ax.text(xalign,20,str(round(device_memory[1]/device_memory[0],1))+"x")
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('MOPS')
 #ax.set_xticks(x)
-ax.set_xticklabels(labels)
+#ax.set_xticklabels(labels)
 ax.legend()
 
 fig.tight_layout()

@@ -57,7 +57,8 @@ master_width=0.45
 
 #fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,5))
 plt.rcParams.update({'font.size': 16})
-fig, (ax1, ax2) = plt.subplots(1 ,2, figsize=(15,5), gridspec_kw={'width_ratios': [2,2]})
+#fig, (ax1, ax2) = plt.subplots(1 ,2, figsize=(15,5), gridspec_kw={'width_ratios': [2,2]})
+fig, (ax1, ax2) = plt.subplots(1 ,2, figsize=(8,4), gridspec_kw={'width_ratios': [2,2]})
 
 ##READS
 ##READS

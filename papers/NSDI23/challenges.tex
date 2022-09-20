@@ -57,15 +57,16 @@ regardless of whether they are themselves atomic.
 
 \begin{figure}[t]
   \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
-%  \vskip -0.5em
+  \vskip -0.5em
 
-    \caption{Achieved throughput of RDMA verbs across twenty queue pairs on data
-    independent addresses as a function of request concurrency.  When using
-    atomic requests, ConnectX-5 NICs can support approximately 2.7 MOPS per
-    queue pair, up to about 55 MOPS in aggregate.}
+    \caption{Achieved throughput of RDMA verbs across twenty queue
+      pairs on data-independent addresses as a function of request
+      concurrency.  When using atomic requests, ConnectX-5 NICs can
+      support approximately 2.7 MOPS per queue pair, up to about 55
+      MOPS in aggregate.}
 
     \label{fig:rdma_concur}
-%      \vskip -0.5em
+      \vskip -0.5em
 \end{figure}
 
 
@@ -91,7 +92,7 @@ line) atomic operations in comparison to standard reads and writes.
 We confirm that the findings of prior
 studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
 ConnectX-3) remain true on our ConnectX-5 NICs, namely that atomic
-requests scale with non-atomics only to a point.  CAS operations have
+requests scale with non-atomics only to a point.\footnote{Experiments with a ConnectX-6 exhibit similar behavior.}  CAS operations have
 a hard performance ceiling, while standard verbs (e.g., read and
 write) continue to scale with increased request concurrency.
 
@@ -156,9 +157,9 @@ write) continue to scale with increased request concurrency.
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
   \vskip -0.5em    
-    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   The majority
+    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
     of requests retain their order (delta=1), however reorderings of up to 15
-    requests can occur.}
+    requests can occur. (Note logarithmic $y$ axis.)}
   \vskip -0.5em
     \label{fig:reorder}
 \end{figure}

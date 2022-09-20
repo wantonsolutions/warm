@@ -8,12 +8,15 @@ export LCLOVER_PAYLOAD_SIZE=$4
 export SWITCH_MODE=$5
 export ZIPF_DIST=$6
 export TRIALS=$7
+export LCLOVER_TRACKED_KEYS=$8
 
-export HOSTS=("yeti5" "yeti0")
-export HOSTS=("yeti5" "yeti0" "yeti8")
-export HOSTS=("yeti5" "yeti0" "yeti8" "yeti1")
+#export HOSTS=("yeti5")
+#export HOSTS=("yeti5" "yeti0")
+#export HOSTS=("yeti5" "yeti0" "yeti8")
+#export HOSTS=("yeti5" "yeti0" "yeti8" "yeti1")
+#export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3")
 export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8")
-export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8" "yeti4")
+#export HOSTS=("yeti5" "yeti0" "yeti1" "yeti2" "yeti3" "yeti8" "yeti4")
 #export HOSTS=("yeti5" "yeti8")
 export sleep_time="20"
 
@@ -63,6 +66,12 @@ function set_rdma_size() {
     fi
     echo "setting switch to RDMA SIZE $size with script $size_script"
     ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; ./run_pd_rpc.py ./switch_commands/$size_script"
+}
+
+function set_tracked_keys() {
+    size=$LCLOVER_TRACKED_KEYS
+    echo "setting which keys to track"
+    ssh pswitch -x "source ~/.bash_profile; cd /root/src/warm/rmemc-p4; export TRACK_KEYS=$size; ./run_pd_rpc.py ./switch_commands/set_key_track.py"
 }
 
 function kill_all_clients() {
@@ -227,8 +236,11 @@ function clean_up() {
 echo "Bencmark Script $0"
 rm bench_results.dat
 
-build_clover
+echo "WARNING NOT BUILDING CLOVER!!!"
+#build_clover
+
 set_rdma_size
+set_tracked_keys
 set_pswitch_mode
 set_distribution
 for t in $(seq 1 $TRIALS); do

@@ -38,7 +38,9 @@ def div_million (list):
     return [val /1e6 for val in list]
 
 
-fig, axs = plt.subplots(1,1, figsize=(5,4))
+plt.rcParams.update({'font.size': 14})
+fig, axs = plt.subplots(figsize=(8,4), dpi=80)
+#fig, axs = plt.subplots(1,1, figsize=(5,4))
 
 plot_data(axs,'cas_contention_control.dat','CAS',default_color,default_marker)
 plot_data(axs,'cas_to_write.dat','CAS->Write',cas_color,cas_marker)

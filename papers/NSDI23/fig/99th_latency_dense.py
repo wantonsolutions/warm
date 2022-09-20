@@ -47,8 +47,9 @@ default_clover_label='clover'
 master_width=0.45
 
 #fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,5))
-plt.rcParams.update({'font.size': 16})
-fig, ax1 = plt.subplots(1 ,1, figsize=(10,6) )
+plt.rcParams.update({'font.size': 14})
+#fig, ax1 = plt.subplots(1 ,1, figsize=(10,6) )
+fig, ax1 = plt.subplots(1 ,1, figsize=(8,4) )
 
 ##READS
 ##READS
@@ -84,7 +85,9 @@ def shuffle_x(arr,distance):
     return
 
 
-x = np.arange(len(labels))  # the label locations
+#x = np.arange(len(labels))  # the label locations
+x = np.array([1.0,1.92,3.08,4.0])  # the label locations
+
 print(x)
 width = master_width/3  # the width of the bars
 

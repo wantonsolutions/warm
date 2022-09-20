@@ -10,10 +10,10 @@ semantics of RDMA RC queue pairs to provide serializability.
 %Additionally, we can leverage
 %this same functionality to multiplex independent operations across multiple QP
 %to improve scalability.
-Second we show how knowledge of the likely instruction ordering can
-enable many conflicts to be avoided---rather than just detected---by
-modifying operations in flight, thereby avoiding Clover's expensive conflict
-resolution machinery.
+Second we show how even imperfect knowledge of the instruction ordering
+can be used to avoid most---but not necessarily all---conflicts by
+modifying operations in flight, thereby avoiding Clover's expensive
+conflict resolution machinery in many cases.
 
 %describe how to effectively do away with the
 %need for most retries by ``fixing'' operations issued with stale hints in
@@ -36,6 +36,7 @@ resolution machinery.
 %% transparently in flight as the operations flow traverse the ToR.
 
 \subsection{Enforcing ordering}
+\label{ea}
 
 If {\sword} is able to ensure that requests will not be reordered between when
 it operates on them and their arrival at a memory server---because, for example,
@@ -57,7 +58,7 @@ left unmodified.
 One common way to limit the impact of expensive RDMA atomics is to use
 them to guard only a subset of the remote data.  For example, Sherman
 uses CAS operations to implement its node locks.
-%Sherman and future far memory systems like sherman which use lock based
+%Sherman and future far memory systems like Sherman which use lock based
 %approaches to guard remote data will incur the cost of using RDMA atomics. 
 %
 %Implementing locks with CAS is straightforward, the following algorithm is
@@ -79,17 +80,18 @@ underlying system; our goal is to support selective deployment where
 \sword\ may not be on-path for all servers, dictating that we do not
 make any changes to the existing system.  Moreover, our approach does
 not require terminating RDMA connections at the switch, which would
-require extensive buffering to support go-back-n retransmissions.
+require extensive buffering.
+%to support go-back-$n$ retransmissions.
 
 %
 %This technique does not reduce contention on the lock, but simply removes the
 %CAS hardware bottleneck. An alternative approach to this locking scheme would b%e
 %% to use the switch as a lock server similar to
 %% Netlock~\cite{netlock}.~\todo{help!}Our goals are orthogonal to
-%% Netlock as we want to acclerate existing protocols, not require any
-%% endhost code modifications, keep switch logic to a minimum, and
+%% Netlock as we want to accelerate existing protocols, not require any
+%% end host code modifications, keep switch logic to a minimum, and
 %% maintain only soft state on the switch. By propagating requests to
-%% endhosts we ensure that no state is lost on switch failure. And
+%% end hosts we ensure that no state is lost on switch failure. And
 %% that any async read operations can be issued to remote memory
 %% directly without needed to be interpreted by the switch.  By
 %% Forwarding all requests we remove the need for the switch to
@@ -141,24 +143,22 @@ that the sender knows the lock acquisition failed.
 \subsubsection{Connection remapping}
 
 Atomic replacement only works when all operations---across all client
-connections---that share server state are vectored to the same queue
-pair.  In general, the determination of which operations share state
-is application specific and requires inspecting each packet to
-extracting the relevant pieces of metadata. \todo{double check} In the
-case of Sherman, lock locations can be identified by inspecting CAS
-requests. Each CAS virtual address corresponds to a node lock in the
-Sherman B+Tree.
+connections---that share server state are vectored to the same queue pair.  In
+general, the determination of which operations share state is application
+specific and requires inspecting each packet to extract the relevant pieces
+of metadata. In the case of Sherman, lock locations can be identified by
+inspecting CAS requests. Each CAS virtual address corresponds to a node lock in
+the Sherman B+Tree.
 %%While removing locking operations is a general principle here we consider a
 %%solution for RDMA.  %Different transports with different ordering guarantees
 %%would require bespoke solutions.  
-The challenge, of course, is that the RDMA specification stipulates
-that each client establish its own queue pair with a given server, so
-operations for a given lock from different clients will arrive at the
-ToR on distinct queue pairs.  \sword, then, must interpose on the full
-set of queue pairs terminated by a given (set of) server(s) and vector
-operations to queue pairs accordingly.  This seems reasonable, as the
-ToR is usually on-path for all servers in a rack in traditional
-topologies.
+The challenge, of course, is that the RDMA specification stipulates that each
+client establish its own queue pair with a given server, so operations for a
+given lock from different clients will arrive at the ToR on distinct queue
+pairs.  \sword, then, must interpose on the full set of queue pairs terminated
+by a given (set of) server(s) and vector operations to queue pairs accordingly.
+This seems reasonable, as the ToR is usually on-path for all servers in a rack
+in traditional topologies.
 
 \paragraph{Sequence-space stitching.}
 
@@ -242,7 +242,6 @@ in the data path; RoCEv2 CAS and write headers only differ by a few
 fields. CAS can be thought of as a special case of a write, where the
 write is conditional and the length is preset to 8 bytes.
 %%
-
 {\sword} transforms CAS requests to writes by modifying their headers: it
 switches the RDMA OP field of the CAS to write, copies the CAS
 value to the write payload location, sets the DMA length of the write
@@ -288,10 +287,11 @@ indicates success or failure to the sender (see Section~\ref{sec:locking-algorit
 %% %%
 %% \label{fig:overview} \end{figure}
 
-\sg{This might be where we should state that we did not build this part on the
-programmable switch.}
+% \sg{This might be where we should state that we did not build this part on the
+% programmable switch.}
 
 \subsection{Conflict avoidance}
+\label{ca}
 
 While atomic replacement can alleviate the NIC hardware bottleneck
 that limits systems like Sherman, it does not address the underlying
@@ -392,3 +392,246 @@ not cached---the read is left unmodified.  If it fails to arrive at
 the current tail, Clover's default recovery mechanism kicks in and
 performs a lookup to the metadata server for the last known address
 and the process repeats.
+
+
+\subsection{Failure handling}
+
+\sword\ collocates functionality---and therefore shares fate---with the
+top-of-rack switch: if \sword\ fails, connectivity was already
+disrupted (i.e., the ToR is down).  Hence, the fact that a
+\sword\ failure will reset all remapped RDMA queue pairs to the
+attached servers seems of little additional consequence.  In the case
+of steering, however, we note that \sword\ does not maintain any hard
+state: failure simply results in a performance hiccup if packet-level
+connectivity can be maintained.  The upshot is that a complete
+\sword\ failure does not introduce safety concerns in any event.
+
+However, there are other failure scenarios to consider.  In
+particular, we presume that the ToR sees the exact stream of packets
+that will be received---and processed---by attached servers.
+Unfortunately, this may not be true due to packet loss (e.g., due to
+CRC failures or queue overflow) or even bugs on the server.  Of
+course, these failure cases exist even without \sword, and Sherman and
+Clover both provide their own error handling.  The key distinction,
+however, is that \sword\ maintains a cache that may become
+inconsistent with an attached server, which was previously the single
+authority of both application and RDMA connection state.
+
+
+At an application level, Clover never acquires any locks so failures
+do not result in resource stranding, and Sherman periodically detects
+if locks were kept by a dead client.  At the connection level they
+both rely upon RDMA to provide reliable, in-order delivery of their
+messages on a per-client basis and react to failed CAS operations by
+retrying their operations.  {\sword} must therefore be able to detect
+and properly handle packet retransmissions; in particular \sword\ must
+not treat a retransmitted packet as a new operation.  Hence,
+\sword\ tracks the most recent sequence number on each QP, the
+transformation it applied (remapping or steering), and whether the
+operation was ACK'd by the server.  Upon retransmission
+\sword\ re-applies the previous transformation.
+
+%QP ordering ensures retransmissions are , and RDMA
+%go-back-$n$ is triggered if any message is lost.
+
+\textbf{Enforcing ordering.}
+When \sword\ is remapping queue pairs, managing responses from the
+server is somewhat more complex.  If a packet is dropped between
+\sword\ and a server and \sword\ maps a subsequent request from a
+different client onto the same QP, the server will generate a
+go-back-$n$ response and any other in-flight requests on that QP will
+become invalidated.  Hence, when {\sword} sees a go-back-$n$ ACK, it
+triggers the same mechanism used for ACK coalescing but in reverse: it
+broadcasts a go-back-$n$ ACK to all clients with outstanding messages.
+While this approach amplifies the performance impact of a lost packet,
+we expect such scenarios to be unlikely in practice.  Indeed, no
+packet drops ever occurred between {\sword} and a server during our
+experiments because our clients issue only closed-loop operations.
+
+\textbf{Conflict avoidance.} Without queue-pair mapping, there are
+fewer concerns at the connection level, but \sword\ must now be aware
+of potential inconsistency between its cache and server state.
+Concretely, in the case of Clover, it is possible for a linked list to
+become ``broken''.  If \sword\ sees a client issue a \texttt{CAS(A,B)}
+request (attempting to append node $B$ to the list at $A$) before
+another issues \texttt{CAS(A,C)} (appending node $C$ to the
+same---stale---tail), \sword\ will steer \texttt{CAS(A,C)} to
+\texttt{CAS(B,C)}. If the \texttt{CAS(A,B)} operation is lost between
+\sword\ and the server, \texttt{CAS(B,C)} will still succeed, causing
+a broken chain: the pointer $A\rightarrow B$ does not exist but
+$B\rightarrow C$ does, and {\sword} believes $C$ to be the tail.
+
+In the normal case, the client will eventually timeout and retransmit
+\texttt{CAS(A,B)}, which \sword\ will identify as a retransmission and
+\emph{not} steer to the ``new'' tail, thereby repairing the list.  (In
+the mean time, the missing link is immaterial because
+subsequent requests are being steered by \sword.)  If, however, the client
+were to fail prior to retransmitting the CAS the chain will remain broken.
+Here we use an out-of-band mechanism to repair the chain: on occasion
+our control plane queries the switch to check for outstanding CAS
+requests and simply retransmits them (spurious retransmissions are
+handled gracefully by the server).  The tricker case is if
+\sword\ itself also fails in the mean time: we defer protecting
+against this double-failure scenario to future work.
+
+%\textbf{Connection Remapped Failures:} Unlike in the prior scenario, when
+%connections are mapped no data corruption can occur.
+
+
+%Note that because none of those operations were committed the order and
+%completion of any client operations does not matter. Clients can fail
+%independently without any concern for data structure safety.  
+
+% Retransmission in this
+% case is more complex. A single failed packet will require that all in-flight
+% requests from all clients on that QP be retransmitted. If a single message is
+% dropped, a following message will trigger a go-back-n response from the memory
+% side NIC. We propagate the go-back-n message to all clients with outstanding
+% requests using the same mechanism we use to repair coalesced acks, but in
+% reverse.  Retransmit requests can be serviced in any order, as none had yet been
+% delivered to memory, and if any clients die before retransmitting the structure
+% remains safe in spite of their failure.
+
+% One aspect which requires care is maintaining {\sword} state when dealing with
+% go-back-n. In the case of Sherman, the value of the lock when a CAS is issued is
+% stored in the request mapping stub. If go-back-n is invoked the state of the
+% lock is reverted to the value it had just prior to issuing the failed request.
+ 
+
+% Our goal is ensure that under failure \sword does not introduce any correctness
+% issues. Clover ensures end-to-end correctness for packet failures and client
+% failures. A key difference between default clover, and \sword enhanced Clover is
+% a change in atomic domain. In clover atomic operations are executed by a memory
+% side RDMA NIC, in \sword atomic decision are made at the switch. This
+% introduces a potential for correctness issues if packets are lost between the
+% switch, and memory server, and if clients fail during such events.
+
+% The primary saftey issue introduced by \sword is a broken list. For example if a
+% list A->B exists and there are outstanding writes C and D. If concurrent
+% requests connect B->C and C->D but the CAS for B->C fails and C->D succeeds this
+% creates a broken chain. Subsequent requests will be steered to the disconnected
+% chain. One option would be to detect chain breakages and ask clients to reset by
+% traversing the chain from root to tail. While tempting this approach could cause
+% inconsistancies as clients might read and write data only to be notified of the
+% link breakage further down the line. As such we task \sword with enforcing
+% atomicity on lost CAS operations between itself and downstream memory servers.
+
+% First we note that RDMA congestion control makes this problem an unlikely
+% occurrence on a single hop. During testing we never witnessed packet drop
+% between the switch egress port, and RDMA NIC, however corrupted packets, and
+% drops could occur.
+
+% If a packet is dropped between \sword and a memory servers NIC, the client will
+% time out eventually and retry the operation. We track the last sequence number
+% of each client CAS operation, and the virtual address it was steered to. As
+% clients are closed loop this is limited to 88 bits per client connection. If we
+% see that a client retries a CAS we steer that CAS to the same location it was
+% steered to rather than the end of the list.
+
+% In the less likely case that during a dropped packet a client dies, and fails to
+% retry the chain could potentially remain disconnected indefinitely. To remedy
+% this final case we keep an additional bit set on each client connection marked
+% to 1 if a CAS has not been ACKd, and 0 otherwise. Periodically, or upon being
+% notified of a client failure, our P4 control plane checks the state of client
+% connections and sees if any outstanding CAS operations were never ACKed. If so
+% \sword generates the dropped CAS from it's connection table information to
+% reconnect the list.
+
+% Note, it is only when CAS packets are dropped from \sword to memory that these
+% precautions must be taken. Packets dropped prior to reaching \sword, and on the
+% reverse path after operations are committed, and handled by RDMA's go-back-n and
+% Clovers recovery mechanisms.
+
+
+
+% Steering requests prior to the completion of CAS is safe in most cases while the
+% switch is operating correctly and no client failures exist. However in subtle
+% cases saftey violations can be introduced if proper measures are not taken. We
+% take advantage of the fact that Clover has built in recovery mechanisms. When a
+% failure is detected we rely on clover to recover by triggering it's default
+% mechanism. By default when clover detects a failure, it traverses the list of
+% keys recursively by issuing reads until it finds the new tail.
+
+
+% \textbf{Cas fails due to not being the tail}
+% In the common case B->C will never fail as the switch will steer requests to
+% known successful locations. If a successful client request was not routed
+% through {\sword} a CAS can return with a failed operation because it was not
+% issued to the tail of the list. In this case {\sword} will see the failed
+% response and begin by marking the key as invalid. All responses on that key will
+% then be changed to failed CAS which will trigger Clovers recovery mechanism.
+% \sg{On swordbox we have two options one of which is to examine the failed CAS,
+% assuming that it was a correct write that CAS should point to the next valid
+% location. Here the switch can simply update its value for the tail of the list
+% to the next pointer of the failed CAS}. The second option is to clear the cache
+% and then proactively wait for a successful CAS before steering again.
+
+% \textbf{Packet is dropped after Swordbox, and before NIC processing}
+% A trickier case in when the CAS operation for B->C is dropped prior to being
+% processed by the NIC i.e the packet is dropped due to congestion. Typically this
+% will not happen because the NIC generates pause frames before it becomes too
+% congested, in our single TOR setup pause frames prevented packet drops due to
+% the close loop design of clover. If the drop does occur however it is difficult
+% to detect that the chain has been broken. In the common case the client which
+% issued the CAS initially will retry. \sg{I did this on the dpdk box} If the same
+% request is issued twice {\sword} could attempt to allow the packet to repair the
+% broken chain by issuing it again, however this would incur significant buffering
+% on the switch to track potentially lost packets. In the case of a retried CAS we
+% mark the key a broken and force all clients to retry by marking their next CAS
+% as failed.
+
+% \textbf{Packet dropped, client failure}
+
+% If a client's packet is dropped after \sword commits the CAS and the client
+% fails before issuing another request, there is no retry to mark the key as
+% invalid. In this case we need to refer to a timeout. On each key we keep a 32
+% bit register used to mark outstanding requets. Each key also has a counter which
+% counts the total number of CAS issued on the key. When a CAS is processed by
+% \sword it increments the counter, and then marks a bit in the 32 bit counter
+% modulo the packet counter. The number of the request is stored in the connection
+% state of the client. When a response comes back on the client connection it the
+% bit in the connection counter is set back to 0. When a CAS is issued, if the bit
+% in our CAS tracker is set to 1, then a dropped CAS has been identified. In this
+% case the key is marked as invalid and clients must attempt to retry the request.
+% Out of band the client connections are checked by our control plane, if a rarely
+% written key is unacked for a long period of time the key is marked as invalid
+% Out of band the client connections are checked by our control plane, if a rarely
+% written key is unacked for a long period of time the key is marked as invalid.
+
+% \textbf{Client sends CAS, packet dropped before hitting the nic, and client
+% dies/disconnects before retry}
+
+% If a client cas fails, while another succeeds, and {\sword} also fails before
+% being able to correct the fault clients the clients could be left in a state
+% where some data is detached, and no mechanism which currently exists would
+% detect the detachment. Here we suggest that if {\sword} fails clients trigger a
+% \textit{read from the start} recovery to ensure that data remains consistent.
+
+
+% \textbf{Read Steering}
+
+% Reads also represent a tricky case upon write failure. If we use the same write
+% tail to steer reads we can end up with inconsistent reads as they may be on a
+% detached tail. Assuming that we will not attempt to repair the broken chain by
+% inserting a write, the read is invalid.
+
+% We can remedy this by only steering reads to locations that have had their CAS
+% acked. This requires maintaining the write ack tail. And will come at the cost
+% of performance. under contention.
+
+
+% \subsubsection{Thoughts}
+
+% \sg{A naive option would be to keep track of uncommited CAS, and then reissue
+% them from the switch. This would defer the atomicity to the switch after it was
+% effectivly atomicized by the switch. This is the definition of non-soft state
+% though.}
+
+% \sg{The key bit is that we can trigger a fault on all future calls to a broken key.}
+
+
+
+
+
+
+
