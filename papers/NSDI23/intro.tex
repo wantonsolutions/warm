@@ -33,7 +33,7 @@ even intra-rack round trips.
 The hardware community has made great strides in closing the latency
 gap via novel technologies like silicon photonics and new rack-scale
 interconnects, but commercially available options remain significantly
-slower than on-board options.  Concretely, while industrial consortia
+slower than on-board alternatives.  Concretely, while industrial consortia
 have proposed cache-coherent memory technologies~\cite{genz,cxl} that
 would dramatically lower access latencies, currently available
 interconnects based on RDMA~\cite{infiniband-spec}
@@ -43,8 +43,8 @@ interconnects based on RDMA~\cite{infiniband-spec}
 remain on the order of 20$\times$ slower than a local access (e.g.,
 50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
 that current-generation memory transport technologies provide the
-ability to directly execute requests like read, write, and compare and
-swap on remote host memory through the use of RDMA-capable
+ability to directly execute requests like read, write, and compare-and
+swap-on remote host memory through the use of RDMA-capable
 NICs~\cite{connectx}, SoCs~\cite{cavium}, FPGA
 SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
 existing systems coordinate with a remote CPU on the socket at which
