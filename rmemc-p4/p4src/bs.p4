@@ -27,6 +27,13 @@
 #define RDMA_512 512
 #define RDMA_1024 1024
 
+#define TRACK_KEYS 1
+#define TRACK_KEYS_MASK_255 0x00
+#define TRACK_KEYS_MASK_128 0x80
+#define TRACK_KEYS_MASK_64 0xC0
+#define TRACK_KEYS_MASK_32 0xE0
+#define TRACK_KEYS_MASK TRACK_KEYS_MASK_64
+
 
 #define STATISTICS
 
@@ -114,6 +121,19 @@ control SwitchIngress(inout headers hdr,
         meta.rdma_size = get_rdma_size.execute(get_val);
     }
 
+
+    //Determines the range of values which swordbox will track
+    // Register<bit<KEY_SIZE>, bit<1>>(1,MAX_KEYS_HALF) keys_tracked;
+    // RegisterAction<bit<KEY_SIZE>, bit<1>, bit<KEY_SIZE>>(keys_tracked) get_keys_tracked = {
+    //     void apply(inout bit<KEY_SIZE> value, out bit<KEY_SIZE> read_value) {
+    //         read_value = value;
+    //     }
+    // };
+
+    // action get_keys_tracked_action(bit<1> get_val){
+    //     meta.keys_tracked = get_keys_tracked.execute(get_val);
+    // }
+
     //#ifdef STATISTICS    
     Register<bit<32>, bit<2>>(4,0) read_miss_counter;
     RegisterAction<bit<32>, bit<2>, bit<32>>(read_miss_counter) inc_read_miss = {
@@ -191,6 +211,16 @@ control SwitchIngress(inout headers hdr,
             meta.id = qp_id_reg_action_read.execute(qp_hash);
     }
 
+    Register<bit<1>, bit<KEY_SIZE>>(MAX_KEYS) track_key;
+    RegisterAction<bit<1>, bit<KEY_SIZE>, bit<1>>(track_key) read_track_key = {
+        void apply(inout bit<1> value, out bit<1> read_value) {
+            read_value = value;
+        }
+    };
+
+    action get_track_key(bit<KEY_SIZE> key) {
+            meta.track_key=read_track_key.execute(key);
+    }
 
     //Latest Key read/write
     Register<bit<KEY_SIZE>, bit<ID_SIZE>>(MAX_IDS,0) latest_keys;
@@ -408,6 +438,25 @@ control SwitchIngress(inout headers hdr,
 
         get_swordbox_mode_action(0);
         get_rdma_size_action(0);
+        //get_keys_tracked_action(0);
+
+        // meta.existing_id=0;
+        // meta.id=0;
+        // meta.key=0;
+        // meta.swordbox_mode=0;
+        // meta.rdma_size=0;
+        // meta.keys_tracked=0;
+        // meta.vaddr.upper=0;
+        // meta.vaddr.lower=0;
+        // meta.next_vaddr.upper=0;
+        // meta.next_vaddr.lower=0;
+        // meta.read_tail.upper=0;
+        // meta.read_tail.lower=0;
+        // meta.write_cached_addr.upper=0;
+        // meta.write_cached_addr.lower=0;
+        // meta.outstanding_write_vaddr.upper=0;
+        // meta.outstanding_write_vaddr.lower=0;
+
 
         //Check the traffic going to the memory server, it should be the bottleneck
         //if (hdr.ethernet.dstAddr == 0xec0d9a6821d0|| hdr.ethernet.srcAddr == 0xec0d9a6821d0) {
@@ -436,7 +485,7 @@ control SwitchIngress(inout headers hdr,
             } else {
                 read_id(qp_hash_index);
             }
-
+            
 
 
             //Write Path
@@ -445,12 +494,15 @@ control SwitchIngress(inout headers hdr,
                 //Get the key from the data packet, and place it in metadata
                 meta.key = hdr.write_req.data;
                 set_latest_key(meta.id);
+
+
                 //Grab the virtual address from the packet
                 meta.vaddr.lower=hdr.write_req.virt_addr.lower;
                 meta.vaddr.upper=hdr.write_req.virt_addr.upper;
                 //put the virtual address of the write into the set of outstanding writes.
                 set_outstanding_write_vaddr_low(meta.id);
                 set_outstanding_write_vaddr_high(meta.id);
+
 
                 //#ifdef READ_STEER
                 if (meta.swordbox_mode >= READ_STEER) {
@@ -469,13 +521,17 @@ control SwitchIngress(inout headers hdr,
 
 
 
+
             } else if (hdr.roce.opcode == RC_CNS) {
 
 
                 get_latest_key(meta.id);
+                get_track_key(meta.key);
+
 
                 meta.vaddr.lower = hdr.atomic_req.virt_addr.lower;
                 meta.vaddr.upper = hdr.atomic_req.virt_addr.upper;
+
 
                 get_outstanding_write_vaddr_low(meta.id);
                 get_outstanding_write_vaddr_high(meta.id);
@@ -484,18 +540,33 @@ control SwitchIngress(inout headers hdr,
                 get_then_set_next_vaddr_low(meta.key);
                 get_then_set_next_vaddr_high(meta.key);
 
+                //Don't perform CNS replacement if we are not tracking the key
+                //Don't perform CNS replacement if the next addr has not yet been set
+                //TODO put track key somewhere else
+
                 if (meta.next_vaddr.lower != 0) {
                     //TODO I should compare both
                     if((meta.next_vaddr.lower != hdr.atomic_req.virt_addr.lower)) { //} || (meta.next_vaddr.upper != hdr.atomic_req.virt_addr.upper)) {
+                        //get_track_key(meta.key);
+                        #ifdef TRACK_KEYS
+                        if (meta.track_key == 1) {
+                        #endif //TRACK_KEYS
+
                         hdr.atomic_req.virt_addr.lower = meta.next_vaddr.lower;
                         hdr.atomic_req.virt_addr.upper = meta.next_vaddr.upper;
+
+                        #ifdef TRACK_KEYS
+                        }
+                        #endif //TRACK_KEYS
                     }
                 } 
+
 
                 if (meta.swordbox_mode >= READ_STEER) {
                     set_read_tail_low(meta.key);
                     set_read_tail_high(meta.key);
                 }
+
                 
 
 
@@ -510,6 +581,7 @@ control SwitchIngress(inout headers hdr,
                     //      });
 
                     get_write_cache_key(read_hash_index);
+                    get_track_key(meta.key);
 
                     //Check if the hash of this vadder is a hit and matches
                     get_write_cache_low(read_hash_index);
@@ -523,13 +595,23 @@ control SwitchIngress(inout headers hdr,
                     //bit<CHOPPED_ADDR_WIDTH> chopped_lower = (bit<CHOPPED_ADDR_WIDTH>)hdr.read_req.virt_addr.lower;
                     bit<CHOPPED_ADDR_WIDTH> chopped_lower = hdr.read_req.virt_addr.lower[15:8];
                     //if ((meta.read_tail.lower != 0)) {
+                    //if ((meta.key <= TRACK_KEYS) && ((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower) && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                     if (((bit<CHOPPED_ADDR_WIDTH>)meta.write_cached_addr.lower == chopped_lower) && (meta.read_tail.lower != 0)) { //&& (meta.key != 0) ) { // && meta.write_cached_addr.upper == hdr.write_req.virt_addr.upper) {
                         //We found that the latest value was cached so we know the key
                         //In this case we always update the packet
                         //We could skip updating the packet if the value was allready correct
 
+                        #ifdef TRACK_KEYS
+                        if (meta.track_key == 1) {
+                        #endif
+
                         hdr.read_req.virt_addr.lower=meta.read_tail.lower;
                         hdr.read_req.virt_addr.upper=meta.read_tail.upper;
+
+                        #ifdef TRACK_KEYS
+                        }
+                        #endif //TRACK_KEYS
+
                         //hdr.read_req.virt_addr.lower=hdr.read_req.virt_addr.lower;
                         //if (chopped_lower == 0) {
                         inc_read_miss_counter_action(1);
@@ -541,11 +623,10 @@ control SwitchIngress(inout headers hdr,
                     // if (chopped_lower == 0) {
                     //     inc_read_miss_counter_action(2);
                     // }
+
                 }
             }
         }
-
-
 
         forward.apply();
         ig_tm_md.bypass_egress = 1w1;
