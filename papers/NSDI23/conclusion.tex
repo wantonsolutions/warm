@@ -1,9 +1,11 @@
 \section{Conclusion}
 
-In this work we present techniques for resolving in-network contention
-for passive remote memory. We show that by transparently resolving
-conflicts in flight, {\sword} dramatically improves the performance of
-optimistic conflict management.  Moreover, we describe how it is
-possible to replace atomic memory operations with traditional reads
-and writes to avoid performance limitations inherent in such
-heavyweight operations.
+We present techniques for resolving in-network contention for passive remote
+memory and show that by resolving conflicts in flight, {\sword} dramatically
+improves the performance of pessimistic atomics and optimistic conflicts. We
+provide a P4 and DPDK prototype which demonstrate significant performance gains.
+
+% Moreover, we describe how it is
+% possible to replace atomic memory operations with traditional reads
+% and writes to avoid performance limitations inherent in such
+% heavyweight operations.
