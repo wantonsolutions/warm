@@ -262,15 +262,14 @@ entries takes 2 pipeline stages in the best case, and 8 in the worst
 
 %In the worst number of in flight requests with $n$ close looped clients is $n$,
 %so $n^2$ is dramatic over provisioning. However, s
-Space-efficient alternatives
-are even harder to implement. A hash table for instance has much better space
-utilization, but collisions are hard to deal with. For each
+Space-efficient alternatives are harder to implement. Hash tables have much
+better space utilization, but collisions are hard to deal with. For each
 potential collision, additional pipeline stages must be allocated and entries
 must include QP IDs to check for collisions---increasing a single hash table
 lookup to four stages.
 %, which is multiplied for each potential collision.
-At millions of packets per second collisions of three or more are
-common which exceeds the pipeline length of Tofino switches.
+At millions of packets per second collisions are common (3 or more) which
+exceeds the pipeline length of Tofino switches.
 
 %\textbf{(Fix) Dynamic Memory Allocation:} 
 %%

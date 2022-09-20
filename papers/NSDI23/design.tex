@@ -162,24 +162,22 @@ in traditional topologies.
 
 \paragraph{Sequence-space stitching.}
 
-Multiplexing and demultiplexing RDMA requests across established
-connections requires a significant amount of care. Requests on a
-single connection must have monotonic sequence numbers from both the
-sender's and receiver's perspectives. If monotonicity is broken, the
-server NIC will trigger retransmission or issue explicit congestion
-notifications. To ensure monotonic sequence numbers on shared
-connections {\sword} tracks the outstanding sequence number per QP and
-injects the appropriate sequence number into the packet after the
-mapping decision has been made.  (Ironically, there is no need to
-ensure any particular ordering among requests from separate clients,
-so any total ordering suffices.)
-%% This monotonic sequence number increment and QP mapping is the
-%% serialization point which replaces the use of the RDMA CAS
-%% request. As long as a packet is given an atomically incremental
-%% sequence number from our middle box and placed on a stateful
-%% partitioned connection, it will execute in the same serialized
-%% order as if it were protected by a CAS. We are guaranteed this due
-%% to the ordering requirements of RDMA reliable connections.
+Multiplexing and demultiplexing RDMA requests across established connections
+requires significant care. Requests on a single connection must have monotonic
+sequence numbers from both the sender's and receiver's perspectives. If
+monotonicity is broken, the server NIC will trigger retransmission or issue
+explicit congestion notifications. To ensure monotonic sequence numbers on
+shared connections {\sword} tracks the outstanding sequence number per QP and
+injects the appropriate sequence number into the packet after the mapping
+decision has been made.  (Ironically, there is no need to ensure any particular
+ordering among requests from separate clients, so any total ordering suffices.)
+%% This monotonic sequence number increment and QP mapping is the %
+%serialization point which replaces the use of the RDMA CAS % request. As long
+%as a packet is given an atomically incremental % sequence number from our
+%middle box and placed on a stateful % partitioned connection, it will execute
+%in the same serialized % order as if it were protected by a CAS. We are
+%guaranteed this due % to the ordering requirements of RDMA reliable
+%connections.
 
 When an RDMA request arrives at {\sword} from a client, it is
 mapped to the appropriate queue pair for the relevant lock and a
@@ -359,7 +357,6 @@ data per key---the size of the RDMA virtual address.
 \subsubsection{Read steering}
 
 While Clover 
-%Reads present a slightly more complicated case. W
 writes contain the key
 to which they pertain---which allows for a table lookup---Clover's
 RDMA read requests only contain the target virtual address and a size.
@@ -383,15 +380,13 @@ address.  Collisions are resolved by replacing the old
 entry, allowing keys with higher update rates to
 maintain longer histories in the table.
 
-When reads arrive {\sword} looks up their destination address in the
-table; if the address has a hit the associated key is used to look up
-the current tail in the write cache and the RDMA read is steered to
-the cached location.  Should a miss occur---either because the hash
-bucket was overwritten by another key, or because the tail address is
-not cached---the read is left unmodified.  If it fails to arrive at
-the current tail, Clover's default recovery mechanism kicks in and
-performs a lookup to the metadata server for the last known address
-and the process repeats.
+When reads arrive {\sword} looks up their destination address in the table; if
+the address has a hit the associated key is used to look up the current tail in
+the write cache and the RDMA read is steered to the cached location.  Should a
+miss occur---either because the hash bucket was overwritten by another key, or
+because the tail address is not cached---the read is left unmodified.  If it
+fails to arrive at the current tail, Clover's recovery mechanism kicks in looks
+up the last known address at the metadata server, then repeats the processes.
 
 
 \subsection{Failure handling}
@@ -435,18 +430,16 @@ operation was ACK'd by the server.  Upon retransmission
 %go-back-$n$ is triggered if any message is lost.
 
 \textbf{Enforcing ordering.}
-When \sword\ is remapping queue pairs, managing responses from the
-server is somewhat more complex.  If a packet is dropped between
-\sword\ and a server and \sword\ maps a subsequent request from a
-different client onto the same QP, the server will generate a
-go-back-$n$ response and any other in-flight requests on that QP will
-become invalidated.  Hence, when {\sword} sees a go-back-$n$ ACK, it
-triggers the same mechanism used for ACK coalescing but in reverse: it
-broadcasts a go-back-$n$ ACK to all clients with outstanding messages.
-While this approach amplifies the performance impact of a lost packet,
-we expect such scenarios to be unlikely in practice.  Indeed, no
-packet drops ever occurred between {\sword} and a server during our
-experiments because our clients issue only closed-loop operations.
+Managing responses when mapping queue pairs is somewhat more complex.  If a
+packet is dropped between \sword\ and a server and \sword\ maps a subsequent
+request from a different client onto the same QP, the server will generate a
+go-back-$n$ response and any other in-flight requests on that QP will become
+invalidated.  Hence, when {\sword} sees a go-back-$n$ ACK, it triggers the same
+mechanism used for ACK coalescing but in reverse: it broadcasts a go-back-$n$
+ACK to all clients with outstanding messages.  While this approach amplifies the
+performance impact of a lost packet, we expect such scenarios to be unlikely in
+practice.  Indeed, no packet drops ever occurred between {\sword} and a server
+during our experiments because our clients issue only closed-loop operations.
 
 \textbf{Conflict avoidance.} Without queue-pair mapping, there are
 fewer concerns at the connection level, but \sword\ must now be aware
@@ -461,7 +454,7 @@ same---stale---tail), \sword\ will steer \texttt{CAS(A,C)} to
 a broken chain: the pointer $A\rightarrow B$ does not exist but
 $B\rightarrow C$ does, and {\sword} believes $C$ to be the tail.
 
-In the normal case, the client will eventually timeout and retransmit
+In the normal case, the client will timeout and retransmit
 \texttt{CAS(A,B)}, which \sword\ will identify as a retransmission and
 \emph{not} steer to the ``new'' tail, thereby repairing the list.  (In
 the mean time, the missing link is immaterial because

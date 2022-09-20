@@ -3,11 +3,12 @@
 
 %We use two distinct prototype implementations to demonstrate the
 %potential performance benefits \sword\ can provide.
-We use our
-DPDK implementation to perform a micro-benchmark where we
-explicitly manage RDMA connections to remove the atomic operations
-used by Sherman's locking mechanism.  We use the P4 implementation installed on a programmable switch to show the impact of
-in-flight conflict resolution at rack scale in Clover.
+
+We use our DPDK implementation to perform a micro-benchmark where we explicitly
+manage RDMA connections to remove the atomic operations used by Sherman's
+locking mechanism.  We use the P4 implementation installed on a programmable
+switch to show the impact of in-flight conflict resolution at rack scale in
+Clover.
 
 %We discuss the relative impact of each of our techniques across
 %various workloads, and demonstrate that replacing compare-and-swap
