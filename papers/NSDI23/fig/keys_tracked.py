@@ -39,6 +39,7 @@ terr=rate_per_host(terr,6.0)
 tput=div_mil(tput)
 terr=div_mil(terr)
 
+print(tput)
 wins(tput,keys)
 
 print(len(keys))
@@ -53,13 +54,13 @@ x = np.arange(len(keys))  # the label locations
 plt.rcParams.update({'font.size': 18})
 #fig, ax = plt.subplots()
 fig, ax = plt.subplots(1,1, figsize=(8,4))
-rects1 = ax.errorbar(keys, tput, yerr=terr, color=read_write_steering_color, linewidth=3, label="Avg Per Host") #, width, label=treatment_label, color='tab:blue', hatch='\\')
+rects1 = ax.errorbar(keys, tput, yerr=terr, color=read_write_steering_color, linewidth=3, label="Write+Read") #, width, label=treatment_label, color='tab:blue', hatch='\\')
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('MOPS')
 ax.set_xticks(x_lab)
 ax.set_xticklabels(keys_label)
 ax.set_xlabel("Keys")
-ax.legend()
+ax.legend(loc="lower right")
 fig.tight_layout()
 save_fig(plt)
