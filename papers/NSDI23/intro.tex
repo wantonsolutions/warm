@@ -172,13 +172,12 @@ We prototype {\sword} in two scenarios using a rack of servers
 equipped with ConnectX-5 RoCE-enabled NICs.  First, we use a
 DPDK-based implementation to replace CAS requests in flight with
 standard RDMA verbs, allowing systems like Sherman to overcome the
-hardware-imposed limit on atomic requests per queue pair.  Second, we
+hardware limit on atomic requests per queue pair.  Second, we
 implement a lightweight version of \sword\ on a P4 programmable switch
 to accelerate Clover's optimistic concurrency protocol. Our evaluation
 shows that {\sword} dramatically increases the performance of Clover
 in the presence of write contention: Under a 50:50 read-write
-workload, throughput rises by almost 35$\times$, tail latency drops by
-over 300$\times$ and bandwidth usage drops by 16$\times$.
+workload, throughput rises by almost 35$\times$ while bandwidth usage and tail latency drop by 16 and 300$\times$.
 
 %% Using RDMA transport information and clover specific application
 %% knowledge all reads and writes to contended areas are totally ordered
