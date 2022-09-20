@@ -8,7 +8,7 @@ our implementations.
 {\sword} is designed to run at line rate, and is unperturbed by packet
 size. In the case of Clover, its retries incur a significant bandwidth
 overhead which causes additional slowdown when payloads are large.
-Figure~\ref{fig:packet_size}, shows how {\sword} reacts to changes in
+Figure~\ref{fig:packet_size} shows how {\sword} reacts to changes in
 packet sizes. At 128 bytes the limitation is the load applied by
 clients. At 256 bytes and above the 100-Gbps limit of the ConnectX-5
 NICs becomes the bottleneck for read and write steering, and the
