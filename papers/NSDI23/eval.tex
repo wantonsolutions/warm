@@ -313,16 +313,16 @@ dramatic spike in read tail latency.
 %CNS to writes does little to effect tail latency as their performance
 %cost comes largely as an increase to the average.
 
-\subsection{Partial key tracking}
+\subsubsection{Partial key tracking}
 
-{\sword} does not need to track all of a programs state. If a programs state is
-too large to cache on a switch, but a few hot keys are highly contested,
-{\sword} can provide significant benefits. In the following experiment we track
-a subset of Clovers keys, allowing the others to flow uninterrupted through
-\sword. In this experiment we run clover at a Zipf of 1.5 (most requests are on
-lower keys). We add keys in order of hotness in groups of 8. At this
-distribution tracking only the hottest 8 keys provides a 9.5x performance
-improvement, and tracking 64 provides 27x.
+If a programs state is too large to cache on a switch (millions of keys) but a
+few hot keys are highly contested, {\sword} can still provide significant
+benefits by acting on only on the contested state. In the following experiment
+we track a subset of Clovers keys, allowing the rest to flow through
+uninterrupted. In this experiment we run clover at a zipf of 1.5 (most requests
+are on lower keys). We add keys to \swords tracking list in order of hotness by
+chunks of 8. At this distribution tracking only the hottest 8 keys provides a
+9.5x performance improvement, and tracking the hottest 64 provides 27x.
 
 \begin{figure}
     \includegraphics[width=0.485\textwidth]{fig/keys_tracked.pdf}
