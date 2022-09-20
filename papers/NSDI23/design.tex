@@ -470,7 +470,7 @@ were to fail prior to retransmitting the CAS the chain will remain broken.
 Here we use an out-of-band mechanism to repair the chain: on occasion
 our control plane queries the switch to check for outstanding CAS
 requests and simply retransmits them (spurious retransmissions are
-handled gracefully by the server).  The tricker case is if
+handled gracefully by the server).  The trickiest case is if
 \sword\ itself also fails in the mean time: we defer protecting
 against this double-failure scenario to future work.
 

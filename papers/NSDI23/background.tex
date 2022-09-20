@@ -70,7 +70,7 @@ tree is augmented using entirely one-sided RDMA operations. Sherman
 improves performance under contention in two key ways. First, it
 places locks for each node in the B+Tree in a special region of NIC
 memory exposed by ConnectX-5 NICs.  This small chunk of memory exposes
-the same RDMA interface has host memory, but allows locking operations
+the same RDMA interface as host memory, but allows locking operations
 to execute with approximately 3$\times$ the throughput.  Second,
 Sherman's clients employ a hierarchical locking scheme to reduce the
 contention for server-hosted locks.  This client-local optimization

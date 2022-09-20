@@ -11,7 +11,7 @@
 % serialization.
 
 
-Passive memory systems suffer from two fundamental sources of overhead: The
+Passive memory systems suffer from two fundamental sources of overhead: the
 additional expense incurred by leveraging any hardware-enforced consistency
 semantics at the memory servers, and the costs of resolving conflicts from afar.
 Before introducing our approach to avoiding both, we characterize the
@@ -39,11 +39,11 @@ NICs.
 
 \subsection{RDMA semantics}
 
-Any client-based contention management scheme requires a certain level
-of serialization support at the memory server.  There is a trade-off,
-however, between the strength of the guarantees and the costs
-associated with implementing them.  RDMA provides two different
-classes of guarantees; we summarize both below.
+Any client-based contention management scheme requires a certain level of
+serialization support at the memory server.  There is a trade-off, however,
+between the strength of the consistency guarantees and the costs associated with
+implementing them.  RDMA provides two different classes of guarantees; we
+summarize both below.
 
 \subsubsection{Atomic requests}
 
@@ -333,15 +333,15 @@ In the latter case, however, very high rates of contention can lead to
 congestion collapse, where a retry is essentially doomed to failure,
 dramatically decreasing system throughput.
 
-As a concrete example we consider the costs of contended operations in
-Clover.  Recall Clover maintains a linked list for each key and
-attempts to read and write to the tail of the list for each
-operation. The location of the tail of the list is cached at each
-client and used as a hint for subsequent operations.  If the hint is
-stale the client obtains an updated tail pointer and retries the
-RDMA request.  Figure~\ref{fig:success_rate} shows the percentage of
-requests which succeed in a 50:50 read-write workload as a
-function of the number of concurrent client threads.
+As a concrete example we consider the costs of contended operations in Clover.
+Recall Clover maintains a linked list for each key and attempts to read and
+write to the tail of the list for each operation. The location of the tail of
+the list is cached at each client and used as a hint for subsequent operations.
+If the hint is stale the client obtains an updated tail pointer and retries the
+RDMA request.  Figure~\ref{fig:success_rate} shows the percentage of requests
+which succeed in a 50:50 read-write workload as a function of the number of
+concurrent client threads. Success rate drops dramatically as client threads
+increase.
 
 \paragraph{Bandwidth inflation.} 
 
