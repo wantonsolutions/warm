@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-export HOSTS=("yeti5" "yeti0" "yeti1")
+export HOSTS=("yeti5")
 
 #create agg file
 rm agg_read_latency

@@ -105,6 +105,18 @@ if [ $test_name == "--hello-world" ]; then
     trials="1"
 fi
 
+if [ $test_name == "--keys-tracked" ]; then
+    packet_size=("100")
+    keyspaces=("1000")
+    threads=("56")
+    zipfs=("1.50")
+    opmodes=("MITSUME_YCSB_MODE_A")
+    switch_modes=("READ_STEER")
+    trials="1"
+    #keys_tracked=($(seq 1 8 129 ))
+    keys_tracked=("104")
+fi
+
 #packet size
 if [ $test_name == "--packet-size" ]; then
     packet_size=("100" "200" "500" "1000")
@@ -168,20 +180,21 @@ if [ $test_name == "--latency" ]; then
 fi
 
 
-
 for workload in ${opmodes[@]}; do
 for switch_mode in ${switch_modes[@]}; do
 for zipf in ${zipfs[@]}; do
 for thread_count in ${threads[@]}; do
 for payload_size in ${packet_size[@]}; do
 for keys in ${keyspaces[@]}; do
+for tracked in ${keys_tracked[@]}; do
         echo "switch mode" "$switch_mode"
         echo "op modes: $workload"
         echo "Threads: $thread_count"
         echo "Keys: $keys"
         echo "Packet Size: $payload_size"
         echo "zipf: $zipf"
-        ./throughput_bench_pswitch.sh $thread_count $keys $workload $payload_size $switch_mode $zipf $trials
+        ./throughput_bench_pswitch.sh $thread_count $keys $workload $payload_size $switch_mode $zipf $trials $tracked
+done #keys tracked
 done #keys
 done #payload size
 done #thread count
