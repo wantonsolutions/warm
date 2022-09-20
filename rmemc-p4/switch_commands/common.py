@@ -14,6 +14,7 @@ all_registers = [
     "SwitchIngress.read_tail_high",
     "SwitchIngress.read_miss_counter",
 ]
+    #"SwitchIngress.track_key"
 
 counters= [
     "total_byte_counter",

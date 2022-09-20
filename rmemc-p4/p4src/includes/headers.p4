@@ -43,6 +43,7 @@ struct metadata {
     bit<KEY_SIZE> key;
     bit<8> swordbox_mode;
     bit<32> rdma_size;
+    bit<1> track_key;
     vaddr_t vaddr;
     vaddr_t next_vaddr;
     vaddr_t read_tail;
