@@ -313,27 +313,41 @@ dramatic spike in read tail latency.
 %CNS to writes does little to effect tail latency as their performance
 %cost comes largely as an increase to the average.
 
-\subsubsection{Partial key tracking}
-
-If a programs state is too large to cache on a switch (millions of keys) but a
-few hot keys are highly contested, {\sword} can still provide significant
-benefits by acting on only on the contested state. In the following experiment
-we track a subset of Clovers keys, allowing the rest to flow through
-uninterrupted. In this experiment we run clover at a zipf of 1.5 (most requests
-are on lower keys). We add keys to \swords tracking list in order of hotness by
-chunks of 8. At this distribution tracking only the hottest 8 keys provides a
-9.5x performance improvement, and tracking the hottest 64 provides 27x.
+\subsubsection{Partial steering}
 
 \begin{figure}
     \includegraphics[width=0.485\textwidth]{fig/keys_tracked.pdf}
 %\vskip -1em
 
-    \caption{ Performance improvement from tracking subsets of clovers keys.
-    Note that at 0 keys, the experiment is identical to running default Clover.
-    Performance is averaged across 6 hosts (56 threads each) at zipf of 1.5.  }
+    \caption{Per-client throughput as a function of the number of
+      Clover keys \sword\ steers.  50:50 workload averaged 
+      across 6 hosts each running 56 threads.  }
 
     \label{fig:keys_tracked}
       \vskip -0.5em
 \end{figure}
+
+One of most appealing aspects of \sword's steering is the fact that it
+need not be applied to all servers, or even memory regions (i.e.,
+Clover keys) of a given server.
+%In the presence of heavy-tail
+%workloads, even steering accesses to a msall number of hot (i.e.,
+%highly contended) keys can provide a major performacne boost.
+Figure~\ref{fig:keys_tracked} shows per-client throughput as a
+function of the number of keys steered by \sword.  To accentuate the
+impact, we use a Zipf parameter of 1.5---as opposed to 0.99 in prior
+experiments---to enhance the locality of requests.  (See Appendix~\ref{ss:zipf} for a full range.)
+%If a programs state is too large to cache on a switch (millions of keys) but a
+%few hot keys are highly contested, {\sword} can still provide significant
+%benefits by acting on only on the contested state. In the following experiment
+%we track a subset of Clovers keys, allowing the rest to flow through
+%uninterrupted. In this experiment we run clover at a zipf of 1.5 (most requests
+%are on lower keys). We add keys to \sword's tracking list in order of hotness by
+Steering requests for only the hottest-8 keys provides a 9.5$\times$
+improvement while tracking the hottest 64 delivers
+27$\times$.
+%; maximum performance boost (i.e., tracking all keys, not shown) is
+%(c.f. Figure~\ref{fig:contention}).
+
 
 
