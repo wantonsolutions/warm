@@ -236,9 +236,7 @@ function clean_up() {
 echo "Bencmark Script $0"
 rm bench_results.dat
 
-echo "WARNING NOT BUILDING CLOVER!!!"
-#build_clover
-
+build_clover
 set_rdma_size
 set_tracked_keys
 set_pswitch_mode

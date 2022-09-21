@@ -1,5 +1,13 @@
 #!/bin/bash
 
+echo "The last time you ran this was Sept 20 2022 right at the NSDI deadline.
+The last piece of functionality that you built in was the number of keys
+tracker. This functionality is not finished and is most likely quite flaky
+still. If anything is failing try going back to the switch and pulling out the
+key tracking stuff. EXITING delete or comment this statement moving forward - Stewart"
+exit 1
+
+
 #start up the programmable switch and check if anything is running on it
 function kill_switch() {
     echo "SSH killing the switch"
@@ -86,6 +94,7 @@ opmodes=("MITSUME_YCSB_MODE_B")
 #switch_modes=("WRITE_STEER")
 switch_modes=("READ_STEER")
 trials="5"
+keys_tracked=("128")
 
 
 test_name="nill"
@@ -102,6 +111,7 @@ if [ $test_name == "--hello-world" ]; then
     zipfs=("1.00")
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("SWORDBOX_OFF")
+    keys_tracked=("128")
     trials="1"
 fi
 
@@ -113,7 +123,6 @@ if [ $test_name == "--keys-tracked" ]; then
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("READ_STEER")
     trials="1"
-    #keys_tracked=($(seq 1 8 129 ))
     keys_tracked=("104")
 fi
 
@@ -126,6 +135,7 @@ if [ $test_name == "--packet-size" ]; then
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
     trials="1"
+    keys_tracked=("128")
 fi
 
 #Hero
@@ -136,6 +146,7 @@ if [ $test_name == "--hero-128" ]; then
     zipfs=("1.00")
     opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
+    keys_tracked=("128")
     trials="1"
 fi
 
@@ -147,6 +158,7 @@ if [ $test_name == "--contention" ]; then
     zipfs=("0.00" "0.60" "0.80" "0.90" "1.00" "1.10" "1.20" "1.30" "1.40" "1.50")
     opmodes=("MITSUME_YCSB_MODE_A")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
+    keys_tracked=("128")
     trials="1"
 fi
 
@@ -158,7 +170,8 @@ if [ $test_name == "--bytes-per-op" ]; then
     zipfs=("1.00")
     opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
-
+    keys_tracked=("128")
+    trials="1"
 fi
 
 
@@ -173,6 +186,7 @@ if [ $test_name == "--latency" ]; then
     opmodes=("MITSUME_YCSB_MODE_C" "MITSUME_YCSB_MODE_B" "MITSUME_YCSB_MODE_A" "MITSUME_YCSB_MODE_W")
     switch_modes=("SWORDBOX_OFF" "WRITE_STEER" "READ_STEER")
     trials="1"
+    keys_tracked=("128")
 
     #delete
     opmodes=("MITSUME_YCSB_MODE_B")
