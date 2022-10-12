@@ -60,7 +60,7 @@ width = 0.2  # the width of the bars
 
 div=1
 plt.rcParams.update({'font.size': 16})
-fig, ax = plt.subplots(figsize=(8,4), dpi=80)
+fig, ax = plt.subplots(figsize=(8,4), dpi=300)
 #plot_optimal(ax,optimal,x,3,width)
 rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color,edgecolor='k')
 rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color,edgecolor='k')

@@ -18,7 +18,7 @@ def tput_err(ax,rws,ws, clover):
     ax.errorbar(ws["threads"],ws["ops"],ws["err"],label=write_steering_label,marker=write_steering_marker,color=write_steering_color,linewidth=default_line_width, markersize=default_marker_size )
     ax.errorbar(rws["threads"],rws["ops"],rws["err"],label=read_write_steering_label, marker=read_write_steering_marker, color=read_write_steering_color, linewidth=default_line_width, markersize=default_marker_size)
 
-    #plot_max_improvement(ax,rws,clover,"threads")
+    plot_max_improvement(ax,rws,clover,"threads")
 
     #ax.set_yscale("log")
     #ax.set_xlabel('Threads')
