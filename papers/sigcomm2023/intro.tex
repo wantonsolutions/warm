@@ -1,0 +1,197 @@
+\section{Introduction}
+
+There has been tremendous interest in resource disaggregation in
+recent years, with both academic and industrial researchers chasing
+the potential for increased scalability, power efficiency, and cost
+savings~\cite{blade-server,fastswap,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,legoos,supernic}.
+By physically separating compute from storage across a network, it is
+possible to dynamically adjust hardware resource allocations to suit
+changing workloads.  Considerable headway has been made at higher
+levels of the storage hierarchy; published and even production systems
+support remoting spinning disks, SSDs, and modern non-volatile
+memory technologies~\cite{decible}.  Remote primary storage---a.k.a.
+memory pooling---remains a fundamental challenge, however, due to the
+orders-of-magnitude disparity between main-board access latency and
+even intra-rack round trips.
+
+%Resource disaggregation is an architectural paradigm which separates
+%disk, CPU and memory over a network. The goal of this architecture is
+%to enable extreme flexibility in terms of machine composition.  For
+%example a systems memory capacity can be dynamically apportioned by
+%reconfiguration, rather than by manually changing the physical
+%components of a single machine. It is now common for disks (HHD and
+%SSD) to be disaggregated from CPU and memory. SSDs are comparatively
+%easier to disaggregated than main memory as their access latencies are
+%on the order of 10's of microseconds which amortizes the network round
+%trip cost.
+
+%Local memory latency is around 50ns. The cost of accessing memory over the
+%network is on the order of 1us -- approximately a 20x overhead. This order of
+%magnitude difference in latency makes hiding remote memory accesses a hard
+%problem.  
+
+The hardware community has made great strides in closing the latency
+gap via novel technologies like silicon photonics and new rack-scale
+interconnects, but commercially available options remain significantly
+slower than on-board alternatives.  Concretely, while industrial consortia
+have proposed cache-coherent memory technologies~\cite{genz,cxl} that
+would dramatically lower access latencies, currently available
+interconnects based on RDMA~\cite{infiniband-spec}
+%%
+%\todo{distinguish CXL 200-500ns latencies have been proposed}
+%%
+remain on the order of 20$\times$ slower than a local access (e.g.,
+50~ns local versus 1~$\mu$s remote).  As a result, despite the fact
+that current-generation memory transport technologies provide the
+ability to directly execute requests like read, write, and compare-and
+swap-on remote host memory through the use of RDMA-capable
+NICs~\cite{connectx}, SoCs~\cite{cavium}, FPGA
+SmartNICs~\cite{corundum,kv-direct}, or DPUs~\cite{fungible}, most
+existing systems coordinate with a remote CPU on the socket at which
+the DMA is being performed to assist with
+serialization~\cite{cliquemap,erpc,herd,sonuma,storm}.
+%%
+
+
+%% % and Omni-Path~\cite{omni-path}. // omni-path is dead now % 
+%Each protocol, while distinct, meets approximately the same requirements,
+%reliable access to byte addressable remote memory with low latency and high
+%throughput.
+
+%% it would be nice to Cite SUPERNIC and CLIO here but I'm not sure it makes
+%sense untill it's published at a major venue
+%%Clio~\cite{clio-arxiv}
+%%todo ask alex about the archive reference
+%%todo do a quick read of how DMA is dealt with on the other interconnects
+
+In the absence of a general-purpose CPU located alongside remote
+memory, it falls to each individual client to ensure that its reads
+and writes are serialized, usually by leveraging expensive
+hardware-provided atomic operations at the server like
+compare-and-swap (CAS)~\cite{design-guidelines} as the latencies
+involved in client-side coordination are prohibitive.  As a result,
+most existing systems simply partition memory completely and forgo
+sharing~\cite{reigons,fastswap,legoos}.
+%%
+%The few published systems that provide fully passive remote memory
+%target scenarios involving read-heavy workloads~\cite{clover}, client
+%colocation~\cite{sherman}, or memory-inefficient
+%datastructures~\cite{race} \textbf{XXX:Need to say more} where the
+%costs of conflict detection and resolution can be effectively
+%amortized.
+%
+The few published systems that do support shared access mediate
+requests to specialized data structures~\cite{clover,sherman}.
+
+For example, Sherman, a write-optimized
+B+Tree~\cite{sherman} places its locks in NIC memory at the server to
+avoid crossing the remote PCIe bus.
+%, resulting in 3$\times$ higher throughput.
+Clover~\cite{clover} implements a hash table that
+supports lock-less reads; concurrent writes are supported through a
+client-driven optimistic concurrency protocol.  Despite their clever
+designs, however, both approaches simply delay the inevitable:
+%%
+Sherman's NIC-based locks are subject to significant hardware limits
+imposed by the CAS operation required to enforce serialization.
+Similarly, Clover's client-based recovery scheme quickly becomes cost
+prohibitive when faced with non-trivial levels of write contention.
+%
+%it is repeatedly executed on a single
+%address (Lock acquire and release). Further, Sherman requires that cliques of
+%clients are colocated to resolve most contention based conflicts locally.
+%%
+% CAS instructions are only executed to commit
+%writes and never land on the same address twice - effectively bypassing the
+%single address limits of CAS.
+%%
+%While highly scalable for read-heavy workloads,  This
+
+We argue that these shortcomings are not unique to the particular
+systems, but rather fundamental to any approach that implements
+distributed conflict resolution.
+%
+%% minimize conflicts by caching  metadata about the
+%% location of the latest writes and reads while also make use of a
+%% remote data structures which allows for lock-less reads. In the case of
+%% highly contended resources however the performance of clover
+%% diminishes sharply due to an increased number of atomic locking
+%% operations required on writes.
+%
+The obvious alternative is to deploy a centralized memory controller
+(e.g., a CXL 2.0 switch) that can serve as a serialization point and
+ensure all races are resolved before accessing memory, but effective
+realization of such a design has proven elusive.  While many proposals
+exist, none of them have yet been implemented in commercially
+available hardware.  More to the point, such designs are inherently
+unscalable as they require all accesses to be managed by the
+controller, rather than forwarded directly between the client and
+relevant server.
+
+In this work we make the observation that such a serialization point
+already exists in today's rack-scale disaggregated deployments: the
+top-of-rack switch.  We propose to leverage the capabilities of modern
+programmable switches to cache sufficient information about in-flight
+requests to transparently detect and resolve conflicts before they
+occur.  Unlike a centralized memory controller, however,
+our serializer does not need to operate on---or even maintain state for---all
+remote memory requests.  First, it only needs to address actual conflicts
+and can avoid the unnecessary costs of enforcing ordering among
+unrelated requests.  Second, in deployment scenarios where it may
+lack the resources to track all requests, our serializer can serve as a
+performance-enhancing proxy: when deployed alongside client-based
+conflict resolution techniques, it can allow even conflicting requests
+to pass through unmodified without jeopardizing safety while
+decreasing the frequency of conflict resolution.
+
+We present {\sword}, an on-path serializer
+%(implemented either
+%directly on the top-of-rack switch or an attached
+%middle box~\cite{disandapp})
+that dramatically improves the performance of remote memory systems
+that support write sharing.  Like all ToRs, {\sword} imposes a
+globally observable total order on memory requests (i.e., packets)
+within a rack.  In scenarios where {\sword} has the resources to
+explicitly manage RDMA connections, it can enforce per-server ordering
+at the ToR and remove the expensive CAS operations from all in-flight
+packets, avoiding their associated performance bottlenecks entirely.
+More generally, however, {\sword} can be deployed alongside an
+underlying optimistic concurrency scheme: remote memory operations
+remain guarded to ensure that clients can detect and recover from
+conflicts of which {\sword} may not be aware.  Instead, because
+{\sword} understands the disaggregated memory protocol, it can keep a
+cache of recent operations to adjust subsequent requests whose
+guards it knows are doomed to fail.  In such cases,
+%If suitably provisioned (i.e., it has the
+%appropriate metadata cached),
+it modifies requests in
+flight to account for the preceding operations and decrease the
+likelihood the guard will trip.
+
+We prototype {\sword} in two scenarios using a rack of servers
+equipped with ConnectX-5 RoCE-enabled NICs.  First, we use a
+DPDK-based implementation to replace CAS requests in flight with
+standard RDMA verbs, allowing systems like Sherman to overcome the
+hardware limit on atomic requests per queue pair.  Second, we
+implement a lightweight version of \sword\ on a P4 programmable switch
+to accelerate Clover's optimistic concurrency protocol. Our evaluation
+shows that {\sword} dramatically increases the performance of Clover
+in the presence of write contention: Under a 50:50 read-write
+workload, throughput rises by almost 35$\times$ while bandwidth usage and tail latency drop by 16 and 300$\times$.
+
+%% Using RDMA transport information and clover specific application
+%% knowledge all reads and writes to contended areas are totally ordered
+%% in the network. Specifically all reads and writes to the same keys are
+%% multiplexed to the same queue pairs, by utilizing the RDMA ordering
+%% requirements of QP's reads and writes require no expensive locks and
+%% can flow at line rate to remote memory. This ordering requires a
+%% number in band adjustments to the RDMA protocol in order to
+%% interoperable with commodity hardware. QP state must be maintained in
+%% network, specifically the sequence numbers of multiplexed requests, so
+%% that response packets can be demultiplexes back to their original
+%% connections. Small adjustments such as generating ACKs for collapsed
+%% requests is also required. We demonstrate that these algorithms are
+%% implementable in network at little cost with a DPDK prototype. We
+%% measure that ~\todo{we achieve a ?X improvement in performance using
+%%   only XMB of in network state, and ?X performance improvement in
+%%   highly contested settings with full use of system memory}.

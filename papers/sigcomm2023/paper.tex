@@ -1,0 +1,130 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage{usenix-2020-09}
+
+\usepackage{times}
+\usepackage{fullpage}
+
+\usepackage{booktabs}  % for \midrule
+%\usepackage{subfigure}
+\usepackage{balance}
+\usepackage{graphicx}
+\usepackage{xspace}
+%\usepackage{pslatex}
+%\usepackage{pifont}
+%\usepackage{multirow}
+%\usepackage{array}
+%\usepackage{booktabs}
+%\usepackage{cite}
+\usepackage{url}
+%\usepackage{cancel}
+\usepackage{color,colortbl}
+%\usepackage{microtype}
+%\usepackage{textcomp}% http://ctan.org/pkg/textcomp
+\usepackage{tabularx}
+\usepackage{framed}
+\usepackage[]{algorithm2e}
+\SetAlFnt{\small}
+\SetAlCapFnt{\small}
+\usepackage{algorithmic}
+
+\usepackage{listings}
+%\usepackage{scrextend}
+%\usepackage{mathtools}
+\usepackage{pbox}
+
+\let\labelindent\relax
+\usepackage{enumitem}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata}
+\usetikzlibrary{calc,positioning}
+\usepackage{lipsum,adjustbox}
+
+%\usepackage{tikz}
+%\usepackage{decorations.pathmorphing}
+%\usepackage{assymb}
+
+\usepackage[labelfont=bf]{caption}
+
+%\theoremstyle{plain}
+\newtheorem{theorem}{\bf{Theorem}}%[section]
+\newtheorem{lemma}[theorem]{\bf{Lemma}}
+\newtheorem{corollary}[theorem]{\bf{Corollary}}
+\newtheorem{proofl}[theorem]{\bf{Proof}}
+\newtheorem{proposition}[theorem]{\bf{Proposition}}
+
+%\theoremstyle{definition}
+\newtheorem{definition}{\bf{Definition}}%[section]
+\newtheorem{observation}{\bf{Observation}}%[section] 
+
+%\theoremstyle{remark}
+\newtheorem{example}{\bf{Example}}
+\newtheorem{notation}{\bf{Notation}}
+\newtheorem{fact}{\bf{Fact}}
+
+\usepackage{listings}
+%%\usepackage{listings-golang}
+\usepackage{color}
+
+%\usepackage{sectsty}
+%\sectionfont{\fontsize{12}{15}\selectfont}
+
+
+\newcommand\mypara[1]{\vspace{.3em}\noindent\textbf{#1}}
+\newcommand{\urlwofont}[1]{\urlstyle{same}\url{#1}}
+
+\newcommand{\sword}{SwordBox}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Useful reviewing/feedback annotations
+\input{annotations}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%\title{In-network Contention Resolution for Disaggregated Memory}
+
+\title{\sword: Sharing Disaggregated Memory\\ without Skewering Performance}
+%% Looking for a catchy title. Why Sword Box? It sounds kind of cool first off,
+%% easy to remember and say. It fits in the track of other disaggregated research
+%% i.e firebox and DredBox. 
+%%
+%% What is a sword box? It's a magic trick where a
+%% bunch of knives are stabbed
+%% into a box that, and they avoid hitting the assistant inside. The knives 
+%% and are carefully made to look normal but in truth they actually bend
+%% https://themagicwarehouse.com/tb4002.jpg
+
+\author{NSDI '23 Submission \#1063}
+%\author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
+\date{}
+
+\maketitle
+
+\input{abstract}
+
+\input{intro}
+\input{background}
+\input{challenges}
+\input{design}
+\input{implementation}
+\input{eval}
+\input{limitations}
+\input{conclusion}
+% \input{discussion}
+%\section*{Acknowledgments}
+
+%\newpage
+
+\balance
+\vspace{-0.3cm}
+{\footnotesize \bibliographystyle{acm}
+%%\bibliography{paper,sysnet}}
+\bibliography{paper}}
+\vspace{-0.5cm}
+
+\appendix
+\input{appendix}
+
+\end{document}
