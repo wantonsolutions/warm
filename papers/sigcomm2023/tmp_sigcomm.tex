@@ -83,7 +83,6 @@ memory locks~\cite{sherman}
 
 
 \subsection{Programmable Switches}
-
 Many disaggregated memory proposals are rack-scale. They
 propose a single rack with servers of CPUs, banks of memory,
 and SSD's, each of which is interconnected by a TOR. This
@@ -168,6 +167,38 @@ to distributed clients as they do not share access to the
 same queue pair
 
 \subsection{Programmable Switch Serialization}
+
+Switches can cheaply serialize packets~\cite{when-computer}.
+Programable switches with P4 pipelines can use this cheap
+serialization, along with their ability to manage small
+amounts of in network state, to serialize distributed
+applications. Mind for instance provides a unified TLB and
+cache for disaggregated applications~\cite{mind}. Packets
+processed by a programmable switch are sequenced in order,
+updates to the switches registers are atomic with respect to
+the packets as each state of the pipeline is occupied by
+exactly one packet at a time. A centralized switch can
+therefore apply monotonic sequence numbers to a stream of
+packets, or maintain a lock without the need for explicit
+atomic operations.
+
+Unfortunately this serialization is not sufficient for RDMA
+memory operations out of the box. RDMA packets on two
+reliable connections may be ordered on the switch, and then
+subsequently reordered by the receiving side NIC, or by the
+PCIe bus~\cite{understanding-pcie}.
+
+In all cases switch memory and compute are highly
+constrained. Any operations that exceed the procsessing
+limit of the match action pipeline require recirculation
+which consumes additional switch bandwidth. For example,
+terminating connections with a switch is prohibitivly
+expensive as both the state of the entire connections, and
+the logic for connection startup and teardown would consume
+large quantities of the switches buffers. Any logic, or data
+offloaded to a programable switch must therefore be minimal
+in order to meet the compute and data restrictions of the
+switches SRAM.
 
 \section{Swordbox}
 
