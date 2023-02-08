@@ -954,7 +954,7 @@ publisher = {USENIX Association},
 month = nov,
 }
 
-@inproceedings{when-computer
+@inproceedings{when-computer,
 author = {Ports, Dan R. K. and Nelson, Jacob},
 title = {When Should The Network Be The Computer?},
 year = {2019},
@@ -970,4 +970,40 @@ numpages = {7},
 keywords = {smart NICs, in-network computation, reconfigurable devices, programmable switches},
 location = {Bertinoro, Italy},
 series = {HotOS '19}
+}
+
+@inproceedings{rma,
+author = {Singhvi, Arjun and Akella, Aditya and Gibson, Dan and Wenisch, Thomas F. and Wong-Chan, Monica and Clark, Sean and Martin, Milo M. K. and McLaren, Moray and Chandra, Prashant and Cauble, Rob and Wassel, Hassan M. G. and Montazeri, Behnam and Sabato, Simon L. and Scherpelz, Joel and Vahdat, Amin},
+title = {1RMA: Re-Envisioning Remote Memory Access for Multi-Tenant Datacenters},
+year = {2020},
+isbn = {9781450379557},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3387514.3405897},
+doi = {10.1145/3387514.3405897},
+abstract = {Remote Direct Memory Access (RDMA) plays a key role in supporting performance-hungry datacenter applications. However, existing RDMA technologies are ill-suited to multi-tenant datacenters, where applications run at massive scales, tenants require isolation and security, and the workload mix changes over time. Our experiences seeking to operationalize RDMA at scale indicate that these ills are rooted in standard RDMA's basic design attributes: connectionorientedness and complex policies baked into hardware.We describe a new approach to remote memory access -- One-Shot RMA (1RMA) -- suited to the constraints imposed by our multi-tenant datacenter settings. The 1RMA NIC is connection-free and fixed-function; it treats each RMA operation independently, assisting software by offering fine-grained delay measurements and fast failure notifications. 1RMA software provides operation pacing, congestion control, failure recovery, and inter-operation ordering, when needed. The NIC, deployed in our production datacenters, supports encryption at line rate (100Gbps and 100M ops/sec) with minimal performance/availability disruption for encryption key rotation.},
+booktitle = {Proceedings of the Annual Conference of the ACM Special Interest Group on Data Communication on the Applications, Technologies, Architectures, and Protocols for Computer Communication},
+pages = {708–721},
+numpages = {14},
+keywords = {Connection Free, Remote Memory Access, Congestion Control},
+location = {Virtual Event, USA},
+series = {SIGCOMM '20}
+}
+
+@inproceedings{flock,
+author = {Monga, Sumit Kumar and Kashyap, Sanidhya and Min, Changwoo},
+title = {Birds of a Feather Flock Together: Scaling RDMA RPCs with Flock},
+year = {2021},
+isbn = {9781450387095},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3477132.3483576},
+doi = {10.1145/3477132.3483576},
+abstract = {RDMA-capable networks are gaining traction with datacenter deployments due to their high throughput, low latency, CPU efficiency, and advanced features, such as remote memory operations. However, efficiently utilizing RDMA capability in a common setting of high fan-in, fan-out asymmetric network topology is challenging. For instance, using RDMA programming features comes at the cost of connection scalability, which does not scale with increasing cluster size. To address that, several works forgo some RDMA features by only focusing on conventional RPC APIs.In this work, we strive to exploit the full capability of RDMA, while scaling the number of connections regardless of the cluster size. We present Flock, a communication framework for RDMA networks that uses hardware provided reliable connection. Using a partially shared model, Flock departs from the conventional RDMA design by enabling connection sharing among threads, which provides significant performance improvements contrary to the widely held belief that connection sharing deteriorates performance. At its core, Flock uses a connection handle abstraction for connection multiplexing; a new coalescing-based synchronization approach for efficient network utilization; and a load-control mechanism for connections with symbiotic send-recv scheduling, which reduces the synchronization overheads associated with connection sharing along with ensuring fair utilization of network connections. We demonstrate the benefits for a distributed transaction processing system and an in-memory index, where it outperforms other RPC systems by up to 88% and 50%, respectively, with significant reductions in median and tail latency.},
+booktitle = {Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles},
+pages = {212–227},
+numpages = {16},
+keywords = {Network hardware, Remote Memory Access},
+location = {Virtual Event, Germany},
+series = {SOSP '21}
 }

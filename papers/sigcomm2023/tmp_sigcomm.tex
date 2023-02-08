@@ -106,17 +106,66 @@ operations (in terms of packets) that a switch can process
 per second.
 
 Prior work has shown that programmable switches are able to
-both manage locks~\cite{netlock}, track the state required
-to maintain an RDMA reliable connection~\cite{tea}, and
-provide rack scale serialization at low
-cost~\cite{eris,no,when-computer}.
+manage locks~\cite{netlock}, track the state required to
+maintain an RDMA reliable connection~\cite{tea}, and provide
+rack scale serialization at low
+cost~\cite{eris,no,when-computer}. These properties make a
+top-of-rack programable switch ideal for managing remote
+memory as it can guard access, maintain connections, and
+provide serialization primitives for all clients.
 
 
 \section{Serialization}
 
-\subsection{Serialization Algorithms}
-
 \subsection{RDMA serialization}
+RDMA provides a set of atomic instructions for serializing
+access to remote memory without the need for a memory side
+CPU. These instructions \textit{Fetch-and-Add} and
+\textit{Compare-and-Swap} (CAS) execute on 64 bit width
+words and are guaranteed to be consistent across queue pairs
+with atomic visibility to all observers. These operations
+are expensive. On a single address atomic instructions can
+only execute a few million operations per
+second~\todo{Figure 1}, across independent addresses they
+have approximately half the throughput of their non atomic
+counterparts. These limitations fundamentally limit data
+structures built with them, locks with a single address
+requiring both a lock and unlock call to guard access are
+limited to around 500k accesses per second. This assumes
+perfectly coordinated access, under contention even failed
+requests, attempting to aquire a taken lock with CAS, eats
+into the operation bandwidth. Under contention RDMA has poor
+support for traditional locking. In contrast optimistic data
+structures with locks scattered throughout, such as a linked
+list, are not rated limited by this single address
+restriction. However, they are fundementally limited by the
+fact that any atomics have half the throughput of reads and
+writes. More critically, under contention optimistic data
+structures have no liveness guarantees under contention
+atomic operations fail frequently~\todo{Figure: failure to
+succeed}. RDMA has no support for resolving pointers
+(pointer chaising) and retrying operations for such data
+strucutres(~\cite{rma}), a simple operation usually executed
+by a memory side CPU. As such RDMA clients are forced to
+resolve their failures requests themselves often retrying
+many times.
+
+Atomic operations are not the only serialization mechanism
+provided by RDMA. Reliable connections provide in order
+delivery on individual queue pairs. This allows clients to
+issue multiple requests in parallel and allows the NIC to
+resolve reordering and dropped packets using go-back-n This
+allows clients to issue multiple requests in parallel and
+allows the NIC to resolve reordering and dropped packets
+using go-back-n retransmission. When clients are collocated,
+queue pairs can be shared by multiple cores through
+techniques like flat combining~\cite{flock,sherman}. This
+technique removes the need for RDMA atomics, as clients can
+locally resolve their conflicts and then issue their
+requests to remote memory at the full throughput of reads
+and writes. Unfortunately this technique is not applicable
+to distributed clients as they do not share access to the
+same queue pair
 
 \subsection{Programmable Switch Serialization}
 
