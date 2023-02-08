@@ -189,10 +189,10 @@ subsequently reordered by the receiving side NIC, or by the
 PCIe bus~\cite{understanding-pcie}.
 
 In all cases switch memory and compute are highly
-constrained. Any operations that exceed the procsessing
+constrained. Any operations that exceed the processing
 limit of the match action pipeline require recirculation
 which consumes additional switch bandwidth. For example,
-terminating connections with a switch is prohibitivly
+terminating connections with a switch is prohibitively
 expensive as both the state of the entire connections, and
 the logic for connection startup and teardown would consume
 large quantities of the switches buffers. Any logic, or data
@@ -201,6 +201,21 @@ in order to meet the compute and data restrictions of the
 switches SRAM.
 
 \section{Swordbox}
+
+We present \sword a middlebox solution for sharing remote
+memory. \sword provides acceleration for both lock based and
+optimistically concurrent data structures. Locks are managed
+in network, and the results of locking operations are
+forward to memory. Lock accesses are accelerated by
+replacing RDMA atomic operations with writes in flight.
+Modified lock operations are multiplexed onto existing RDMA
+connections, per lock, to ensure serialized access to the
+lock. \sword also provides a mechanism to remove contention
+from optimistic data structures by caching the metadata
+required to detect and resolve conflicts. These techniques
+are implemented in a DPDK prototype for the lock based
+approach and fully realized in P4 for optimistic data
+structures.
 
 \subsection{Caching}
 
