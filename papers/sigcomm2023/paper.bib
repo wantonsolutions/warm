@@ -910,3 +910,64 @@ location = {Shanghai, China},
 series = {SOSP '17}
 }
 
+@inproceedings{tea,
+author = {Kim, Daehyeok and Liu, Zaoxing and Zhu, Yibo and Kim, Changhoon and Lee, Jeongkeun and Sekar, Vyas and Seshan, Srinivasan},
+title = {TEA: Enabling State-Intensive Network Functions on Programmable Switches},
+year = {2020},
+isbn = {9781450379557},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3387514.3405855},
+doi = {10.1145/3387514.3405855},
+abstract = {Programmable switches have been touted as an attractive alternative for deploying network functions (NFs) such as network address translators (NATs), load balancers, and firewalls. However, their limited memory capacity has been a major stumbling block that has stymied their adoption for supporting state-intensive NFs such as cloud-scale NATs and load balancers that maintain millions of flow-table entries. In this paper, we explore a new approach that leverages DRAM on servers available in typical NFV clusters. Our new system architecture, called TEA (Table Extension Architecture), provides a virtual table abstraction that allows NFs on programmable switches to look up large virtual tables built on external DRAM. Our approach enables switch ASICs to access external DRAM purely in the data plane without involving CPUs on servers. We address key design and implementation challenges in realizing this idea. We demonstrate its feasibility and practicality with our implementation on a Tofino-based programmable switch. Our evaluation shows that NFs built with TEA can look up table entries on external DRAM with low and predictable latency (1.8-2.2 μs) and the lookup throughput can be linearly scaled with additional servers (138 million lookups per seconds with 8 servers).},
+booktitle = {Proceedings of the Annual Conference of the ACM Special Interest Group on Data Communication on the Applications, Technologies, Architectures, and Protocols for Computer Communication},
+pages = {90–106},
+numpages = {17},
+keywords = {Programmable switches, Remote Direct Memory Access, Network Function Virtualization, Programmable networks, Data centers},
+location = {Virtual Event, USA},
+series = {SIGCOMM '20}
+}
+
+@inproceedings{eris,
+author = {Li, Jialin and Michael, Ellis and Ports, Dan R. K.},
+title = {Eris: Coordination-Free Consistent Transactions using Network Multi-Sequencing},
+booktitle = {Proceedings of the 26th ACM Symposium on Operating Systems Principles (SOSP '17)},
+year = {2017},
+month = {October},
+abstract = {Distributed storage systems aim to provide strong consistency and isolation guarantees on an architecture that is partitioned across multiple shards for scalability and replicated for fault-tolerance. Traditionally, achieving all of these goals has required an expensive combination of atomic commitment and replication protocols -- introducing extensive coordination overhead. Our system, Eris, takes a very different approach. It moves a core piece of concurrency control functionality, which we term multi-sequencing, into the datacenter network itself. This network primitive takes on the responsibility for consistently ordering transactions, and a new lightweight transaction protocol ensures atomicity.
+
+The end result is that Eris avoids both replication and transaction coordination overhead: we show that it can process a large class of distributed transactions in a single round-trip from the client to the storage system without any explicit coordination between shards or replicas. It provides atomicity, consistency, and fault-tolerance with less than 10% overhead -- achieving throughput 4.5--35x higher and latency 72--80% lower than a conventional design on standard benchmarks.},
+url = {https://www.microsoft.com/en-us/research/publication/eris-coordination-free-consistent-transactions-using-network-multi-sequencing/},
+edition = {Proceedings of the 26th ACM Symposium on Operating Systems Principles (SOSP '17)},
+}
+
+@inproceedings {no,
+author = {Jialin Li and Ellis Michael and Naveen Kr. Sharma and Adriana Szekeres and Dan R. K. Ports},
+title = {Just Say {NO} to Paxos Overhead: Replacing Consensus with Network Ordering},
+booktitle = {12th USENIX Symposium on Operating Systems Design and Implementation (OSDI 16)},
+year = {2016},
+isbn = {978-1-931971-33-1},
+address = {Savannah, GA},
+pages = {467--483},
+url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/li},
+publisher = {USENIX Association},
+month = nov,
+}
+
+@inproceedings{when-computer
+author = {Ports, Dan R. K. and Nelson, Jacob},
+title = {When Should The Network Be The Computer?},
+year = {2019},
+isbn = {9781450367271},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3317550.3321439},
+doi = {10.1145/3317550.3321439},
+abstract = {Researchers have repurposed programmable network devices to place small amounts of application computation in the network, sometimes yielding orders-of-magnitude performance gains. At the same time, effectively using these devices requires careful use of limited resources and managing deployment challenges.This paper provides a framework for principled use of in-network processing. We provide a set of guidelines for building robust and deployable in-network primives, along with a taxonomy to help identify which applications can benefit from in-network processing and what types of devices they should use.},
+booktitle = {Proceedings of the Workshop on Hot Topics in Operating Systems},
+pages = {209–215},
+numpages = {7},
+keywords = {smart NICs, in-network computation, reconfigurable devices, programmable switches},
+location = {Bertinoro, Italy},
+series = {HotOS '19}
+}

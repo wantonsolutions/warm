@@ -2,9 +2,115 @@
 
 \subsection{Disaggregated Memory}
 
-\subsection{Programmable Switches}
+Disaggregated memory is primary storage separated from a CPU
+by a fast network. The composition of disaggregated memory
+systems are up for debate -- transparency vs explicit remote
+access divides the field. Transparent approaches typically
+utilize the virtual memory system, using a remote memory
+bank to service page faults~\cite{infiniswap, leap,
+fastswap}. Some have argued that page granularity is too
+course and built upon an incoherent caching
+layer~\cite{kona, legoos}. In both cases transparency costs
+performance as remote accesses cannot be optimized for by
+the running application. Explicit remote access functions
+similar to RPC's with RDMA verbs acting as a substrate for a
+higher level api~\cite{aifm,reigons,clover,sherman,faast}.
+Direct explicit access allows for higher application level
+performance as remote requests can be batched, scheduled,
+and accounted for by libraries and runtimes. In both cases
+sharing is expensive, at the time of writing no transparent
+system supports shared memory with writing as the cost of
+cache coherence is prohibitively high in terms of bandwidth
+and latency. Explicit cases are more promising for sharing
+as they allow developers to explicitly acquire locks, and for
+libraries to make use of optimistically concurrent
+datastructures.
 
 \subsection{RDMA protocol}
+
+
+%% RDMA
+Remote direct memory access (RDMA) allows hosts to directly
+access each others memory. The RDMA protocol is a set of
+verbs which abstract remote memory accesses. The underlying
+protocol is entirely managed by the NIC which exposes the
+verbs API to the CPU. By managing the protocol the NIC saves
+precious CPU cycles and allows for 100Gbps+ networking while
+requiring little to no CPU overhead. The CPU registers
+memory regions for DMA with the NIC and sets up connections
+(Queue Pairs) with remote RDMA enabled NICs. RDMA
+connections come in a variety of flavors, each of which
+enables a different set of RDMA verbs. Unreliable Datagrams
+(UD), and Unreliable Connections (UC) (UD) for example
+operate similar to UDP with no reliable ordering guarantees.
+Reliable Connected (RC) operates similar to TCP, the nic
+manages connection states for each QP and ensures reliable
+delivery by using sequence numbers and a go-back-n
+retransmission protocol Reliable Connected (RC) operates
+similar to TCP, the nic manages connection states for each
+QP and ensures reliable delivery by using sequence numbers
+and a go-back-n retransmission protocol.  Serious debate
+exists over which connections to
+use~\cite{storm,cell,herd,faast,farm}, each has advantages
+and disadvantages in terms of NIC resource utilization,
+throughput, and latency. For the purposes of disaggregation,
+RC connections are the most attractive as unlike UD, and UC,
+they allow \textit{Read}, \textit{Write}, and \textit{CAS}
+operations to be issued to a remote machine without any
+remote CPU acting as an arbiter. From the perspective of the
+application developer, remote memory acts similar to local
+memory, but with a restricted RDMA interface, rather than a
+wide CPU ISA. RDMA atomic instructions are used to implement
+serialization without the need for a remote CPU, when an
+atomic instruction is executed the memory side NIC examines
+operations on all QPs and ensures that the atomic operation
+executes transitionally. The cost of executing atomics is
+high as it requires QP buffering and a PCIe round trip
+before the NIC can respond to the request. Atomic requests
+are much slower than Read and Write instructions because of
+these two factors. Mellanox NICs supply a small (few KB)
+region of device mapped memory which allows the NIC to
+execute RDMA instructions on device memory without the need
+for a PCIe round trip. Executing atomics on this memory is
+~\todo{5x} higher throughput than host memory, but still
+slower than it's read and write counterparts. Some projects
+have made use of this memory region to accelerate remote
+memory locks~\cite{sherman}
+
+
+%% RDMA Connections
+%% RDMA Atomics
+
+
+\subsection{Programmable Switches}
+
+Many disaggregated memory proposals are rack-scale. They
+propose a single rack with servers of CPUs, banks of memory,
+and SSD's, each of which is interconnected by a TOR. This
+central role of the switch has not gone unnoticed and
+disaggregated architects have proposed using modern
+programmable switches to enable remote memory apis, and OS
+functionality~\cite{disandapp,mind}. Literature on
+offloading OS, and service level functionality to
+programmable switches is plentiful Literature on offloading
+OS, and service level functionality to programmable switches
+is plentiful~\cite{netlock,netkv,netchain,netcache}, the
+constraints in each case are similar, switches have limited
+memory, and processing capabilities, if the computational
+ask of the switch is too high packets must be recirculated
+adding additional latency, and reducing aggregate bandwidth.
+Ideal applications for programmable switches use little
+memory, require little processing and enable a huge
+performance benefit from centralization, and the billions of
+operations (in terms of packets) that a switch can process
+per second.
+
+Prior work has shown that programmable switches are able to
+both manage locks~\cite{netlock}, track the state required
+to maintain an RDMA reliable connection~\cite{tea}, and
+provide rack scale serialization at low
+cost~\cite{eris,no,when-computer}.
+
 
 \section{Serialization}
 
@@ -19,3 +125,5 @@
 \subsection{Caching}
 
 \subsection{Locks}
+
+\subsection{Optimistic Concurrency}
