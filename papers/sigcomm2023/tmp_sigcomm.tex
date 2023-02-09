@@ -213,7 +213,7 @@ same queue pair
 Switches can cheaply serialize packets~\cite{when-computer}.
 Programable switches with P4 pipelines can use this cheap
 serialization, along with their ability to manage small
-amounts of in network state, to serialize distributed
+amounts of state in network, to serialize distributed
 applications. Mind for instance provides a unified TLB and
 cache for disaggregated applications~\cite{mind}. Packets
 processed by a programmable switch are sequenced in order,
@@ -257,10 +257,14 @@ from optimistic data structures by caching the metadata
 required to detect and resolve conflicts. These techniques
 are implemented in a DPDK prototype for the lock based
 approach and fully realized in P4 for optimistic data
-structures.
-
-\subsection{Caching}
+structures. Figure~\ref{fig:system} shows the overall design
+of swordbox.
 
 \subsection{Locks}
+
+\sword caches locks and forwards the result of locking
+operations to remote memory. Storing locks in switch memory
+enables 10's of millions of lock and unlock operations per
+second~\cite{netlock}.
 
 \subsection{Optimistic Concurrency}
