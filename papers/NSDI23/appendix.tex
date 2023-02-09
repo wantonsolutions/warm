@@ -64,13 +64,6 @@ pipeline stages. {\sword} fits into 8 stages, and is run entirely on
 the ingress pipeline.
 
 %\textbf{Switch Resource Utilization}
-\begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
-  \vskip -0.5em
-    \caption{Breakdown of switch resource utilization by \sword\ component.}
-    \label{fig:switch_resources}
-      \vskip -0.5em
-\end{figure}
 
 
 
@@ -129,3 +122,11 @@ RoCE-specified packet felids.
 %% inflated costs for coordination. Given that PCIe root complexes lack
 %% programmability our techniques will likely not be applicable to CXL. We leave
 %% resolving CXL memory contention to future work.
+
+\begin{figure}
+    \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
+  \vskip -0.5em
+    \caption{Breakdown of switch resource utilization by \sword\ component.}
+    \label{fig:switch_resources}
+      \vskip -0.5em
+\end{figure}
