@@ -265,6 +265,48 @@ of swordbox.
 \sword caches locks and forwards the result of locking
 operations to remote memory. Storing locks in switch memory
 enables 10's of millions of lock and unlock operations per
-second~\cite{netlock}.
+second~\cite{netlock}. At these rates CAS on single
+addresses is the bottleneck. \swordbox serializes lock
+access and forwards the results to the servers, therefore
+the application CAS operation can be modified to a simple
+write as the result is known prior to arriving at the memory
+side NIC. On an individual QP this modification is safe --
+across QP however reordering can occur between the switch
+and memory. We therefore multiplex lock operations onto
+shared QPs.
+%%
+Swordbox manages reliable connections for all connected
+clients. When clients first connect \sword detect the
+connection startup and tracks the sequence numbers on that
+connection. The total number of active connections is
+tracked as well. When a lock aquire or release issued \sword
+take the lock address \textit{mod} it's address and assigns
+it to a connection. This ensures that all operations to the
+same lock are placed on the same reliable connection.
+%%
+When a CAS for a known lock passes through \sword it checks
+it's lock table and calculates the result of the locking
+operation, (aquired, released or failed). The RDMA packet
+then has it's operation value changed from CAS to Write, and
+is assigned to the downstream reliable connection the lock
+was mapped to. Each request must be multiplexed and
+demultiplexed, when a lock request is assigned to a stream
+it has it's QP, and sequence number updated so that the
+receving side NIC is unaware that any modification have been
+made in network. A stub of the mapping is stored with
+relation to the connection, when a response from the NIC
+returns from the switch the packet has it's sequence number
+mapped back to it's original value, and is mapped back to
+it's original sender. For each mapped request the switch
+must store both a sequence number and the id of the
+requesting client. 
+%%
+Our systems support only closed loop clients which issue one
+request at a time, and are guaranteed to retry requests lost
+in transit. Using this assumption the amount of state the
+switch needs to store is bounded by the number of clients.
+It must store a sequence number for each client QP, and
+stubs for each outstanding request. This requires at most 2
+24 bit sequence number for each client.
 
 \subsection{Optimistic Concurrency}
