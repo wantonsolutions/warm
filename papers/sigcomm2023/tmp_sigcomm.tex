@@ -183,7 +183,7 @@ restriction.  However, they are fundamentally limited by the
 fact that any atomics have half the throughput of reads and
 writes. More critically, under contention optimistic data
 structures have no liveness guarantees under contention
-atomic operations fail frequently~\ref{fig:success_rate}.
+atomic operations fail frequently (Figure~\ref{fig:success_rate}).
 RDMA has no support for resolving pointers (pointer chasing)
 and retrying operations for such data
 structures(~\cite{rma}), a simple operation usually executed
