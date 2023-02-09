@@ -168,29 +168,29 @@ independent addresses they have approximately half the
 throughput of their non atomic
 counterparts~\ref{fig:rdma_concur}. 
 %%
-Data structures build with RDMA atomics have hard
-performance limits because of these constraints.  Data
-structures built with them, locks with a single address
-requiring both a lock and unlock call.  to guard access are
-limited to around 500k accesses per second. This assumes
-perfectly coordinated access, under contention even failed
-requests, attempting to acquire a taken lock with CAS, eats
-into the operation bandwidth.  Under contention RDMA has
-poor support for traditional locking. In contrast optimistic
-data structures with locks scattered throughout, such as a
-linked list, are not rated limited by this single address
-restriction.  However, they are fundamentally limited by the
-fact that any atomics have half the throughput of reads and
-writes. More critically, under contention optimistic data
-structures have no liveness guarantees under contention
-atomic operations fail frequently (Figure~\ref{fig:success_rate}).
-RDMA has no support for resolving pointers (pointer chasing)
-and retrying operations for such data
-structures(~\cite{rma}), a simple operation usually executed
-by a memory side CPU. As such RDMA clients are forced to
-resolve their failures requests themselves often retrying
-many times.
-
+Data structures built with RDMA atomics have hard
+performance limits because the aforementioned constraints.
+Locks located at a single address which use traditional
+lock, unlock operations are limited to around 500k accesses
+per second. This assumes perfectly coordinated requests,
+under contention requests which fail to acquire or release a
+lock still consume operation bandwidth.
+%%
+Under contention RDMA has poor support for traditional
+locking. In contrast optimistic data structures with locks
+scattered throughout, such as a linked list, are not rate
+limited by this single address restriction.  However, they
+are fundamentally limited by the fact that any atomics have
+half the throughput of reads and writes. More critically,
+under contention optimistic data structures have no liveness
+guarantees under contention atomic operations fail
+frequently (Figure~\ref{fig:success_rate}).  RDMA has no
+support for resolving pointers (pointer chasing) and
+retrying operations for such data structures(~\cite{rma}), a
+simple operation usually executed by a memory side CPU. As
+such RDMA clients are forced to resolve their failures
+requests themselves often retrying many times.
+%%
 Atomic operations are not the only serialization mechanism
 provided by RDMA. Reliable connections provide in order
 delivery on individual queue pairs. This allows clients to
