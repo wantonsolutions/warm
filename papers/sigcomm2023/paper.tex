@@ -1,50 +1,52 @@
-\documentclass[10pt,twocolumn]{article}
-\usepackage{usenix-2020-09}
+%\documentclass[10pt,twocolumn]{article}
+%\usepackage{usenix-2020-09}
+\documentclass[sigconf,10pt]{acmart}
 
-\usepackage{times}
-\usepackage{fullpage}
 
-\usepackage{booktabs}  % for \midrule
-%\usepackage{subfigure}
-\usepackage{balance}
-\usepackage{graphicx}
-\usepackage{xspace}
-%\usepackage{pslatex}
-%\usepackage{pifont}
-%\usepackage{multirow}
-%\usepackage{array}
-%\usepackage{booktabs}
-%\usepackage{cite}
-\usepackage{url}
-%\usepackage{cancel}
-\usepackage{color,colortbl}
-%\usepackage{microtype}
-%\usepackage{textcomp}% http://ctan.org/pkg/textcomp
-\usepackage{tabularx}
-\usepackage{framed}
-\usepackage[]{algorithm2e}
-\SetAlFnt{\small}
-\SetAlCapFnt{\small}
-\usepackage{algorithmic}
+%\usepackage{times}
+%\usepackage{fullpage}
 
-\usepackage{listings}
-%\usepackage{scrextend}
-%\usepackage{mathtools}
-\usepackage{pbox}
+%% \usepackage{booktabs}  % for \midrule
+%% %\usepackage{subfigure}
+%% \usepackage{balance}
+%% \usepackage{graphicx}
+%% \usepackage{xspace}
+%% %\usepackage{pslatex}
+%% %\usepackage{pifont}
+%% %\usepackage{multirow}
+%% %\usepackage{array}
+%% %\usepackage{booktabs}
+%% %\usepackage{cite}
+%% \usepackage{url}
+%% %\usepackage{cancel}
+%% \usepackage{color,colortbl}
+%% %\usepackage{microtype}
+%% %\usepackage{textcomp}% http://ctan.org/pkg/textcomp
+%% \usepackage{tabularx}
+%% \usepackage{framed}
+%% \usepackage[]{algorithm2e}
+%% \SetAlFnt{\small}
+%% \SetAlCapFnt{\small}
+%% \usepackage{algorithmic}
 
-\let\labelindent\relax
-\usepackage{enumitem}
+%% \usepackage{listings}
+%% %\usepackage{scrextend}
+%% %\usepackage{mathtools}
+%% \usepackage{pbox}
 
-\usepackage{tikz}
-\usetikzlibrary{arrows,automata}
-\usetikzlibrary{calc,positioning}
-\usepackage{lipsum,adjustbox}
+%% \let\labelindent\relax
+%% \usepackage{enumitem}
+
+%% \usepackage{tikz}
+%% \usetikzlibrary{arrows,automata}
+%% \usetikzlibrary{calc,positioning}
+%% \usepackage{lipsum,adjustbox}
 
 %\usepackage{tikz}
 %\usepackage{decorations.pathmorphing}
 %\usepackage{assymb}
 
-\usepackage[labelfont=bf]{caption}
+%\usepackage[labelfont=bf]{caption}
 
 %\theoremstyle{plain}
 \newtheorem{theorem}{\bf{Theorem}}%[section]
@@ -62,7 +64,7 @@
 \newtheorem{notation}{\bf{Notation}}
 \newtheorem{fact}{\bf{Fact}}
 
-\usepackage{listings}
+%\usepackage{listings}
 %%\usepackage{listings-golang}
 \usepackage{color}
 
@@ -81,6 +83,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+\renewcommand\footnotetextcopyrightpermission[1]{} 
+\setcopyright{none}
+\settopmatter{printacmref=false, printccs=false, printfolios=true}
+\acmDOI{}
+\acmISBN{}
+\acmPrice{}
+\acmConference[SIGCOMM'23]{ACM Conference}{September 10--14, 2023}{New York, NY, USA}
+
 \begin{document}
 
 %\title{In-network Contention Resolution for Disaggregated Memory}
@@ -96,13 +106,13 @@
 %% and are carefully made to look normal but in truth they actually bend
 %% https://themagicwarehouse.com/tb4002.jpg
 
-\author{NSDI '23 Submission \#1063}
+\author{SIGCOMM '23 Submission \#1142}
 %\author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
-\date{}
 
-\maketitle
 
 \input{abstract}
+
+\maketitle
 
 \input{intro}
 \input{tmp_sigcomm.tex}
