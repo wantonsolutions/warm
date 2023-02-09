@@ -1,4 +1,4 @@
-\section{background}
+\section{Background}
 
 \subsection{Disaggregated Memory}
 
@@ -84,19 +84,18 @@ locks~\cite{sherman}
 %% RDMA Connections
 %% RDMA Atomics
 
-
-\subsection{Programmable Switches}
-Many disaggregated memory proposals are rack-scale. They
-propose a single rack with servers of CPUs, banks of memory,
-and SSD's, each of which is interconnected by a TOR. This
-central role of the switch has not gone unnoticed and
-disaggregated architects have proposed using modern
-programmable switches to enable remote memory apis, and OS
-functionality~\cite{disandapp,mind}. Literature on
-offloading OS, and service level functionality to
-programmable switches is plentiful Literature on offloading
-OS, and service level functionality to programmable switches
-is plentiful~\cite{netlock,netkv,netchain,netcache}, the
+\subsection{Programmable Switches} Most proposals for
+disaggregation are at rack-scale. They propose a single rack
+with servers partitioned into roles: compute, memory, and
+storage, each of which is interconnected by a TOR.  The TOR
+is central in this architecture, a fact which has not gone
+unnoticed by system designers who argue that a programmable
+switch can facilitate remote memory apis, and OS
+functionality~\cite{disandapp,mind}. 
+%%
+Literature on offloading OS, and service level functionality
+to programmable switches is
+plentiful~\cite{netlock,netkv,netchain,netcache}. The
 constraints in each case are similar, switches have limited
 memory, and processing capabilities, if the computational
 ask of the switch is too high packets must be recirculated
@@ -106,7 +105,7 @@ memory, require little processing and enable a huge
 performance benefit from centralization, and the billions of
 operations (in terms of packets) that a switch can process
 per second.
-
+%%
 Prior work has shown that programmable switches are able to
 manage locks~\cite{netlock}, track the state required to
 maintain an RDMA reliable connection~\cite{tea}, and provide
@@ -119,35 +118,75 @@ provide serialization primitives for all clients.
 
 \section{Serialization}
 
-\subsection{RDMA serialization}
-RDMA provides a set of atomic instructions for serializing
-access to remote memory without the need for a memory side
-CPU. These instructions \textit{Fetch-and-Add} and
-\textit{Compare-and-Swap} (CAS) execute on 64 bit width
-words and are guaranteed to be consistent across queue pairs
-with atomic visibility to all observers. These operations
-are expensive. On a single address atomic instructions can
-only execute a few million operations per
-second~\todo{Figure 1}, across independent addresses they
-have approximately half the throughput of their non atomic
-counterparts. These limitations fundamentally limit data
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
+  \vskip -0.5em
+
+    \caption{Achieved throughput of RDMA verbs across twenty queue
+      pairs on data-independent addresses as a function of request
+      concurrency.  When using atomic requests, ConnectX-5 NICs can
+      support approximately 2.7 MOPS per queue pair, up to about 55
+      MOPS in aggregate.}
+
+    \label{fig:rdma_concur}
+      \vskip -0.5em
+\end{figure}
+
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
+    \vskip -0.5em
+    \caption{Percentage of successful operations in a
+      50:50 read-write workload spread across 1,024 keys according
+      to a Zipf(0.99) distribution as more client threads are
+      added. At 240 threads less than 4\% of operations succeed.}
+      
+    \vskip -0.5em
+    \label{fig:success_rate}
+\end{figure}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%  \vskip -0.5em
+
+  \caption{ Throughput comparison of serialized RDMA operations in
+    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
+    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory despite being restricted to a single queue pair.  }
+
+    \label{fig:cas_vs_writes}
+%      \vskip -0.5em
+\end{figure}
+
+\subsection{RDMA serialization} RDMA atomics instructions
+serialize remote memory operations without the need for a
+memory side CPU. These instructions \textit{Fetch-and-Add}
+and \textit{Compare-and-Swap} (CAS) execute on 64 bit width
+words and are guaranteed to have atomic visibility across
+all queue pairs. These operations are expensive. On a single
+address atomic instructions can only execute a few million
+operations per second~\ref{fig:cas_vs_writes}, across
+independent addresses they have approximately half the
+throughput of their non atomic
+counterparts~\ref{fig:rdma_concur}. 
+%%
+Data structures build with RDMA atomics have hard
+performance limits because of these constraints.  Data
 structures built with them, locks with a single address
-requiring both a lock and unlock call to guard access are
+requiring both a lock and unlock call.  to guard access are
 limited to around 500k accesses per second. This assumes
 perfectly coordinated access, under contention even failed
-requests, attempting to aquire a taken lock with CAS, eats
-into the operation bandwidth. Under contention RDMA has poor
-support for traditional locking. In contrast optimistic data
-structures with locks scattered throughout, such as a linked
-list, are not rated limited by this single address
-restriction. However, they are fundementally limited by the
+requests, attempting to acquire a taken lock with CAS, eats
+into the operation bandwidth.  Under contention RDMA has
+poor support for traditional locking. In contrast optimistic
+data structures with locks scattered throughout, such as a
+linked list, are not rated limited by this single address
+restriction.  However, they are fundamentally limited by the
 fact that any atomics have half the throughput of reads and
 writes. More critically, under contention optimistic data
 structures have no liveness guarantees under contention
-atomic operations fail frequently~\todo{Figure: failure to
-succeed}. RDMA has no support for resolving pointers
-(pointer chaising) and retrying operations for such data
-strucutres(~\cite{rma}), a simple operation usually executed
+atomic operations fail frequently~\ref{fig:success_rate}.
+RDMA has no support for resolving pointers (pointer chasing)
+and retrying operations for such data
+structures(~\cite{rma}), a simple operation usually executed
 by a memory side CPU. As such RDMA clients are forced to
 resolve their failures requests themselves often retrying
 many times.
