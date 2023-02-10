@@ -1,80 +1,133 @@
 \section{Introduction}
 
-There has been tremendous interest in resource
-disaggregation in recent years, with both academic and
-industrial researchers chasing the potential for increased
-scalability, power efficiency, and cost
-savings~\cite{blade-server,fastswap,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,legoos,supernic}.
-By physically separating compute from storage across a
-network, it is possible to dynamically adjust hardware
-resource allocations to suit changing workloads. Fast
-networks have enabled practical disaggregation for
-non-volatile storage (SSD, HDD), as RTT's are a fraction of
-the media access latency. In contrast practical remote main
-memory is still on the horizon as DRAM access times remain
-around 20x lower (1us vs 50ns) than an intra rack RTT.
+There has been tremendous interest in resource disaggregation in
+recent years, with both academic and industrial researchers chasing
+the potential for increased scalability, power efficiency, and cost
+savings~\cite{blade-server,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,supernic}.
+By physically separating compute from storage across a network, it is
+possible to dynamically adjust hardware resource allocations to suit
+changing workloads.  A large number of
+proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons}
+have leveraged the remote direct memory access (RDMA) support found in
+modern network interface cards (NICs) due to its low latency, high
+throughput, and simple verb-based interface.  Yet, most share a common
+drawback: they do not support shared read/write access.  More to the
+point, even modest levels of write contention crater the performance
+of those that attempt to do so~\cite{clover,sherman}.
 
-RDMA is the standard for remote memory access, it provides
-low latency, high throughput connections with a simple verb
-based api. Remote memory systems build on RDMA are
-plentiful~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons},
-but most share a common drawback -- \textit{they do not
-support shared memory}. The justification is clear, sharing
-remote memory is expensive, extremely so. Contention in
-remote memory, whether using locks or optimistic
-concurrency, is orders of magnitude more expensive to
-resolve than local conflicts as each conflict incurs
-microseconds of latency to detect, and more to resolve.
+The reason behind this limitation is easy to identify: sharing remote
+memory requires coordinating access across multiple clients, yet the
+RDMA protocol---like TCP---provides a connection-based abstraction;
+while connection-less operation is possible, much like UDP it provides
+essentially no semantic guarantees.  Fundamentally, remote memory
+operations must be ordered to provide coherent access, and the RDMA
+protocol provides two basic mechanisms to do so remotely (i.e., in a
+1-sided fashion): reliable connections that ensure ordering and atomic
+operations that deliver mutual exclusion.  While the performance of
+RDMA connection handling has received considerable attention~\cite{farm,storm,scalerpc},
+connections remain an end-to-end abstraction, and do not provide any
+guarantees regarding operations from distinct clients.  For that,
+systems must rely on atomic operations like compare-and-swap,
+but their enhanced semantics dictate expensive implementation choices
+on the NIC, dramatically restricting their performance compared to
+simple verbs like read and write~\cite{design-guidelines}.  Moreover,
+atomic operations are available only over reliable connections.
 
-Resolving conflicts is hard because no centralized
-serialization point exists. RDMA key-value stores use CPU's
-on remote machines to serialize
-writes~\cite{herd,cell,farm,pilaf,storm}, in the
-disaggregated setting remote memory is not collocated with a
-CPU, so no such serialization point exists. When clients are
-colocated they can share an RDMA reliable connection which
-provides in order delivery~\todo{Anil whats the RDMA
-scheduling paper}, but in general, distributed clients
-sharing remote memory must heavyweight RDMA atomic
-operations to serialize requests, RDMA atomics are known to
-not scale, and when issued by multiple clients to a shared
-address, such as in the case of a lock, are 6x slower than
-read/write verbs~\cite{design-guidelines}. However, at rack
-scale, RDMA requests to remote memory are serialized, not
-explicitly by a CPU, but implicitly when serialized on the
-egress port of a TOR.
+As a result, most existing systems that deliver scalable,
+high-performance shared remote access depend on the presence of
+computational resources co-located with the remote
+data~\cite{herd,cell,farm,pilaf,storm}.  In particular, a
+memory-local CPU can employ 2-sided RDMA operations to orchestrate
+operations between multiple clients~\cite{herd,fasst}, avoiding the need
+for atomic operations.  Unfortunately, such RPC-like approaches are
+infeasible in the passive memory setting.  Alternatively,
+organizations with significant resources have considered redesigning
+the RDMA protocol itself to better support the needs of the
+disaggregated usage case---by, e.g., removing the connection
+abstraction and providing more powerful verbs~\cite{filemr,rma,star}---but such
+hardware is not yet available.
 
-In this work we examine sharing rack-scale disaggregated
-memory with RDMA. We address both lock based and optimistic
-concurrency in the context of two remote memory systems
-which natively support sharing Sherman~\cite{sherman}, and
-Clover~\cite{clover}. We find that both systems collapse
-under contention due to limitations in RDMA's atomic
-interface, and from fundamental limitations in locks, and
-optimistic concurrency. 
+%% Fast
+%% networks have enabled practical disaggregation for
+%% non-volatile storage (SSD, HDD), as RTTs are a fraction of
+%% the media access latency. In contrast practical remote main
+%% memory is still on the horizon as DRAM access times remain
+%% around 20x lower (1us vs 50ns) than an intra rack RTT.
 
-We address these limiations with \sword. {\sword} resolves
-conflicts to remote memory by interposing on, and modifying
-in-flight RDMA requests. Small amounts of metadata are
-cached (just enough to detect and resolve conflicts). \sword
-requires no modifications to the existing systems to
-provide a performance boost.  We demonstrate with Sherman
-and Clover that both locking, and optimistic concurrency can
-be accelerated by orders of magnitude. 
-%%
-When access to a shared location (lock aquire, release) is
-required we show that our middlebox can multiplex reliable
-RDMA connections, similar to collocated requests, thus
-removing the need for atomics entirely. Here we swap atomic
-operations with writes for a potential 10x gain in
-throughput. In optimistic schemes when requests are not
-necessary destined for the same address we resolve conflicts
-by steering requests to their correct locations, as if they
-had been issued by a single serialized client.
-%%
-Our evaluation shows that {\sword} dramatically increases
-the performance of Clover in the presence of write
-contention: Under a 50:50 read-write workload, throughput
+In this work, we explore an alternative dimension: rather than relying
+exclusively on end-to-end solutions, we consider leveraging in-network
+resources---specifically programmable switches that are located between
+clients and the remote memory servers---to accelerate systems based on
+existing 1-sided RDMA verbs.  Concretely, we observe that in
+rack-scale disaggregated settings, the top-of-rack switch serves as a
+single serialization point for all RDMA requests.  As a result, it is
+possible to transparently re-write RDMA operations in flight to
+orchestrate requests from multiple clients to passive memory servers,
+sidestepping the fundamental bottlenecks present in the current
+connection-based RDMA protocol.
+
+
+%% Resolving conflicts is hard because no centralized
+%% serialization point exists. RDMA key-value stores use CPU's
+%% on remote machines to serialize
+%% writes~\cite{herd,cell,farm,pilaf,storm}, in the
+%% disaggregated setting remote memory is not collocated with a
+%% CPU, so no such serialization point exists. When clients are
+%% colocated they can share an RDMA reliable connection which
+%% provides in order delivery~\todo{Anil whats the RDMA
+%% scheduling paper}, but in general, distributed clients
+%% sharing remote memory must heavyweight RDMA atomic
+%% operations to serialize requests, RDMA atomics are known to
+%% not scale, and when issued by multiple clients to a shared
+%% address, such as in the case of a lock, are 6x slower than
+%% read/write verbs~\cite{design-guidelines}. However, at rack
+%% scale, RDMA requests to remote memory are serialized, not
+%% explicitly by a CPU, but implicitly when serialized on the
+%% egress port of a TOR.
+
+We present \sword, a top-of-rack switch that implements two separate
+yet complimentary approaches to accelerating RDMA-based passive memory
+systems.  End-to-end based schemes must rely either on mutual
+exclusion (i.e., locks) or optimistic concurrency control (which
+require multiple round trips to resolve conflicts).  \sword\ removes
+the performance bottlenecks of both by 1) multiplexing multiple
+clients' RDMA operations onto shared connections to leverage the
+ordering semantics delivered by reliable connections~\cite{flock}, and
+2) caching small amounts of metadata to dynamically steer in-flight
+RDMA updates to avoid write/write conflicts in remote memory indexing structures.
+
+We apply \sword\ to two existing remote memory systems which natively
+support sharing: Sherman~\cite{sherman}, which uses locking, and Clover~\cite{clover} that relies on optimistic concurrency.
+We show that both systems natively collapse under contention due to RDMA's
+limitations, but \sword\ can remove their bottlenecks.  Concretely, 
+%% We address these limitations with \sword. {\sword} resolves
+%% conflicts to remote memory by interposing on, and modifying
+%% in-flight RDMA requests. Small amounts of metadata are
+%% cached (just enough to detect and resolve conflicts). \sword
+%% requires no modifications to the existing systems to
+%% provide a performance boost.  We demonstrate with Sherman
+%% and Clover that both locking, and optimistic concurrency can
+%% be accelerated by orders of magnitude. 
+%% %%
+by multiplexing all of Sherman's acquire and release operations onto a
+single reliable connection, \sword\ can transparently replace the
+client-issued compare-and-swap operations with a lightweight writes,
+delivering a potential 10$\times$ gain in throughput.  Performance gains are even higher in the case of Clover, where
+%% When access to a shared location (lock aquire, release) is
+%% required we show that our middlebox can multiplex reliable
+%% RDMA connections, similar to collocated requests, thus
+%% removing the need for atomics entirely. Here we swap atomic
+%% operations with writes for a potential 10x gain in
+%% throughput. In optimistic schemes when requests are not
+%% necessary destined for the same address we
+we resolve update conflicts to Clover's internal, append-only metadata
+index structure by steering requests to an advancing set of locations,
+as if they had been issued by a single serialized client.
+Our evaluation shows that
+%{\sword} dramatically increases
+%the performance of Clover in the presence of write
+%contention: U
+under a 50:50 read-write workload, throughput
 rises by almost 35$\times$ while bandwidth usage and tail
 latency drop by 16 and 300$\times$.
 
