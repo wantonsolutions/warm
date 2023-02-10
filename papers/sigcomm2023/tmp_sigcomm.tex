@@ -16,7 +16,7 @@ layer~\cite{kona, legoos}.  In both cases transparency
 incurs a performance cost as remote accesses cannot be
 optimized for by the running application.
 %%
-Alternativly applications can access remote memory
+Alternatively applications can access remote memory
 explicitly with an API similar to an RPC
 call~\cite{aifm,reigons,clover,sherman,faast}. Explicit
 access allows for optimized remote requests. They can be
@@ -32,53 +32,60 @@ optimistically concurrent datastrcutrues.
 
 \subsection{RDMA protocol}
 
+RDMA provides an interface for accessing remote memory. It
+provides a set of zero copy instructions (\textit{verbs})
+which are initiated by a client cpu. NICs manage the entire
+network stack including control flow, reliable delivery, and
+at most once semantics. The guarantees RDMA provides are
+configurable -- connection's UDP like semantics are provided
+by Unreliable Datagram (UD) and Unreliable Connections (UC),
+while Reliable Connections (RC) at similar to TCP, ensuring
+in order delivery, and enabling RDMA's one-sided operations
+Read, Write, and Compare and Swap (CAS).
+
+Which connections to use is an intense topic for debate.
+Reliable connections use NIC memory, a precious resource,
+and projects designed using Mellanox CX3-CX5 noted that RC
+bottlenecked scalability due to memory and cache
+limitations~\cite{farm,faast,erpc,litem,design-guidelines}.
+While host memory can provide better scalability modern NICs
+have bigger caches with better cache
+management~\cite{storm}. In the disaggregated setting no
+memory side CPU exists to manage the state making RC the
+only option for one sided operations.
+
+\todo{connection multiplexing ~\cite{flock}}
+\todo{RDMA middlebox (find citaitons ~\cite{mind,switchml})}
 
 %% RDMA
-Remote direct memory access (RDMA) is a network protocol
-which allows NICs to bypass CPUs and access host memory
-directly.  The RDMA protocol consists of a set of verbs
-which abstract remote memory instructions. Instruction
-execution and connection state are entirely managed by the
-NIC which exposes the verbs API to the CPU. The CPU
-registers memory regions for DMA with the NIC and sets up
-connections (Queue Pairs) with a remote RDMA enabled NIC.
-%%
-RDMA connections come in a variety of flavors, each of which
-enables a different set of RDMA verbs and delivary
-guarantee~\cite{herd, erpc, storm}. Unreliable Datagram
-(UD), and Unreliable Connection (UC) operate similar to UDP
-with no reliable delivery or ordering guarantees and a
-restricted set of verbs.  Reliable Connected (RC) operates
-similar to TCP, the NIC manages connection states for each
-QP and ensures reliable in-order delivery by using sequence
-numbers and a go-back-n retransmission protocol.
-%%
-Serious debate exists over which connections to
-use~\cite{storm,cell,herd,faast,farm}, each has advantages
-and disadvantages in terms of NIC resource utilization,
-throughput, and latency. Disaggregated architectures have no
-remote CPU's, in this proposed setting RC is the most
-attractive as it alone enables the use of one-sided verbs
-:\textit{Read}, \textit{Write}, and the atomic \textit{CAS}
+
+% Remote direct memory access (RDMA) is a network protocol
+% which allows NICs to bypass CPUs and access host memory
+% directly.  The RDMA protocol consists of a set of verbs
+% which abstract remote memory instructions. Instruction
+% execution and connection state are entirely managed by the
+% NIC which exposes the verbs API to the CPU. The CPU
+% registers memory regions for DMA with the NIC and sets up
+% connections (Queue Pairs) with a remote RDMA enabled NIC.
+% %%
+% RDMA connections come in a variety of flavors, each of which
+% enables a different set of RDMA verbs and delivary
+% guarantee~\cite{herd, erpc, storm}. Unreliable Datagram
+% (UD), and Unreliable Connection (UC) operate similar to UDP
+% with no reliable delivery or ordering guarantees and a
+% restricted set of verbs.  Reliable Connected (RC) operates
+% similar to TCP, the NIC manages connection states for each
+% QP and ensures reliable in-order delivery by using sequence
+% numbers and a go-back-n retransmission protocol.
+% %%
+% Serious debate exists over which connections to
+% use~\cite{storm,cell,herd,faast,farm}, each has advantages
+% and disadvantages in terms of NIC resource utilization,
+% throughput, and latency. Disaggregated architectures have no
+% remote CPU's, in this proposed setting RC is the most
+% attractive as it alone enables the use of one-sided verbs
+% :\textit{Read}, \textit{Write}, and the atomic \textit{CAS}
 .
-%%
-RDMA atomic instructions provide serialization without the
-need for a remote CPU. When an atomic instruction is
-executed the memory side NIC examines all in-flight
-operations across each QP and ensures that the atomic
-operation executes transitionally. Atomics are expensive as
-they require buffering on QP's and a PCIe round trip before
-the NIC can respond to the request.  Atomic requests are
-high latency compared to reads and writes (approximately 2x
-in the best case). As a performance mitigation Mellanox NICs
-supply a small (few KB) region of device mapped memory which
-allows the memory side NIC to execute RDMA instructions on
-it's local device memory without incurring a PCIe round
-trip. Executing atomics on this memory is ~\todo{5x} higher
-throughput than host memory, but still slower than it's read
-and write counterparts. Some projects have made use of this
-memory region to accelerate remote memory
-locks~\cite{sherman}
 
 
 %% RDMA Connections
@@ -163,7 +170,14 @@ and \textit{Compare-and-Swap} (CAS) execute on 64 bit width
 words and are guaranteed to have atomic visibility across
 all queue pairs. These operations are expensive. On a single
 address atomic instructions can only execute a few million
-operations per second~\ref{fig:cas_vs_writes}, across
+operations per second, each operation forces a blocking PCIe
+round trip.  As a performance mitigation Mellanox NICs
+supply a small (few KB) region of device mapped memory which
+allows the memory side NIC to execute RDMA instructions on
+it's local device memory without incurring a PCIe round
+trip~\cite{sherman}. Executing atomics on this memory is 3x higher
+throughput than host memory, but still slower than it's read
+and write counterparts~\ref{fig:cas_vs_writes}.  Across
 independent addresses they have approximately half the
 throughput of their non atomic
 counterparts~\ref{fig:rdma_concur}. 
@@ -369,7 +383,7 @@ aspect of this approach is that Clover has end to end
 recovery and does not rely on \sword to complete requests.
 If a key is not tracked by \sword then the request is
 forwarded directly to memory with no modifications. Our
-prototype statically tracks hot keys, however a dymaic
+prototype statically tracks hot keys, however a dynamic
 solution in which hot keys are detected via a count min
-sketch are well within the capabilites of future
+sketch are well within the capabilities of future
 versions~\cite{switchml}.
