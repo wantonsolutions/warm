@@ -18,11 +18,11 @@ approach.
 % Unfortunately, atomic operations scale poorly causing these approaches
 % to degrade rapidly under contention.
 
-We present \sword, an approach to leveraging the \textit{de facto}
+We present \sword, an approach that leverages the \textit{de facto}
 serialization point in rack-scale disaggregated systems---the
 top-of-rack switch---to transparently resolve RDMA races in flight.
 \sword\ runs on programmable switch hardware and accelerates existing
-RDMA-based approaches in two ways.  In cases where it can interpose upon
+RDMA-based systems in two ways.  In cases where it can interpose upon
 all requests to a given server, \sword\ multiplexes multiple clients'
 RDMA requests onto shared reliable connections to ensure operation order and remove the need for heavyweight
 atomic operations.
