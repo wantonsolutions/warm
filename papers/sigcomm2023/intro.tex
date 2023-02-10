@@ -12,7 +12,7 @@ have leveraged the remote direct memory access (RDMA) support found in
 modern network interface cards (NICs) due to its low latency, high
 throughput, and simple verb-based interface.  Yet, most share a common
 drawback: they do not support shared read/write access.  More to the
-point, even modest levels of write contention crater the performacne
+point, even modest levels of write contention crater the performance
 of those that attempt to do so~\cite{clover,sherman}.
 
 The reason behind this limitation is easy to identify: sharing remote
@@ -21,32 +21,31 @@ RDMA protocol---like TCP---provides a connection-based abstraction;
 while connection-less operation is possible, much like UDP it provides
 essentially no semantic guarantees.  Fundamentally, remote memory
 operations must be ordered to provide coherent access, and the RDMA
-protocol provides two basic mechanisms to do so remotely: reliable
-connections that ensure ordering and atomic operations that deliver
-mutual exclusion.  While the scalability of RDMA connection
-handling---once a point of significant criticism~\cite{}---has
-improved markedly in modern hardware, connections remain an end-to-end
-abstraction, and do not provide any guarantees regarding operations
-from distinct clients.  For that, systems must rely on atomic
-operations like compare-and-swap (CAS), but their enhanced semantics
-dictate expensive implementation choices on the NIC, dramatically
-restricting their performance compared to simple verbs like read and
-write~\cite{design-guidelines}.  Moreover, atomic operations are 
-available only over reliable connections.
+protocol provides two basic mechanisms to do so remotely (i.e., in a
+1-sided fashion): reliable connections that ensure ordering and atomic
+operations that deliver mutual exclusion.  While the performance of
+RDMA connection handling has received considerable attention~\cite{farm,storm,scalerpc},
+connections remain an end-to-end abstraction, and do not provide any
+guarantees regarding operations from distinct clients.  For that,
+systems must rely on atomic operations like compare-and-swap,
+but their enhanced semantics dictate expensive implementation choices
+on the NIC, dramatically restricting their performance compared to
+simple verbs like read and write~\cite{design-guidelines}.  Moreover,
+atomic operations are available only over reliable connections.
 
 As a result, most existing systems that deliver scalable,
 high-performance shared remote access depend on the presence of
 computational resources co-located with the remote
 data~\cite{herd,cell,farm,pilaf,storm}.  In particular, a
 memory-local CPU can employ 2-sided RDMA operations to orchestrate
-operations between multiple clients~\cite{fasst}, avoiding the need
+operations between multiple clients~\cite{herd,fasst}, avoiding the need
 for atomic operations.  Unfortunately, such RPC-like approaches are
 infeasible in the passive memory setting.  Alternatively,
 organizations with significant resources have considered redesigning
 the RDMA protocol itself to better support the needs of the
 disaggregated usage case---by, e.g., removing the connection
-abstraction and providing more powerful verbs~\cite{rma}---but such
-hardware is not commercially available.
+abstraction and providing more powerful verbs~\cite{filemr,rma,star}---but such
+hardware is not yet available.
 
 %% Fast
 %% networks have enabled practical disaggregation for
@@ -56,8 +55,8 @@ hardware is not commercially available.
 %% around 20x lower (1us vs 50ns) than an intra rack RTT.
 
 In this work, we explore an alternative dimension: rather than relying
-exlusively on end-to-end solutions, we consider leveraging in-network
-resources---specifially programmable switches that are located between
+exclusively on end-to-end solutions, we consider leveraging in-network
+resources---specifically programmable switches that are located between
 clients and the remote memory servers---to accelerate systems based on
 existing 1-sided RDMA verbs.  Concretely, we observe that in
 rack-scale disaggregated settings, the top-of-rack switch serves as a
@@ -95,14 +94,13 @@ the performance bottlenecks of both by 1) multiplexing multiple
 clients' RDMA operations onto shared connections to leverage the
 ordering semantics delivered by reliable connections~\cite{flock}, and
 2) caching small amounts of metadata to dynamically steer in-flight
-RDMA updates to avoid write/write conflicts in append-only data structures.
+RDMA updates to avoid write/write conflicts in remote memory indexing structures.
 
 We apply \sword\ to two existing remote memory systems which natively
-support sharing: Sherman~\cite{sherman}, and Clover~\cite{clover}.
-Sherman employs locks, while Clover relies on optimistic concurrency.
-We show that both systems collapse under contention due to RDMA's
-limitations, but \sword\ removes the existing bottlenecks.  Concretely, 
-%% We address these limiations with \sword. {\sword} resolves
+support sharing: Sherman~\cite{sherman}, which uses locking, and Clover~\cite{clover} that relies on optimistic concurrency.
+We show that both systems natively collapse under contention due to RDMA's
+limitations, but \sword\ can remove their bottlenecks.  Concretely, 
+%% We address these limitations with \sword. {\sword} resolves
 %% conflicts to remote memory by interposing on, and modifying
 %% in-flight RDMA requests. Small amounts of metadata are
 %% cached (just enough to detect and resolve conflicts). \sword
@@ -123,7 +121,7 @@ delivering a potential 10$\times$ gain in throughput.  Performance gains are eve
 %% throughput. In optimistic schemes when requests are not
 %% necessary destined for the same address we
 we resolve update conflicts to Clover's internal, append-only metadata
-index structure by steering requests to a serialized set of locations,
+index structure by steering requests to an advancing set of locations,
 as if they had been issued by a single serialized client.
 Our evaluation shows that
 %{\sword} dramatically increases
