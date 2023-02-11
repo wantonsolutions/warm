@@ -279,6 +279,22 @@ of {\sword}.
 
 \subsection{Connection multiplexing}
 
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/roce_header.png}
+  \vskip -0.5em
+
+    \caption{ RoCEv2 headers consist of an ethernet, ip, and
+    udp header, a special udp port denotes that the packet
+    is RDMA. The RoCE BTH header stores QP data, sequence
+    numbers, flags, and operations. The BTH+ header follows
+    and stores operation specific data such as virtual
+    addresses, DMA size, and compare and swap payloads.
+    }
+
+    \label{fig:roce_header}
+      \vskip -0.5em
+\end{figure}
+
 \sword uses the serialization provided by reliable
 connections to ensure that packets with dependent operations
 are not reordered downstream. As noted serialization on the
@@ -292,6 +308,21 @@ numbers. Each packet on the connection is tracked, and the
 switches internal sequence number for the connection is
 incremented.
 %%
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/qp_mapping.png}
+  \vskip -0.5em
+
+    \caption{ Queue pair mapping data structure. Each RC
+    connection has metadata stored statically per
+    connection. Sequence numbers are dynamic per connection,
+    \sword stores both incomming and outgoing sequence
+    numbers for each connection. Stubs for each outgoing
+    request are stored in a fixed sized circular buffer.  }
+
+    \label{fig:qp_mapping}
+      \vskip -0.5em
+\end{figure}
+
 Each packet generates a map entry. The entry is used to map
 packets back to their original connections. Each map entry
 consists of the original sequence number, the mapped
@@ -300,7 +331,7 @@ To remove hashing overhead map entires are indexed by their
 sequence number module a per connection buffer size. The
 buffer determines the max number of in flight requests per
 qp (128 in \sword). One bit marks if the map entry was
-transformed to a write from a CAS.
+transformed to a write from a CAS. Our mapping data structure is shown in Figure~\ref{fig:qp_mapping}.
 %%
 On mapping the invariant CRC (ICRC) of the RDMA packet must
 be updated. Prior work has demonstrated that this is
@@ -309,6 +340,8 @@ transport in which the ICRC is redundant after the ethernet
 CRC. We turn off ICRC checks on both the sender and
 receiver~\cite{switchml}.
 %%
+
+
 With sequence numbers tracked, and map entrie buffers
 installed mapping packets between connections is simple. To
 multiplex a packet onto another connection we update the
@@ -336,7 +369,7 @@ Transforming a CAS to a WRITE is reasonably straight forward
 as the RoCE headers are similar. RoCE packets have two
 headers BTH, and BTH+ headers, the BTH+ headers determine
 the virtual addresses operations are executed on, the
-operations, and payload. Figure~\todo{bth+ header} details
+operations, and payload. Figure~\ref{fig:roce_packet} details
 the difference between write and CAS headers. When mapping
 the virtual address and remote key remain the same. We
 modify the opcode in the BTH header from write to cas to
@@ -365,6 +398,15 @@ other client. Multiple acks can be coalesced so this
 processes is recursive when ack coalescing is detected. This
 processes is not required if response coalescing is turned
 off.
+
+\subsection{Buffering}
+
+\sword is designed for closed looped clients. Connection
+remapping could require large amounts of buffering in
+network if clients had many in flight requests spread across
+multiple QP. Out of order requests would need to be buffered
+prior to delivering them. Out of order packet delivery
+triggers RoCE's go-back-n retransmission protocol.
 
 \subsection{Steering}
 
