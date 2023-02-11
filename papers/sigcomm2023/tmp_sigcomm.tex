@@ -366,7 +366,48 @@ processes is recursive when ack coalescing is detected. This
 processes is not required if response coalescing is turned
 off.
 
-\subsection{steering}
+\subsection{Steering}
+
+Unlike connection multiplexing RDMA steering does not modify
+the RDMA operation. Steering is used when atomics are not
+applied to a single address. The atomic bottleneck on
+independent addresses is only half of that of reads and
+writes, in most algorithms less than half of operations are
+atomics, therefore the bottleneck is never reached. 
+%%
+We implement steering by maintaining a cache of centralized
+data structure information, and data structure specific code
+for resolving conflicts. When a packet arrives at the
+switch, it is parsed and passed to the application specific
+code. The cache is queried based on the virtual address, and
+application data in the packet. If the packet requires an
+update the virtual address in the BTH+ header is updated.
+The cache is similarly updated based on the data structure
+specific code.
+%%
+Reads and write are handled differently. Write contain
+application specific data in the payload. This information,
+along with the virtual address is usually sufficient to
+identify the packet type specific to the application and
+apply steering. While the semantics are application specific
+in our evaluation we found it simple to do without making
+modifications to the existing applications.
+%%
+Reads present a trickier problem. RDMA reads consist only of
+a virtual address and a length. In some cases this may be
+insufficient to identify if the packet needs to be steered,
+or what the purpose of the packet is. In our evaluation we
+keep an additional read cache which tracks the values and
+purpose of recent writes (in our cases the old virtual
+addresses of keys in a key value store.). If reads are
+destined to a stale location, we steer them to the correct
+location simply by modifying the virtual address.
+%%
+Our implementatin of \sword requires no modification to the
+existing systems, however we note that future systems
+codesigend with \sword in mind could reduce the in network
+memory footprint by fingerprinting their packets with id's
+for {\sword}.
 
 
 
