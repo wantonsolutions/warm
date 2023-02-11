@@ -1043,3 +1043,22 @@ year = {2020},
 pages = {111--125},
 month = feb,
 }
+
+@inproceedings{snap,
+title	= {Snap: a Microkernel Approach to Host Networking},
+author	= {Michael Marty and Marc de Kruijf and Jacob Adriaens and Christopher Alfeld and Sean Bauer and Carlo Contavalli and Mike Dalton and Nandita Dukkipati and William C. Evans and Steve Gribble and Nicholas Kidd and Roman Kononov and Gautam Kumar and Carl Mauer and Emily Musick and Lena Olson and Mike Ryan and Erik Rubow and Kevin Springborn and Paul Turner and Valas Valancius and Xi Wang and Amin Vahdat},
+year	= {2019},
+booktitle	= {In ACM SIGOPS 27th Symposium on Operating Systems Principles},
+address	= {New York, NY, USA}
+}
+
+@inproceedings{prism,
+author = {Dharanipragada, Sowmya and Joyner, Shannon and Burke, Matthew and Szekeres, Adriana and Nelson, Jacob and Zhang, Irene and Ports, Dan R. K.},
+title = {PRISM: Rethinking the RDMA Interface for Distributed Systems},
+booktitle = {SOSP 2021},
+year = {2021},
+month = {October},
+abstract = {Remote Direct Memory Access (RDMA) has been used to accelerate a variety of distributed systems, by providing low-latency, CPU-bypassing access to a remote host's memory. However, most of the distributed protocols used in these systems cannot easily be expressed in terms of the simple memory READs and WRITEs provided by RDMA. As a result, designers face a choice between introducing additional protocol complexity (e.g., additional round trips) or forgoing the benefits of RDMA entirely. This paper argues that an extension to the RDMA interface can resolve this dilemma. We introduce the PRISM interface, which extends the RDMA interface with four new primitives: indirection, allocation, enhanced compare-and-swap, and operation chaining. These increase the expressivity of the RDMA interface, while still being implementable using the same underlying hardware features. We show their utility by designing three new applications using PRISM primitives, that require little to no server-side CPU involvement: (1) PRISM-KV, a key-value store; (2) PRISM-RS a replicated block store; and (3) PRISM-TX, a distributed transaction protocol. Using a software-based implementation of the PRISM primitives, we show that these systems outperform prior RDMA-based equivalents.},
+url = {https://www.microsoft.com/en-us/research/publication/prism-rethinking-the-rdma-interface-for-distributed-systems/},
+}
+

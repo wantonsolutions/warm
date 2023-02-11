@@ -200,7 +200,7 @@ under contention optimistic data structures have no liveness
 guarantees under contention atomic operations fail
 frequently (Figure~\ref{fig:success_rate}).  RDMA has no
 support for resolving pointers (pointer chasing) and
-retrying operations for such data structures(~\cite{rma}), a
+retrying operations for such data structures~\cite{rma,snap,prism}, a
 simple operation usually executed by a memory side CPU. As
 such RDMA clients are forced to resolve their failures
 requests themselves often retrying many times.
@@ -222,7 +222,8 @@ and writes. Unfortunately this technique is not applicable
 to distributed clients as they do not share access to the
 same queue pair
 
-\subsection{Programmable Switch Serialization}
+% \subsection{Programmable Switch Serialization}
+\section{In-network serialization}
 
 Switches can cheaply serialize packets~\cite{when-computer}.
 Programable switches with P4 pipelines can use this cheap
@@ -258,80 +259,169 @@ switches SRAM.
 
 \section{Swordbox}
 
-We present \sword a middlebox solution for sharing remote
-memory. \sword provides acceleration for both lock based and
+We present {\sword} a middlebox solution for sharing remote
+memory. {\sword} provides acceleration for both lock based and
 optimistically concurrent data structures. Locks are managed
 in network, and the results of locking operations are
 forward to memory. Lock accesses are accelerated by
 replacing RDMA atomic operations with writes in flight.
 Modified lock operations are multiplexed onto existing RDMA
 connections, per lock, to ensure serialized access to the
-lock. \sword also provides a mechanism to remove contention
+lock. {\sword} also provides a mechanism to remove contention
 from optimistic data structures by caching the metadata
 required to detect and resolve conflicts. These techniques
 are implemented in a DPDK prototype for the lock based
 approach and fully realized in P4 for optimistic data
 structures. Figure~\ref{fig:system} shows the overall design
-of swordbox.
+of {\sword}.
 
-\subsection{Locks}
+\subsection{Caching}
 
-\sword caches locks and forwards the result of locking
-operations to remote memory. Storing locks in switch memory
-enables 10's of millions of lock and unlock operations per
-second~\cite{netlock}. At these rates CAS on single
-addresses is the bottleneck. \sword serializes lock
-access and forwards the results to the servers, therefore
-the application CAS operation can be modified to a simple
-write as the result is known prior to arriving at the memory
-side NIC. On an individual QP this modification is safe --
-across QP however reordering can occur between the switch
-and memory. We therefore multiplex lock operations onto
-shared QPs.
+\subsection{Connection multiplexing}
+
+\sword uses the serialization provided by reliable
+connections to ensure that packets with dependent operations
+are not reordered downstream. As noted serialization on the
+switch is not sufficient as reordering can occur on both the
+memory side NIC, and PCIe bus. Each reliable connection is
+tracked by \sword which adds a new connection to it's
+internal table when connections are set up, and removes them
+on teardown, for a max of 4k connections. Each connection
+stores ip's, ports, ethernet addresses, and rdma sequence
+numbers. Each packet on the connection is tracked, and the
+switches internal sequence number for the connection is
+incremented.
 %%
-Swordbox manages reliable connections for all connected
-clients. When clients first connect \sword detect the
-connection startup and tracks the sequence numbers on that
-connection. The total number of active connections is
-tracked as well. When a lock acquire or release issued \sword
-take the lock address \textit{mod} it's address and assigns
-it to a connection. This ensures that all operations to the
-same lock are placed on the same reliable connection.
+Each packet generates a map entry. The entry is used to map
+packets back to their original connections. Each map entry
+consists of the original sequence number, the mapped
+sequence number, and the qp id of the original connection.
+To remove hashing overhead map entires are indexed by their
+sequence number module a per connection buffer size. The
+buffer determines the max number of in flight requests per
+qp (128 in \sword). One bit marks if the map entry was
+transformed to a write from a CAS.
 %%
-When a CAS for a known lock passes through \sword it checks
-it's lock table and calculates the result of the locking
-operation, (aquired, released or failed). The RDMA packet
-then has it's operation value changed from CAS to Write, and
-is assigned to the downstream reliable connection the lock
-was mapped to. Each request must be multiplexed and
-demultiplexed, when a lock request is assigned to a stream
-it has it's QP, and sequence number updated so that the
-receving side NIC is unaware that any modification have been
-made in network. A stub of the mapping is stored with
-relation to the connection, when a response from the NIC
-returns from the switch the packet has it's sequence number
-mapped back to it's original value, and is mapped back to
-it's original sender. For each mapped request the switch
-must store both a sequence number and the id of the
-requesting client. 
+On mapping the invariant CRC (ICRC) of the RDMA packet must
+be updated. Prior work has demonstrated that this is
+possible in a programmable switch~\todo{cite}. We use RoCE
+transport in which the ICRC is redundant after the ethernet
+CRC. We turn off ICRC checks on both the sender and
+receiver~\cite{switchml}.
 %%
-Our systems support only closed loop clients which issue one
-request at a time, and are guaranteed to retry requests lost
-in transit. Using this assumption the amount of state the
-switch needs to store is bounded by the number of clients.
-It must store a sequence number for each client QP, and
-stubs for each outstanding request. This requires at most 2
-24 bit sequence number for each client.
+With sequence numbers tracked, and map entrie buffers
+installed mapping packets between connections is simple. To
+multiplex a packet onto another connection we update the
+packets ip addresses, udp sender port, queue pair, and
+sequence number then forward the packet as normal. Internal
+to {\sword} we increment the sequence number for the
+receiving side qp. Note that we do not need to terminate
+connections at the switch but only maintain a second set of
+sequence numbers for each connection as the sender and
+receiver will become decoupled. When a response packet is
+returned to {\sword} the sequence number is used as an index
+back into the connections map entries, and the mapping
+process is performed in reverse.
 
-\sword assumes that locks are located at well known
-location. Logic for managing locks is application specific
-and implemented in \sword. No modification to the client is
-required as \sword operates directly on RDMA packets, using
-their QP id's and virtual addresses. In Sherman for instance
-locks are mapped to a special region of NIC memory with a
-well known virtual address range.
+\subsection{Atomics to Writes}
 
-\subsection{Optimistic Concurrency}
+Connection multiplexing enables serialized ordering for
+requests from different clients. Two racing atomic
+operations can be tie-broken in {\sword} have their response
+values resolved and be modified from CAS to WRITE
+operations. Changing atomics to writes significantly reduces
+the operation bottleneck on a single address. 
+%%
+Transforming a CAS to a WRITE is reasonably straight forward
+as the RoCE headers are similar. RoCE packets have two
+headers BTH, and BTH+ headers, the BTH+ headers determine
+the virtual addresses operations are executed on, the
+operations, and payload. Figure~\todo{bth+ header} details
+the difference between write and CAS headers. When mapping
+the virtual address and remote key remain the same. We
+modify the opcode in the BTH header from write to cas to
+instruct the memory side nic to treat the packet as a write.
+CAS is predefied to be 64 bit, so we install a write header
+with a DMA length of 8, and a payload with the value of the
+CAS swap value. This value is configurable in the case of
+locking we set this value to be the result of the locks
+state after the lock operation was attempted. Finally the
+packet length is truncated as write packets are 4 bytes
+shorter than CAS packets.
+
+\subsection{Ack de-coalescing}
+
+Mapping RDMA connections back to their original clients is
+not trivial. By default the RDMA protocol can coalesce ACKs
+as an optimization. This is fine for a single client, but if
+an ack from a second client is coalesced with the response
+from another the client will simply not receive a response
+and eventually time out. We detect coalescing on the switch
+by monitoring response packets. If a higher number ack is
+received we know by the properties of RC that the lower
+packets operation was executed. Using the mapped request for
+the lower packet we generate an ack and forward it to the
+other client. Multiple acks can be coalesced so this
+processes is recursive when ack coalescing is detected. This
+processes is not required if response coalescing is turned
+off.
+
+\subsection{steering}
+
+
+
+
+
+% {\sword} caches locks and forwards the result of locking
+% operations to remote memory. Storing locks in switch memory
+% enables 10's of millions of lock and unlock operations per
+% second~\cite{netlock}. At these rates CAS on single
+% addresses is the bottleneck. {\sword} serializes lock
+% access and forwards the results to the servers, therefore
+% the application CAS operation can be modified to a simple
+% write as the result is known prior to arriving at the memory
+% side NIC. On an individual QP this modification is safe --
+% across QP however reordering can occur between the switch
+% and memory. We therefore multiplex lock operations onto
+% shared QPs.
+% %%
+% Swordbox manages reliable connections for all connected
+% clients. When clients first connect {\sword} detect the
+% connection startup and tracks the sequence numbers on that
+% connection. The total number of active connections is
+% tracked as well. When a lock acquire or release issued {\sword}
+% take the lock address \textit{mod} it's address and assigns
+% it to a connection. This ensures that all operations to the
+% same lock are placed on the same reliable connection.
+% %%
+% When a CAS for a known lock passes through {\sword} it checks
+% it's lock table and calculates the result of the locking
+% operation, (aquired, released or failed). The RDMA packet
+% then has it's operation value changed from CAS to Write, and
+% is assigned to the downstream reliable connection the lock
+% was mapped to. Each request must be multiplexed and
+% demultiplexed, when a lock request is assigned to a stream
+% it has it's QP, and sequence number updated so that the
+% receving side NIC is unaware that any modification have been
+% made in network. A stub of the mapping is stored with
+% relation to the connection, when a response from the NIC
+% returns from the switch the packet has it's sequence number
+% mapped back to it's original value, and is mapped back to
+% it's original sender. For each mapped request the switch
+% must store both a sequence number and the id of the
+% requesting client. 
+% %%
+% Our systems support only closed loop clients which issue one
+% request at a time, and are guaranteed to retry requests lost
+% in transit. Using this assumption the amount of state the
+% switch needs to store is bounded by the number of clients.
+% It must store a sequence number for each client QP, and
+% stubs for each outstanding request. This requires at most 2
+% 24 bit sequence number for each client.
+
+
+% \subsection{Optimistic Concurrency}
+\subsection{Steering}
 
 Lock based data structures are limited under contention both
 by the rate at which locks can be acquired, and by the size
@@ -350,38 +440,51 @@ strategies require no lock acquisition but still struggle
 under contetion. If the end of the list is continuously
 being appended to and multiple clients are in a race, one
 will succeed, the others will fail, need to traverse the
-list to the new tail, and reissue a request. This is the
-exact scheume Clover uses to handle writes to its persistant
-key value store. Clover operates well under read only
-workloads but struggles under contention as the tail of each
-list moves faster clients must repeatadly chase thye tail
-pointer of the list, each read requiring a round trip.
+list to the new tail, and reissue a request. 
 
-\sword is designed to entirely remove contention in
-optimistic concurrency schemes like those found in Clover.
-As all requests are serialzed \sword can observer the most
-up to date location of the lists tail. We cache this value
-and use it to resolve conflicts. When requests arrive at
-sword which append to the tail of the list, the virtual
-address of the tail is stored for that key. This requires
-storing one 64 bit virtual address for each key in the key
-value store. While this overhead may seem large, \sword need
-only store hot keys. Uncontended keys can simply be written
-and read using clovers default protocol. When requests for a
-key arrive at \sword it looks up the value of the write and
-determines the location of the lists tail. If the request is
-pointing to the tail, the in network cache is updated and
-the request is forwared to memory with no modification. If
-the request is out of date (directed to an interior node of
-the list) \sword modifies the virtual address of the CAS and
-forwards it to the known tail location, updating it's own
-cache in the process.
+{\sword} is designed to entirely remove contention in
+optimistic concurrency schemes. As all requests are
+serialzed {\sword} can observer the most up to date location
+of the lists tail. We cache this value and use it to resolve
+conflicts. When requests arrive at sword which append to the
+tail of the list, the virtual address of the tail is stored
+for that key. This requires storing one 64 bit virtual
+address for each key in the key value store. While this
+overhead may seem large, {\sword} need only store hot keys.
+Uncontended keys can simply be written and read using
+clovers default protocol. When requests for a key arrive at
+{\sword} it looks up the value of the write and determines the
+location of the lists tail. If the request is pointing to
+the tail, the in network cache is updated and the request is
+forwared to memory with no modification. If the request is
+out of date (directed to an interior node of the list)
+{\sword} modifies the virtual address of the CAS and forwards
+it to the known tail location, updating it's own cache in
+the process.
+
+
+\subsection{Example Systems}
+
+\textbf{sherman:} {{\sword}} assumes that locks are located at well known
+location. Logic for managing locks is application specific
+and implemented in {\sword}. No modification to the client is
+required as {\sword} operates directly on RDMA packets, using
+their QP id's and virtual addresses. In Sherman for instance
+locks are mapped to a special region of NIC memory with a
+well known virtual address range.
+
+\textbf{Clover:} This is the exact scheme Clover uses to
+handle writes to its persistent key value store. Clover
+operates well under read only workloads but struggles under
+contention as the tail of each list moves faster clients
+must repeatadly chase the tail pointer of the list, each
+read requiring a round trip.
 
 This strategy remotes all contention from Clover and
 requires not modifications to the application itself. A key
 aspect of this approach is that Clover has end to end
-recovery and does not rely on \sword to complete requests.
-If a key is not tracked by \sword then the request is
+recovery and does not rely on {\sword} to complete requests.
+If a key is not tracked by {\sword} then the request is
 forwarded directly to memory with no modifications. Our
 prototype statically tracks hot keys, however a dynamic
 solution in which hot keys are detected via a count min
