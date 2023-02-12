@@ -341,7 +341,6 @@ CRC. We turn off ICRC checks on both the sender and
 receiver~\cite{switchml}.
 %%
 
-
 With sequence numbers tracked, and map entrie buffers
 installed mapping packets between connections is simple. To
 multiplex a packet onto another connection we update the
@@ -445,7 +444,7 @@ addresses of keys in a key value store.). If reads are
 destined to a stale location, we steer them to the correct
 location simply by modifying the virtual address.
 %%
-Our implementatin of \sword requires no modification to the
+Our implementation of \sword requires no modification to the
 existing systems, however we note that future systems
 codesigend with \sword in mind could reduce the in network
 memory footprint by fingerprinting their packets with id's
@@ -504,72 +503,99 @@ for {\sword}.
 
 
 % \subsection{Optimistic Concurrency}
-\subsection{Steering}
 
-Lock based data structures are limited under contention both
-by the rate at which locks can be acquired, and by the size
-of the critical section each client must execute. Under
-severe contention the critical section is the bottleneck.
-Optimistic strategies differ in that work completed in
-scratch memory, and then committed via an atomic operation
-like CAS. 
+% \subsection{Steering}
 
-Take for example a linked list which supports an append
-operation. Clients running append must first write the
-value of the node they wish to append, and then commit to
-the list by running a CAS which modifies the null pointer at
-the end of the list to then point to the new entry. Such
-strategies require no lock acquisition but still struggle
-under contetion. If the end of the list is continuously
-being appended to and multiple clients are in a race, one
-will succeed, the others will fail, need to traverse the
-list to the new tail, and reissue a request. 
+% Lock based data structures are limited under contention both
+% by the rate at which locks can be acquired, and by the size
+% of the critical section each client must execute. Under
+% severe contention the critical section is the bottleneck.
+% Optimistic strategies differ in that work completed in
+% scratch memory, and then committed via an atomic operation
+% like CAS. 
 
-{\sword} is designed to entirely remove contention in
-optimistic concurrency schemes. As all requests are
-serialzed {\sword} can observer the most up to date location
-of the lists tail. We cache this value and use it to resolve
-conflicts. When requests arrive at sword which append to the
-tail of the list, the virtual address of the tail is stored
-for that key. This requires storing one 64 bit virtual
-address for each key in the key value store. While this
-overhead may seem large, {\sword} need only store hot keys.
-Uncontended keys can simply be written and read using
-clovers default protocol. When requests for a key arrive at
-{\sword} it looks up the value of the write and determines the
-location of the lists tail. If the request is pointing to
-the tail, the in network cache is updated and the request is
-forwared to memory with no modification. If the request is
-out of date (directed to an interior node of the list)
-{\sword} modifies the virtual address of the CAS and forwards
-it to the known tail location, updating it's own cache in
-the process.
+% Take for example a linked list which supports an append
+% operation. Clients running append must first write the
+% value of the node they wish to append, and then commit to
+% the list by running a CAS which modifies the null pointer at
+% the end of the list to then point to the new entry. Such
+% strategies require no lock acquisition but still struggle
+% under contetion. If the end of the list is continuously
+% being appended to and multiple clients are in a race, one
+% will succeed, the others will fail, need to traverse the
+% list to the new tail, and reissue a request. 
+
+% {\sword} is designed to entirely remove contention in
+% optimistic concurrency schemes. As all requests are
+% serialzed {\sword} can observer the most up to date location
+% of the lists tail. We cache this value and use it to resolve
+% conflicts. When requests arrive at sword which append to the
+% tail of the list, the virtual address of the tail is stored
+% for that key. This requires storing one 64 bit virtual
+% address for each key in the key value store. While this
+% overhead may seem large, {\sword} need only store hot keys.
+% Uncontended keys can simply be written and read using
+% clovers default protocol. When requests for a key arrive at
+% {\sword} it looks up the value of the write and determines the
+% location of the lists tail. If the request is pointing to
+% the tail, the in network cache is updated and the request is
+% forwared to memory with no modification. If the request is
+% out of date (directed to an interior node of the list)
+% {\sword} modifies the virtual address of the CAS and forwards
+% it to the known tail location, updating it's own cache in
+% the process.
 
 
 \subsection{Example Systems}
 
-\textbf{sherman:} {{\sword}} assumes that locks are located at well known
-location. Logic for managing locks is application specific
-and implemented in {\sword}. No modification to the client is
-required as {\sword} operates directly on RDMA packets, using
-their QP id's and virtual addresses. In Sherman for instance
-locks are mapped to a special region of NIC memory with a
-well known virtual address range.
+We implement both of our contention reduction strategies in
+two disaggregated systems Clover, and Sherman. 
+%%
+\textbf{Sherman}: is a B+ tree built for one sided RDMA.
+Shermans core mechanism for mitigating write conflicts is a
+lock table mapped to the memory side NIC. We emulate
+Shermans lock table and demonstrate \sword's ability to
+improve performance by placing the lock table in network and
+mapping CAS operations to writes using our connection
+remapping technique. We use our DPDK implementation of
+\sword in our evaluation of Sherman.
+%%
+\textbf{Clover:}: is a key value store built for one sided
+RDMA. One sided operations read and write updates to the
+store by appending to keys structured as linked lists. Under
+contention both reads and writes fail as the tail of the
+lists move. We use \sword's ability to cache the most up to
+date tail and steer requests to the correct location to
+remove all contention from both reads and writes enabling
+the performance of raw uncontended RDMA operations. Our
+evaluation of Clover is performed using our P4
+implementation of \sword.
 
-\textbf{Clover:} This is the exact scheme Clover uses to
-handle writes to its persistent key value store. Clover
-operates well under read only workloads but struggles under
-contention as the tail of each list moves faster clients
-must repeatadly chase the tail pointer of the list, each
-read requiring a round trip.
 
-This strategy remotes all contention from Clover and
-requires not modifications to the application itself. A key
-aspect of this approach is that Clover has end to end
-recovery and does not rely on {\sword} to complete requests.
-If a key is not tracked by {\sword} then the request is
-forwarded directly to memory with no modifications. Our
-prototype statically tracks hot keys, however a dynamic
-solution in which hot keys are detected via a count min
-sketch are well within the capabilities of future
-versions~\cite{switchml}.
+% \textbf{sherman:} {{\sword}} assumes that locks are located at well known
+% location. Logic for managing locks is application specific
+% and implemented in {\sword}. No modification to the client is
+% required as {\sword} operates directly on RDMA packets, using
+% their QP id's and virtual addresses. In Sherman for instance
+% locks are mapped to a special region of NIC memory with a
+% well known virtual address range.
+
+% \textbf{Clover:} This is the exact scheme Clover uses to
+% handle writes to its persistent key value store. Clover
+% operates well under read only workloads but struggles under
+% contention as the tail of each list moves faster clients
+% must repeatadly chase the tail pointer of the list, each
+% read requiring a round trip.
+
+% This strategy remotes all contention from Clover and
+% requires not modifications to the application itself. A key
+% aspect of this approach is that Clover has end to end
+% recovery and does not rely on {\sword} to complete requests.
+% If a key is not tracked by {\sword} then the request is
+% forwarded directly to memory with no modifications. 
+
+% Our
+% prototype statically tracks hot keys, however a dynamic
+% solution in which hot keys are detected via a count min
+% sketch are well within the capabilities of future
+% versions~\cite{switchml}.
