@@ -287,25 +287,50 @@ compute and data restrictions of the switches SRAM.
 % which consumes additional switch bandwidth. 
 
 
-\section{Swordbox}
+\section{\sword}
 
 We present {\sword} a middlebox solution for sharing remote
-memory. {\sword} provides acceleration for both lock based and
-optimistically concurrent data structures. Locks are managed
-in network, and the results of locking operations are
-forward to memory. Lock accesses are accelerated by
-replacing RDMA atomic operations with writes in flight.
-Modified lock operations are multiplexed onto existing RDMA
-connections, per lock, to ensure serialized access to the
-lock. {\sword} also provides a mechanism to remove contention
-from optimistic data structures by caching the metadata
-required to detect and resolve conflicts. These techniques
-are implemented in a DPDK prototype for the lock based
-approach and fully realized in P4 for optimistic data
+memory. {\sword} enables sharing by providing two forms of
+application specific serialization. The first of which is to
+resolve atomic operations in network. Using a cache \sword
+determines the result of the atomic operation, and forwards
+the result to memory as a write. The semantics of RDMA RC
+connections are used to ensure that the result of the
+resolved atomic arrives in far memory in order. Second
+{\sword} can remove contention from optimistic data
+structures through steering. \sword caches updates to the
+shared structures and modifies stale requests in flight with
+the most up to date information removing the need for
+operations to fail. These mechanisms are used to accelerate
+locks in Sherman~\cite{sherman} and remove all contention
+from a key-value store, Clover~\cite{clover}.
+%%
+These
+techniques are implemented in a DPDK prototype for the lock
+based approach and fully realized in P4 for optimistic data
 structures. Figure~\ref{fig:system} shows the overall design
 of {\sword}.
 
+% Locks are
+% managed in network, and the results of locking operations
+% are forward to memory. Lock accesses are accelerated by
+% replacing RDMA atomic operations with writes in flight.
+% Modified lock operations are multiplexed onto existing RDMA
+% connections, per lock, to ensure serialized access to the
+% lock. {\sword} also provides a mechanism to remove
+% contention from optimistic data structures by caching the
+% metadata required to detect and resolve conflicts. 
+
 \subsection{Caching}
+
+Sword makes use of in network caching to resolve contention.
+P4 provides registers, named variables mapped to pipeline
+stages which persist across packets. Our p4 prototype of
+{\sword} uses p4 registers to cache application data
+necessary for resolving contention. Application caches are
+distinct from the contention resolution technique. We use
+cache to store both locks, and key value information for
+both Clover and Sherman.
 
 \subsection{Connection multiplexing}
 
@@ -326,21 +351,27 @@ of {\sword}.
 \end{figure}
 
 \sword uses the serialization provided by reliable
-connections to ensure that packets with dependent operations
-are not reordered downstream. As noted serialization on the
-switch is not sufficient as reordering can occur on both the
-memory side NIC, and PCIe bus. Each reliable connection is
-tracked by \sword which adds a new connection to it's
-internal table when connections are set up, and removes them
-on teardown, for a max of 4k connections. Each connection
-stores ip's, ports, ethernet addresses, and rdma sequence
-numbers. Each packet on the connection is tracked, and the
-switches internal sequence number for the connection is
-incremented.
+connections to prevent packet reordering after atomics have
+been resolved.  As noted serialization on the switch is not
+sufficient as reordering can occur on both the memory side
+NIC, and PCIe bus(Figure ~\ref{fig:reorder}). Each reliable
+connection is tracked by \sword which adds a new connection
+to it's internal table when connections are set up, and
+removes them on teardown, for a max of 4k connections. New
+connections are detected by the first appearance of the QP
+id. Each connection stores ip's, ports, ethernet addresses,
+and rdma sequence numbers. Each packet on the connection is
+tracked, and the switches internal sequence number for the
+connection is incremented. Storing connection information
+could lead to a potential memory bottle neck. Our aim is to
+enable rack scale disaggregation where the total number of
+cores (clients) is less thant O(1k). Here the few MB of
+available switch memory is more than sufficient for storing
+connection metadata.
 %%
 \begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/qp_mapping.png}
-  \vskip -0.5em
+\includegraphics[width=0.485\textwidth]{fig/qp_mapping.png}
+\vskip -0.5em
 
     \caption{ Queue pair mapping data structure. Each RC
     connection has metadata stored statically per
@@ -353,16 +384,17 @@ incremented.
       \vskip -0.5em
 \end{figure}
 
-Each packet generates a map entry. The entry is used to map
-packets back to their original connections. Each map entry
-consists of the original sequence number, the mapped
-sequence number, and the qp id of the original connection.
-To remove hashing overhead map entires are indexed by their
-sequence number module a per connection buffer size. The
-buffer determines the max number of in flight requests per
-qp (128 in \sword). One bit marks if the map entry was
-transformed to a write from a CAS. Our mapping data
-structure is shown in Figure~\ref{fig:qp_mapping}.
+Each memory bound packet generates a map entry. The entry is
+used to map packets back to their original connections. Each
+map entry consists of the original sequence number, the
+mapped sequence number, and the QP id of the original
+connection. Hash entries are indexed into a ring buffer
+array by their sequence number modulo the buffer size to
+remove any hashing overhead. The buffer determines the max
+number of in flight requests per qp (128 in \sword). One bit
+marks if the map entry was transformed to a write from a
+CAS. Our mapping data structure is shown in
+Figure~\ref{fig:qp_mapping}.
 %%
 On mapping the invariant CRC (ICRC) of the RDMA packet must
 be updated. Prior work has demonstrated that this is
@@ -371,20 +403,22 @@ transport in which the ICRC is redundant after the ethernet
 CRC. We turn off ICRC checks on both the sender and
 receiver~\cite{switchml}.
 %%
-
-With sequence numbers tracked, and map entrie buffers
-installed mapping packets between connections is simple. To
-multiplex a packet onto another connection we update the
-packets ip addresses, udp sender port, queue pair, and
-sequence number then forward the packet as normal. Internal
-to {\sword} we increment the sequence number for the
-receiving side qp. Note that we do not need to terminate
-connections at the switch but only maintain a second set of
-sequence numbers for each connection as the sender and
-receiver will become decoupled. When a response packet is
-returned to {\sword} the sequence number is used as an index
-back into the connections map entries, and the mapping
-process is performed in reverse.
+Tracking sequence numbers, and storing map entires is
+sufficient for multiplexing RDMA packets.  To multiplex a
+packet to another connection we update the packets ip
+addresses, udp sender port, queue pair, and sequence number
+then forward the packet as normal. Without applying these
+updates the receiving side NIC will either reject the
+packet, trigger go-back-n, or generate an error. 
+%%
+When a packet is mapped we increment the sequence number for
+the receiving side QP.  Note that we do not need to
+terminate connections at the switch but only maintain a
+second set of sequence numbers for each connection as the
+sender and receiver will become decoupled. When a response
+packet is returned to {\sword} the sequence number is used
+as an index back into the connections map entries, and the
+mapping process is performed in reverse.
 
 \subsection{Atomics to Writes}
 
@@ -398,19 +432,19 @@ the operation bottleneck on a single address.
 Transforming a CAS to a WRITE is reasonably straight forward
 as the RoCE headers are similar. RoCE packets have two
 headers BTH, and BTH+ headers, the BTH+ headers determine
-the virtual addresses operations are executed on, the
-operations, and payload. Figure~\ref{fig:roce_packet} details
-the difference between write and CAS headers. When mapping
-the virtual address and remote key remain the same. We
-modify the opcode in the BTH header from write to cas to
-instruct the memory side nic to treat the packet as a write.
-CAS is predefied to be 64 bit, so we install a write header
-with a DMA length of 8, and a payload with the value of the
-CAS swap value. This value is configurable in the case of
-locking we set this value to be the result of the locks
-state after the lock operation was attempted. Finally the
-packet length is truncated as write packets are 4 bytes
-shorter than CAS packets.
+the virtual addresses an operation executs on, the operation
+itself, and its payload. Figure~\ref{fig:roce_packet}
+details the difference between WRITE and CAS headers. When
+mapping the virtual address and remote key remain the same.
+We modify the opcode in the BTH header from WRITE to CAS
+which instructs the memory side nic to treat the packet as a
+write.  CAS is predefined to be 64 bit, so we install a
+write header with a DMA length of 8, and a payload with the
+tie breaker value. Note that the value set is application
+specific. In the case of locking, the result is the locks
+value after the operation is attempted. Finally the packet
+length is truncated as write packets are 4 bytes shorter
+than CAS packets.
 
 \subsection{Ack de-coalescing}
 
