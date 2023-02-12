@@ -250,12 +250,11 @@ therefore apply monotonic sequence numbers to a stream of
 packets, maintain a lock, or keep a shared variable up to
 date without the need for explicit atomic operations.
 
-
 Unfortunately this serialization is not sufficient for RDMA
 memory operations out of the box. RDMA packets on two
 reliable connections may be ordered on the switch, and then
 subsequently reordered by the receiving side NIC, or by the
-PCIe bus~\cite{understanding-pcie}.  NIC and PCIe reordering
+PCIe bus~\cite{understanding-pcie}. NIC and PCIe reordering
 is not merely an academic concern!  Figure~\ref{fig:reorder}
 illustrates the extend of reordering across connections.
 This experiment uses an in network serializer to give each
@@ -265,17 +264,28 @@ response packets.  The majority of packets remain ordered
 (sequence number 1), however significant reordering does
 occur up to 15 packets apart.
 
-In all cases switch memory and compute are highly
-constrained. Any operations that exceed the processing
-limit of the match action pipeline require recirculation
-which consumes additional switch bandwidth. For example,
-terminating connections with a switch is prohibitively
-expensive as both the state of the entire connections, and
-the logic for connection startup and teardown would consume
-large quantities of the switches buffers. Any logic, or data
-offloaded to a programable switch must therefore be minimal
-in order to meet the compute and data restrictions of the
-switches SRAM.
+Switches are not intended to be general purpose computers,
+their purpose is to forward packets. It is trivial to
+construct switch programs which consume it's few resources.
+Oversized caches step on the toes of packet buffers and lead
+to dropped packets, and complex logic requires packet
+recirculation which eats into the switches bandwidth.
+limiting it's ability to buffer, and process packets at full
+bandwidth.
+%%
+For example, terminating connections with a switch is
+prohibitively expensive as both the state of the entire
+connections, and the logic for connection startup and
+teardown would consume large quantities of the switches
+buffers. Any logic, or data offloaded to a programable
+switch must therefore be minimal in order to meet the
+compute and data restrictions of the switches SRAM.
+
+% In all cases switch memory and compute are highly
+% constrained. Any operations that exceed the processing
+% limit of the match action pipeline require recirculation
+% which consumes additional switch bandwidth. 
+
 
 \section{Swordbox}
 
