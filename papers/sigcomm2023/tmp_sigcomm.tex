@@ -450,18 +450,20 @@ than CAS packets.
 
 Mapping RDMA connections back to their original clients is
 not trivial. By default the RDMA protocol can coalesce ACKs
-as an optimization. This is fine for a single client, but if
-an ack from a second client is coalesced with the response
-from another the client will simply not receive a response
-and eventually time out. We detect coalescing on the switch
-by monitoring response packets. If a higher number ack is
-received we know by the properties of RC that the lower
-packets operation was executed. Using the mapped request for
-the lower packet we generate an ack and forward it to the
-other client. Multiple acks can be coalesced so this
-processes is recursive when ack coalescing is detected. This
-processes is not required if response coalescing is turned
-off.
+as an optimization. This is a performance advantage for a
+single client as it reduces the overall number of packets,
+but if an ack from a second client is coalesced with the
+response the second client will not receive a response and
+eventually time out. Leading to retransmissions and high
+tail latencies. We detect coalescing on the switch by
+monitoring response packets. If a higher number ack is
+received we know by the guarantees of RC that the lower
+packets operation was executed and it is safe to generate an
+ACK for it. Using the mapped request for the lower packet we
+generate an ACK and forward it to the other client. Multiple
+acks can be coalesced so this processes is recursive when
+ack coalescing is detected. This processes is not required
+if response coalescing is turned off.
 
 \subsection{Buffering}
 
