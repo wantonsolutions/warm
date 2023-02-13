@@ -123,147 +123,6 @@ memory as it can guard access, maintain connections, and
 provide serialization primitives for all clients.
 
 
-\section{Serialization}
-
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
-  \vskip -0.5em
-
-    \caption{Achieved throughput of RDMA verbs across twenty queue
-      pairs on data-independent addresses as a function of request
-      concurrency.  When using atomic requests, ConnectX-5 NICs can
-      support approximately 2.7 MOPS per queue pair, up to about 55
-      MOPS in aggregate.}
-
-    \label{fig:rdma_concur}
-      \vskip -0.5em
-\end{figure}
-
-\begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
-    \vskip -0.5em
-    \caption{Percentage of successful operations in a
-      50:50 read-write workload spread across 1,024 keys according
-      to a Zipf(0.99) distribution as more client threads are
-      added. At 240 threads less than 4\% of operations succeed.}
-      
-    \vskip -0.5em
-    \label{fig:success_rate}
-\end{figure}
-
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
-%  \vskip -0.5em
-
-  \caption{ Throughput comparison of serialized RDMA operations in
-    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
-    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory despite being restricted to a single queue pair.  }
-
-    \label{fig:cas_vs_writes}
-%      \vskip -0.5em
-\end{figure}
-
-\subsection{RDMA serialization} 
-%%
-RDMA atomics instructions serialize remote memory operations
-without the need for a memory side CPU. These instructions
-\textit{Fetch-and-Add} and \textit{Compare-and-Swap} (CAS)
-execute on 64 bit width words and are guaranteed to have
-atomic visibility across all queue pairs. These operations
-are expensive. On a single address atomic instructions can
-only execute a few million operations per second, each
-operation forces a blocking PCIe round trip.  As a
-performance mitigation Mellanox NICs supply a small (few KB)
-region of device mapped memory which allows the memory side
-NIC to execute RDMA instructions on it's local device memory
-without incurring a PCIe round trip~\cite{sherman}.
-Executing atomics on this memory is 3x higher throughput
-than host memory, but still slower than it's read and write
-counterparts~\ref{fig:cas_vs_writes}.  Across independent
-addresses they have approximately half the throughput of
-read and write (Figure~\ref{fig:rdma_concur}).
-
-Data structures built on RDMA atomics have hard performance
-limits because the aforementioned constraints.  Locks
-located at a single address which use traditional lock,
-unlock operations are limited to around 500k accesses per
-second. This assumes perfectly coordinated requests, under
-contention requests which fail to acquire or release a lock
-still consume operation bandwidth.
-%%
-Under contention RDMA has poor support for traditional
-locking. In contrast optimistic data structures with locks
-scattered throughout, such as a linked list, are not rate
-limited by this single address restriction.  However, they
-are fundamentally limited by the fact that any atomics have
-half the throughput of reads and writes. More critically,
-under contention optimistic data structures have no liveness
-guarantees. We measure the failure rate of optimistic reads
-and writes to a shared linked list. Operations are reads and
-writes to the tail of the list, all writes are appends.
-under contention atomic operations fail frequently
-(Figure~\ref{fig:success_rate}).  RDMA has no support for
-resolving pointers (pointer chasing) and retrying operations
-for such data structures~\cite{rma,snap,prism}, a simple
-operation usually executed by a memory side CPU. As such
-RDMA clients are forced to resolve their failures requests
-themselves often retrying many times.
-%%
-Atomic operations are not the only serialization mechanism
-provided by RDMA. Reliable Connections provide in order
-delivery on individual queue pairs. This allows clients to
-issue multiple requests in parallel and allows the NIC to
-resolve reordering and dropped packets using go-back-n
-retransmission.  When clients are collocated, queue pairs
-can be shared by multiple cores through techniques such as
-flat combining~\cite{flock,sherman}. Flat combing removes
-the need for RDMA atomics, as clients can locally resolve
-their conflicts and then issue their requests as reads and
-writes.  Unfortunately this technique is not applicable to
-distributed clients as they do not share access to the same
-queue pair.
-
-% \subsection{Programmable Switch Serialization}
-\section{In-network serialization}
-
-\begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
-  \vskip -0.5em    
-    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
-    of requests retain their order (delta=1), however reorderings of up to 15
-    requests can occur. (Note logarithmic $y$ axis.)}
-  \vskip -0.5em
-    \label{fig:reorder}
-\end{figure}
-
-Switches can cheaply serialize packets~\cite{when-computer}.
-Programable switches with P4 pipelines can utilize this
-cheap serialization, along with their ability to manage
-small amounts of state in network, to serialize distributed
-applications. Mind for instance provides a unified TLB and
-cache for disaggregated applications~\cite{mind}. Packets
-processed by a programmable switch are sequenced in order,
-updates to the switches registers are atomic with respect to
-the packets as each state of the pipeline is occupied by
-exactly one packet at a time. A centralized switch can
-therefore apply monotonic sequence numbers to a stream of
-packets, maintain a lock, or keep a shared variable up to
-date without the need for explicit atomic operations.
-
-Unfortunately this serialization is not sufficient for RDMA
-memory operations out of the box. RDMA packets on two
-reliable connections may be ordered on the switch, and then
-subsequently reordered by the receiving side NIC, or by the
-PCIe bus~\cite{understanding-pcie}. NIC and PCIe reordering
-is not merely an academic concern!  Figure~\ref{fig:reorder}
-illustrates the extend of reordering across connections.
-This experiment uses an in network serializer to give each
-packet an incremental monotonic sequence number. The x axis
-measure the absolute delta between sequence number values on
-response packets.  The majority of packets remain ordered
-(sequence number 1), however significant reordering does
-occur up to 15 packets apart.
-
 Switches are not intended to be general purpose computers,
 their purpose is to forward packets. It is trivial to
 construct switch programs which consume it's few resources.
@@ -281,10 +140,294 @@ buffers. Any logic, or data offloaded to a programable
 switch must therefore be minimal in order to meet the
 compute and data restrictions of the switches SRAM.
 
-% In all cases switch memory and compute are highly
-% constrained. Any operations that exceed the processing
-% limit of the match action pipeline require recirculation
-% which consumes additional switch bandwidth. 
+
+\section{Serialization}
+
+The fundamental challenge faced by passive remote memory systems is
+ensuring consistency~\cite{ivy} by ordering accesses to any given
+location.  RDMA reliable connections provide per-connection ordering,
+enabling clients to
+%Atomic operations are not the only serialization mechanism
+%provided by RDMA. Reliable Connections provide in order
+%delivery on individual queue pairs. This allows clients to
+issue multiple outstanding requests; the NIC ensures in-order delivery despite 
+packet reordering and drops with sequence numbers and go-back-$n$
+retransmission.  When clients are collocated, queue pairs
+can be shared by multiple cores through techniques such as
+flat combining~\cite{flock,sherman}.
+%Flat combing removes
+%the need for RDMA atomics, as clients can locally resolve
+%their conflicts and then issue their requests as reads and
+%writes.
+Unfortunately this technique is not applicable to
+distributed clients that cannot share connections.
+In this section we experimentally illustrate the challenges to
+ordering across such clients.
+
+
+% \subsection{Programmable Switch Serialization}
+\subsection{Switch-enforced ordering}
+
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
+  \vskip -0.5em    
+    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
+    of requests retain their order (delta=1), however reorderings of up to 15
+    requests can occur. (Note logarithmic $y$ axis.)}
+  \vskip -0.5em
+    \label{fig:reorder}
+\end{figure}
+
+Packets processed by a programmable switch pipeline are sequenced in
+order: updates to switch registers are atomic as each state of a
+pipeline is occupied by exactly one packet at a time.  Moreover, all
+packets destined to a given port must traverse the same egress
+pipeline.  As a result, the ToR places packets from all flows destined
+to the same (single-homed) destination in a total order---not only with
+respect to their own flow, but others as well.  Others have proposed
+leveraging this observation, along with programmable switches' ability
+to manage small amounts of state in network, to provide a number of
+in-network services~\cite{when-computer}; Mind, for instance, provides
+a unified TLB and cache for disaggregated applications~\cite{mind}.
+
+%% switch can therefore apply monotonic sequence numbers to a stream of
+%% packets, maintain a lock, or keep a shared variable up to date without
+%% the need for explicit atomic operations.
+
+In the context of RDMA, however, switch-enforced packet ordering is
+insufficient.  Even if packets (from various reliable connections)
+arrive at a server NIC in a given order, they may (appear to) be
+processed in arbitrary order due to contention at the NIC or PCIe
+bus~\cite{understanding-pcie}. Figure~\ref{fig:reorder} shows that NIC
+and PCIe reordering is not merely an academic concern, but occurs with
+some frequency.  In this example, we issue RDMA read, write and CAS
+requests at a rate of one million requests per second to 1,024
+different memory locations according to a Zipf distribution and spread
+these requests across 32 different reliable connections. Each request is routed
+through a programamble switch that keeps a global request counter for
+each RDMA request (i.e., ground truth regarding request ordering). We
+track the order of responses relative to the order the corresponding
+request was issued from the middlebox. The plot shows the distribution
+of sequence-number gaps between responses. As expected, the vast
+majority differ by one (i.e., the same order they were dispatched from
+the switch), but a non-trivial number are out of order by one to five
+requests, and some by up to 15.  Moreover, this experiment neglects
+the reality that some fames may be corrupted and/or lost by the link,
+necessitating retransmission and further cross-flow reordering.
+
+%% Figure~\ref{fig:reorder} illustrates the extent
+%% of reordering across connections.  This experiment uses an in network
+%% serializer to give each packet an incremental monotonic sequence
+%% number. The x axis measure the absolute delta between sequence number
+%% values on response packets.  The majority of packets remain ordered
+%% (sequence number 1), however significant reordering does occur up to
+%% 15 packets apart.
+
+
+
+
+
+\subsection{Atomic RDMA operations} 
+
+While the RDMA protocol does not have a mechanism to enforce
+cross-flow ordering, it provides atomic verbs that allow applications
+to implement their own mechanisms to detect races and/or enforce
+ordering.  The 1-sided \textit{Fetch-and-Add} and
+\textit{Compare-and-Swap} (CAS) operations target 64-bit words in
+remote memory.  Like their traditional CPU counterparts, atomic
+requests appear to execute at a single point in time, ensuring a total
+ordering on all data-dependent instructions and a partial ordering
+between all other instructions---i.e., all other instructions appear
+to occur strictly before or after the atomic, regardless of whether
+they are themselves atomic.  Remote memory systems can use these
+atomic operations in two basic ways to enforce consistency: implement
+shared locks or optimistic concurrency control.
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
+  \vskip -0.5em
+
+    \caption{Achieved throughput of RDMA verbs across twenty queue
+      pairs on data-independent addresses as a function of request
+      concurrency.  When using atomic requests, ConnectX-5 NICs can
+      support approximately 2.7 MOPS per queue pair, up to about 55
+      MOPS in aggregate.}
+
+    \label{fig:rdma_concur}
+      \vskip -0.5em
+\end{figure}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%  \vskip -0.5em
+
+  \caption{ Throughput comparison of serialized RDMA operations in
+    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
+    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory despite being restricted to a single queue pair.  }
+
+    \label{fig:cas_vs_writes}
+%      \vskip -0.5em
+\end{figure}
+
+\paragraph{Remote locks}
+In a remote-locking scheme, clients use an atomic RDMA operation to
+attempt to aquire a lock: because the operations are totally ordered
+at most one client will succeed at a time.  Unfortunately, atomics are
+famously expensive~\cite{design-guidelines}, fundamentally because
+they require mutual exclusion across all RDMA queue pairs---concurrent
+read and write operations with a data dependency on the atomic address
+must stall until the atomic completes.  Figure~\ref{fig:rdma_concur}
+considers the best-case scenario where clients attempt to access
+unique locks (i.e., each instruction is issued to an
+isolated cache line) in remote memory using an atomic operation in
+comparison to reads and writes.  We confirm that the findings of prior
+studies~\cite[Fig. 14]{design-guidelines} with older hardware (i.e.,
+ConnectX-3) remain true on our ConnectX-5 NICs, namely that atomic
+requests scale with non-atomics only to a point.\footnote{Experiments
+with a ConnectX-6 exhibit similar behavior.}  CAS operations have a
+hard performance ceiling, while standard verbs (e.g., read and write)
+continue to scale with increased request concurrency.  The situation
+is even worse when operations target the same address (i.e., lock
+contention; not shown).
+
+%% These operations are expensive. On a single address
+%% atomic instructions can only execute a few million operations per
+%% second, each operation forces a blocking PCIe round trip.  As a
+%% performance mitigation Mellanox NICs supply a small (few KB) region of
+%% device mapped memory which allows the memory side NIC to execute RDMA
+%% instructions on it's local device memory without incurring a PCIe
+%% round trip~\cite{sherman}.  Executing atomics on this memory is
+%% 3$\times$ higher throughput than host memory, but still slower than
+%% it's read and write counterparts~\ref{fig:cas_vs_writes}.  Across
+%% independent addresses they have approximately half the throughput of
+%% read and write (Figure~\ref{fig:rdma_concur}).
+
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
+    \vskip -0.5em
+    \caption{Percentage of successful operations in a
+      50:50 read-write workload spread across 1,024 keys according
+      to a Zipf(0.99) distribution as more client threads are
+      added. At 240 threads less than 4\% of operations succeed.}
+      
+    \vskip -0.5em
+    \label{fig:success_rate}
+\end{figure}
+
+One of the difficulties RDMA NICs face when implementing atomic operation
+is ensuring that there are no other conflicting memory operations at
+the server---even ones issued locally.  More generally, any
+main-memory operation issued by the NIC must cross the PCIe bus and
+face potential contention.  Modern Mellanox NICs like the ConnectX-5
+provide a small region of on-NIC memory that can be mapped into the
+address space of RDMA applications,
+%.  Mapping RDMA requests onto NIC memory
+removing the remote PCIe overhead for frequently accessed data.
+(Indeed, Sherman employs this memory region to store its B+Tree locks.)
+%but still requires atomicity across queue pairs.
+Figure~\ref{fig:cas_vs_writes} compares the performance of
+serialized CAS and write operations to addresses in main vs.
+NIC-hosted device memory. CAS operations are issued across many
+queue pairs to achieve maximum throughput while the write operations are
+issued on a single queue pair to enforce serialization.
+%leverage the serialization provided
+%by RDMA's reliable connection abstraction to ensure in-order
+%execution.
+While the use of NIC-hosted memory boosts CAS throughput
+from approximately 3 to around 9 MOPS, write operations remain
+dramatically more efficient in either case.
+
+\paragraph{Optimistic concurrecy.}
+One way to avoid the overhead of remote lock aquisition in low-load
+situations is to attempt to directly modify the data (using an
+atomic RDMA operation) and recover if the operation fails due to a
+race; such schemes are known as optimistic concurrency control.  While
+far more performant than lock-based appraoches in the un-contended
+case, optimistic appraoches can be prohibitively expensive when
+contention is common.  As a concrete example we consider the chances
+of success in Clover.
+%Recall Clover maintains a linked list for each key and attempts to read and
+%write to the tail of the list for each operation. The location of the tail of
+%the list is cached at each client and used as a hint for subsequent operations.
+%If the hint is stale the client obtains an updated tail pointer and retries the
+%RDMA request.
+Figure~\ref{fig:success_rate} shows the percentage of requests
+which succeed in a 50:50 read-write workload as a function of the number of
+concurrent client threads. Success rate drops dramatically as client threads
+increase.
+
+At present RDMA has no support for addressing failed operations at the
+server, such as pointer chasing or retrying operations---although some
+have proposed such extensions~\cite{rma,snap,prism}.  Rather, RDMA
+clients are forced to resolve failures themselves at significant cost.
+%In general, the conflicting operation(s)
+%must be retried incurring additional latency and bandwidth.
+In some
+systems, the retry is a heavyweight, pessimistic operation, leading to
+a substantial---but fixed---overhead.  In others, like Clover,
+subsequent attempts remain optimistic, resulting in a linear
+(per-retry) increase in costs.  In the latter case, very high
+rates of contention can lead to congestion collapse, where a retry is
+essentially doomed to failure, dramatically decreasing system
+throughput.
+%
+
+%\paragraph{Bandwidth inflation.} 
+
+Concretely,
+%One of the most direct impacts of failed requests is the bandwidth
+%overhead of the retries.  Because a Clover operation actually
+%consists of multiple RDMA requests, the total bandwidth is not
+%strictly proportional to the failure rate, but rather slightly
+%sub-linear.  Nevertheless, the expected cost of each operation rises
+%steadily with contention, which is a function of both the workload and
+%level of concurrency.  Our
+our measurements show that under contention the
+average bandwidth cost of Clover read and write operations can inflate
+by 16$\times$ (Figure~\ref{fig:bandwidth_reduction}) when compared
+to an optimal scenario in which all operations succeed on their first
+try.
+%
+%\paragraph{Tail latency.}
+%
+Perhaps even more significant than the overheads associated with the expected
+number of retries is the cost at the tail---namely the latency associated with
+those particularly ``unlucky'' requests that fail repeatedly.  Note that these
+operations are precisely those for hot memory locations, so likely to be
+ones that matter.  Under contention
+%(e.g., 50\% write operations with 396 threads)
+Clover's 99th-percentile tail latency increases by
+over 300$\times$ (Figure~\ref{fig:tail_latency}) in our experiments.
+
+
+
+\subsection{Implications}
+
+Systems that leverage RDMA atomics have hard performance
+limits because the aforementioned constraints.  Locks
+located at a single address which use traditional lock,
+unlock operations are limited to around 500k accesses per
+second. This assumes perfectly coordinated requests, under
+contention requests which fail to acquire or release a lock
+still consume operation bandwidth.
+%%
+Under contention RDMA has poor support for traditional
+locking. In contrast optimistic data structures with locks
+scattered throughout, such as a linked list, are not rate
+limited by this single address restriction.  However, they
+are fundamentally limited by the fact that any atomics have
+half the throughput of reads and writes. More critically,
+under contention optimistic data structures have no liveness
+guarantees.
+
+%% We measure the failure rate of optimistic reads
+%% and writes to a shared linked list. Operations are reads and
+%% writes to the tail of the list, all writes are appends.
+%% under contention atomic operations fail frequently
+%% (Figure~\ref{fig:success_rate}).
+
+%%
+
 
 
 \section{\sword}
@@ -320,6 +463,11 @@ of {\sword}.
 % lock. {\sword} also provides a mechanism to remove
 % contention from optimistic data structures by caching the
 % metadata required to detect and resolve conflicts. 
+
+% In all cases switch memory and compute are highly
+% constrained. Any operations that exceed the processing
+% limit of the match action pipeline require recirculation
+% which consumes additional switch bandwidth. 
 
 \subsection{Caching}
 
