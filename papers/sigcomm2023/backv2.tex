@@ -31,7 +31,7 @@ connections provide enhanced guarantees, their implementation requires
 on-NIC memory, a precious resource, and researchers have observed
 scalability bottlenecks due to memory and cache limitations in the
 popular Mellanox ConnectX family of RDMA
-NICs~\cite{farm,fasst,erpc,litem,design-guidelines}.  Recent work has
+NICs~\cite{farm,fasst,erpc,lite,design-guidelines}.  Recent work has
 shown how to overcome limits in terms of the number of
 connections~\cite{storm,flock}, but the ordering guarantees provided
 by RC remain restricted to individual queue pairs.  While unreliable
@@ -94,19 +94,20 @@ Most prior proposals for
 disaggregation consider rack-scale deployments where
 %. They propose a single rack
 %with
-servers are partitioned into roles: compute, memory, and storage, all of
-which are interconnected by a top-of-rack (ToR) switch.  The central
+servers are partitioned into roles: compute, memory, and storage, all
+of which are interconnected by a top-of-rack (ToR)
+switch~\cite{disandapp,the-machine,intel-rack,firebox,legoos}.  The central
 role of the ToR in this architecture has not gone unnoticed, and
 researchers have observed that a programmable switch can off-load a
 wide variety of traditional operating system
 services~\cite{disandapp,mind,netlock,netkv,netchain,netcache}. The
 constraints in each case are similar: programmable switches have
-limited memory and processing capabilities.  If the computational ask
-of the switch is too high packets must be recirculated adding
+limited memory and processing capabilities.  If the computational task
+is too large packets must be recirculated adding
 additional latency and reducing aggregate bandwidth.  Ideal
 applications for programmable switches use little memory, require
-minimal processing and deliver outsized performance benefit from
-centralization.
+minimal processing and deliver outsized performance benefit.
+%from centralization.
 %, and the billions of operations (in terms of packets)
 %that a switch can process per second.
 %%
@@ -117,15 +118,22 @@ cost~\cite{eris,no,when-computer,Grant2021InContRes}, manage
 locks~\cite{netlock}, and even track the state required to maintain an
 RDMA reliable connection~\cite{tea}.  Most relatedly, researchers have
 even used a programmable switch to implement a centralized memory
-controller for passive remote memory~\cite{mind}.  Their approach is
-limited, however, by the resource constraints of the switch.  Inspired
-by performance-enhancing TCP proxies of old~\cite{snoop,rfc3135}, we
-consider a slightly different design point where the authoritative
-state and control logic remain at the end points.  In our approach,
-the ToR simply observes and, at times, selectively modifies RDMA
+controller including a unified TLB and cache for passive remote
+memory~\cite{mind}.  Their approach is limited, however, by the
+resource constraints of the switch.  Inspired by performance-enhancing
+TCP proxies of old~\cite{snoop,rfc3135}, we consider a slightly
+different design point where the authoritative state and control logic
+remain at the end points.  In our approach, the ToR simply observes
+and, at times, selectively modifies RDMA
 packets~\cite{switchml,Grant2021InContRes} in-flight to improve
 performance while preserving the semantics of the underlying RDMA
 connections.
+
+%% Others have proposed
+%% leveraging this observation, along with programmable switches' ability
+%% to manage small amounts of state in network, to provide a number of
+%% in-network services~\cite{when-computer}; Mind, for instance, provides
+%% a unified TLB and cache for disaggregated applications~\cite{mind}.
 
 %% , and . These properties make a top-of-rack
 %% programable switch ideal for managing remote memory as it can guard
@@ -163,3 +171,71 @@ terms of bandwidth and latency. Explicit cases are more
 promising for sharing as they allow application developers
 to acquire locks, and for libraries to make use of
 optimistically concurrent datastructures.
+
+We consider accelerating two
+different systems that employ such operations.
+
+\paragraph{Sherman.}
+
+Sherman~\cite{sherman} is a write-optimized B+Tree for passive remote memory. The
+tree is augmented using entirely 1-sided RDMA operations. Sherman
+improves performance under contention in two key ways. First, it
+places locks for each node in the B+Tree in a special region of NIC
+memory exposed by ConnectX-5 NICs.  This small chunk of memory exposes
+the same RDMA interface as host memory, but allows locking operations
+to execute with approximately 3$\times$ the throughput.  Second,
+Sherman's clients employ a hierarchical locking scheme to reduce the
+contention for server-hosted locks.  This client-local optimization
+significantly improves performance in cases where clients are
+collocated; \sword\ seeks to achieve similar efficiencies at the rack
+scale.
+
+%where locks are acquired locally prior
+%to issuing a CAS to remote NIC mapped locks. Locks and unlocks each
+%require a CAS operation.
+
+%The biggest
+%boost in Sherman's performance comes from resolving lock conflicts
+%locally. It assumes that most clients are collocated.
+
+
+%%
+%\sg{(danger zone)} We consider client side optimizations to be highly
+%effective, but also highly restrictive as they assume both colocation and a
+%shared address space for their clients. We focus our attention instead on the
+%fundamental limitations of Shermans lock based approach.
+
+\paragraph{Clover.}
+
+%To demonstrate the effectiveness of {\sword} in practice, we
+%needed to select a passive far memory system with which to experiment.
+%The authors of Clover, a recently published key-value store designed
+%for disaggregated persistent memory~\cite{clover}, made their
+%implementation publicly available and helped us deploy it on our
+%testbed. While Clover targets persistent storage it is also a
+%prototypical example of a key-value store for remote DRAM.  Most
+%importantly for our purposes, its design makes the assumption that
+%there are no remote CPU's co-resident with memory. All of
+Clover~\cite{clover} implements a shared remote key-value store using
+%remote memory accesses are made via
+1-sided RDMA requests.
+%: reads, writes, and CAS.
+To improve
+performance, Clover moves metadata storage off of the data path. On
+the data path, reads and writes for a given key are made exclusively
+to an append-only linked list stored in remote memory. All RDMA
+requests are made to the (presumed) tail of the list and writes are
+guarded by CAS operations. A client may not know the location of the
+tail as other writers concurrently push it forward. When a read or a
+write fails to land at the tail of the list Clover iteratively
+traverses the structure until the tail is found. While this provides
+no liveness guarantees, in the common read-heavy case concurrent
+clients all eventually reach the end of the list. To speed up
+operations clients keep caches (i.e., hints) of the end of each key's
+linked list to avoid traversals. When writes are heavy and/or when
+particular keys are hot, Clover's performance degrades substantially.
+By implementing a similar, shared cache at the ToR, \sword\ 
+decreases the likelihood of accesses to stale tail locations.
+%Clover serializes writes with RDMA compare and swap
+%requests which further impact performance.
+

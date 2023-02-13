@@ -92,6 +92,16 @@ url = {https://www.usenix.org/conference/hotcloud18/presentation/thomas},
 publisher = {{USENIX} Association},
 }
 
+@INPROCEEDINGS{netkv,
+  author={Zhang, Wei and Wood, Timothy and Hwang, Jinho},
+  booktitle={2016 IEEE International Conference on Autonomic Computing (ICAC)}, 
+  title={NetKV: Scalable, Self-Managing, Load Balancing as a Network Function}, 
+  year={2016},
+  volume={},
+  number={},
+  pages={5-14},
+  doi={10.1109/ICAC.2016.28}}
+
 @inproceedings {legoos,
 author = {Yizhou Shan and Yutong Huang and Yilun Chen and Yiying Zhang},
 title = "{LegoOS}: A Disseminated, Distributed {OS} for Hardware Resource Disaggregation",
@@ -919,6 +929,9 @@ series = {SIGCOMM '20}
   number={},
   pages={1-9},
   doi={10.1109/INDIS51933.2020.00006}}
+
+@inproceedings{netchain, author = {Jin, Xin and Li, Xiaozhou and Zhang, Haoyu and Foster, Nate and Lee, Jeongkeun and Soul\'{e}, Robert and Kim, Changhoon and Stoica, Ion}, title = {Netchain: Scale-Free Sub-RTT Coordination}, year = {2018}, isbn = {9781931971430}, publisher = {USENIX Association}, address = {USA}, abstract = {Coordination services are a fundamental building block of modern cloud systems, providing critical functionalities like configuration management and distributed locking. The major challenge is to achieve low latency and high throughput while providing strong consistency and fault-tolerance. Traditional server-based solutions require multiple round-trip times (RTTs) to process a query. This paper presents NetChain, a new approach that provides scale-free sub-RTT coordination in datacenters. NetChain exploits recent advances in programmable switches to store data and process queries entirely in the network data plane. This eliminates the query processing at coordination servers and cuts the end-to-end latency to as little as half of an RTT--clients only experience processing delay from their own software stack plus network delay, which in a datacenter setting is typically much smaller. We design new protocols and algorithms based on chain replication to guarantee strong consistency and to efficiently handle switch failures. We implement a prototype with four Barefoot Tofino switches and four commodity servers. Evaluation results show that compared to traditional server-based solutions like ZooKeeper, our prototype provides orders of magnitude higher throughput and lower latency, and handles failures gracefully.}, booktitle = {Proceedings of the 15th USENIX Conference on Networked Systems Design and Implementation}, pages = {35–49}, numpages = {15}, location = {Renton, WA, USA}, series = {NSDI'18} }
+ 
 
 @inproceedings{netcache,
 author = {Jin, Xin and Li, Xiaozhou and Zhang, Haoyu and Soul\'{e}, Robert and Lee, Jeongkeun and Foster, Nate and Kim, Changhoon and Stoica, Ion},
