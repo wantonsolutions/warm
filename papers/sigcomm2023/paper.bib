@@ -8,6 +8,12 @@ url = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/f
 publisher = {{USENIX} Association},
 }
 
+@inproceedings{hpcc, author = {Li, Yuliang and Miao, Rui and Liu, Hongqiang Harry and Zhuang, Yan and Feng, Fei and Tang, Lingbo and Cao, Zheng and Zhang, Ming and Kelly, Frank and Alizadeh, Mohammad and Yu, Minlan}, title = {HPCC: High Precision Congestion Control}, year = {2019}, isbn = {9781450359566}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/3341302.3342085}, doi = {10.1145/3341302.3342085}, abstract = {Congestion control (CC) is the key to achieving ultra-low latency, high bandwidth and network stability in high-speed networks. From years of experience operating large-scale and high-speed RDMA networks, we find the existing high-speed CC schemes have inherent limitations for reaching these goals. In this paper, we present HPCC (High Precision Congestion Control), a new high-speed CC mechanism which achieves the three goals simultaneously. HPCC leverages in-network telemetry (INT) to obtain precise link load information and controls traffic precisely. By addressing challenges such as delayed INT information during congestion and overreac-tion to INT information, HPCC can quickly converge to utilize free bandwidth while avoiding congestion, and can maintain near-zero in-network queues for ultra-low latency. HPCC is also fair and easy to deploy in hardware. We implement HPCC with commodity programmable NICs and switches. In our evaluation, compared to DCQCN and TIMELY, HPCC shortens flow completion times by up to 95%, causing little congestion even under large-scale incasts.}, booktitle = {Proceedings of the ACM Special Interest Group on Data Communication}, pages = {44–58}, numpages = {15}, keywords = {RDMA, congestion control, programmable switch, smart NIC}, location = {Beijing, China}, series = {SIGCOMM '19} }
+
+@article{dcqcn, author = {Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo, Chuanxiong and Lipshteyn, Marina and Liron, Yehonatan and Padhye, Jitendra and Raindel, Shachar and Yahia, Mohamad Haj and Zhang, Ming}, title = {Congestion Control for Large-Scale RDMA Deployments}, year = {2015}, issue_date = {October 2015}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, volume = {45}, number = {4}, issn = {0146-4833}, url = {https://doi.org/10.1145/2829988.2787484}, doi = {10.1145/2829988.2787484}, abstract = {Modern datacenter applications demand high throughput (40Gbps) and ultra-low latency (< 10 μs per hop) from the network, with low CPU overhead. Standard TCP/IP stacks cannot meet these requirements, but Remote Direct Memory Access (RDMA) can. On IP-routed datacenter networks, RDMA is deployed using RoCEv2 protocol, which relies on Priority-based Flow Control (PFC) to enable a drop-free network. However, PFC can lead to poor application performance due to problems like head-of-line blocking and unfairness. To alleviates these problems, we introduce DCQCN, an end-to-end congestion control scheme for RoCEv2. To optimize DCQCN performance, we build a fluid model, and provide guidelines for tuning switch buffer thresholds, and other protocol parameters. Using a 3-tier Clos network testbed, we show that DCQCN dramatically improves throughput and fairness of RoCEv2 RDMA traffic. DCQCN is implemented in Mellanox NICs, and is being deployed in Microsoft's datacenters.}, journal = {SIGCOMM Comput. Commun. Rev.}, month = {aug}, pages = {523–536}, numpages = {14}, keywords = {PFC, datacenter transport, RDMA, ECN, congestion control} }
+ 
+ 
+@inproceedings{10.1145/2785956.2787484, author = {Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo, Chuanxiong and Lipshteyn, Marina and Liron, Yehonatan and Padhye, Jitendra and Raindel, Shachar and Yahia, Mohamad Haj and Zhang, Ming}, title = {Congestion Control for Large-Scale RDMA Deployments}, year = {2015}, isbn = {9781450335423}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/2785956.2787484}, doi = {10.1145/2785956.2787484}, abstract = {Modern datacenter applications demand high throughput (40Gbps) and ultra-low latency (< 10 μs per hop) from the network, with low CPU overhead. Standard TCP/IP stacks cannot meet these requirements, but Remote Direct Memory Access (RDMA) can. On IP-routed datacenter networks, RDMA is deployed using RoCEv2 protocol, which relies on Priority-based Flow Control (PFC) to enable a drop-free network. However, PFC can lead to poor application performance due to problems like head-of-line blocking and unfairness. To alleviates these problems, we introduce DCQCN, an end-to-end congestion control scheme for RoCEv2. To optimize DCQCN performance, we build a fluid model, and provide guidelines for tuning switch buffer thresholds, and other protocol parameters. Using a 3-tier Clos network testbed, we show that DCQCN dramatically improves throughput and fairness of RoCEv2 RDMA traffic. DCQCN is implemented in Mellanox NICs, and is being deployed in Microsoft's datacenters.}, booktitle = {Proceedings of the 2015 ACM Conference on Special Interest Group on Data Communication}, pages = {523–536}, numpages = {14}, keywords = {ECN, datacenter transport, congestion control, RDMA, PFC}, location = {London, United Kingdom}, series = {SIGCOMM '15} }
 
 @inproceedings{mom, author = {Ports, Dan R. K. and Li, Jialin and Liu, Vincent and Sharma, Naveen Kr. and Krishnamurthy, Arvind}, title = {Designing Distributed Systems Using Approximate Synchrony in Data Center Networks}, year = {2015}, isbn = {9781931971218}, publisher = {USENIX Association}, address = {USA}, abstract = {Distributed systems are traditionally designed independently from the underlying network, making worst-case assumptions (e.g., complete asynchrony) about its behavior. However, many of today's distributed applications are deployed in data centers, where the network is more reliable, predictable, and extensible. In these environments, it is possible to co-design distributed systems with their network layer, and doing so can offer substantial benefits.This paper explores network-level mechanisms for providing Mostly-Ordered Multicast (MOM): a best-effort ordering property for concurrent multicast operations. Using this primitive, we design Speculative Paxos, a state machine replication protocol that relies on the network to order requests in the normal case. This approach leads to substantial performance benefits: under realistic data center conditions, Speculative Paxos can provide 40% lower latency and 2.6\texttimes{} higher throughput than the standard Paxos protocol. It offers lower latency than a latency-optimized protocol (Fast Paxos) with the same throughput as a throughput-optimized protocol (batching).}, booktitle = {Proceedings of the 12th USENIX Conference on Networked Systems Design and Implementation}, pages = {43–57}, numpages = {15}, location = {Oakland, CA}, series = {NSDI'15} }
 
@@ -500,16 +506,36 @@ series = {EuroSys '20}
     year = 2020
 }
 
-@inproceedings{Grant2021InContRes,
-author = {Grant, Stewart and Snoeren, Alex C.},
-title = {In-network Contention Resolution for Disaggregated Memory},
-booktitle = {Proceedings of the Second Workshop on Disaggregation and Serverless (WORDS'21)},
-year = {2021},
-url = {https://wuklab.github.io/words/words21-grant.pdf},
-numpages = {7},
-location = {Virtual Event, USA},
-series = {WORDS '21}
+@misc{rfc3135,
+    series =    {Request for Comments},
+    number =    3135,
+    howpublished =  {RFC 3135},
+    publisher = {RFC Editor},
+    doi =       {10.17487/RFC3135},
+    url =       {https://www.rfc-editor.org/info/rfc3135},
+        author =    {Jim Griner and John Border and Markku Kojo and Zach D. Shelby and Gabriel Montenegro},
+    title =     {{Performance Enhancing Proxies Intended to Mitigate Link-Related Degradations}},
+    pagetotal = 45,
+    year =      2001,
+    month =     jun,
+    abstract =  {This document is a survey of Performance Enhancing Proxies (PEPs) often employed to improve degraded TCP performance caused by characteristics of specific link environments, for example, in satellite, wireless WAN, and wireless LAN environments. This memo provides information for the Internet community.},
 }
+@inproceedings{snoop, author = {Balakrishnan, Hari and Seshan, Srinivasan and Amir, Elan and Katz, Randy H.}, title = {Improving TCP/IP Performance over Wireless Networks}, year = {1995}, isbn = {0897918142}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/215530.215544}, doi = {10.1145/215530.215544}, abstract = {TCP is a reliable transport protocol tuned to perform well in traditional networks made up of links with low bit-error rates. Networks with higher bit-error rates, such as those with wireless links and mobile hosts, violate many of the assumptions made by TCP, causing degraded end-to-end performance. In tbis paper, we describe the design and implementation of a simple protocol, called the snoop protocol, that improves TCP performance in wireless networks. The protocol modifies network-layer software mainly at a base station and preserves end-to-end TCP semantics. The main idea of the protocol is to cache packets at the base station and perform local retransmissions across the wireless link. We have implemented the snoop protocol on a wireless testbed consisting of IBM ThinkPad laptops and i486 base stations communicating over an AT&T Wavelan. Our experiments show that it is significantly more robust at dealing with unreliable wireless links as compared to normal TCP; we have achieved throughput speedups of up to 20 times over regular TCP in our experiments with the protocol.}, booktitle = {Proceedings of the 1st Annual International Conference on Mobile Computing and Networking}, pages = {2–11}, numpages = {10}, location = {Berkeley, California, USA}, series = {MobiCom '95} }
+
+@misc{Grant2021InContRes,
+  author = "Anonymous",
+  title = "Anonymized workshop paper",
+  }
+  
+@Comment author = {Grant, Stewart and Snoeren, Alex C.},
+@Comment title = {In-network Contention Resolution for Disaggregated Memory},
+@Comment booktitle = {Proceedings of the Second Workshop on Disaggregation and Serverless (WORDS'21)},
+@Comment year = {2021},
+@Comment url = {https://wuklab.github.io/words/words21-grant.pdf},
+@Comment numpages = {7},
+@Comment location = {Virtual Event, USA},
+@Comment series = {WORDS '21}
+@Comment }
 
 @MISC{genz,
   author = {GenZ},
@@ -840,6 +866,8 @@ month = jul,
   year = {2022},
   copyright = {Creative Commons Attribution Share Alike 4.0 International}
 }
+
+@inproceedings{mind, author = {Lee, Seung-seob and Yu, Yanpeng and Tang, Yupeng and Khandelwal, Anurag and Zhong, Lin and Bhattacharjee, Abhishek}, title = {MIND: In-Network Memory Management for Disaggregated Data Centers}, year = {2021}, isbn = {9781450387095}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/3477132.3483561}, doi = {10.1145/3477132.3483561}, abstract = {Memory disaggregation promises transparent elasticity, high resource utilization and hardware heterogeneity in data centers by physically separating memory and compute into network-attached resource "blades". However, existing designs achieve performance at the cost of resource elasticity, restricting memory sharing to a single compute blade to avoid costly memory coherence traffic over the network.In this work, we show that emerging programmable network switches can enable an efficient shared memory abstraction for disaggregated architectures by placing memory management logic in the network fabric. We find that centralizing memory management in the network permits bandwidth and latency-efficient realization of in-network cache coherence protocols, while programmable switch ASICs support other memory management logic at line-rate. We realize these insights into MIND1, an in-network memory management unit for rack-scale disaggregation. MIND enables transparent resource elasticity while matching the performance of prior memory disaggregation proposals for real-world workloads.}, booktitle = {Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles}, pages = {488–504}, numpages = {17}, keywords = {Memory disaggregation, Programmable networks}, location = {Virtual Event, Germany}, series = {SOSP '21} }
 
 @misc{facebook-cxl-tpp,
   doi = {10.48550/ARXIV.2206.02878},
