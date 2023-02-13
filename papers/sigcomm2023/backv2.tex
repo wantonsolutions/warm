@@ -136,50 +136,41 @@ connections.
 %% a unified TLB and cache for disaggregated applications~\cite{mind}.
 
 %% , and . These properties make a top-of-rack
-%% programable switch ideal for managing remote memory as it can guard
+%% programmable switch ideal for managing remote memory as it can guard
 %% access, maintain connections, and provide serialization primitives for
 %% all clients.
 
-%\todo{RDMA middlebox (find citaitons ~\cite{mind,switchml})}
+%\todo{RDMA middlebox (find citations ~\cite{mind,switchml})}
 
 \subsection{Disaggregated Memory}
 
-Memory disaggregation separates primary storage from the CPU
-by a fast network. The question \textit{how to present
-memory over the network to an application?} is still open,
-and a spectrum of system designs currently exist.
-Transparent systems present far memory to the application as
-if it were local. Virtual memory enables paging systems to
-keep a cache of local pages, and swap in and out
-transparently on page faults ~\cite{infiniswap, leap,
-fastswap}.  Some have argued that page granularity is too
-course and built upon an incoherent caching
-layer~\cite{kona, legoos}.  In both cases transparency
-incurs a performance cost as remote accesses cannot be
-optimized for by the running application.
+While 1-sided RDMA allows system designers to place memory on passive
+remote servers, the question of how best to access remote memory
+remains open; existing systems fall into one of two categories.
+Transparent systems present far memory to the application as if it
+were local, using traditional memory virtualization techniques to
+cache pages locally and swap in and out on
+demand~\cite{ivy,infiniswap, leap, fastswap,legoos}.
+%In either case transparency incurs a
+%performance cost as remote accesses cannot be optimized for by the
+%running application.
 %%
-Alternatively applications can access remote memory
-explicitly with an API similar to an RPC
-call~\cite{aifm,reigons,clover,sherman,faast}. Explicit
-access allows for optimized remote requests. They can be
-batched, scheduled, and managed by libraries and run times. 
+Other systems require applications to access remote memory explicitly
+through RPC-like APIs~\cite{aifm,reigons,clover,sherman,fasst} which
+allow the runtimes to apply a variety of optimizations including
+batching and scheduling.
 %%
-Whether explicit or transparent sharing is expensive, at the
-time of writing no transparent system supports shared memory
--- the cost of cache coherence is prohibitively high in
-terms of bandwidth and latency. Explicit cases are more
-promising for sharing as they allow application developers
-to acquire locks, and for libraries to make use of
-optimistically concurrent datastructures.
+Regardless of the method of access, sharing remote memory between
+clients is fundamentally expensive, and at the time of writing no
+RDMA-based transparent system exposes shared memory.  Rather, the few systems
+that attempt to support sharing do so in the context of
+specific datastructures which allows the runtimes to manage concurrent
+accesses.  We apply \sword\ to two such systems in this paper and
+provide brief overviews below.
 
-We consider accelerating two
-different systems that employ such operations.
-
-\paragraph{Sherman.}
-
-Sherman~\cite{sherman} is a write-optimized B+Tree for passive remote memory. The
+\emph{Sherman} is a write-optimized B+Tree for passive remote memory~\cite{sherman}. The
 tree is augmented using entirely 1-sided RDMA operations. Sherman
-improves performance under contention in two key ways. First, it
+improves performance under contention in two ways. First, it
 places locks for each node in the B+Tree in a special region of NIC
 memory exposed by ConnectX-5 NICs.  This small chunk of memory exposes
 the same RDMA interface as host memory, but allows locking operations
@@ -201,11 +192,10 @@ scale.
 
 %%
 %\sg{(danger zone)} We consider client side optimizations to be highly
-%effective, but also highly restrictive as they assume both colocation and a
+%effective, but also highly restrictive as they assume both collocation and a
 %shared address space for their clients. We focus our attention instead on the
-%fundamental limitations of Shermans lock based approach.
+%fundamental limitations of Sherman's lock based approach.
 
-\paragraph{Clover.}
 
 %To demonstrate the effectiveness of {\sword} in practice, we
 %needed to select a passive far memory system with which to experiment.
@@ -216,9 +206,9 @@ scale.
 %prototypical example of a key-value store for remote DRAM.  Most
 %importantly for our purposes, its design makes the assumption that
 %there are no remote CPU's co-resident with memory. All of
-Clover~\cite{clover} implements a shared remote key-value store using
+\emph{Clover} implements a shared remote key-value store using
 %remote memory accesses are made via
-1-sided RDMA requests.
+1-sided RDMA requests~\cite{clover}.
 %: reads, writes, and CAS.
 To improve
 performance, Clover moves metadata storage off of the data path. On
