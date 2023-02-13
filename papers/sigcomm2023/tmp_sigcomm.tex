@@ -223,6 +223,45 @@ writes.  Unfortunately this technique is not applicable to
 distributed clients as they do not share access to the same
 queue pair.
 
+
+\subsection{Overheads}
+
+\paragraph{Bandwidth inflation.} 
+%%
+One of the most direct impacts of failed requests is the
+bandwidth overhead of the retries. When atomic operations
+fail they must be retried.  In the case of locking the
+number of retries is a direct result of the critical section
+size, the number of clients, and the aforementioned
+operation limits. Each failed request consumes additional
+bandwidth. Bandwidth inflation in optimisitic schemes is
+proportial to the degree of contention. When optimistic
+operations fail they must be retried.
+%%
+Our measurements show that under contention the average
+bandwidth cost of Clover read and write operations can
+inflate by 16$\times$ (Figure~\ref{fig:bandwidth_reduction})
+when compared to an optimal scenario in which all operations
+succeed on their first try.
+
+% Because a Clover operation actually
+% consists of multiple RDMA requests, the total bandwidth is not
+% strictly proportional to the failure rate, but rather slightly
+% sub-linear.  Nevertheless, the expected cost of each operation rises
+% steadily with contention, which is a function of both the workload and
+% level of concurrency. 
+
+\paragraph{Tail latency.}
+
+Perhaps even more significant than the overheads associated with the expected
+number of retries is the cost at the tail---namely the latency associated with
+those particularly ``unlucky'' requests that fail repeatedly.  Note that these
+operations are precisely those for hot memory locations, so likely to be
+ones that matter.  Under contention
+%(e.g., 50\% write operations with 396 threads)
+Clover's 99th-percentile tail latency increases by
+over 300$\times$ (Figure~\ref{fig:tail_latency}) in our experiments.
+
 % \subsection{Programmable Switch Serialization}
 \section{In-network serialization}
 
@@ -476,8 +515,8 @@ triggers RoCE's go-back-n retransmission protocol.
 
 \subsection{Steering}
 
-Unlike connection multiplexing RDMA steering does not modify
-the RDMA operation. Steering is used when atomics are not
+Unlike connection multiplexing, steering does not modify the
+RDMA operation. Steering is used when atomics are not
 applied to a single address. The atomic bottleneck on
 independent addresses is only half of that of reads and
 writes, in most algorithms less than half of operations are
