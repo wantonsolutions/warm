@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 \section{Background}
 
 \subsection{Disaggregated Memory}
@@ -123,6 +124,8 @@ memory as it can guard access, maintain connections, and
 provide serialization primitives for all clients.
 
 
+=======
+>>>>>>> 57acc706317134a206acb9152f2c868c3f9ec0d9
 % \section{Serialization}
 
 % \begin{figure}[t]
@@ -364,21 +367,18 @@ pipeline is occupied by exactly one packet at a time.  Moreover, all
 packets destined to a given port must traverse the same egress
 pipeline.  As a result, the ToR places packets from all flows destined
 to the same (single-homed) destination in a total order---not only with
-respect to their own flow, but others as well.  Others have proposed
-leveraging this observation, along with programmable switches' ability
-to manage small amounts of state in network, to provide a number of
-in-network services~\cite{when-computer}; Mind, for instance, provides
-a unified TLB and cache for disaggregated applications~\cite{mind}.
-
+respect to their own flow, but others as well.  
 %% switch can therefore apply monotonic sequence numbers to a stream of
 %% packets, maintain a lock, or keep a shared variable up to date without
 %% the need for explicit atomic operations.
-
+%
 In the context of RDMA, however, switch-enforced packet ordering is
 insufficient.  Even if packets (from various reliable connections)
 arrive at a server NIC in a given order, they may (appear to) be
 processed in arbitrary order due to contention at the NIC or PCIe
-bus~\cite{understanding-pcie}. Figure~\ref{fig:reorder} shows that NIC
+bus~\cite{understanding-pcie}.
+
+Figure~\ref{fig:reorder} shows that NIC
 and PCIe reordering is not merely an academic concern, but occurs with
 some frequency.  In this example, we issue RDMA read, write and CAS
 requests at a rate of one million requests per second to 1,024

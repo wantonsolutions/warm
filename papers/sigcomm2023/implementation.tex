@@ -1,12 +1,5 @@
 \section{Implementation}
 
-\begin{figure}
-  \center
-    \includegraphics[width=0.45\textwidth]{fig/swordbox_overview.pdf}
-    \caption{\sword's packet processing pipeline.}
-    \label{fig:system}
-  \vskip -0.5em
-\end{figure}
 
 We implement \sword\ in DPDK and P4.  The P4 prototype
 supports conflict avoidance (\S\ref{ca}) in Clover at 100-Gbps line
@@ -25,6 +18,15 @@ implementation provides.
 
 \subsection{P4 implementation}
 
+%\textbf{Switch Resource Utilization}
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
+  \vskip -0.5em
+    \caption{Breakdown of switch resource utilization by \sword\ component.}
+    \label{fig:switch_resources}
+      \vskip -0.5em
+\end{figure}
+
 Steering is straightforward to implement in P4. We use P4 registers to
 store connection state, virtual addresses, and outstanding
 requests. Switch registers are constrained to 32, 16 and 8-bit blocks,
@@ -35,10 +37,19 @@ stage which stores a virtual address on a write, is the same that
 produces the address for CAS and read. Because registers are fixed
 width, some lookups take multiple stages.  We use two-stage lookups
 for (64-bit) virtual addresses with two 32-bit registers, and a single
-stage for queue pairs, sequence numbers, and connection IDs. \sword's
-switch resource utilization is detailed in
-Appendix~\ref{sec:appendix_resources}.
+stage for queue pairs, sequence numbers, and connection IDs.
+%\sword's
+%switch resource utilization is detailed in
+%Appendix~\ref{sec:appendix_resources}.
 
+Figure~\ref{fig:switch_resources} provides a breakdown of the resource
+consumption of our P4 \sword\ implementation as reported by
+%. We collected these
+%values from our testbed using
+the Barefoot SDE version 9.7.0. Each
+reported percentage is the average value across the total 16 switch
+pipeline stages. {\sword} fits into 8 stages, and is run entirely on
+the ingress pipeline.
 %Parsing and traffic identification are simple in P4.
 We use the header parser from the P4 simple switch to parse up to the
 UDP header and create our own header parser for RoCEv2 and Clover
@@ -236,7 +247,20 @@ check on our CX5 NICs---the Ethernet CRC provides similar guarantees.
 % the \texttt{murmur3} bit scrambler to attain an approximately even
 % hash of virtual addresses in only a few cycles.
 
+%\paragraph{Switch resources}
+%\label{sec:appendix_resources}
+%
+
+
 \subsection{DPDK vs P4}
+
+\begin{figure}
+  \center
+    \includegraphics[width=0.45\textwidth]{fig/swordbox_overview.pdf}
+    \caption{\sword's DPDK packet-processing pipeline.}
+    \label{fig:system}
+  \vskip -0.5em
+\end{figure}
 
 While our P4 prototype has limited functionality due to hardware
 limitations of our programmable switch, the DPDK
