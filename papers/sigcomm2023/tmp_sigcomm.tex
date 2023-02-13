@@ -556,6 +556,84 @@ codesigend with \sword in mind could reduce the in network
 memory footprint by fingerprinting their packets with id's
 for {\sword}.
 
+\subsection{Failure handling}
+
+\sword\ collocates functionality---and therefore shares fate---with the
+top-of-rack switch: if \sword\ fails, connectivity was already
+disrupted (i.e., the ToR is down).  Hence, the fact that a
+\sword\ failure will reset all remapped RDMA queue pairs to the
+attached servers seems of little additional consequence.  In the case
+of steering, however, we note that \sword\ does not maintain any hard
+state: failure simply results in a performance hiccup if packet-level
+connectivity can be maintained.  The upshot is that a complete
+\sword\ failure does not introduce safety concerns in any event.
+
+However, there are other failure scenarios to consider.  In
+particular, we presume that the ToR sees the exact stream of packets
+that will be received---and processed---by attached servers.
+Unfortunately, this may not be true due to packet loss (e.g., due to
+CRC failures or queue overflow) or even bugs on the server.  Of
+course, these failure cases exist even without \sword, and Sherman and
+Clover both provide their own error handling.  The key distinction,
+however, is that \sword\ maintains a cache that may become
+inconsistent with an attached server, which was previously the single
+authority of both application and RDMA connection state.
+
+
+At an application level, Clover never acquires any locks so failures
+do not result in resource stranding, and Sherman periodically detects
+if locks were kept by a dead client.  At the connection level they
+both rely upon RDMA to provide reliable, in-order delivery of their
+messages on a per-client basis and react to failed CAS operations by
+retrying their operations.  {\sword} must therefore be able to detect
+and properly handle packet retransmissions; in particular \sword\ must
+not treat a retransmitted packet as a new operation.  Hence,
+\sword\ tracks the most recent sequence number on each QP, the
+transformation it applied (remapping or steering), and whether the
+operation was ACK'd by the server.  Upon retransmission
+\sword\ re-applies the previous transformation.
+
+%QP ordering ensures retransmissions are , and RDMA
+%go-back-$n$ is triggered if any message is lost.
+
+\textbf{Enforcing ordering.}
+Managing responses when mapping queue pairs is somewhat more complex.  If a
+packet is dropped between \sword\ and a server and \sword\ maps a subsequent
+request from a different client onto the same QP, the server will generate a
+go-back-$n$ response and any other in-flight requests on that QP will become
+invalidated.  Hence, when {\sword} sees a go-back-$n$ ACK, it triggers the same
+mechanism used for ACK coalescing but in reverse: it broadcasts a go-back-$n$
+ACK to all clients with outstanding messages.  While this approach amplifies the
+performance impact of a lost packet, we expect such scenarios to be unlikely in
+practice.  Indeed, no packet drops ever occurred between {\sword} and a server
+during our experiments because our clients issue only closed-loop operations.
+
+\textbf{Conflict avoidance.} Without queue-pair mapping, there are
+fewer concerns at the connection level, but \sword\ must now be aware
+of potential inconsistency between its cache and server state.
+Concretely, in the case of Clover, it is possible for a linked list to
+become ``broken''.  If \sword\ sees a client issue a \texttt{CAS(A,B)}
+request (attempting to append node $B$ to the list at $A$) before
+another issues \texttt{CAS(A,C)} (appending node $C$ to the
+same---stale---tail), \sword\ will steer \texttt{CAS(A,C)} to
+\texttt{CAS(B,C)}. If the \texttt{CAS(A,B)} operation is lost between
+\sword\ and the server, \texttt{CAS(B,C)} will still succeed, causing
+a broken chain: the pointer $A\rightarrow B$ does not exist but
+$B\rightarrow C$ does, and {\sword} believes $C$ to be the tail.
+
+In the normal case, the client will timeout and retransmit
+\texttt{CAS(A,B)}, which \sword\ will identify as a retransmission and
+\emph{not} steer to the ``new'' tail, thereby repairing the list.  (In
+the mean time, the missing link is immaterial because
+subsequent requests are being steered by \sword.)  If, however, the client
+were to fail prior to retransmitting the CAS the chain will remain broken.
+Here we use an out-of-band mechanism to repair the chain: on occasion
+our control plane queries the switch to check for outstanding CAS
+requests and simply retransmits them (spurious retransmissions are
+handled gracefully by the server).  The trickiest case is if
+\sword\ itself also fails in the mean time: we defer protecting
+against this double-failure scenario to future work.
+
 
 
 
