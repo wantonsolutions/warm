@@ -484,27 +484,30 @@ guarantees.
 
 \section{\sword}
 
-We present {\sword} a middlebox solution for sharing remote
-memory. {\sword} enables sharing by providing two forms of
-application specific serialization. The first of which is to
-resolve atomic operations in network. Using a cache \sword
-determines the result of the atomic operation, and forwards
-the result to memory as a write. The semantics of RDMA RC
-connections are used to ensure that the result of the
-resolved atomic arrives in far memory in order. Second
-{\sword} can remove contention from optimistic data
-structures through steering. \sword caches updates to the
-shared structures and modifies stale requests in flight with
-the most up to date information removing the need for
-operations to fail. These mechanisms are used to accelerate
-locks in Sherman~\cite{sherman} and remove all contention
-from a key-value store, Clover~\cite{clover}.
+We present {\sword} an in-network solution for sharing
+remote memory. {\sword} enables sharing by providing two
+forms of application specific serialization. The first of
+which is to resolve atomic operations in network. Using a
+cache and application logic \sword determines the result of
+the atomic operation, and forwards the result to memory as a
+write. RDMA RC connections are used to ensure that resolved
+operations are not reordered downstream.
+%
+Second {\sword} removes contention from optimistic
+operations via steering. \sword caches updates to shared
+data structures and updates state in-flight requests so they
+can succeed rather than fail and retry.
+% \sword caches updates to the shared structures and
+% modifies stale requests in flight with the most up to date
+% information removing the need for operations to fail. 
+These mechanisms are used to accelerate locks in
+Sherman~\cite{sherman} and remove all contention from a
+key-value store, Clover~\cite{clover}.
 %%
-These
-techniques are implemented in a DPDK prototype for the lock
-based approach and fully realized in P4 for optimistic data
-structures. Figure~\ref{fig:system} shows the overall design
-of {\sword}.
+These techniques are implemented in a DPDK prototype for the
+lock based approach and fully realized in P4 for optimistic
+data structures. Figure~\ref{fig:system} shows the overall
+design of {\sword}.
 
 % Locks are
 % managed in network, and the results of locking operations
