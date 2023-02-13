@@ -123,6 +123,189 @@ memory as it can guard access, maintain connections, and
 provide serialization primitives for all clients.
 
 
+<<<<<<< HEAD
+=======
+\section{Serialization}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
+  \vskip -0.5em
+
+    \caption{Achieved throughput of RDMA verbs across twenty queue
+      pairs on data-independent addresses as a function of request
+      concurrency.  When using atomic requests, ConnectX-5 NICs can
+      support approximately 2.7 MOPS per queue pair, up to about 55
+      MOPS in aggregate.}
+
+    \label{fig:rdma_concur}
+      \vskip -0.5em
+\end{figure}
+
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
+    \vskip -0.5em
+    \caption{Percentage of successful operations in a
+      50:50 read-write workload spread across 1,024 keys according
+      to a Zipf(0.99) distribution as more client threads are
+      added. At 240 threads less than 4\% of operations succeed.}
+      
+    \vskip -0.5em
+    \label{fig:success_rate}
+\end{figure}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%  \vskip -0.5em
+
+  \caption{ Throughput comparison of serialized RDMA operations in
+    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
+    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory despite being restricted to a single queue pair.  }
+
+    \label{fig:cas_vs_writes}
+%      \vskip -0.5em
+\end{figure}
+
+\subsection{RDMA serialization} 
+%%
+RDMA atomics instructions serialize remote memory operations
+without the need for a memory side CPU. These instructions
+\textit{Fetch-and-Add} and \textit{Compare-and-Swap} (CAS)
+execute on 64 bit width words and are guaranteed to have
+atomic visibility across all queue pairs. These operations
+are expensive. On a single address atomic instructions can
+only execute a few million operations per second, each
+operation forces a blocking PCIe round trip.  As a
+performance mitigation Mellanox NICs supply a small (few KB)
+region of device mapped memory which allows the memory side
+NIC to execute RDMA instructions on it's local device memory
+without incurring a PCIe round trip~\cite{sherman}.
+Executing atomics on this memory is 3x higher throughput
+than host memory, but still slower than it's read and write
+counterparts~\ref{fig:cas_vs_writes}.  Across independent
+addresses they have approximately half the throughput of
+read and write (Figure~\ref{fig:rdma_concur}).
+
+Data structures built on RDMA atomics have hard performance
+limits because the aforementioned constraints.  Locks
+located at a single address which use traditional lock,
+unlock operations are limited to around 500k accesses per
+second. This assumes perfectly coordinated requests, under
+contention requests which fail to acquire or release a lock
+still consume operation bandwidth.
+%%
+Under contention RDMA has poor support for traditional
+locking. In contrast optimistic data structures with locks
+scattered throughout, such as a linked list, are not rate
+limited by this single address restriction.  However, they
+are fundamentally limited by the fact that any atomics have
+half the throughput of reads and writes. More critically,
+under contention optimistic data structures have no liveness
+guarantees. We measure the failure rate of optimistic reads
+and writes to a shared linked list. Operations are reads and
+writes to the tail of the list, all writes are appends.
+under contention atomic operations fail frequently
+(Figure~\ref{fig:success_rate}).  RDMA has no support for
+resolving pointers (pointer chasing) and retrying operations
+for such data structures~\cite{rma,snap,prism}, a simple
+operation usually executed by a memory side CPU. As such
+RDMA clients are forced to resolve their failures requests
+themselves often retrying many times.
+%%
+Atomic operations are not the only serialization mechanism
+provided by RDMA. Reliable Connections provide in order
+delivery on individual queue pairs. This allows clients to
+issue multiple requests in parallel and allows the NIC to
+resolve reordering and dropped packets using go-back-n
+retransmission.  When clients are collocated, queue pairs
+can be shared by multiple cores through techniques such as
+flat combining~\cite{flock,sherman}. Flat combing removes
+the need for RDMA atomics, as clients can locally resolve
+their conflicts and then issue their requests as reads and
+writes.  Unfortunately this technique is not applicable to
+distributed clients as they do not share access to the same
+queue pair.
+
+
+\subsection{Overheads}
+
+\paragraph{Bandwidth inflation.} 
+%%
+One of the most direct impacts of failed requests is the
+bandwidth overhead of the retries. When atomic operations
+fail they must be retried.  In the case of locking the
+number of retries is a direct result of the critical section
+size, the number of clients, and the aforementioned
+operation limits. Each failed request consumes additional
+bandwidth. Bandwidth inflation in optimisitic schemes is
+proportial to the degree of contention. When optimistic
+operations fail they must be retried.
+%%
+Our measurements show that under contention the average
+bandwidth cost of Clover read and write operations can
+inflate by 16$\times$ (Figure~\ref{fig:bandwidth_reduction})
+when compared to an optimal scenario in which all operations
+succeed on their first try.
+
+% Because a Clover operation actually
+% consists of multiple RDMA requests, the total bandwidth is not
+% strictly proportional to the failure rate, but rather slightly
+% sub-linear.  Nevertheless, the expected cost of each operation rises
+% steadily with contention, which is a function of both the workload and
+% level of concurrency. 
+
+\paragraph{Tail latency.}
+
+Perhaps even more significant than the overheads associated with the expected
+number of retries is the cost at the tail---namely the latency associated with
+those particularly ``unlucky'' requests that fail repeatedly.  Note that these
+operations are precisely those for hot memory locations, so likely to be
+ones that matter.  Under contention
+%(e.g., 50\% write operations with 396 threads)
+Clover's 99th-percentile tail latency increases by
+over 300$\times$ (Figure~\ref{fig:tail_latency}) in our experiments.
+
+% \subsection{Programmable Switch Serialization}
+\section{In-network serialization}
+
+\begin{figure}[t]
+    \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
+  \vskip -0.5em    
+    \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
+    of requests retain their order (delta=1), however reorderings of up to 15
+    requests can occur. (Note logarithmic $y$ axis.)}
+  \vskip -0.5em
+    \label{fig:reorder}
+\end{figure}
+
+Switches can cheaply serialize packets~\cite{when-computer}.
+Programable switches with P4 pipelines can utilize this
+cheap serialization, along with their ability to manage
+small amounts of state in network, to serialize distributed
+applications. Mind for instance provides a unified TLB and
+cache for disaggregated applications~\cite{mind}. Packets
+processed by a programmable switch are sequenced in order,
+updates to the switches registers are atomic with respect to
+the packets as each state of the pipeline is occupied by
+exactly one packet at a time. A centralized switch can
+therefore apply monotonic sequence numbers to a stream of
+packets, maintain a lock, or keep a shared variable up to
+date without the need for explicit atomic operations.
+
+Unfortunately this serialization is not sufficient for RDMA
+memory operations out of the box. RDMA packets on two
+reliable connections may be ordered on the switch, and then
+subsequently reordered by the receiving side NIC, or by the
+PCIe bus~\cite{understanding-pcie}. NIC and PCIe reordering
+is not merely an academic concern!  Figure~\ref{fig:reorder}
+illustrates the extend of reordering across connections.
+This experiment uses an in network serializer to give each
+packet an incremental monotonic sequence number. The x axis
+measure the absolute delta between sequence number values on
+response packets.  The majority of packets remain ordered
+(sequence number 1), however significant reordering does
+occur up to 15 packets apart.
+
+>>>>>>> fda17c6fbdf6092a019bfa38e2c76262683d5205
 Switches are not intended to be general purpose computers,
 their purpose is to forward packets. It is trivial to
 construct switch programs which consume it's few resources.
@@ -624,8 +807,8 @@ triggers RoCE's go-back-n retransmission protocol.
 
 \subsection{Steering}
 
-Unlike connection multiplexing RDMA steering does not modify
-the RDMA operation. Steering is used when atomics are not
+Unlike connection multiplexing, steering does not modify the
+RDMA operation. Steering is used when atomics are not
 applied to a single address. The atomic bottleneck on
 independent addresses is only half of that of reads and
 writes, in most algorithms less than half of operations are
@@ -664,6 +847,84 @@ existing systems, however we note that future systems
 codesigend with \sword in mind could reduce the in network
 memory footprint by fingerprinting their packets with id's
 for {\sword}.
+
+\subsection{Failure handling}
+
+\sword\ collocates functionality---and therefore shares fate---with the
+top-of-rack switch: if \sword\ fails, connectivity was already
+disrupted (i.e., the ToR is down).  Hence, the fact that a
+\sword\ failure will reset all remapped RDMA queue pairs to the
+attached servers seems of little additional consequence.  In the case
+of steering, however, we note that \sword\ does not maintain any hard
+state: failure simply results in a performance hiccup if packet-level
+connectivity can be maintained.  The upshot is that a complete
+\sword\ failure does not introduce safety concerns in any event.
+
+However, there are other failure scenarios to consider.  In
+particular, we presume that the ToR sees the exact stream of packets
+that will be received---and processed---by attached servers.
+Unfortunately, this may not be true due to packet loss (e.g., due to
+CRC failures or queue overflow) or even bugs on the server.  Of
+course, these failure cases exist even without \sword, and Sherman and
+Clover both provide their own error handling.  The key distinction,
+however, is that \sword\ maintains a cache that may become
+inconsistent with an attached server, which was previously the single
+authority of both application and RDMA connection state.
+
+
+At an application level, Clover never acquires any locks so failures
+do not result in resource stranding, and Sherman periodically detects
+if locks were kept by a dead client.  At the connection level they
+both rely upon RDMA to provide reliable, in-order delivery of their
+messages on a per-client basis and react to failed CAS operations by
+retrying their operations.  {\sword} must therefore be able to detect
+and properly handle packet retransmissions; in particular \sword\ must
+not treat a retransmitted packet as a new operation.  Hence,
+\sword\ tracks the most recent sequence number on each QP, the
+transformation it applied (remapping or steering), and whether the
+operation was ACK'd by the server.  Upon retransmission
+\sword\ re-applies the previous transformation.
+
+%QP ordering ensures retransmissions are , and RDMA
+%go-back-$n$ is triggered if any message is lost.
+
+\textbf{Enforcing ordering.}
+Managing responses when mapping queue pairs is somewhat more complex.  If a
+packet is dropped between \sword\ and a server and \sword\ maps a subsequent
+request from a different client onto the same QP, the server will generate a
+go-back-$n$ response and any other in-flight requests on that QP will become
+invalidated.  Hence, when {\sword} sees a go-back-$n$ ACK, it triggers the same
+mechanism used for ACK coalescing but in reverse: it broadcasts a go-back-$n$
+ACK to all clients with outstanding messages.  While this approach amplifies the
+performance impact of a lost packet, we expect such scenarios to be unlikely in
+practice.  Indeed, no packet drops ever occurred between {\sword} and a server
+during our experiments because our clients issue only closed-loop operations.
+
+\textbf{Conflict avoidance.} Without queue-pair mapping, there are
+fewer concerns at the connection level, but \sword\ must now be aware
+of potential inconsistency between its cache and server state.
+Concretely, in the case of Clover, it is possible for a linked list to
+become ``broken''.  If \sword\ sees a client issue a \texttt{CAS(A,B)}
+request (attempting to append node $B$ to the list at $A$) before
+another issues \texttt{CAS(A,C)} (appending node $C$ to the
+same---stale---tail), \sword\ will steer \texttt{CAS(A,C)} to
+\texttt{CAS(B,C)}. If the \texttt{CAS(A,B)} operation is lost between
+\sword\ and the server, \texttt{CAS(B,C)} will still succeed, causing
+a broken chain: the pointer $A\rightarrow B$ does not exist but
+$B\rightarrow C$ does, and {\sword} believes $C$ to be the tail.
+
+In the normal case, the client will timeout and retransmit
+\texttt{CAS(A,B)}, which \sword\ will identify as a retransmission and
+\emph{not} steer to the ``new'' tail, thereby repairing the list.  (In
+the mean time, the missing link is immaterial because
+subsequent requests are being steered by \sword.)  If, however, the client
+were to fail prior to retransmitting the CAS the chain will remain broken.
+Here we use an out-of-band mechanism to repair the chain: on occasion
+our control plane queries the switch to check for outstanding CAS
+requests and simply retransmits them (spurious retransmissions are
+handled gracefully by the server).  The trickiest case is if
+\sword\ itself also fails in the mean time: we defer protecting
+against this double-failure scenario to future work.
 
 
 
