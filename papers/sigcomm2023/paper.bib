@@ -1062,3 +1062,76 @@ abstract = {Remote Direct Memory Access (RDMA) has been used to accelerate a var
 url = {https://www.microsoft.com/en-us/research/publication/prism-rethinking-the-rdma-interface-for-distributed-systems/},
 }
 
+@inproceedings{mind,
+author = {Lee, Seung-seob and Yu, Yanpeng and Tang, Yupeng and Khandelwal, Anurag and Zhong, Lin and Bhattacharjee, Abhishek},
+title = {MIND: In-Network Memory Management for Disaggregated Data Centers},
+year = {2021},
+isbn = {9781450387095},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3477132.3483561},
+doi = {10.1145/3477132.3483561},
+abstract = {Memory disaggregation promises transparent elasticity, high resource utilization and hardware heterogeneity in data centers by physically separating memory and compute into network-attached resource "blades". However, existing designs achieve performance at the cost of resource elasticity, restricting memory sharing to a single compute blade to avoid costly memory coherence traffic over the network.In this work, we show that emerging programmable network switches can enable an efficient shared memory abstraction for disaggregated architectures by placing memory management logic in the network fabric. We find that centralizing memory management in the network permits bandwidth and latency-efficient realization of in-network cache coherence protocols, while programmable switch ASICs support other memory management logic at line-rate. We realize these insights into MIND1, an in-network memory management unit for rack-scale disaggregation. MIND enables transparent resource elasticity while matching the performance of prior memory disaggregation proposals for real-world workloads.},
+booktitle = {Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles},
+pages = {488–504},
+numpages = {17},
+keywords = {Memory disaggregation, Programmable networks},
+location = {Virtual Event, Germany},
+series = {SOSP '21}
+}
+
+@inproceedings{kona,
+author = {Calciu, Irina and Imran, M. Talha and Puddu, Ivan and Kashyap, Sanidhya and Maruf, Hasan Al and Mutlu, Onur and Kolli, Aasheesh},
+title = {Rethinking Software Runtimes for Disaggregated Memory},
+year = {2021},
+isbn = {9781450383172},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3445814.3446713},
+doi = {10.1145/3445814.3446713},
+abstract = {Disaggregated memory can address resource provisioning inefficiencies in current datacenters. Multiple software runtimes for disaggregated memory have been proposed in an attempt to make disaggregated memory practical. These systems rely on the virtual memory subsystem to transparently offer disaggregated memory to applications using a local memory abstraction. Unfortunately, using virtual memory for disaggregation has multiple limitations, including high overhead that comes from the use of page faults to identify what data to fetch and cache locally, and high dirty data amplification that comes from the use of page-granularity for tracking changes to the cached data (4KB or higher). In this paper, we propose a fundamentally new approach to designing software runtimes for disaggregated memory that addresses these limitations. Our main observation is that we can use cache coherence instead of virtual memory for tracking applications' memory accesses transparently, at cache-line granularity. This simple idea (1) eliminates page faults from the application critical path when accessing remote data, and (2) decouples the application memory access tracking from the virtual memory page size, enabling cache-line granularity dirty data tracking and eviction. Using this observation, we implemented a new software runtime for disaggregated memory that improves average memory access time by 1.7-5X and reduces dirty data amplification by 2-10X, compared to state-of-the-art systems.},
+booktitle = {Proceedings of the 26th ACM International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {79–92},
+numpages = {14},
+keywords = {remote memory, disaggregated memory, cache coherence},
+location = {Virtual, USA},
+series = {ASPLOS '21}
+}
+
+@inproceedings {faast,
+author = {Anuj Kalia and Michael Kaminsky and David G. Andersen},
+title = {{FaSST}: Fast, Scalable and Simple Distributed Transactions with {Two-Sided} ({{{{{RDMA}}}}}) Datagram {RPCs}},
+booktitle = {12th USENIX Symposium on Operating Systems Design and Implementation (OSDI 16)},
+year = {2016},
+isbn = {978-1-931971-33-1},
+address = {Savannah, GA},
+pages = {185--201},
+url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/kalia},
+publisher = {USENIX Association},
+month = nov,
+}
+
+@inproceedings {netchain,
+author = {Xin Jin and Xiaozhou Li and Haoyu Zhang and Nate Foster and Jeongkeun Lee and Robert Soul{\'e} and Changhoon Kim and Ion Stoica},
+title = {{NetChain}: {Scale-Free} {Sub-RTT} Coordination},
+booktitle = {15th USENIX Symposium on Networked Systems Design and Implementation (NSDI 18)},
+year = {2018},
+isbn = {978-1-939133-01-4},
+address = {Renton, WA},
+pages = {35--49},
+url = {https://www.usenix.org/conference/nsdi18/presentation/jin},
+publisher = {USENIX Association},
+month = apr,
+}
+
+@inproceedings{netkv,
+  author={Zhang, Wei and Wood, Timothy and Hwang, Jinho},
+  booktitle={2016 IEEE International Conference on Autonomic Computing (ICAC)}, 
+  title={NetKV: Scalable, Self-Managing, Load Balancing as a Network Function}, 
+  year={2016},
+  volume={},
+  number={},
+  pages={5-14},
+  doi={10.1109/ICAC.2016.28}}
+
+
