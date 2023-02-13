@@ -891,30 +891,30 @@ against this double-failure scenario to future work.
 % the process.
 
 
-\subsection{Example Systems}
+%% \subsection{Example Systems}
 
-We implement both of our contention reduction strategies in
-two disaggregated systems Clover, and Sherman. 
-%%
-\textbf{Sherman}: is a B+ tree built for one sided RDMA.
-Shermans core mechanism for mitigating write conflicts is a
-lock table mapped to the memory side NIC. We emulate
-Shermans lock table and demonstrate \sword's ability to
-improve performance by placing the lock table in network and
-mapping CAS operations to writes using our connection
-remapping technique. We use our DPDK implementation of
-\sword in our evaluation of Sherman.
-%%
-\textbf{Clover:}: is a key value store built for one sided
-RDMA. One sided operations read and write updates to the
-store by appending to keys structured as linked lists. Under
-contention both reads and writes fail as the tail of the
-lists move. We use \sword's ability to cache the most up to
-date tail and steer requests to the correct location to
-remove all contention from both reads and writes enabling
-the performance of raw uncontended RDMA operations. Our
-evaluation of Clover is performed using our P4
-implementation of \sword.
+%% We implement both of our contention reduction strategies in
+%% two disaggregated systems Clover, and Sherman. 
+%% %%
+%% \textbf{Sherman}: is a B+ tree built for one sided RDMA.
+%% Shermans core mechanism for mitigating write conflicts is a
+%% lock table mapped to the memory side NIC. We emulate
+%% Shermans lock table and demonstrate \sword's ability to
+%% improve performance by placing the lock table in network and
+%% mapping CAS operations to writes using our connection
+%% remapping technique. We use our DPDK implementation of
+%% \sword in our evaluation of Sherman.
+%% %%
+%% \textbf{Clover:}: is a key value store built for one sided
+%% RDMA. One sided operations read and write updates to the
+%% store by appending to keys structured as linked lists. Under
+%% contention both reads and writes fail as the tail of the
+%% lists move. We use \sword's ability to cache the most up to
+%% date tail and steer requests to the correct location to
+%% remove all contention from both reads and writes enabling
+%% the performance of raw uncontended RDMA operations. Our
+%% evaluation of Clover is performed using our P4
+%% implementation of \sword.
 
 
 % \textbf{sherman:} {{\sword}} assumes that locks are located at well known
