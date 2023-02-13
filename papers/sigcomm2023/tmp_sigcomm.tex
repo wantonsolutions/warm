@@ -12,7 +12,7 @@ keep a cache of local pages, and swap in and out
 transparently on page faults ~\cite{infiniswap, leap,
 fastswap}.  Some have argued that page granularity is too
 course and built upon an incoherent caching
-layer~\cite{kona, legoos}.  In both cases transparency
+layer~\cite{kona,legoos}.  In both cases transparency
 incurs a performance cost as remote accesses cannot be
 optimized for by the running application.
 %%
@@ -47,7 +47,7 @@ Which connections to use is an intense topic for debate.
 Reliable connections use NIC memory, a precious resource,
 and projects designed using Mellanox CX3-CX5 noted that RC
 bottlenecked scalability due to memory and cache
-limitations~\cite{farm,faast,erpc,litem,design-guidelines}.
+limitations~\cite{farm,faast,erpc,lite,design-guidelines}.
 While host memory can provide better scalability modern NICs
 have bigger caches with better cache
 management~\cite{storm}. In the disaggregated setting no
@@ -97,7 +97,7 @@ with servers partitioned into roles: compute, memory, and
 storage, each of which is interconnected by a TOR.  The TOR
 is central in this architecture, a fact which has not gone
 unnoticed by system designers who argue that a programmable
-switch can facilitate remote memory apis, and OS
+switch can facilitate remote memory APIs, and OS
 functionality~\cite{disandapp,mind}. 
 %%
 Literature on offloading OS, and service level functionality
