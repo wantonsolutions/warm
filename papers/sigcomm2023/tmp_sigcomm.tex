@@ -196,6 +196,16 @@
 % compute and data restrictions of the switches SRAM.
 
 
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
+  \vskip -0.5em
+\caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
+core, and issues in-lined writes. A single connection only offers a fraction of the
+total NIC throughput.} 
+  \vskip -0.5em
+  \label{fig:qp_bottleneck}
+\end{figure}
+
 \section{Serialization}
 
 The fundamental challenge faced by passive remote memory systems is
@@ -208,19 +218,9 @@ enabling clients to
 issue multiple outstanding requests; the NIC ensures in-order delivery despite 
 packet reordering and drops with sequence numbers and go-back-$n$
 retransmission.
-
-\subsection{Per-connection throughput}
-
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
-  \vskip -0.5em
-\caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
-core, and issues in-lined writes. A single connection only offers a fraction of the
-total NIC throughput.} 
-  \vskip -0.5em
-  \label{fig:qp_bottleneck}
-\end{figure}
-
+%
+%\subsection{Per-connection throughput}
+%
 When clients are collocated, queue pairs
 can be shared by multiple cores through techniques such as
 flat combining~\cite{flock,sherman}.
@@ -987,8 +987,8 @@ the remaining cost of (clients) resolving such failures is minimal.
 %% writes, in most algorithms less than half of operations are
 %% atomics, therefore the bottleneck is never reached. 
 %%
-We implement steering by maintaining a cache of (a subset of) Clover's
-linked-list datastructures.  %% , and data structure specific code for
+We implement steering by maintaining a cache of Clover's
+linked-list datastructures for popular keys.  %% , and data structure specific code for
 %% resolving conflicts. 
 When a Clover packet arrives at the switch, it is parsed and passed to
 application-specific cache management code that extracts the
@@ -1032,7 +1032,7 @@ concurrent reads face a similar dilemma: Clover reads seek to access
 the current tail of the linked list, but the address may be stale if
 they ``lose'' a race with a concurrent write.  To improve performance,
 \sword\ similarly steers reads to the correct tail address.
-
+%
 Unfortunately, unlike writes (which are easy to identify by their use
 of the CAS operation), Clover reads are simply RDMA read operations
 for a virtual address and a length.
