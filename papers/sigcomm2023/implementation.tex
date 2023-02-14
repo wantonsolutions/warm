@@ -1,11 +1,11 @@
 \section{Implementation}
 
-
-We implement \sword\ in DPDK and P4.  The P4 prototype
-supports conflict avoidance (\S\ref{ca}) in Clover at 100-Gbps line
-rate, but does not perform the queue-pair remapping necessary to
-enforce ordering (\S\ref{ea}) that our full-featured DPDK
-implementation provides.
+We implement \sword\ in DPDK and P4. The P4 prototype
+supports steering (\S\ref{sec:steering}) in Clover at
+100-Gbps line rate, but does not perform the connection
+multiplexing necessary to enforce ordering
+(\S\ref{sec:connection_multiplexing}) that our full-featured
+DPDK implementation provides.
 
 %all of the functionality described
 %previously; the P4 prototype does  but includes sufficient logic
@@ -18,16 +18,14 @@ implementation provides.
 
 \subsection{P4 implementation}
 
-A max of 4k connections are supported. The buffer size determines the maximum number of in-flight requests per
-QP (128 in \sword).
-
-While prior work has
-demonstrated that this is possible to implement in a programmable
-switch~\todo{cite} but our P4 implementation neglects this detail.
-Because we are using RoCEv2 transport the ICRC is redundant with
-respect to the Ethernet CRC.  Hence, like previous
-authors~\cite{switchml}, we disable ICRC checks on both the sender and
-receiver NICs in our experiments.
+A max of 4k connections are supported. The buffer size
+determines the maximum number of in-flight requests per QP
+(128 in \sword).  Prior work has demonstrated that RDMA
+ICRC's can be implemented in a P4 switch, but are redundant
+due to ethernet CRC ~\cite{p4telemetry,bedrock}.  Hence,
+like previous authors~\cite{switchml}, we disable ICRC
+checks on both the sender and receiver NICs to save switch
+resources in our experiments.
 
 %\textbf{Switch Resource Utilization}
 \begin{figure}[t]

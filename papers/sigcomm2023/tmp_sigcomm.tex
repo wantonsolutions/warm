@@ -556,6 +556,7 @@ operations to resolve write/write conflicts before they occur.
 \end{figure}
 
 \subsection{Connection multiplexing}
+\label{sec:connection_multiplexing}
 
 RoCEv2 tunnels the original Infiniband-based RDMA protocol on top of
 UDP, using destination port 4791.  RoCEv2 packets have two headers,
@@ -944,6 +945,7 @@ sufficient for storing connection metadata.
 %% write across multiple connections.
 
 \subsubsection{Steering}
+\label{sec:steering}
 Unlike Sherman, Clover does not implement locks.  Instead, Clover
 attempts to append to a per-key linked list using atomic operations.
 Clover detects concurrent updates by breaking writes (i.e., list
