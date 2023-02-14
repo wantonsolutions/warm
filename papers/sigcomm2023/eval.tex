@@ -51,20 +51,23 @@ server, and the remaining seven as Clover clients.
       \vskip -0.5em
 \end{figure*}
 
-We show that \sword\ is able to overcome the NIC hardware bottleneck
-by replacing CAS operations with writes serialized on a given QP by
-running a micro-benchmark that focuses exclusively on CAS
-performance. Specifically, we extract the CAS request from Sherman's
-lock operation and repeatedly generate it from one client to a single
-memory server (while routing it through {\sword} using OpenFlow rules).
-%Here we remove clover from the
-%mix and run a simple benchmark of RDMA CAS operations between two
-%servers. \sword is routed to via a different set of OpenFlow rules.
-Each client thread is bound to its own queue pair, and all client
-threads issue CAS requests to the same shared virtual address.  We set the number of cores on the
-{\sword} middlebox to 24 so that in our maximal test case each client
-thread flows through exactly one middlebox core for the lowest degree
-of interference between QP.
+We show that \sword\ is able to overcome the NIC hardware
+bottleneck by replacing CAS operations with writes
+serialized on a given RC by running a micro-benchmark that
+focuses exclusively on CAS performance. Specifically, we
+extract the CAS request from Sherman's lock operation and
+repeatedly generate it from one client to a single memory
+server (while routing it through {\sword} using OpenFlow
+rules).
+%Here we remove clover from the mix and run a simple
+%benchmark of RDMA CAS operations between two servers.
+%\sword is routed to via a different set of OpenFlow rules.
+Each client thread is bound to its own queue pair, and all
+client threads issue CAS requests to the same shared virtual
+address.  We set the number of cores on the {\sword}
+middlebox to 24 so that in our maximal test case each client
+thread flows through exactly one middlebox core for the
+lowest degree of interference between QP.
 
 %All requests are routed
 %through our middlebox.
@@ -113,7 +116,7 @@ throughput of our middlebox: 2.8 MOPS.
 
 
 
-\subsection{Conflict avoidance}
+\subsection{Steering in Clover}
 
 While atomic replacement is feasible, it requires \sword\ to
 explicitly manage and remap all the RDMA connections to a given (set
