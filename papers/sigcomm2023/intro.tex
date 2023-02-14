@@ -101,7 +101,7 @@ and 2) caching small amounts of metadata to dynamically steer
 in-flight RDMA updates to serialize concurrent operations to
 remote-memory indexing structures.
 
-We apply \sword\ to two existing remote memory systems which natively
+We apply \sword\ to two remote memory systems that natively
 support sharing: Sherman~\cite{sherman}, which uses locking, and Clover~\cite{clover} that relies on optimistic concurrency.
 We show that both systems natively collapse under contention due to RDMA's
 limitations, but \sword\ can remove their bottlenecks.  Concretely, 
@@ -117,8 +117,7 @@ limitations, but \sword\ can remove their bottlenecks.  Concretely,
 by multiplexing all acquire and release operations for a shared lock
 in Sherman onto a single reliable connection, \sword\ can
 replace the client-issued compare-and-swap operations
-with a lightweight writes, delivering a potential 10$\times$ gain in
-throughput.  Performance gains are even higher in the case of Clover,
+with a lightweight writes, delivering a potential 10$\times$ throughput gain.  Performance gains are even higher in the case of Clover,
 where
 %% When access to a shared location (lock acquire, release) is
 %% required we show that our middlebox can multiplex reliable
