@@ -484,30 +484,25 @@ guarantees.
 
 \section{\sword}
 
-We present {\sword} an in-network solution for sharing
-remote memory. {\sword} enables sharing by providing two
-forms of application specific serialization. The first of
-which is to resolve atomic operations in network. Using a
-cache and application logic \sword\ determines the result of
-the atomic operation, and forwards the result to memory as a
-write. RDMA RC connections are used to ensure that resolved
-operations are not reordered downstream.
-%
-Second {\sword} removes contention from optimistic
-operations via steering. \sword\ caches updates to shared
-data structures and updates state in-flight requests so they
-can succeed rather than fail and retry.
-% \sword caches updates to the shared structures and
-% modifies stale requests in flight with the most up to date
-% information removing the need for operations to fail. 
-These mechanisms are used to accelerate locks in
-Sherman~\cite{sherman} and remove all contention from a
-key-value store, Clover~\cite{clover}.
+\sword\ is our general-purpose approach to accelerating RDMA-based
+applications like shared disaggregated memory that require operation
+ordering across clients.  In this section we explain the functionality
+\sword\ provides and then apply it to two separate remote memory
+systems.  At a high level, \sword\ is capabile of 1) tracking on-going
+reliable connections, 2) parsing and caching their contents, and 3)
+modifying operations in flight.  Because it defines a total order on
+outgoing RDMA requests, \sword\ can safely remap them between
+different connections as well as transform atomics into lightweight
+verbs.  As we show in the context of Clover, by tracking a small bit
+of application-specific state, \sword\ can also use its knowledge of
+operation order to modify the target address or value of conflicting
+operations to resolve write/write conflicts before they occur.
+
 %%
-These techniques are implemented in a DPDK prototype for the
-lock based approach and fully realized in P4 for optimistic
-data structures. Figure~\ref{fig:system} shows the overall
-design of {\sword}.
+%% These techniques are implemented in a DPDK prototype for the
+%% lock based approach and fully realized in P4 for optimistic
+%% data structures. Figure~\ref{fig:system} shows the overall
+%% design of {\sword}.
 
 % Locks are
 % managed in network, and the results of locking operations
@@ -524,20 +519,7 @@ design of {\sword}.
 % limit of the match action pipeline require recirculation
 % which consumes additional switch bandwidth. 
 
-\sword\ is designed for closed looped clients. Connection
-remapping could require large amounts of buffering in
-network if clients had many in flight requests spread across
-multiple QP. Out-of-order requests would need to be buffered
-prior to delivering them. Out-of-order packet delivery
-triggers RoCE's go-back-$n$ retransmission protocol.
-%% Storing connection information could lead to a potential
-%memory bottle neck. 
-Our aim is to enable rack-scale disaggregation where the
-total number of cores (clients) is less thant O(1k). Here
-the few MB of available switch memory is more than
-sufficient for storing connection metadata.
-
-\subsection{RDMA processing}
+%\subsection{RDMA processing}
 
 \begin{figure}[t]
   \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
@@ -555,26 +537,22 @@ sufficient for storing connection metadata.
       \vskip -0.5em
 \end{figure}
 
-RoCEv2 runs on top of UDP, using destination port 4791.
-RoCE packets have two headers, BTH,and BTH+, shown in
-Figure~\ref{fig:roce_header}, both of which \sword\ needs to parse.
-The BTH header contains determines the operation, while the BTH+
-headers contain virtual addresses an operation executs on, the
-operation itself, and its payload. 
-
-7
-
-
 \subsection{Connection multiplexing}
 
-
+RoCEv2 tunnels the original Infiniband-based RDMA protocol on top of
+UDP, using destination port 4791.  RoCEv2 packets have two headers,
+BTH,and BTH+, shown in Figure~\ref{fig:roce_header}, both of which
+\sword\ needs to parse.  The BTH header indicates the operation, while
+the BTH+ headers contains the target virtual address and the operation
+payload.
+%
 %% \sword\ uses reliable connections to ensure that packets are
 %% not reordered after atomic operations have been resolved. By
 %% default, RoCEv2 packets on separate QP can be reordered on
 %% the NIC, or on PCIe, therefore swapping CAS operations to
 %% Write on the switch leads to an unsafe race condition
 %% (Figure~\ref{fig:reorder}).
-
+%
 In cases where \sword\ wishes to enforce ordering across operations
 from different clients, it multiplexes them onto the same reliable
 connection.  \sword\ does not establish or terminate connections
@@ -629,17 +607,18 @@ the last packet transmitted on the outgoing connection.  (Incoming
 retransmissions---detected due to their non-advancing sequence
 number---are always mapped to the same outgoing connection and
 sequence number as the original.)  To facilitate ACK and
-retransmission handling, every outgoing packet creates a map entry in
+retransmission handling, every packet creates a map entry in
 the ring buffer associated with its outgoing connection.
 
-We maintain the circular buffers as fixed-size arrays and use the
-packet's outgoing sequence number (modulo the buffer size) as an
-index.  Each entry contains the packet's incoming queue pair and
-sequence number information as well as space to record whether the
-operation was a replaced CAS (Section~\ref{ss:rewrite}) and, if so,
-the presumed prior state of the target address---which is tracked
-using application-specific logic discussed below.
-
+For efficiency, we maintain the ring buffers as fixed-size arrays and
+use the packet's outgoing sequence number (modulo the buffer size) as
+an index.  Each entry contains a reference to the packet's incoming
+queue pair, its original sequence number, and, in the case of atomics,
+space to record whether the operation was replaced by
+a write (Section~\ref{ss:rewrite}) and, if so, the prior value of the
+target address---which is tracked using application-specific logic
+discussed below.
+%
 %% Map entries are sufficient for bookkeeping packets, but many
 %% packet fields must be updated to ensure that the RDMA NICs
 %% accept the packets as valid.
@@ -651,13 +630,8 @@ using application-specific logic discussed below.
 %% packet, trigger go-back-n, or generate an error. 
 %% %
 %% On mapping the
-If the packet was remapped, both the 
-invariant CRC (ICRC) of the RDMA packet and the IP checksum must
-be updated. Prior work has demonstrated that this is
-possible in a programmable switch~\todo{cite}. We use RoCE
-transport in which the ICRC is redundant after the ethernet
-CRC. We turn off ICRC checks on both the sender and
-receiver~\cite{switchml}.
+If the packet was remapped, both the invariant CRC (ICRC) of the RDMA
+packet and the IP checksum must be updated.  
 %%
 
 
@@ -685,7 +659,7 @@ Upon receipt of an ACK, \sword\ consults the map entries in the ring
 buffer for the relevant connection.  \sword\ generates a separate ACK
 for each incoming connection with outstanding packets acknowledged by
 this ACK, setting the sequence number (and address and queue pair
-information) accordingly.
+information) according to their map entries.
 
 %% \sword\ detects ACK coalescing by monitoring response packets. If a
 %% higher number ack is received we know by the guarantees of RC that the
@@ -780,18 +754,53 @@ accordingly.
 %% header.
 
 After processing the write operation the destination NIC will respond
-with a regular, write ACK. Once the ACK reaches {\sword} we apply an
-inverse transformation to convert the ACK to the Atomic ACK the sender
-expects to see.  RDMA Atomic ACK headers are very similar to regular
+with a regular, write ACK. As part of its ACK processing, {\sword}
+applies an inverse transformation to convert write ACKs to Atomic ACKs
+when necessary.  RDMA Atomic ACK headers are very similar to regular
 ACKs with the only difference being that the atomic ACK contains the
-value that was overwritten, which \sword\ retrieves from the map
-entry.
+value that was overwritten, which \sword\ retrieves from the
+corresponding map entry.
 
 
 \subsection{Disaggregated memory}
 
 We now describe how we use \sword's techniques to accelerate the
 contention management techniques used by Sherman and Clover.
+
+\sword\ is designed for closed looped clients. Connection
+remapping could require large amounts of buffering in
+network if clients had many in flight requests spread across
+multiple QP. Out-of-order requests would need to be buffered
+prior to delivering them. Out-of-order packet delivery
+triggers RoCE's go-back-$n$ retransmission protocol.
+%% Storing connection information could lead to a potential
+%memory bottle neck. 
+Our aim is to enable rack-scale disaggregation where the
+total number of cores (clients) is less thant O(1k). Here
+the few MB of available switch memory is more than
+sufficient for storing connection metadata.
+
+
+
+We present {\sword} an in-network solution for sharing
+remote memory. {\sword} enables sharing by providing two
+forms of application specific serialization. The first of
+which is to resolve atomic operations in network. Using a
+cache and application logic \sword\ determines the result of
+the atomic operation, and forwards the result to memory as a
+write. RDMA RC connections are used to ensure that resolved
+operations are not reordered downstream.
+%
+Second {\sword} removes contention from optimistic
+operations via steering. \sword\ caches updates to shared
+data structures and updates state in-flight requests so they
+can succeed rather than fail and retry.
+% \sword caches updates to the shared structures and
+% modifies stale requests in flight with the most up to date
+% information removing the need for operations to fail. 
+These mechanisms are used to accelerate locks in
+Sherman~\cite{sherman} and remove all contention from a
+key-value store, Clover~\cite{clover}.
 
 \subsubsection{Shared locks}
 \label{sec:locking-algorithm}

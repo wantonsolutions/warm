@@ -21,6 +21,14 @@ implementation provides.
 A max of 4k connections are supported. The buffer size determines the maximum number of in-flight requests per
 QP (128 in \sword).
 
+While prior work has
+demonstrated that this is possible to implement in a programmable
+switch~\todo{cite} but our P4 implementation neglects this detail.
+Because we are using RoCEv2 transport the ICRC is redundant with
+respect to the Ethernet CRC.  Hence, like previous
+authors~\cite{switchml}, we disable ICRC checks on both the sender and
+receiver NICs in our experiments.
+
 %\textbf{Switch Resource Utilization}
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
