@@ -624,11 +624,20 @@ transport in which the ICRC is redundant after the ethernet
 CRC. We turn off ICRC checks on both the sender and
 receiver~\cite{switchml}.
 %%
-Storing connection information could lead to a potential
-memory bottle neck. Our aim is to enable rack scale
-disaggregation where the total number of cores (clients) is
-less thant O(1k). Here the few MB of available switch memory
-is more than sufficient for storing connection metadata.
+
+
+\sword is designed for closed looped clients. Connection
+remapping could require large amounts of buffering in
+network if clients had many in flight requests spread across
+multiple QP. Out of order requests would need to be buffered
+prior to delivering them. Out of order packet delivery
+triggers RoCE's go-back-n retransmission protocol.
+%% Storing connection information could lead to a potential
+%memory bottle neck. 
+Our aim is to enable rack scale disaggregation where the
+total number of cores (clients) is less thant O(1k). Here
+the few MB of available switch memory is more than
+sufficient for storing connection metadata.
 
 \subsection{Atomics to Writes}
 
@@ -677,14 +686,6 @@ this processes is recursive when ack coalescing is detected.
 This processes is not required if response coalescing is
 turned off.
 
-\subsection{Buffering}
-
-\sword is designed for closed looped clients. Connection
-remapping could require large amounts of buffering in
-network if clients had many in flight requests spread across
-multiple QP. Out of order requests would need to be buffered
-prior to delivering them. Out of order packet delivery
-triggers RoCE's go-back-n retransmission protocol.
 
 \subsection{Steering}
 
