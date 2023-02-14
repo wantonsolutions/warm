@@ -526,14 +526,21 @@ design of {\sword}.
 
 \subsection{Caching}
 
-Sword makes use of in network caching to resolve contention.
-P4 provides registers, named variables mapped to pipeline
-stages which persist across packets. Our p4 prototype of
-{\sword} uses p4 registers to cache application data
-necessary for resolving contention. Application caches are
-distinct from the contention resolution technique. We use
-cache to store both locks, and key value information for
-both Clover and Sherman.
+\sword maintains a cache of application data to resolve
+conflicting operations. The contents are application
+specific, in our evaluation we use a cache of locks, and
+key-value locations. The cache consists of named p4
+registers -- named variables mapped to pipeline stages which
+persist across packets. The size of the cache depends on the
+application, switch space is limited, so only contended
+resources are cached. In our evaluation contended resources
+are known a priori, however that could be dynamically
+selected a runtime using LRU or heavy hitter detection.
+
+% Application caches are distinct
+% from the contention resolution technique. We use cache to
+% store both locks, and key value information for both Clover
+% and Sherman.
 
 \subsection{Connection multiplexing}
 
