@@ -18,6 +18,9 @@ implementation provides.
 
 \subsection{P4 implementation}
 
+A max of 4k connections are supported. The buffer size determines the maximum number of in-flight requests per
+QP (128 in \sword).
+
 %\textbf{Switch Resource Utilization}
 \begin{figure}[t]
     \includegraphics[width=0.485\textwidth]{fig/switch_resources.pdf}
