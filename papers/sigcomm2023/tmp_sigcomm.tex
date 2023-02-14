@@ -561,23 +561,6 @@ The BTH header contains determines the operation, while the BTH+
 headers contain virtual addresses an operation executs on, the
 operation itself, and its payload.
 
-\subsection{Caching}
-
-\sword\ maintains a cache of application data to resolve
-conflicting operations. The contents are application
-specific, in our evaluation we use a cache of locks, and
-key-value locations. The cache consists of named p4
-registers -- named variables mapped to pipeline stages which
-persist across packets. The size of the cache depends on the
-application, switch space is limited, so only contended
-resources are cached. In our evaluation contended resources
-are known a priori, however that could be dynamically
-selected a runtime using LRU or heavy hitter detection.
-
-% Application caches are distinct
-% from the contention resolution technique. We use cache to
-% store both locks, and key value information for both Clover
-% and Sherman.
 
 \subsection{Connection multiplexing}
 
@@ -746,48 +729,24 @@ ACKs with the only difference being that the atomic ACK contains the
 value that was overwritten. That value is not contained in a normal
 ACK so needs to be inserted by the switch. 
 
-\subsection{Steering}
+\subsection{Caching}
 
-Unlike connection multiplexing, steering does not modify the
-RDMA operation. Steering is used when atomics are not
-applied to a single address. The atomic bottleneck on
-independent addresses is only half of that of reads and
-writes, in most algorithms less than half of operations are
-atomics, therefore the bottleneck is never reached. 
-%%
-We implement steering by maintaining a cache of centralized
-data structure information, and data structure specific code
-for resolving conflicts. When a packet arrives at the
-switch, it is parsed and passed to the application specific
-code. The cache is queried based on the virtual address, and
-application data in the packet. If the packet requires an
-update the virtual address in the BTH+ header is updated.
-The cache is similarly updated based on the data structure
-specific code.
-%%
-Reads and write are handled differently. Write contain
-application specific data in the payload. This information,
-along with the virtual address is usually sufficient to
-identify the packet type specific to the application and
-apply steering. While the semantics are application specific
-in our evaluation we found it simple to do without making
-modifications to the existing applications.
-%%
-Reads present a trickier problem. RDMA reads consist only of
-a virtual address and a length. In some cases this may be
-insufficient to identify if the packet needs to be steered,
-or what the purpose of the packet is. In our evaluation we
-keep an additional read cache which tracks the values and
-purpose of recent writes (in our cases the old virtual
-addresses of keys in a key value store.). If reads are
-destined to a stale location, we steer them to the correct
-location simply by modifying the virtual address.
-%%
-Our implementation of \sword requires no modification to the
-existing systems, however we note that future systems
-codesigend with \sword in mind could reduce the in network
-memory footprint by fingerprinting their packets with id's
-for {\sword}.
+\sword\ maintains a cache of application data to resolve
+conflicting operations. The contents are application
+specific, in our evaluation we use a cache of locks, and
+key-value locations. The cache consists of named p4
+registers -- named variables mapped to pipeline stages which
+persist across packets. The size of the cache depends on the
+application, switch space is limited, so only contended
+resources are cached. In our evaluation contended resources
+are known a priori, however that could be dynamically
+selected a runtime using LRU or heavy hitter detection.
+
+% Application caches are distinct
+% from the contention resolution technique. We use cache to
+% store both locks, and key value information for both Clover
+% and Sherman.
+
 
 \subsection{Applying to systems}
 
@@ -902,7 +861,50 @@ require extensive buffering.
 %% that tracking outstanding requests is required when swapping CAS to
 %% write across multiple connections.
 
-\subsection{Failure handling}
+\subsubsection{Steering}
+
+Unlike connection multiplexing, steering does not modify the
+RDMA operation. Steering is used when atomics are not
+applied to a single address. The atomic bottleneck on
+independent addresses is only half of that of reads and
+writes, in most algorithms less than half of operations are
+atomics, therefore the bottleneck is never reached. 
+%%
+We implement steering by maintaining a cache of centralized
+data structure information, and data structure specific code
+for resolving conflicts. When a packet arrives at the
+switch, it is parsed and passed to the application specific
+code. The cache is queried based on the virtual address, and
+application data in the packet. If the packet requires an
+update the virtual address in the BTH+ header is updated.
+The cache is similarly updated based on the data structure
+specific code.
+%%
+Reads and write are handled differently. Write contain
+application specific data in the payload. This information,
+along with the virtual address is usually sufficient to
+identify the packet type specific to the application and
+apply steering. While the semantics are application specific
+in our evaluation we found it simple to do without making
+modifications to the existing applications.
+%%
+Reads present a trickier problem. RDMA reads consist only of
+a virtual address and a length. In some cases this may be
+insufficient to identify if the packet needs to be steered,
+or what the purpose of the packet is. In our evaluation we
+keep an additional read cache which tracks the values and
+purpose of recent writes (in our cases the old virtual
+addresses of keys in a key value store.). If reads are
+destined to a stale location, we steer them to the correct
+location simply by modifying the virtual address.
+%%
+Our implementation of \sword requires no modification to the
+existing systems, however we note that future systems
+codesigend with \sword in mind could reduce the in network
+memory footprint by fingerprinting their packets with id's
+for {\sword}.
+
+\subsubsection{Failure handling}
 
 \sword\ collocates functionality---and therefore shares fate---with the
 top-of-rack switch: if \sword\ fails, connectivity was already
