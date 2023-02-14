@@ -537,6 +537,30 @@ total number of cores (clients) is less thant O(1k). Here
 the few MB of available switch memory is more than
 sufficient for storing connection metadata.
 
+\subsection{RDMA processing}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
+  \vskip -0.5em
+
+    \caption{ RoCEv2 headers consist of an Ethernet, IP, and
+    UDP header, a special UDP port denotes that the packet
+    is RDMA. The RoCE BTH header stores QP data, sequence
+    numbers, flags, and operations. The BTH+ header follows
+    and stores operation specific data such as virtual
+    addresses, DMA size, and compare-and-swap payloads.
+    }
+
+    \label{fig:roce_header}
+      \vskip -0.5em
+\end{figure}
+
+RoCE packets have two headers, BTH,and BTH+, shown in
+Figure~\ref{fig:roce_header}, both of which \sword\ needs to parse.
+The BTH header contains determines the operation, while the BTH+
+headers contain virtual addresses an operation executs on, the
+operation itself, and its payload.
+
 \subsection{Caching}
 
 \sword\ maintains a cache of application data to resolve
@@ -557,21 +581,13 @@ selected a runtime using LRU or heavy hitter detection.
 
 \subsection{Connection multiplexing}
 
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
-  \vskip -0.5em
 
-    \caption{ RoCEv2 headers consist of an Ethernet, IP, and
-    UDP header, a special UDP port denotes that the packet
-    is RDMA. The RoCE BTH header stores QP data, sequence
-    numbers, flags, and operations. The BTH+ header follows
-    and stores operation specific data such as virtual
-    addresses, DMA size, and compare-and-swap payloads.
-    }
-
-    \label{fig:roce_header}
-      \vskip -0.5em
-\end{figure}
+\sword\ uses reliable connections to ensure that packets are
+not reordered after atomic operations have been resolved. By
+default, RoCEv2 packets on separate QP can be reordered on
+the NIC, or on PCIe, therefore swapping CAS operations to
+Write on the switch leads to an unsafe race condition
+(Figure~\ref{fig:reorder}).
 
 \begin{figure}[t]
 \includegraphics[width=0.485\textwidth]{fig/connection_multiplexing.pdf}
@@ -588,40 +604,48 @@ selected a runtime using LRU or heavy hitter detection.
       \vskip -0.5em
 \end{figure}
 
-\sword\ uses reliable connections to ensure that packets are
-not reordered after atomic operations have been resolved. By
-default, RoCEv2 packets on separate QP can be reordered on
-the NIC, or on PCIe, therefore swapping CAS operations to
-Write on the switch leads to an unsafe race condition
-(Figure~\ref{fig:reorder}).
+A max of 4k connections are supported.
+
+In cases where \sword\ wishes to enforce ordering across operations
+from different clients, it can multiplex them onto a single, shared
+reliable connection it establishes with the server.
+
+\paragraph{Connection tracking}
 %
-\sword\ tracks all RC QP ids and maintains a table of
-connection metadata. New connections are added on
-initialization and removed on teardown dynamically. A max of
-4k connections are supported.  Each connection stores IP addresses,
-ports, Ethernet MAC addresses, and RDMA sequence numbers. All
-packets generate map entries when passing through a tracked
-connection. The map entry stores the sequence number of the
-packet, and the packet's original QP id. When a packet is
-mapped to a connection the connections sequence number is
-incremented, and a map entry is placed in the connection
-table to map the response back to its original connection.
+\sword\ tracks all reliable conneciton queue pairs and maintains a
+table of connection metadata shown in Figure~\ref{fig:qp_mapping}.
+Entries are added upon connection establishment and removed on
+teardown dynamically. Each entry is uniquely identified by its source
+and destination Ethernet MACs, IP addresses, and UDP ports in
+combination with its queue pair ID.  As packets associated with the queue pair flow through the switch, the mapping table is updated with the 
+
+
+, Ethernet MAC addresses, and
+RDMA sequence numbers. All packets generate map entries when passing
+through a tracked connection. The map entry stores the sequence number
+of the packet, and the packet's original QP id. When a packet is
+mapped to a connection the connections sequence number is incremented,
+and a map entry is placed in the connection table to map the response
+back to its original connection.
 %%
+
 Entries are indexed into a per-connection ring buffer based on their
 sequence number (modulo the buffer size)---no hashing is required.
 The buffer size determines the maximum number of in-flight requests per
 QP (128 in \sword). One bit marks if the map entry was transformed to
 a write from a CAS. Our mapping data structure is shown in
-Figure~\ref{fig:qp_mapping}. Note that connections are not terminated
-at the switch, only sequence numbers are tracked dynamically. Complex
-tasks such as retransmission, setup and teardown are handled end-to-end by the RDMA NICs.
+Figure~\ref{fig:qp_mapping}.
+
+Note that connections are not terminated at the switch, only sequence
+numbers are tracked dynamically. Complex tasks such as retransmission,
+setup and teardown are handled end-to-end by the RDMA NICs.
 %%
 Map entries are sufficient for bookkeeping packets, but many
 packet fields must be updated to ensure that the RDMA NICs
-accept tap entries are suffient for book keeping packets,
-but many packet fields must be updated to ensure that the
-RDMA NICs accept the packets as valid.  To multiplex a
-packet to another connection we update the packets ip
+accept the packets as valid.
+
+To multiplex a
+packet to another connection we update the packet's IP
 addresses, udp sender port, queue pair, and sequence number
 then forward the packet as normal. Without applying these
 updates the receiving side NIC will either reject the
@@ -667,7 +691,7 @@ This processes is not required if response coalescing is
 turned off.
 
 
-\subsection{Atomics to Writes}
+\subsection{Atomic replacement}
 
 Connection multiplexing removes the need for atomic
 operations. Atomics can be tie-broken on the switch and
@@ -675,24 +699,52 @@ forwarded as writes to memory. Changing atomics to writes
 significantly reduces the operation bottleneck on a single
 address. 
 %%
-Transforming a CAS to a WRITE is reasonably straight forward
-as the RoCE headers are similar. RoCE packets have two
-headers BTH, and BTH+ headers, the BTH+ headers determine
-the virtual addresses an operation executs on, the operation
-itself, and its payload. Figure~\ref{fig:roce_packet}
-details the difference between WRITE and CAS headers. When
-mapping the virtual address and remote key remain the same.
-We modify the opcode in the BTH header from WRITE to CAS
-which instructs the memory side nic to treat the packet as a
-write.  CAS is predefined to be 64 bit, so we install a
-write header with a DMA length of 8, and a payload with the
-tie breaker value. Note that the value set is application
-specific. In the case of locking, the result is the locks
-value after the operation is attempted. Finally the packet
-length is truncated as write packets are 4 bytes shorter
-than CAS packets.
+Once \sword\ has determined the order, and, therefore, impending
+success or failure of a CAS operation, it can be safely replaced with a write.
 
+Transforming a CAS to a write is straightforward as the RoCEv2 headers
+differ by only a few fields (Figure~\ref{fig:roce_header}).
+\sword\ transforms CAS requests to writes by swapping the BTH OP code,
+setting the BTH+ size field of the write to eight (recall all CAS
+operations are 64-bits long), and copying the appropriate
+value---either the ``swap'' value from the CAS operation on success or
+the current (cached) value on failure---into the payload.  Because a
+write's size field is only four-bytes long (as compared to the second
+64-bit compare field in a CAS operation), the length of the packet
+shrinks by four bytes; \sword\ updates the IP length field and
+recomputes checksums accordingly.
 
+%% details the difference between WRITE and CAS headers. When
+%% mapping the virtual address and remote key remain the same.
+%% We modify the opcode in the BTH header from WRITE to CAS
+%% which instructs the memory side nic to treat the packet as a
+%% write.  CAS is predefined to be 64 bit, so we install a
+%% write header with a DMA length of 8, and a payload with the
+%% tie breaker value. Note that the value set is application
+%% specific. In the case of locking, the result is the locks
+%% value after the operation is attempted. Finally the packet
+%% length is truncated as write packets are 4 bytes shorter
+%% than CAS packets.
+
+%% From a RoCEv2 perspective
+%% the per-packet transformation from CAS to write can be applied easily
+%% in the data path; RoCEv2 CAS and write headers only differ by a few
+%% fields. CAS can be thought of as a special case of a write, where the
+%% write is conditional and the length is preset to 8 bytes.
+%% %%
+%% %so the modified packet will not be
+%% %rejected by the memory side NIC.
+%% The transformation from CAS to write
+%% is deterministic and only requires a few cycles to transform the
+%% header.
+
+After processing the write operation the destination NIC will respond
+with a regular, write ACK. Once the ACK reaches {\sword} we apply an
+inverse transformation to convert the ACK to the Atomic ACK the sender
+expects to see.  RDMA Atomic ACK headers are very similar to regular
+ACKs with the only difference being that the atomic ACK contains the
+value that was overwritten. That value is not contained in a normal
+ACK so needs to be inserted by the switch. 
 
 \subsection{Steering}
 
@@ -736,6 +788,119 @@ existing systems, however we note that future systems
 codesigend with \sword in mind could reduce the in network
 memory footprint by fingerprinting their packets with id's
 for {\sword}.
+
+\subsection{Applying to systems}
+
+\subsubsection{Shared locks}
+\label{sec:locking-algorithm}
+
+Sherman uses CAS operations to implement its node locks.
+%Sherman and future far memory systems like Sherman which use lock based
+%approaches to guard remote data will incur the cost of using RDMA atomics. 
+%
+%Implementing locks with CAS is straightforward, the following algorithm is
+%common and is used to implement locks for nodes in Sherman. The
+%CAS operations are of the form \texttt{CAS(old\_value,new\_value)}.
+Sherman's locks are simply specific (NIC-hosted) memory locations
+that store either a one (locked) or zero (free).  Hence, lock requests
+are expressed as \texttt{CAS(0,1)}, which fail if the lock is
+unavailable (i.e., the stored value is currently not 0) or atomically
+set the value to 1---acquiring the lock---if successful. Unlock
+operations are the inverse.
+
+
+
+Presuming communication between the ToR and the memory server is
+reliable and in-order (as provided by an RDMA QP), it is conceptually
+straightforward for \sword\ to cache the current value of the lock at
+the ToR.
+
+
+In our design, \sword\ uses its local cache to determine whether an
+arriving CAS operation will succeed or fail.  (If it does not have the
+current value at the target address cached, it allows the atomic to
+pass through unmodified and populates its cache with the response.)
+Moreover, \sword\ forwards all operations for a given address over the
+same QP to maintain ordering between the ToR and destination server,
+allowing it to replace the CAS operation with a lightweight write in
+flight.  When a CAS operation arrives for a lock address,
+\sword\ replaces it with a write for the specified value.  (Releases
+will always succeed, setting the value to 0, while lock acquisition attempts always leave the value as 1; their succes or failure is dictated by the prior state.)
+
+the switch checks its
+cache for the state of the lock (i.e., whether the cached value for the indicated address is a zero or a one). If it is unlocked, the CAS operation
+is replaced with a write and forwarded over a specific QP to the
+remote server. When the (successful) response comes back,
+\sword\ updates its cache and converts the write response to a CAS
+success response before forwarding it back over the original QP to the
+client. In the case when the lock is already held, the switch still
+forwards a write request to the memory server---to ensure the client
+and server agree regarding the total number of RDMA verbs communicated
+between them---but the response will be replaced with a CAS failure so
+that the sender knows the lock acquisition failed.
+%Again, unlock is similar.
+
+
+% One might ask why not host all locks on the switch thereby
+% reducing bandwidth to end hosts and saving latency? By forwarding all traffic to
+% the memory servers, memory can still act as ground truth for the state of shared
+% data. If a switch were to be reset, no lock state is lost. Further it allows for
+% optimizations, clients can read shared structures and determine what data is
+% locked by inspecting memory with reads directly. This saves implementing
+% potentially complex read and write logic for all data structure access on the
+% switch, and prevents it from becoming a single point of failure.
+
+
+% The combination of read and write steering dramatically improves the
+% performance of Clover (as shown in Section~\ref{s:results}), but only
+% scratches the surface of the potential improvements for far memory
+% systems.  
+
+
+Atomic replacement only works when all operations---across all client
+connections---that share server state are vectored to the same queue pair.  In
+general, the determination of which operations share state is application
+specific and requires inspecting each packet to extract the relevant pieces
+of metadata. In the case of Sherman, lock locations can be identified by
+inspecting CAS requests. Each CAS virtual address corresponds to a node lock in
+the Sherman B+Tree.
+%%While removing locking operations is a general principle here we consider a
+%%solution for RDMA.  %Different transports with different ordering guarantees
+%%would require bespoke solutions.  
+The challenge, of course, is that the RDMA specification stipulates that each
+client establish its own queue pair with a given server, so operations for a
+given lock from different clients will arrive at the ToR on distinct queue
+pairs.  \sword, then, must interpose on the full set of queue pairs terminated
+by a given (set of) server(s) and vector operations to queue pairs accordingly.
+This seems reasonable, as the ToR is usually on-path for all servers in a rack
+in traditional topologies.
+
+Indeed, one could implement the lock server at the ToR
+itself~\cite{netlock}, but that would require a redesign of the
+underlying system; our goal is to support selective deployment where
+\sword\ may not be on-path for all servers, dictating that we do not
+make any changes to the existing system.  Moreover, our approach does
+not require terminating RDMA connections at the switch, which would
+require extensive buffering.
+%to support go-back-$n$ retransmissions.
+
+%
+%This technique does not reduce contention on the lock, but simply removes the
+%CAS hardware bottleneck. An alternative approach to this locking scheme would b%e
+%% to use the switch as a lock server similar to
+%% Netlock~\cite{netlock}.~\todo{help!}Our goals are orthogonal to
+%% Netlock as we want to accelerate existing protocols, not require any
+%% end host code modifications, keep switch logic to a minimum, and
+%% maintain only soft state on the switch. By propagating requests to
+%% end hosts we ensure that no state is lost on switch failure. And
+%% that any async read operations can be issued to remote memory
+%% directly without needed to be interpreted by the switch.  By
+%% Forwarding all requests we remove the need for the switch to
+%% implement go-back-n retransmissions. The switch is only required to
+%% store the current state of the lock, and track outstanding requests
+%% to modify their return values. In the following section we will see
+%% that tracking outstanding requests is required when swapping CAS to
+%% write across multiple connections.
 
 \subsection{Failure handling}
 
