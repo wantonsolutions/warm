@@ -19,7 +19,7 @@ reducing hardware contention, there may be additional bottlenecks we
 have not yet uncovered. In future work we would like to extend our
 measurements to push the limitations of the underlying hardware.
 Based on our measurements so far, we expect that higher request rates
-will see even further benefits from reduced contention.
+will see further benefits from reduced contention.
 
 %~\ref{fig:full_system_performance}.
 
@@ -29,7 +29,6 @@ of this work. For instance, correctly handling ECN packets is a
 difficult question when connections are being multiplexed as the
 generated ECN packet has a single destination. One option is to
 broadcast the ECN to all clients multiplexed on the destination
-connection and allow end-to-end congestion control. Another is to keep
-track of individual client request rates and only issue ECN to the
-highest requesting clients. We leave the finer points of congestion
-control to future work.
+connection and allow end-to-end congestion control. Another is to track individual client request rates and only issue ECN to the
+highest requesting clients. We leave congestion
+control implications to future work.

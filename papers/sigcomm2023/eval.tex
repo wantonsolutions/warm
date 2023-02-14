@@ -99,9 +99,9 @@ Specifically, DPDK requires all TX for a destination QP to be done by
 the same core; hence,
 %a specific core on the middlebox. Because of this
 %requirement
-all requests must flow through a single core prior to being forwarded, limiting the forwarding performance of our
+all requests must flow through a single core, capping the  performance of our
 DPDK implementation to the maximum per-core
-throughput of our middlebox: 2.8 MOPS.
+throughput of our middlebox server: 2.8 MOPS.
 %In this configuration all requests to the memory server must be processed by
 %the same TX core. As such our bottleneck is approximately 2.8 MOPS. Hardware
 %implemented CRC, cache tuning, and better lock management for TX queues could
@@ -254,11 +254,11 @@ requests fail as discussed above.
 
 \begin{figure}
     \includegraphics[width=0.485\textwidth]{fig/99th_latency_dense.pdf}
-%\vskip -1em
+\vskip -0.5em
     \caption{99th-percentile tail latencies of read (solid) and write
       (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)}
     \label{fig:tail_latency}
-      \vskip -0.5em
+      \vskip -1em
 \end{figure}
 
 %% Perhaps the most critical variable that governs overall system % performance
@@ -319,14 +319,12 @@ dramatic spike in read tail latency.
 
 \begin{figure}
     \includegraphics[width=0.485\textwidth]{fig/keys_tracked.pdf}
-%\vskip -1em
-
+\vskip -0.5em
     \caption{Per-client throughput as a function of the number of
       Clover keys \sword\ steers.  50:50 workload averaged 
       across 6 hosts each running 56 threads.  }
-
     \label{fig:keys_tracked}
-      \vskip -0.5em
+      \vskip -1em
 \end{figure}
 
 One of most appealing aspects of \sword's steering is the fact that it
