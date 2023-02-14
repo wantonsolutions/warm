@@ -1,15 +1,18 @@
 \section{Conclusion}
 
-We leverage the top-of-rack switch to resolve in-network contention.
-%for passive
-%remote memory and show that by resolving conflicts in flight,
-{\sword} can improve the performance of systems that rely on atomic
-operations and optimistic concurrency. Our full-featured prototype
-demonstrates the potential of removing atomic operations and relying
-entirely upon queue-pair ordering guarantees.  While connection
-mapping is currently gated by the single-core performance of DPDK, our
-P4 steering implementation shows order-of-magnitude gains in the
-context of one of the highest-performing systems available.
+We leverage the top-of-rack switch to resolve in-network
+contention and enable efficient sharing of remote memory.
+%for passive remote memory and show that by resolving
+%conflicts in flight,
+{\sword} can improve the performance of systems that rely on
+atomic operations and optimistic concurrency. Our
+full-featured prototype demonstrates the potential of
+removing atomic operations and relying entirely upon
+queue-pair ordering guarantees.  While connection
+multiplexing is currently gated by the single-core
+performance of DPDK, our P4 steering implementation shows
+order-of-magnitude gains in the context of one of the
+highest-performing systems available.
 
 % Moreover, we describe how it is
 % possible to replace atomic memory operations with traditional reads
