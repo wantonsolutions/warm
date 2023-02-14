@@ -543,11 +543,11 @@ operations to resolve write/write conflicts before they occur.
     \caption{ RoCEv2 packets consist of an Ethernet, IP, and
     UDP header. The RoCE BTH header stores QP data, sequence
     numbers, flags, and operations. The BTH+ header contains
-    operation specific data -- virtual addresses, DMA size,
+    operation specific data: virtual addresses, DMA size,
     and atomic payloads.  }
 
-    \label{fig:roce_header}
-      \vskip -0.5em
+   \label{fig:roce_header}
+%      \vskip -0.5em
 \end{figure}
 
 \subsection{Connection multiplexing}
@@ -578,15 +578,13 @@ connections.
 \includegraphics[width=0.485\textwidth]{fig/connection_multiplexing.pdf}
 \vskip -0.5em
 
-    \caption{ RC multiplexing in \sword. Per connection in
-    and out sequence numbers are tracked to decouple sending
-    and receiving QP. Map entries are stored per packet in
-    their destination connections ring buffer to map back
-    responses. The diagramed rings only show the original
-    connection id, and sequence number. This example shows 3
-    packets mapped to connection 1, one from each
-    connection. A single packet from connection 2 remains
-    unmapped but still tracked.  }
+    \caption{ RC multiplexing in \sword. Per connection in and out
+      sequence numbers are tracked to decouple sending and receiving
+      QP. Map entries are stored in their outgoing connection's ring
+      buffer; the ring diagram shows only the original
+      QP row and sequence number.  In this example three packets
+      are mapped to connection 1, one from each connection. A 
+      packet that arrived on connection 2 was not remapped.}
 
     \label{fig:qp_mapping}
       \vskip -0.5em
@@ -606,9 +604,9 @@ outstanding operations.  As RDMA packets arrive and are placed into a
 total order at the switch, the row corresponding to the packet's
 incoming queue pair is updated with the current sequence number.
 Retransmissions (i.e., packets whose sequence numbers are no greater
-than the value already in the table) do not cause the table to update.
+than the value already in the table) do not update the table.
 The table also records the highest sequence number used by an outgoing
-packet on each connection; this need not be the same as the incoming
+packet on each connection, which may not be the same as the incoming
 sequence number due to remapping.
 
 \paragraph{Remapping}
@@ -625,9 +623,9 @@ retransmissions---detected due to their non-advancing sequence
 number---are always mapped to the same outgoing connection and
 sequence number as the original.)  To facilitate ACK and
 retransmission handling, every packet creates a map entry in
-the ring buffer associated with its outgoing connection.
+the ring buffer of its outgoing connection.
 
-For efficiency, we maintain the ring buffers as fixed-size arrays and
+For efficiency, our DPDK implementation maintains the ring buffers as fixed-size arrays and
 use the packet's outgoing sequence number (modulo the buffer size) as
 an index.  Each entry contains a reference to the packet's incoming
 queue pair, its original sequence number, and, in the case of atomics,
@@ -647,13 +645,12 @@ discussed below.
 %% packet, trigger go-back-n, or generate an error. 
 %% %
 %% On mapping the
-If the packet was remapped, both the invariant CRC (ICRC) of the RDMA
-packet and the IP checksum must be updated.  
+If the packet was remapped, both the invariant CRC (ICRC) and the IP checksum must be updated.  
 %%
 
 
 \paragraph{ACK coalescing}
-De-multiplexing ACKs for remapped operations is non-trivial due to
+Demultiplexing ACKs for remapped operations is non-trivial due to
 optimizations in the RDMA protocol. Specifically, an RDMA NIC may
 coalesce ACKs to reduce the number of packets transmitted and save
 bandwidth: like TCP, ACKs are cumulative. Coalescing presents a
