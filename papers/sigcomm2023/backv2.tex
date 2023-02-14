@@ -18,8 +18,8 @@ data, RDMA end points establish a queue pair (QP) which defines the
 region(s) of memory each is able to access.  Like Internet transport
 protocols, RDMA queue pairs provide a configurable set of semantics
 depending on the transport mode selected: UDP-like semantics are
-provided by Unreliable Datagram (UD) and Unreliable Connections (UC),
-while Reliable Connections (RC) are similar to TCP, ensuring reliable,
+provided by unreliable datagram (UD) and unreliable connections (UC),
+while reliable connections (RC) are similar to TCP, ensuring reliable,
 in-order delivery.  Moreover, reliable connections support so-called
 \emph{1-sided} verbs (e.g., read, write, and compare-and-swap) that
 are executed autonomously by the remote NIC without any remote CPU
@@ -95,7 +95,7 @@ disaggregation consider rack-scale deployments where
 %. They propose a single rack
 %with
 servers are partitioned into roles: compute, memory, and storage, all
-of which are interconnected by a top-of-rack (ToR)
+of which are interconnected by a top-of-rack
 switch~\cite{disandapp,the-machine,intel-rack,firebox,legoos}.  The central
 role of the ToR in this architecture has not gone unnoticed, and
 researchers have observed that a programmable switch can off-load a
@@ -115,7 +115,7 @@ minimal processing and deliver outsized performance benefit.
 Specifically, prior work has shown that programmable switches are able
 to provide rack-scale serialization at low
 cost~\cite{eris,no,when-computer,Grant2021InContRes}, manage
-locks~\cite{netlock}, and even track the state required to maintain an
+locks~\cite{netlock}, and track the state required to maintain an
 RDMA reliable connection~\cite{tea}.  Most relatedly, researchers have
 even used a programmable switch to implement a centralized memory
 controller including a unified TLB and cache for passive remote

@@ -9,16 +9,15 @@ shown that 1-sided verbs are incapable of managing concurrent updates
 at scale.  Faced with this reality, most prior systems either disallow
 sharing, retreat to 2-sided verbs---which require co-locating computational
 resources with remote memory---or propose new RDMA
-hardware.  We observe that there is an alternative
-approach.
-   
+hardware. 
+%
 % Existing RDMA-based systems employ optimistic concurrency
 % approaches that defer serialization to the remote memory server and
 % rely upon heavyweight RDMA atomics to ensure consistency.
 % Unfortunately, atomic operations scale poorly causing these approaches
 % to degrade rapidly under contention.
-
-We present \sword, an approach that leverages the \textit{de facto}
+%
+We present \sword, an alternate approach that leverages the \textit{de facto}
 serialization point in rack-scale disaggregated systems---the
 top-of-rack switch---to transparently resolve RDMA races in flight.
 \sword\ runs on programmable switch hardware and accelerates existing
@@ -30,8 +29,8 @@ atomic operations.
 More generally, it can track access patterns and dynamically steer
 RDMA-based updates to append-only data structures commonly employed in
 shared-write situations to avoid triggering expensive client-based
-resolution.  We apply our P4-based prototype to Clover, a
-state-of-the-art RDMA-based disaggregated key-value store.  Under a
+resolution.  We apply our P4-based prototype to Clover, an
+RDMA-based disaggregated key-value store.  Under a
 YCSB-A workload, throughput rises by nearly $35\times$ while bandwidth
 usage and tail latency drop by 16 and 300$\times$, respectively.
 
