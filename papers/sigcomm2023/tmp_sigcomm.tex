@@ -568,8 +568,15 @@ connections.
     connection has metadata stored statically per
     connection. Sequence numbers are dynamic per connection,
     \sword stores both incomming and outgoing sequence
-    numbers for each connection. Stubs for each outgoing
-    request are stored in a fixed sized circular buffer.  }
+    numbers for each connection. Map entries for each
+    connection are stored in ring buffers. Here we show only
+    the original QP id and sequence number in each ring
+    buffer. Colors indicate the connection. Here 3 packets
+    have been mapped to connection 1. A packet from it's
+    original source, and one from connections 2 and 3.
+    Connection 2 has also sent a second packet on it's own
+    connection.  Below the entire structure of each map
+    entry is shown.}
 
     \label{fig:qp_mapping}
       \vskip -0.5em

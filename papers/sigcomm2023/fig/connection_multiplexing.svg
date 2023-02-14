@@ -24,13 +24,13 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="1.2938725"
-     inkscape:cx="407.69087"
-     inkscape:cy="114.38531"
-     inkscape:window-width="2560"
-     inkscape:window-height="1403"
-     inkscape:window-x="3120"
-     inkscape:window-y="167"
+     inkscape:zoom="1.829812"
+     inkscape:cx="508.52218"
+     inkscape:cy="93.17897"
+     inkscape:window-width="1200"
+     inkscape:window-height="1856"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1"
      showguides="true">
@@ -50,79 +50,46 @@
     <text
        xml:space="preserve"
        style="font-size:5.64444px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="22.160976"
-       y="106.9513"
+       x="32.614056"
+       y="106.22894"
        id="text4719"><tspan
          sodipodi:role="line"
          id="tspan4717"
          style="font-weight:bold;fill:#0000ff;stroke-width:0.264583"
-         x="22.160976"
-         y="106.9513">QP 1</tspan></text>
+         x="32.614056"
+         y="106.22894">1) (QPs,ips, ports) </tspan></text>
     <text
        xml:space="preserve"
        style="font-size:5.64444px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="22.297056"
-       y="115.31307"
-       id="text4719-4"><tspan
+       x="31.979057"
+       y="114.83271"
+       id="text4719-7"><tspan
          sodipodi:role="line"
-         id="tspan4717-7"
+         id="tspan4717-5"
          style="font-weight:bold;fill:#ff0000;stroke-width:0.264583"
-         x="22.297056"
-         y="115.31307">QP 2</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:22.3584px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:2.62012px;stroke-width:1.04805"
-       x="62.081684"
-       y="127.9419"
-       id="text4719-4-3"><tspan
-         sodipodi:role="line"
-         id="tspan4717-7-0"
-         style="stroke-width:1.04805"
-         x="62.081684"
-         y="127.9419">&quot;</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:22.3584px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:2.62012px;stroke-width:1.04805"
-       x="62.061203"
-       y="136.45947"
-       id="text4719-4-3-7"><tspan
-         sodipodi:role="line"
-         id="tspan4717-7-0-8"
-         style="stroke-width:1.04805"
-         x="62.061203"
-         y="136.45947">&quot;</tspan></text>
+         x="31.979057"
+         y="114.83271">2) (QPs,ips, ports) </tspan></text>
     <text
        xml:space="preserve"
        style="font-size:5.64444px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="22.385612"
-       y="123.46798"
-       id="text4719-4-4"><tspan
+       x="31.979057"
+       y="122.60398"
+       id="text4719-7-3"><tspan
          sodipodi:role="line"
-         id="tspan4717-7-4"
+         id="tspan4717-5-5"
          style="font-weight:bold;fill:#008000;stroke-width:0.264583"
-         x="22.385612"
-         y="123.46798">QP 3</tspan></text>
+         x="31.979057"
+         y="122.60398">3) (QPs,ips, ports) </tspan></text>
     <text
        xml:space="preserve"
        style="font-size:5.64444px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="51.21167"
-       y="98.208076"
-       id="text4723"><tspan
-         sodipodi:role="line"
-         id="tspan4721"
-         style="stroke-width:0.264583"
-         x="51.21167"
-         y="98.208076">Metadata</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:5.64444px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="13.078878"
+       x="42.746693"
        y="98.097275"
        id="text4723-4"><tspan
          sodipodi:role="line"
          id="tspan4721-5"
          style="stroke-width:0.264583"
-         x="13.078878"
+         x="42.746693"
          y="98.097275">Connection</tspan></text>
     <text
        xml:space="preserve"
@@ -146,17 +113,6 @@
          style="font-size:3.52778px;stroke-width:0.264583"
          x="127.7048"
          y="95.376343">Map Entries</tspan></text>
-    <text
-       xml:space="preserve"
-       style="font-size:3.52777px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
-       x="53.109627"
-       y="105.88943"
-       id="text4836"><tspan
-         sodipodi:role="line"
-         id="tspan4834"
-         style="stroke-width:0.264583"
-         x="53.109627"
-         y="105.88943">ip, port, eth</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:4.23333px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
@@ -312,21 +268,16 @@
          x="113.11144"
          y="105.98895">4</tspan></text>
     <rect
-       style="fill:none;fill-opacity:0.301961;stroke:#000000;stroke-width:0.899999;stroke-dasharray:none;stroke-dashoffset:0"
+       style="fill:none;fill-opacity:0.301961;stroke:#000000;stroke-width:0.843143;stroke-dasharray:none;stroke-dashoffset:0"
        id="rect5267"
-       width="155.76439"
-       height="34.060291"
-       x="11.744992"
-       y="91.844765" />
+       width="136.47795"
+       height="34.117146"
+       x="31.059858"
+       y="91.816338" />
     <path
        style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1"
-       d="M 11.744992,99.958952 H 167.54567"
+       d="m 31.059858,99.958952 136.485812,0"
        id="path5269"
-       sodipodi:nodetypes="cc" />
-    <path
-       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="M 48.819053,91.844764 V 126.0366"
-       id="path5271"
        sodipodi:nodetypes="cc" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
@@ -424,16 +375,19 @@
          y="98.63118" /></text>
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.264583, 0.264583;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 12.102035,109.12154 H 167.03016"
-       id="path5599" />
+       d="m 31.059858,109.12154 92.844152,0"
+       id="path5599"
+       sodipodi:nodetypes="cc" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.264583, 0.264583;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 12.289718,117.14637 H 167.21784"
-       id="path5599-2" />
+       d="m 31.059858,117.14637 92.844152,0"
+       id="path5599-2"
+       sodipodi:nodetypes="cc" />
     <path
        style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.264583, 0.264583;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 12.065695,125.53856 H 166.99382"
-       id="path5599-2-5" />
+       d="M 31.059858,125.53856 H 166.99382"
+       id="path5599-2-5"
+       sodipodi:nodetypes="cc" />
     <text
        xml:space="preserve"
        style="font-size:2.82222px;line-height:1.25;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;letter-spacing:0px;word-spacing:0.661458px;stroke-width:0.264583"
