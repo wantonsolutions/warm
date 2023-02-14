@@ -560,25 +560,6 @@ selected a runtime using LRU or heavy hitter detection.
       \vskip -0.5em
 \end{figure}
 
-\sword uses the serialization provided by reliable
-connections to prevent packet reordering after atomics have
-been resolved.  As noted serialization on the switch is not
-sufficient as reordering can occur on both the memory side
-NIC, and PCIe bus(Figure ~\ref{fig:reorder}). Each reliable
-connection is tracked by \sword which adds a new connection
-to it's internal table when connections are set up, and
-removes them on teardown, for a max of 4k connections. New
-connections are detected by the first appearance of the QP
-id. Each connection stores ip's, ports, ethernet addresses,
-and rdma sequence numbers. Each packet on the connection is
-tracked, and the switches internal sequence number for the
-connection is incremented. Storing connection information
-could lead to a potential memory bottle neck. Our aim is to
-enable rack scale disaggregation where the total number of
-cores (clients) is less thant O(1k). Here the few MB of
-available switch memory is more than sufficient for storing
-connection metadata.
-%%
 \begin{figure}[t]
 \includegraphics[width=0.485\textwidth]{fig/connection_multiplexing.pdf}
 \vskip -0.5em
@@ -594,18 +575,48 @@ connection metadata.
       \vskip -0.5em
 \end{figure}
 
-Each memory bound packet generates a map entry. The entry is
-used to map packets back to their original connections. Each
-map entry consists of the original sequence number, the
-mapped sequence number, and the QP id of the original
-connection. Hash entries are indexed into a ring buffer
-array by their sequence number modulo the buffer size to
-remove any hashing overhead. The buffer determines the max
-number of in flight requests per qp (128 in \sword). One bit
-marks if the map entry was transformed to a write from a
-CAS. Our mapping data structure is shown in
-Figure~\ref{fig:qp_mapping}.
+\sword uses reliable connections to ensure that packets are
+not reordered after atomic operations have been resolved. By
+default, RoCEv2 packets on separate QP can be reordered on
+the NIC, or on PCIe, therefore swapping CAS operations to
+Write on the switch leads to an unsafe race condition
+(Figure ~\ref{fig:reorder}).
+%
+\sword tracks all RC QP ids and maintains a table of
+connection metadata. New connections are added on
+initialization and removed on teardown dynamically. A max of
+4k connections are supported.  Each connection stores ip's,
+ports, ethernet addresses, and rdma sequence numbers. All
+packets generate map entries when passing through a tracked
+connection. The map entry stores the sequence number of the
+packet, and the packets original QP id. When a packet is
+mapped to a connection the connections sequence number is
+incremented, and a map entry is placed in the connection
+table to map the response back to its original connection.
 %%
+Entries are indexed into a per connection ring buffer by
+their sequence number modulo the buffers size. No hashing is
+required as the sequence number is a sufficient index.  The
+buffers size determines the max number of in flight requests
+per qp (128 in \sword). One bit marks if the map entry was
+transformed to a write from a CAS. Our mapping data
+structure is shown in Figure~\ref{fig:qp_mapping}. Note that
+connections are not terminated at the switch, only sequence
+numbers are tracked dynamically. Complex tasks such as
+retransmission, setup and teardown are handled end to end by
+the RDMA NICs.
+%%
+Map entries are suffient for book keeping packets, but many
+packet fields must be updated to ensure that the RDMA NICs
+accept tap entries are suffient for book keeping packets,
+but many packet fields must be updated to ensure that the
+RDMA NICs accept the packets as valid.  To multiplex a
+packet to another connection we update the packets ip
+addresses, udp sender port, queue pair, and sequence number
+then forward the packet as normal. Without applying these
+updates the receiving side NIC will either reject the
+packet, trigger go-back-n, or generate an error. 
+%
 On mapping the invariant CRC (ICRC) of the RDMA packet must
 be updated. Prior work has demonstrated that this is
 possible in a programmable switch~\todo{cite}. We use RoCE
@@ -613,22 +624,11 @@ transport in which the ICRC is redundant after the ethernet
 CRC. We turn off ICRC checks on both the sender and
 receiver~\cite{switchml}.
 %%
-Tracking sequence numbers, and storing map entires is
-sufficient for multiplexing RDMA packets.  To multiplex a
-packet to another connection we update the packets ip
-addresses, udp sender port, queue pair, and sequence number
-then forward the packet as normal. Without applying these
-updates the receiving side NIC will either reject the
-packet, trigger go-back-n, or generate an error. 
-%%
-When a packet is mapped we increment the sequence number for
-the receiving side QP.  Note that we do not need to
-terminate connections at the switch but only maintain a
-second set of sequence numbers for each connection as the
-sender and receiver will become decoupled. When a response
-packet is returned to {\sword} the sequence number is used
-as an index back into the connections map entries, and the
-mapping process is performed in reverse.
+Storing connection information could lead to a potential
+memory bottle neck. Our aim is to enable rack scale
+disaggregation where the total number of cores (clients) is
+less thant O(1k). Here the few MB of available switch memory
+is more than sufficient for storing connection metadata.
 
 \subsection{Atomics to Writes}
 
