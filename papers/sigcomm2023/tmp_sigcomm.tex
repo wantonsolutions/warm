@@ -543,13 +543,11 @@ operations to resolve write/write conflicts before they occur.
   \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
   \vskip -0.5em
 
-    \caption{ RoCEv2 headers consist of an Ethernet, IP, and
-    UDP header, a special UDP port denotes that the packet
-    is RDMA. The RoCE BTH header stores QP data, sequence
-    numbers, flags, and operations. The BTH+ header follows
-    and stores operation specific data such as virtual
-    addresses, DMA size, and compare-and-swap payloads.
-    }
+    \caption{ RoCEv2 packets consist of an Ethernet, IP, and
+    UDP header. The RoCE BTH header stores QP data, sequence
+    numbers, flags, and operations. The BTH+ header contains
+    operation specific data -- virtual addresses, DMA size,
+    and atomic payloads.  }
 
     \label{fig:roce_header}
       \vskip -0.5em
@@ -583,19 +581,15 @@ connections.
 \includegraphics[width=0.485\textwidth]{fig/connection_multiplexing.pdf}
 \vskip -0.5em
 
-    \caption{ Queue pair mapping data structure. Each RC
-    connection has metadata stored statically per
-    connection. Sequence numbers are dynamic per connection,
-    \sword stores both incoming and outgoing sequence
-    numbers for each connection. Map entries for each
-    connection are stored in ring buffers. Here we show only
-    the original QP id and sequence number in each ring
-    buffer. Colors indicate the connection. Here 3 packets
-    have been mapped to connection 1. A packet from it's
-    original source, and one from connections 2 and 3.
-    Connection 2 has also sent a second packet on it's own
-    connection.  Below the entire structure of each map
-    entry is shown.}
+    \caption{ RC multiplexing in \sword. Per connection in
+    and out sequence numbers are tracked to decouple sending
+    and receiving QP. Map entries are stored per packet in
+    their destination connections ring buffer to map back
+    responses. The diagramed rings only show the original
+    connection id, and sequence number. This example shows 3
+    packets mapped to connection 1, one from each
+    connection. A single packet from connection 2 remains
+    unmapped but still tracked.  }
 
     \label{fig:qp_mapping}
       \vskip -0.5em
