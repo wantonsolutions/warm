@@ -31,7 +31,7 @@ operations that deliver mutual exclusion.  While the performance of
 RDMA connection handling has received considerable attention~\cite{farm,storm,scalerpc},
 connections remain an end-to-end abstraction, and do not provide any
 guarantees regarding operations from distinct clients.  For that,
-systems must rely on atomic operations like compare-and-swap,
+systems must rely on atomic operations like compare-and-swap (CAS),
 but their enhanced semantics dictate expensive implementation choices
 on the NIC, dramatically restricting their performance compared to
 simple verbs like read and write~\cite{design-guidelines}.  Moreover,
@@ -39,7 +39,7 @@ atomic operations are available only over reliable connections.
 
 As a result, most existing systems that deliver scalable,
 high-performance shared remote access depend on the presence of
-computational resources co-located with the remote
+computational resources collocated with the remote
 data~\cite{herd,cell,farm,pilaf,storm}.  In particular, a
 memory-local CPU can employ 2-sided RDMA operations to orchestrate
 operations between multiple clients~\cite{herd,fasst}, avoiding the need
@@ -63,9 +63,9 @@ exclusively on end-to-end solutions, we consider leveraging in-network
 resources---specifically programmable switches that are located between
 clients and the remote memory servers---to accelerate systems based on
 existing 1-sided RDMA verbs.  Concretely, we observe that in
-rack-scale disaggregated settings, the top-of-rack switch serves as a
+rack-scale disaggregated settings, the top-of-rack (ToR) switch serves as a
 single serialization point for all RDMA requests.  As a result, it is
-possible to transparently re-write RDMA operations in flight to
+possible to transparently rewrite RDMA operations in flight to
 orchestrate requests from multiple clients to passive memory servers,
 sidestepping the fundamental bottlenecks present in the current
 connection-based RDMA protocol.
@@ -77,7 +77,7 @@ connection-based RDMA protocol.
 %% writes~\cite{herd,cell,farm,pilaf,storm}, in the
 %% disaggregated setting remote memory is not collocated with a
 %% CPU, so no such serialization point exists. When clients are
-%% colocated they can share an RDMA reliable connection which
+%% collocated they can share an RDMA reliable connection which
 %% provides in order delivery~\todo{Anil whats the RDMA
 %% scheduling paper}, but in general, distributed clients
 %% sharing remote memory must heavyweight RDMA atomic
@@ -90,14 +90,16 @@ connection-based RDMA protocol.
 %% egress port of a TOR.
 
 We present \sword, a top-of-rack switch that implements two separate
-yet complimentary approaches to accelerating RDMA-based passive memory~\cite{Grant2021InContRes}.  End-to-end based schemes must rely either on mutual
-exclusion (i.e., locks) or optimistic concurrency control (which
-require multiple round trips to resolve conflicts).  \sword\ removes
-the performance bottlenecks of both by 1) multiplexing multiple
-clients' RDMA operations onto shared connections to leverage the
-ordering semantics delivered by reliable connections~\cite{flock}, and
-2) caching small amounts of metadata to dynamically steer in-flight
-RDMA updates to avoid write/write conflicts in remote memory indexing structures.
+yet complimentary approaches to accelerating RDMA-based passive
+memory~\cite{Grant2021InContRes}.  Client-driven schemes must rely
+either on mutual exclusion (i.e., locks) or optimistic concurrency
+control (which require multiple round trips to resolve conflicts).
+\sword\ removes the performance bottlenecks of both by 1) multiplexing
+multiple clients' RDMA operations onto shared connections to leverage
+the ordering semantics delivered by reliable connections~\cite{flock},
+and 2) caching small amounts of metadata to dynamically steer
+in-flight RDMA updates to serialize concurrent operations to
+remote-memory indexing structures.
 
 We apply \sword\ to two existing remote memory systems which natively
 support sharing: Sherman~\cite{sherman}, which uses locking, and Clover~\cite{clover} that relies on optimistic concurrency.
@@ -112,11 +114,13 @@ limitations, but \sword\ can remove their bottlenecks.  Concretely,
 %% and Clover that both locking, and optimistic concurrency can
 %% be accelerated by orders of magnitude. 
 %% %%
-by multiplexing all of Sherman's acquire and release operations onto a
-single reliable connection, \sword\ can transparently replace the
-client-issued compare-and-swap operations with a lightweight writes,
-delivering a potential 10$\times$ gain in throughput.  Performance gains are even higher in the case of Clover, where
-%% When access to a shared location (lock aquire, release) is
+by multiplexing all acquire and release operations for a shared lock
+in Sherman onto a single reliable connection, \sword\ can
+replace the client-issued compare-and-swap operations
+with a lightweight writes, delivering a potential 10$\times$ gain in
+throughput.  Performance gains are even higher in the case of Clover,
+where
+%% When access to a shared location (lock acquire, release) is
 %% required we show that our middlebox can multiplex reliable
 %% RDMA connections, similar to collocated requests, thus
 %% removing the need for atomics entirely. Here we swap atomic
