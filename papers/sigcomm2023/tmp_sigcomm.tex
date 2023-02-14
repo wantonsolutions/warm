@@ -488,13 +488,13 @@ We present {\sword} an in-network solution for sharing
 remote memory. {\sword} enables sharing by providing two
 forms of application specific serialization. The first of
 which is to resolve atomic operations in network. Using a
-cache and application logic \sword determines the result of
+cache and application logic \sword\ determines the result of
 the atomic operation, and forwards the result to memory as a
 write. RDMA RC connections are used to ensure that resolved
 operations are not reordered downstream.
 %
 Second {\sword} removes contention from optimistic
-operations via steering. \sword caches updates to shared
+operations via steering. \sword\ caches updates to shared
 data structures and updates state in-flight requests so they
 can succeed rather than fail and retry.
 % \sword caches updates to the shared structures and
@@ -524,9 +524,22 @@ design of {\sword}.
 % limit of the match action pipeline require recirculation
 % which consumes additional switch bandwidth. 
 
+\sword\ is designed for closed looped clients. Connection
+remapping could require large amounts of buffering in
+network if clients had many in flight requests spread across
+multiple QP. Out-of-order requests would need to be buffered
+prior to delivering them. Out-of-order packet delivery
+triggers RoCE's go-back-$n$ retransmission protocol.
+%% Storing connection information could lead to a potential
+%memory bottle neck. 
+Our aim is to enable rack-scale disaggregation where the
+total number of cores (clients) is less thant O(1k). Here
+the few MB of available switch memory is more than
+sufficient for storing connection metadata.
+
 \subsection{Caching}
 
-\sword maintains a cache of application data to resolve
+\sword\ maintains a cache of application data to resolve
 conflicting operations. The contents are application
 specific, in our evaluation we use a cache of locks, and
 key-value locations. The cache consists of named p4
@@ -548,12 +561,12 @@ selected a runtime using LRU or heavy hitter detection.
   \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
   \vskip -0.5em
 
-    \caption{ RoCEv2 headers consist of an ethernet, ip, and
-    udp header, a special udp port denotes that the packet
+    \caption{ RoCEv2 headers consist of an Ethernet, IP, and
+    UDP header, a special UDP port denotes that the packet
     is RDMA. The RoCE BTH header stores QP data, sequence
     numbers, flags, and operations. The BTH+ header follows
     and stores operation specific data such as virtual
-    addresses, DMA size, and compare and swap payloads.
+    addresses, DMA size, and compare-and-swap payloads.
     }
 
     \label{fig:roce_header}
@@ -575,38 +588,35 @@ selected a runtime using LRU or heavy hitter detection.
       \vskip -0.5em
 \end{figure}
 
-\sword uses reliable connections to ensure that packets are
+\sword\ uses reliable connections to ensure that packets are
 not reordered after atomic operations have been resolved. By
 default, RoCEv2 packets on separate QP can be reordered on
 the NIC, or on PCIe, therefore swapping CAS operations to
 Write on the switch leads to an unsafe race condition
-(Figure ~\ref{fig:reorder}).
+(Figure~\ref{fig:reorder}).
 %
-\sword tracks all RC QP ids and maintains a table of
+\sword\ tracks all RC QP ids and maintains a table of
 connection metadata. New connections are added on
 initialization and removed on teardown dynamically. A max of
-4k connections are supported.  Each connection stores ip's,
-ports, ethernet addresses, and rdma sequence numbers. All
+4k connections are supported.  Each connection stores IP addresses,
+ports, Ethernet MAC addresses, and RDMA sequence numbers. All
 packets generate map entries when passing through a tracked
 connection. The map entry stores the sequence number of the
-packet, and the packets original QP id. When a packet is
+packet, and the packet's original QP id. When a packet is
 mapped to a connection the connections sequence number is
 incremented, and a map entry is placed in the connection
 table to map the response back to its original connection.
 %%
-Entries are indexed into a per connection ring buffer by
-their sequence number modulo the buffers size. No hashing is
-required as the sequence number is a sufficient index.  The
-buffers size determines the max number of in flight requests
-per qp (128 in \sword). One bit marks if the map entry was
-transformed to a write from a CAS. Our mapping data
-structure is shown in Figure~\ref{fig:qp_mapping}. Note that
-connections are not terminated at the switch, only sequence
-numbers are tracked dynamically. Complex tasks such as
-retransmission, setup and teardown are handled end to end by
-the RDMA NICs.
+Entries are indexed into a per-connection ring buffer based on their
+sequence number (modulo the buffer size)---no hashing is required.
+The buffer size determines the maximum number of in-flight requests per
+QP (128 in \sword). One bit marks if the map entry was transformed to
+a write from a CAS. Our mapping data structure is shown in
+Figure~\ref{fig:qp_mapping}. Note that connections are not terminated
+at the switch, only sequence numbers are tracked dynamically. Complex
+tasks such as retransmission, setup and teardown are handled end-to-end by the RDMA NICs.
 %%
-Map entries are suffient for book keeping packets, but many
+Map entries are sufficient for bookkeeping packets, but many
 packet fields must be updated to ensure that the RDMA NICs
 accept tap entries are suffient for book keeping packets,
 but many packet fields must be updated to ensure that the
@@ -626,18 +636,36 @@ receiver~\cite{switchml}.
 %%
 
 
-\sword is designed for closed looped clients. Connection
-remapping could require large amounts of buffering in
-network if clients had many in flight requests spread across
-multiple QP. Out of order requests would need to be buffered
-prior to delivering them. Out of order packet delivery
-triggers RoCE's go-back-n retransmission protocol.
-%% Storing connection information could lead to a potential
-%memory bottle neck. 
-Our aim is to enable rack scale disaggregation where the
-total number of cores (clients) is less thant O(1k). Here
-the few MB of available switch memory is more than
-sufficient for storing connection metadata.
+\paragraph{ACK coalescing}
+De-multiplexing mapped requests non-trivial due to optimizations in
+the RDMA protocol. Specifically, an RDMA NIC may coalesce ACKs to
+reduce the number of packets transmitted and save bandwidth: like TCP,
+ACKs are cumulative. Coalescing presents a challenge when operations
+from multiple QPs are multiplexed, however, as an ACK may correspond
+to operations issued by more than one client.  Forwarding an ACK back
+to only the client who issued the operation referenced in the ACK will
+cause the other clients whose operations were implicitly acknowledged
+by the server to timeout and retransmit.  Conversely, forwarding ACKs to
+clients without outstanding operations could lead to unspecified
+behavior.
+
+%is a problem when multiplexing to two or more
+%clients. A request from one client, may cause the coalescing of a
+%result for another. If this occurs the second client will not receive
+%a response and eventually time out, leading to retransmission and high
+%tail latencies.
+%%
+\sword\ detect coalescing by monitoring response
+packets. If a higher number ack is received we know by the
+guarantees of RC that the lower packets operation was
+executed and it is safe to generate an ACK. Mapped requests
+for the missing packet are used to generate the ACK.
+%
+Multiple acks can be coalesced so
+this processes is recursive when ack coalescing is detected.
+This processes is not required if response coalescing is
+turned off.
+
 
 \subsection{Atomics to Writes}
 
@@ -664,27 +692,6 @@ value after the operation is attempted. Finally the packet
 length is truncated as write packets are 4 bytes shorter
 than CAS packets.
 
-\subsection{Ack de-coalescing}
-
-De-multiplexing mapped requests non-trivial due to
-optimizations in the RDMA protocol. Acks in RDMA, can be
-coalesced to reduce packets, and bandwidth. Coalescing is a
-problem when multiplexing to two or more clients. A request
-from one client, may cause the coalescing of a result for
-another. If this occurs the second client will not receive a
-response and eventually time out, leading to retransmission
-and high tail latencies.
-%%
-We detect coalescing on the switch by monitoring response
-packets. If a higher number ack is received we know by the
-guarantees of RC that the lower packets operation was
-executed and it is safe to generate an ACK. Mapped requests
-for the missing packet are used to generate the ACK.
-%
-Multiple acks can be coalesced so
-this processes is recursive when ack coalescing is detected.
-This processes is not required if response coalescing is
-turned off.
 
 
 \subsection{Steering}
