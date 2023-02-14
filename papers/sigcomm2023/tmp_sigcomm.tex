@@ -207,16 +207,34 @@ enabling clients to
 %delivery on individual queue pairs. This allows clients to
 issue multiple outstanding requests; the NIC ensures in-order delivery despite 
 packet reordering and drops with sequence numbers and go-back-$n$
-retransmission.  When clients are collocated, queue pairs
+retransmission.
+
+\subsection{Per-connection throughput}
+
+\begin{figure}[t]
+  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
+  \vskip -0.5em
+\caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
+core, and issues in-lined writes. A single connection only offers a fraction of the
+total NIC throughput.} 
+  \vskip -0.5em
+  \label{fig:qp_bottleneck}
+\end{figure}
+
+When clients are collocated, queue pairs
 can be shared by multiple cores through techniques such as
 flat combining~\cite{flock,sherman}.
 %Flat combing removes
 %the need for RDMA atomics, as clients can locally resolve
 %their conflicts and then issue their requests as reads and
 %writes.
-Unfortunately this technique is not applicable to
-distributed clients that cannot share connections.
-In this section we experimentally illustrate the challenges to
+Unfortunately Figure~\ref{fig:qp_bottleneck} shows that the
+performance of individual queue pairs fall far short of line rate on
+our NICs; we do not observe full performance until at least seven
+queue pairs are used simultaneously. Moreover, as traditionally
+conceived, a QP is intended to be established between a single client
+and server---limiting its utility in a disaggregated setting.  In the
+following subsections we experimentally illustrate the challenges to
 ordering across such clients.
 
 
@@ -766,41 +784,32 @@ corresponding map entry.
 
 We now describe how we use \sword's techniques to accelerate the
 contention management techniques used by Sherman and Clover.
-
-\sword\ is designed for closed looped clients. Connection
-remapping could require large amounts of buffering in
-network if clients had many in flight requests spread across
-multiple QP. Out-of-order requests would need to be buffered
-prior to delivering them. Out-of-order packet delivery
-triggers RoCE's go-back-$n$ retransmission protocol.
-%% Storing connection information could lead to a potential
-%memory bottle neck. 
-Our aim is to enable rack-scale disaggregation where the
-total number of cores (clients) is less thant O(1k). Here
-the few MB of available switch memory is more than
-sufficient for storing connection metadata.
-
-
-
-We present {\sword} an in-network solution for sharing
-remote memory. {\sword} enables sharing by providing two
-forms of application specific serialization. The first of
-which is to resolve atomic operations in network. Using a
-cache and application logic \sword\ determines the result of
-the atomic operation, and forwards the result to memory as a
-write. RDMA RC connections are used to ensure that resolved
-operations are not reordered downstream.
+%We present {\sword} an in-network solution for sharing
+%remote memory. {\sword} enables sharing by providing two
+%forms of application specific serialization. The first of
+In the case of Sherman, \sword\ multiplexes all operations (encoded as
+CAS operations) for a given lock on a single connection, caches lock
+state at the switch, and replaces aquisition attempts with writes.
 %
-Second {\sword} removes contention from optimistic
-operations via steering. \sword\ caches updates to shared
-data structures and updates state in-flight requests so they
-can succeed rather than fail and retry.
+%% 's ability to 
+%% which is to resolve atomic operations in network. Using a
+%% cache and application logic \sword\ determines the result of
+%% the atomic operation, and forwards the result to memory as a
+%% write. RDMA RC connections are used to ensure that resolved
+%% operations are not reordered downstream.
+%
+\sword's acceleration of Clover is more lightweight---in fact,
+entirely soft-state---but even more impactful.  By caching a small
+amount of server state that clients manage through CAS operations,
+\sword\ is able to adjust these requests to ensure they succeed at the
+server, thereby avoiding expensive application-level retries for
+concurrent updates.
 % \sword caches updates to the shared structures and
 % modifies stale requests in flight with the most up to date
 % information removing the need for operations to fail. 
-These mechanisms are used to accelerate locks in
-Sherman~\cite{sherman} and remove all contention from a
-key-value store, Clover~\cite{clover}.
+%% These mechanisms are used to accelerate locks in
+%% Sherman~\cite{sherman} and remove all contention from a
+%% key-value store, Clover~\cite{clover}.
 
 \subsubsection{Shared locks}
 \label{sec:locking-algorithm}
@@ -834,20 +843,20 @@ operation arrives for a lock address, \sword\ replaces it with a write
 for the specified value.  (Releases will always succeed, setting the
 value to 0, while lock acquisition attempts always leave the value as
 1; their succes or failure is dictated by the prior state.)  When the
-(successful) response comes back, \sword\ converts the write response
-to a CAS response before forwarding it back over the original QP to
-the client.Note that Sherman lock values are always zero or one, so it
-sufficies to store a single bit---as opposed to eight bytes---to
-record the prior value in a lock operation's \sword\ map entry.
+ACK comes back, \sword\ converts the ACK to an Atomic ACK before
+forwarding it back over the original connection to the client.
+Because lock values are always zero or one, it sufficies to store a
+single bit---as opposed to eight bytes---to record the prior value in
+a lock operation's \sword\ map entry.
 
 Even in the case when the lock is already held (and the aquire attempt
-is doomed to fail), \sword\ still forwards a (much more lightweight)
-write request to the memory server---to ensure the client and server
-agree regarding the total number of RDMA verbs communicated between
-them---but the response will be replaced with a CAS failure so that
-the sender knows the lock acquisition failed.  This is in keeping with
-\sword's performance-enhancing-proxy philosophy: it accelerates, but
-does not replace, the application's end-to-end semantics.
+is doomed to fail), \sword\ still forwards a write request to the
+memory server to ensure the client and server agree regarding the
+total number of RDMA verbs communicated between them.  The ACK
+is replaced with a CAS ``failure'' so that the sender knows the lock
+acquisition failed.  This is in keeping with \sword's
+performance-enhancing-proxy philosophy: it accelerates, but does not
+replace, the application's end-to-end semantics.
 %Again, unlock is similar.
 Indeed, one could implement the lock server at the ToR
 itself~\cite{netlock}, but that would require a redesign of the
@@ -894,6 +903,19 @@ by a given (set of) server(s),
 %and vector operations to queue pairs accordingly.
 this seems reasonable as the ToR is usually on-path for all servers in disaggregated rack settings.
 
+\sword\ is designed for closed looped clients. Connection
+remapping could require large amounts of buffering in
+network if clients had many in flight requests spread across
+multiple QP. Out-of-order requests would need to be buffered
+prior to delivering them. Out-of-order packet delivery
+triggers RoCE's go-back-$n$ retransmission protocol.
+%% Storing connection information could lead to a potential
+%memory bottle neck. 
+Our aim is to enable rack-scale disaggregation where the
+total number of cores (clients) is less thant O(1k). Here
+the few MB of available switch memory is more than
+sufficient for storing connection metadata.
+
 %to support go-back-$n$ retransmissions.
 
 %
@@ -915,47 +937,141 @@ this seems reasonable as the ToR is usually on-path for all servers in disaggreg
 %% write across multiple connections.
 
 \subsubsection{Steering}
+Unlike Sherman, Clover does not implement locks.  Instead, Clover
+attempts to append to a per-key linked list using atomic operations.
+Clover detects concurrent updates by breaking writes (i.e., list
+appends) into two RDMA operations: one write to create a new node, and
+a CAS operation to update the next pointer of the node at the tail of
+the list---the latter fails when another node was added concurrently.
+Concretely, it uses CAS operations to attempt to replace a
+\texttt{NULL} pointer (indicating the end of the list) with a pointer
+to a new element.  To prevent such stale CAS requests from failing,
+{\sword} maintains a cache of the location of the (next pointer of
+the) node at the tail of each key's linked list. If a CAS request
+arrives at {\sword} destined for a stale virtual address (i.e., an
+address other than the one currently cached for that key), {\sword}
+\emph{steers} the CAS operation by replacing its target address in the
+BTH+ header with the cached address.
+%% CAS operations that ``lose'' a race will find a
+%% non-\texttt{NULL} value at their target address and force the client
+%% to retry at the new end of the list.  \sword\ can avoid these failures
+%% by \emph{steering} the target address of CAS operations to what it
+%% believes to be the current tail of the list.  
+While \sword\ could multiplex these operations on a shared connection
+to enforce ordering (and replace them with writes), our evaluation
+shows the probability of reordering with a contending operation on a
+separate connection after departing the ToR is sufficiently low that
+the remaining cost of (clients) resolving such failures is minimal.
 
-Unlike connection multiplexing, steering does not modify the
-RDMA operation. Steering is used when atomics are not
-applied to a single address. The atomic bottleneck on
-independent addresses is only half of that of reads and
-writes, in most algorithms less than half of operations are
-atomics, therefore the bottleneck is never reached. 
+%% Recall that writes in Clover are destined to the presumed tail of a
+%% key's linked list, but the target of any individual RDMA request may
+%% be out of date due to races with concurrent updates.
+
+
+
+%% Here, \sword\ need not incur the overhead
+%% of connection multiplexing;   
+
+%% Recall Clover takes an optimistic approach to concurrency control
+%% Unlike connection multiplexing, steering does not modify the
+%% RDMA operation. Steering is used when atomics are not
+%% applied to a single address. The atomic bottleneck on
+%% independent addresses is only half of that of reads and
+%% writes, in most algorithms less than half of operations are
+%% atomics, therefore the bottleneck is never reached. 
 %%
-We implement steering by maintaining a cache of centralized
-data structure information, and data structure specific code
-for resolving conflicts. When a packet arrives at the
-switch, it is parsed and passed to the application specific
-code. The cache is queried based on the virtual address, and
-application data in the packet. If the packet requires an
-update the virtual address in the BTH+ header is updated.
-The cache is similarly updated based on the data structure
-specific code.
+We implement steering by maintaining a cache of (a subset of) Clover's
+linked-list datastructures.  %% , and data structure specific code for
+%% resolving conflicts. 
+When a Clover packet arrives at the switch, it is parsed and passed to
+application-specific cache management code that extracts the
+salient information from the payload.
+%While conceptually simple, the actual implementation is somewhat
+%involved due to the design of both Clover and the RDMA protocol and
+%our desire to remain transparent to both.  Specifically,
+Unfortunately, Clover RDMA CAS requests do not explicitly specify the
+write operation to which they correspond; {\sword} infers the
+operation by checking the size of the RDMA request and then extracts
+the Clover key from the appropriate the location in the packet.  The
+key is used as an index into a lookup table to find the virtual
+address of the current tail node for that key.  Our strategy requires
+64 bytes of data per key---the size of an RDMA virtual address.
+
+
+%% While the semantics are
+%% application-specific in our evaluation we find it simple to do without
+%% making modifications to Clover itself.
+
+%% Concretely, the target adddress of Clover writes (encoded in CAS
+%% operations) is looked up in the cache. If the packet requires steering
+%% (i.e., the cache indicates that the targetted address no longer
+%% contains \texttt{NULL}) the virtual address in the BTH+ header is
+%% updated to the cached address.  The cache is similarly updated to
+%% reflect the addition of the new node.
+
+
+
+
+%% %%
+%% Reads and write are handled differently. Write contain
+%% application specific data in the payload. This information,
+%% along with the virtual address is usually sufficient to
+%% identify the packet type specific to the application and
+%% apply steering. 
 %%
-Reads and write are handled differently. Write contain
-application specific data in the payload. This information,
-along with the virtual address is usually sufficient to
-identify the packet type specific to the application and
-apply steering. While the semantics are application specific
-in our evaluation we found it simple to do without making
-modifications to the existing applications.
-%%
-Reads present a trickier problem. RDMA reads consist only of
-a virtual address and a length. In some cases this may be
-insufficient to identify if the packet needs to be steered,
-or what the purpose of the packet is. In our evaluation we
-keep an additional read cache which tracks the values and
-purpose of recent writes (in our cases the old virtual
-addresses of keys in a key value store.). If reads are
-destined to a stale location, we steer them to the correct
-location simply by modifying the virtual address.
-%%
-Our implementation of \sword requires no modification to the
-existing systems, however we note that future systems
-codesigend with \sword in mind could reduce the in network
-memory footprint by fingerprinting their packets with id's
-for {\sword}.
+
+While write steering sufficies to avoid write/write conflicts,
+concurrent reads face a similar dilemma: Clover reads seek to access
+the current tail of the linked list, but the address may be stale if
+they ``lose'' a race with a concurrent write.  To improve performance,
+\sword\ similarly steers reads to the correct tail address.
+
+Unfortunately, unlike writes (which are easy to identify by their use
+of the CAS operation), Clover reads are simply RDMA read operations
+for a virtual address and a length.
+%While Clover 
+%writes contain the key
+%to which they pertain---which allows for a table lookup---
+%Unfortunately Clover's
+%RDMA read requests only contain the target virtual address and a size.
+%When a
+%read fails it must be retried, as mentioned earlier reads are
+%performed iteratively until the tail of the list is reached, which in
+%the case of highly contested keys could be arbitrarily long. Repeating
+%reads does not destroy system performance as they are lockless,
+%however in terms of client latency each retry adds serious
+%latency. What makes handling reads hard is identifying the clover key
+%for which the read is for, without additional data in the packet the
+%value must be determined another way.
+As reads can be for arbitrarily old virtual addresses a naive solution
+that stored the lineage of each key would effectively require caching
+the entire contents of Clover's metadata server.  Instead,
+\sword\ hashes the address of each write into an array somewhat larger
+than the size of the key space and stores the key along with the
+address.  Collisions are resolved by replacing the old
+%address
+%and key with the new values
+entry, allowing keys with higher update rates to
+maintain longer histories in the table.
+
+When reads arrive {\sword} looks up their destination address in the
+table; if the address has a hit the associated key is used to look up
+the current tail in the write cache and the RDMA read is steered to
+the cached location.  Should a miss occur---either because the hash
+bucket was overwritten by another key, or because the tail address is
+not cached---the read is left unmodified.  If it fails to arrive at
+the current tail, Clover's end-to-end recovery mechanism kicks in
+looks up the last known address at the metadata server, then repeats
+the processes.
+
+%% If reads are destined to a stale location, we steer them to
+%% the correct location simply by modifying the virtual address.
+%% %%
+%% Our implementation of \sword requires no modification to the
+%% existing systems, however we note that future systems
+%% codesigend with \sword in mind could reduce the in network
+%% memory footprint by fingerprinting their packets with id's
+%% for {\sword}.
 
 \subsection{Failure handling}
 
