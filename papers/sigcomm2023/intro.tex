@@ -1,19 +1,23 @@
 \section{Introduction}
 
-There has been tremendous interest in resource disaggregation in
-recent years, with both academic and industrial researchers chasing
-the potential for increased scalability, power efficiency, and cost
+There has been tremendous interest in resource
+disaggregation in recent years, with both academic and
+industrial researchers chasing the potential for increased
+scalability, power efficiency, and cost
 savings~\cite{blade-server,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,supernic}.
-By physically separating compute from storage across a network, it is
-possible to dynamically adjust hardware resource allocations to suit
-changing workloads.  A large number of
+By physically separating compute from memory across a
+network, it is possible to dynamically adjust hardware
+resource allocations to suit changing workloads.  A large
+number of
 proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons}
-have leveraged the remote direct memory access (RDMA) support found in
-modern network interface cards (NICs) due to its low latency, high
-throughput, and simple verb-based interface.  Yet, most share a common
-drawback: they do not support shared read/write access.  More to the
-point, even modest levels of write contention crater the performance
-of those that attempt to do so~\cite{clover,sherman}.
+have leveraged the remote direct memory access (RDMA)
+support found in modern network interface cards (NICs) due
+to its low latency, high throughput, and simple verb-based
+interface.  Yet, most share a common drawback: they do not
+support sharing remote memory across compute nodes.  For
+systems which do provide sharing even modest levels of write
+contention crater the performance of those that attempt to
+do so~\cite{clover,sherman}.
 
 The reason behind this limitation is easy to identify: sharing remote
 memory requires coordinating access across multiple clients, yet the
