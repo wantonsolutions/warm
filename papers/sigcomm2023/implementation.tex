@@ -266,30 +266,33 @@ identified the connection is added to the connection tracker.
   \vskip -1em
 \end{figure}
 
-While our P4 prototype has limited functionality due to hardware
-limitations of our switch, the DPDK
-\sword\ implementation (shown in Figure~\ref{fig:system}) consists of
-3,392 lines of C and includes all of the features described in the
-previous section---including ICRC recalculation.
+Our P4 prototype does not currently support connection
+multiplexing due to hardware limitations of our switch and
+RDMA NICs. Our DPDK \sword\ implementation (shown in
+Figure~\ref{fig:system}) consists of 3,392 lines of C and
+includes all of the features described in the previous
+section---including ICRC recalculation.
 %(see Appendix~\ref{sec:appendix_icrc}).
-In this section we describe why
-tracking outstanding requests and de-coalescing ACKs is challenging in
-current RMT hardware, and suggest small hardware modifications which
+In this section we describe why tracking outstanding
+requests and de-coalescing ACKs is challenging in current
+RMT hardware, and suggest small hardware modifications which
 would make a P4 implementation simpler.
 
 
-\textbf{Connection mapping.} Map entries are required for
-each packet in order to multiplex a response packet back
-onto its original connection.  In the worst case (an
-all-client incast) a connection may have a mapped entry for
-every connected client. Because switch registers are
-allocated at compile time, statically provisioning for the
-worst case requires $O(n^2)$ space complexity ($n$ entries
-for every connection).  Supporting only 512 clients requires
-2MB of SRAM (1/16th of a Tofino's total buffer space) given
-this constraint. Storing these 64-bit entries takes 2
-pipeline stages in the best case, and 8 in the worst (8-bit
-registers).
+\textbf{Connection mapping.} Each memory bound RDMA packet
+generates a map entry to demultiplex responses back to its
+original connection. On incast (all clients sending to the
+same resource) a connection must have enough preallocated
+mapped entries in its ring buffer for every connected
+client. 
+%%
+Because switch registers are allocated at compile time,
+statically provisioning for the worst case requires $O(n^2)$
+space complexity ($n$ entries for every connection).
+Supporting only 512 clients requires 2MB of SRAM (1/16th of
+a Tofino's total buffer space) given this constraint.
+Storing these 64-bit entries takes 2 pipeline stages in the
+best case, and 8 in the worst (8-bit registers).
 
 %In the worst number of in flight requests with $n$ close
 %looped clients is $n$, so $n^2$ is dramatic over
