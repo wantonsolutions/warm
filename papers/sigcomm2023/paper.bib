@@ -10,7 +10,43 @@ publisher = {{USENIX} Association},
 
 @inproceedings{hpcc, author = {Li, Yuliang and Miao, Rui and Liu, Hongqiang Harry and Zhuang, Yan and Feng, Fei and Tang, Lingbo and Cao, Zheng and Zhang, Ming and Kelly, Frank and Alizadeh, Mohammad and Yu, Minlan}, title = {HPCC: High Precision Congestion Control}, year = {2019}, isbn = {9781450359566}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/3341302.3342085}, doi = {10.1145/3341302.3342085}, abstract = {Congestion control (CC) is the key to achieving ultra-low latency, high bandwidth and network stability in high-speed networks. From years of experience operating large-scale and high-speed RDMA networks, we find the existing high-speed CC schemes have inherent limitations for reaching these goals. In this paper, we present HPCC (High Precision Congestion Control), a new high-speed CC mechanism which achieves the three goals simultaneously. HPCC leverages in-network telemetry (INT) to obtain precise link load information and controls traffic precisely. By addressing challenges such as delayed INT information during congestion and overreac-tion to INT information, HPCC can quickly converge to utilize free bandwidth while avoiding congestion, and can maintain near-zero in-network queues for ultra-low latency. HPCC is also fair and easy to deploy in hardware. We implement HPCC with commodity programmable NICs and switches. In our evaluation, compared to DCQCN and TIMELY, HPCC shortens flow completion times by up to 95%, causing little congestion even under large-scale incasts.}, booktitle = {Proceedings of the ACM Special Interest Group on Data Communication}, pages = {44–58}, numpages = {15}, keywords = {RDMA, congestion control, programmable switch, smart NIC}, location = {Beijing, China}, series = {SIGCOMM '19} }
 
-@article{dcqcn, author = {Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo, Chuanxiong and Lipshteyn, Marina and Liron, Yehonatan and Padhye, Jitendra and Raindel, Shachar and Yahia, Mohamad Haj and Zhang, Ming}, title = {Congestion Control for Large-Scale RDMA Deployments}, year = {2015}, issue_date = {October 2015}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, volume = {45}, number = {4}, issn = {0146-4833}, url = {https://doi.org/10.1145/2829988.2787484}, doi = {10.1145/2829988.2787484}, abstract = {Modern datacenter applications demand high throughput (40Gbps) and ultra-low latency (< 10 μs per hop) from the network, with low CPU overhead. Standard TCP/IP stacks cannot meet these requirements, but Remote Direct Memory Access (RDMA) can. On IP-routed datacenter networks, RDMA is deployed using RoCEv2 protocol, which relies on Priority-based Flow Control (PFC) to enable a drop-free network. However, PFC can lead to poor application performance due to problems like head-of-line blocking and unfairness. To alleviates these problems, we introduce DCQCN, an end-to-end congestion control scheme for RoCEv2. To optimize DCQCN performance, we build a fluid model, and provide guidelines for tuning switch buffer thresholds, and other protocol parameters. Using a 3-tier Clos network testbed, we show that DCQCN dramatically improves throughput and fairness of RoCEv2 RDMA traffic. DCQCN is implemented in Mellanox NICs, and is being deployed in Microsoft's datacenters.}, journal = {SIGCOMM Comput. Commun. Rev.}, month = {aug}, pages = {523–536}, numpages = {14}, keywords = {PFC, datacenter transport, RDMA, ECN, congestion control} }
+@article{dcqcn,
+author = {Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo,
+                  Chuanxiong and Lipshteyn, Marina and Liron,
+                  Yehonatan and Padhye, Jitendra and Raindel, Shachar
+                  and Yahia, Mohamad Haj and Zhang, Ming},
+title =  "Congestion Control for Large-Scale {RDMA}
+                  Deployments",
+		  year = {2015}, issue_date = {October
+                  2015}, publisher = {Association for Computing
+                  Machinery}, address = {New York, NY, USA}, volume =
+                  {45}, number = {4}, issn = {0146-4833}, url =
+                  {https://doi.org/10.1145/2829988.2787484}, doi =
+                  {10.1145/2829988.2787484}, abstract = {Modern
+                  datacenter applications demand high throughput
+                  (40Gbps) and ultra-low latency (< 10 μs per hop)
+                  from the network, with low CPU overhead. Standard
+                  TCP/IP stacks cannot meet these requirements, but
+                  Remote Direct Memory Access (RDMA) can. On IP-routed
+                  datacenter networks, RDMA is deployed using RoCEv2
+                  protocol, which relies on Priority-based Flow
+                  Control (PFC) to enable a drop-free
+                  network. However, PFC can lead to poor application
+                  performance due to problems like head-of-line
+                  blocking and unfairness. To alleviates these
+                  problems, we introduce DCQCN, an end-to-end
+                  congestion control scheme for RoCEv2. To optimize
+                  DCQCN performance, we build a fluid model, and
+                  provide guidelines for tuning switch buffer
+                  thresholds, and other protocol parameters. Using a
+                  3-tier Clos network testbed, we show that DCQCN
+                  dramatically improves throughput and fairness of
+                  RoCEv2 RDMA traffic. DCQCN is implemented in
+                  Mellanox NICs, and is being deployed in Microsoft's
+                  datacenters.}, journal = {SIGCOMM
+                  Comput. Commun. Rev.}, month = aug, pages =
+                  {523–536}, numpages = {14}, keywords = {PFC,
+                  datacenter transport, RDMA, ECN, congestion control}}
  
  
 @inproceedings{10.1145/2785956.2787484, author = {Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo, Chuanxiong and Lipshteyn, Marina and Liron, Yehonatan and Padhye, Jitendra and Raindel, Shachar and Yahia, Mohamad Haj and Zhang, Ming}, title = {Congestion Control for Large-Scale RDMA Deployments}, year = {2015}, isbn = {9781450335423}, publisher = {Association for Computing Machinery}, address = {New York, NY, USA}, url = {https://doi.org/10.1145/2785956.2787484}, doi = {10.1145/2785956.2787484}, abstract = {Modern datacenter applications demand high throughput (40Gbps) and ultra-low latency (< 10 μs per hop) from the network, with low CPU overhead. Standard TCP/IP stacks cannot meet these requirements, but Remote Direct Memory Access (RDMA) can. On IP-routed datacenter networks, RDMA is deployed using RoCEv2 protocol, which relies on Priority-based Flow Control (PFC) to enable a drop-free network. However, PFC can lead to poor application performance due to problems like head-of-line blocking and unfairness. To alleviates these problems, we introduce DCQCN, an end-to-end congestion control scheme for RoCEv2. To optimize DCQCN performance, we build a fluid model, and provide guidelines for tuning switch buffer thresholds, and other protocol parameters. Using a 3-tier Clos network testbed, we show that DCQCN dramatically improves throughput and fairness of RoCEv2 RDMA traffic. DCQCN is implemented in Mellanox NICs, and is being deployed in Microsoft's datacenters.}, booktitle = {Proceedings of the 2015 ACM Conference on Special Interest Group on Data Communication}, pages = {523–536}, numpages = {14}, keywords = {ECN, datacenter transport, congestion control, RDMA, PFC}, location = {London, United Kingdom}, series = {SIGCOMM '15} }
@@ -134,28 +170,45 @@ url = {https://www.usenix.org/conference/atc20/presentation/tsai},
 month = jul,
 }
 
-@article{storm,
-  author    = {Stanko Novakovic and
-               Yizhou Shan and
-               Aasheesh Kolli and
-               Michael Cui and
-               Yiying Zhang and
-               Haggai Eran and
-               Liran Liss and
-               Michael Wei and
-               Dan Tsafrir and
-               Marcos K. Aguilera},
-  title     = {Storm: a fast transactional dataplane for remote data structures},
-  journal   = {CoRR},
-  volume    = {abs/1902.02411},
-  year      = {2019},
-  url       = {http://arxiv.org/abs/1902.02411},
-  archivePrefix = {arXiv},
-  eprint    = {1902.02411},
-  timestamp = {Tue, 21 May 2019 18:03:40 +0200},
-  biburl    = {https://dblp.org/rec/journals/corr/abs-1902-02411.bib},
-  bibsource = {dblp computer science bibliography, https://dblp.org}
-}
+@inproceedings{storm,
+author = {Novakovic, Stanko and Shan, Yizhou and Kolli, Aasheesh and
+                  Cui, Michael and Zhang, Yiying and Eran, Haggai and
+                  Pismenny, Boris and Liss, Liran and Wei, Michael and
+                  Tsafrir, Dan and Aguilera, Marcos}, title = {Storm:
+                  A Fast Transactional Dataplane for Remote Data
+                  Structures}, year = {2019}, isbn = {9781450367493},
+                  publisher = {Association for Computing Machinery},
+                  address = {New York, NY, USA}, url =
+                  {https://doi.org/10.1145/3319647.3325827}, doi =
+                  {10.1145/3319647.3325827}, abstract = {RDMA
+                  technology enables a host to access the memory of a
+                  remote host without involving the remote CPU,
+                  improving the performance of distributed in-memory
+                  storage systems. Previous studies argued that RDMA
+                  suffers from scalability issues, because the NIC's
+                  limited resources are unable to simultaneously cache
+                  the state of all the concurrent network
+                  streams. These concerns led to various
+                  software-based proposals to reduce the size of this
+                  state by trading off performance.We revisit these
+                  proposals and show that they no longer apply when
+                  using newer RDMA NICs in rack-scale environments. In
+                  particular, we find that one-sided remote memory
+                  primitives lead to better performance as compared to
+                  the previously proposed unreliable datagram and
+                  kernel-based stacks. Based on this observation, we
+                  design and implement Storm, a transactional
+                  dataplane utilizing one-sided read and write-based
+                  RPC primitives. We show that Storm outperforms eRPC,
+                  FaRM, and LITE by 3.3x, 3.6x, and 17.1x,
+                  respectively, on an InfiniBand cluster with Mellanox
+                  ConnectX-4 NICs.}, booktitle = {Proceedings of the
+                  12th ACM International Conference on Systems and
+                  Storage}, pages = {97–108}, numpages = {12},
+                  keywords = {RPC, RDMA, data structures}, location =
+                  {Haifa, Israel}, series = {SYSTOR '19}}
+ 
+
 
 @inproceedings{lite,
 author = {Tsai, Shin-Yeh and Zhang, Yiying},
@@ -428,7 +481,7 @@ month = jul,
 
 @article{herd,
 author = {Kalia, Anuj and Kaminsky, Michael and Andersen, David G.},
-title = {Using RDMA Efficiently for Key-Value Services},
+title = "Using {RDMA} Efficiently for Key-Value Services",
 year = {2014},
 issue_date = {October 2014},
 publisher = {Association for Computing Machinery},
@@ -773,7 +826,7 @@ keywords = {storage systems, low latency, large-scale systems, Datacenters}
 
 @inproceedings{ycsb,
 author = {Cooper, Brian F. and Silberstein, Adam and Tam, Erwin and Ramakrishnan, Raghu and Sears, Russell},
-title = {Benchmarking Cloud Serving Systems with YCSB},
+title = "Benchmarking Cloud Serving Systems with {YCSB}",
 year = {2010},
 isbn = {9781450300360},
 publisher = {Association for Computing Machinery},
@@ -1155,7 +1208,7 @@ month = apr,
 @inproceedings{netkv,
   author={Zhang, Wei and Wood, Timothy and Hwang, Jinho},
   booktitle={2016 IEEE International Conference on Autonomic Computing (ICAC)}, 
-  title={NetKV: Scalable, Self-Managing, Load Balancing as a Network Function}, 
+  title="{NetKV}: Scalable, Self-Managing, Load Balancing as a Network Function", 
   year={2016},
   volume={},
   number={},
