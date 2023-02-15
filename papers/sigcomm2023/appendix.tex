@@ -1,9 +1,30 @@
 \section{Appendix}
 
-Here we provide additional evaluation results and details regarding
-our implementations.
+Here we provide additional evaluation results.
+%and details regarding our implementations
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
+\vskip -0.5em
+    \caption{Performance across RDMA payload sizes using 400 client cores at a
+    50:50 read/write ratio.}
+\vskip 0.5em
+    \label{fig:packet_size}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.485\textwidth]{fig/contention.pdf}
+\vskip -0.5em
+    \caption{Performance as a function of Zipf coefficient using 400
+    client cores on a 50\% write workload with 128-byte objects.}
+\vskip 0.5em
+    \label{fig:contention}
+\end{figure}
 
 \subsection{Packet size}
+\label{ss:psize}
 
 {\sword} is designed to run at line rate, and is unperturbed by packet
 size. In the case of Clover, its retries incur a significant bandwidth
@@ -16,15 +37,7 @@ throughput drops proportionally.  Clover retries on larger packets are
 more expensive than on smaller packets because the retry consumes
 additional bandwidth on an already saturated link.
 
-\begin{figure}
-  \centering
-  \includegraphics[width=0.485\textwidth]{fig/packet_size.pdf}
-\vskip 0.5em
-    \caption{Performance across RDMA payload sizes using 400 client cores at a
-    50:50 read/write ratio.}
-\vskip 0.5em
-    \label{fig:packet_size}
-\end{figure}
+ 
 
 \subsection{Contention}
 \label{ss:zipf}
@@ -43,46 +56,37 @@ contention is due to Clover's block allocator which becomes a
 bottleneck with very hot keys.
 %when keys are requests more than 30\% of the time.
 
-\begin{figure}
-  \centering
-  \includegraphics[width=0.485\textwidth]{fig/contention.pdf}
-\vskip 0.5em
-    \caption{Performance as a function of Zipf coefficient using 400
-    client cores on a 50\% write workload.}
-\vskip 0.5em
-    \label{fig:contention}
-\end{figure}
 
 
 
 
-\subsection{RDMA ICRC}
-\label{sec:appendix_icrc}
+%% \subsection{RDMA ICRC}
+%% \label{sec:appendix_icrc}
 
-RDMA requests are not intended to be modified in flight, and care must
-be taken not to corrupt them. RDMA invariant CRCs (ICRC) are
-calculated at the time of sending and are designed to ensure the
-integrity of the payload. When we modify requests their ICRC must be
-recalculated or the packet will be rejected by the receiving NIC. Such
-an error would cause an extreme performance hit as any dropped packet
-triggers a timeout, and go-back-$n$ retransmission.  FPGA
-implementations of RDMA ICRC have been built in the
-past~\cite{Mansour_2019}; the required CRC calculation is identical to
-Ethernet CRC, with some additional \texttt{crc32} for the
-calculation. This algorithm is highly optimized for general case CRC
-calcuation.
+%% RDMA requests are not intended to be modified in flight, and care must
+%% be taken not to corrupt them. RDMA invariant CRCs (ICRC) are
+%% calculated at the time of sending and are designed to ensure the
+%% integrity of the payload. When we modify requests their ICRC must be
+%% recalculated or the packet will be rejected by the receiving NIC. Such
+%% an error would cause an extreme performance hit as any dropped packet
+%% triggers a timeout, and go-back-$n$ retransmission.  FPGA
+%% implementations of RDMA ICRC have been built in the
+%% past~\cite{Mansour_2019}; the required CRC calculation is identical to
+%% Ethernet CRC, with some additional \texttt{crc32} for the
+%% calculation. This algorithm is highly optimized for general case CRC
+%% calcuation.
 
-Recalculating the CRC for modified requests is the primary overhead of
-{\sword} as it must be recalculated after a squence number update,
-which occurs on all multiplexed and demultiplexed requests. This
-overhead could be reduced by either removing the need for the CRC
-(which is not a feature available on CX series NICs) or by allowing an
-alterative, lightweight checksum which could be quickly updated based
-on changes made to the packet while in flight. While these options are
-not currently available we believe that commodity switches and
-SmartNICs could leverage hardware offloads to reduce the cost, as the
-CRC calculation is identical to Ethernet except masking
-RoCE-specified packet felids.
+%% Recalculating the CRC for modified requests is the primary overhead of
+%% {\sword} as it must be recalculated after a squence number update,
+%% which occurs on all multiplexed and demultiplexed requests. This
+%% overhead could be reduced by either removing the need for the CRC
+%% (which is not a feature available on CX series NICs) or by allowing an
+%% alterative, lightweight checksum which could be quickly updated based
+%% on changes made to the packet while in flight. While these options are
+%% not currently available we believe that commodity switches and
+%% SmartNICs could leverage hardware offloads to reduce the cost, as the
+%% CRC calculation is identical to Ethernet except masking
+%% RoCE-specified packet felids.
 
 %% We implemented RDMA ICRC in our DPDK prototype. To our knowledge no P4 switches
 %% have native RoCEv2 support, while some projects have demonstrated that it is

@@ -270,8 +270,9 @@ While our P4 prototype has limited functionality due to hardware
 limitations of our switch, the DPDK
 \sword\ implementation (shown in Figure~\ref{fig:system}) consists of
 3,392 lines of C and includes all of the features described in the
-previous section---including ICRC recalculation (see
-Appendix~\ref{sec:appendix_icrc}).  In this section we describe why
+previous section---including ICRC recalculation.
+%(see Appendix~\ref{sec:appendix_icrc}).
+In this section we describe why
 tracking outstanding requests and de-coalescing ACKs is challenging in
 current RMT hardware, and suggest small hardware modifications which
 would make a P4 implementation simpler.
