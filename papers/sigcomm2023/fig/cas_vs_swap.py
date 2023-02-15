@@ -29,7 +29,7 @@ def plot_data(ax,filename,line_label,line_color,lmarker):
     ax.plot(x_axis,cas,label=line_label,color=line_color,marker=lmarker)
     ax.legend(loc='upper left')
 
-    ax.set_xlabel("QP")
+    ax.set_xlabel("Queue Pairs (QP)")
     ax.set_ylabel("MOPS")
 
 
