@@ -58,6 +58,7 @@ rects1 = ax.errorbar(keys, tput, yerr=terr, color=read_write_steering_color, lin
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel('MOPS')
+ax.set_ylim(-0.1, 3)
 ax.set_xticks(x_lab)
 ax.set_xticklabels(keys_label)
 ax.set_xlabel("Keys")
