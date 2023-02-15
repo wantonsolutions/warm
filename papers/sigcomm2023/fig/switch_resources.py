@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
+from textwrap import wrap
 from common import *
 
 
@@ -41,11 +42,7 @@ for val in rm_field_list:
     for v in values:
         v.pop(rm_index)
 
-
-
 #sort lists based on resource utilization
-
-#get_max_list
 maxes=[]
 for i in range(len(values[0])):
     vlist=[]
@@ -54,8 +51,6 @@ for i in range(len(values[0])):
     #print(vlist)
     maxes.append(max(vlist))
 
-#print(maxes)
-#print("done with maxes")
 
 
 
@@ -72,15 +67,18 @@ width = 0.65       # the width of the bars: can also be len(x) sequence
 
 colors=[default_clover_color,connection_color, write_steering_color,read_write_steering_color]
 
+
 for i in range(len(labels)-2, -1, -1):
     ax.bar(headers, values[i], width, label=labels[i],color=colors[i],edgecolor='k')
 
 #plot the simple switch
 i=len(labels)-1
+
 print(headers)
 #ax.scatter(headers, values[i], label=labels[i],color="green", markerfacecolor='None', marker="_", markersize=13, alpha=0.9)
 ax.scatter(headers, values[i], label=labels[i], marker="o", linewidth=1, edgecolor='k', color="green")
 
+# headers = [ '\n'.join(wrap(l, 10)) for l in headers ]
 ax.set_xticks(np.arange(len(headers)))
 ax.set_xticklabels(headers,rotation=60, ha='right')
 #ax.set_xlabel("Resources")
