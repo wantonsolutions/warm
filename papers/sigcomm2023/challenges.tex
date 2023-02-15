@@ -64,9 +64,8 @@ regardless of whether they are themselves atomic.
       concurrency.  When using atomic requests, ConnectX-5 NICs can
       support approximately 2.7 MOPS per queue pair, up to about 55
       MOPS in aggregate.}
-
     \label{fig:rdma_concur}
-      \vskip -0.5em
+%      \vskip -0.5em
 \end{figure}
 
 
@@ -160,7 +159,7 @@ write) continue to scale with increased request concurrency.
     \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
     of requests retain their order (delta=1), however reorderings of up to 15
     requests can occur. (Note logarithmic $y$ axis.)}
-  \vskip -0.5em
+%  \vskip -0.5em
     \label{fig:reorder}
 \end{figure}
 
@@ -210,7 +209,7 @@ are out of order by one to five requests, and some by up to 15.
 \caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
 core, and issues in-lined writes. A single connection only offers a fraction of the
 total NIC throughput.} 
-  \vskip -0.5em
+%  \vskip -0.5em
   \label{fig:qp_bottleneck}
 \end{figure}
 
