@@ -29,10 +29,6 @@ with open(inputfilename, newline='') as infh:
             values.append(x.tolist())
         i=i+1
 
-    #print(headers)
-    #print(labels[0])
-    #print(values[0])
-
 #remove unwanted fields
 #rm_field_list=["TCAM","8-bitActionSlots","16-bitActionSlots","32-bitActionSlots","TernaryMatchInputxbar"]
 rm_field_list=[]
@@ -62,7 +58,8 @@ for i in range(len(values)):
 
 
 
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
+fig, ax = plt.subplots(1,1, figsize=(7,3))
 width = 0.65       # the width of the bars: can also be len(x) sequence
 
 colors=[default_clover_color,connection_color, write_steering_color,read_write_steering_color]
@@ -78,12 +75,14 @@ print(headers)
 #ax.scatter(headers, values[i], label=labels[i],color="green", markerfacecolor='None', marker="_", markersize=13, alpha=0.9)
 ax.scatter(headers, values[i], label=labels[i], marker="o", linewidth=1, edgecolor='k', color="green")
 
-# headers = [ '\n'.join(wrap(l, 10)) for l in headers ]
+# headers = [ '\n'.join(wrap(l, 12)) for l in headers ]
+headers = [ l.replace("\\n","\n") for l in headers ]
 ax.set_xticks(np.arange(len(headers)))
-ax.set_xticklabels(headers,rotation=60, ha='right')
+ax.set_xticklabels(headers,rotation=35, ha='right', fontsize=8)
 #ax.set_xlabel("Resources")
 ax.set_ylabel("% Total Resources")
+ax.set_ylim(0,50)
 #ax.set_title("Breakdown of switch resource utilization by swordbox component")
-plt.legend()
+plt.legend(loc='upper left',fontsize=8)
 plt.tight_layout()
 save_fig(plt)
