@@ -1,0 +1,34 @@
+\section{Limitations}
+
+As starkly demonstrated above, the main performance limitations of
+our {\sword} prototypes are due to their respective implementations.
+%ed as user-space software and not on
+%programmable networking hardware.
+%There are additional limitations, in terms of language restrictions
+%and processing power, which would arise in a full-featured hardware
+%implementation. For example, in programmable switches the need to
+%recirculate packets which exceed the computational capacity of a
+%pipeline results in decreased overall bandwidth.  Prior work on
+%programable switches informed our DPDK prototype and led us to 
+%avoid design  which would not be implementable on a programmable
+%switch.
+%
+Even our Clover experiments fall short of the underlying hardware
+limits.  While our results show significant performance boosts from
+reducing hardware contention, there may be additional bottlenecks we
+have not yet uncovered. In future work we would like to extend our
+measurements to push the limitations of the underlying hardware.
+Based on our measurements so far, we expect that higher request rates
+will see further benefits from reduced contention.
+
+%~\ref{fig:full_system_performance}.
+
+More generally, some practical aspects of RDMA
+interposition---especially under failure and overload---are left out
+of this work. For instance, correctly handling ECN packets is a
+difficult question when connections are being multiplexed as the
+generated ECN packet has a single destination. One option is to
+broadcast the ECN to all clients multiplexed on the destination
+connection and allow end-to-end congestion control. Another is to track individual client request rates and only issue ECN to the
+highest requesting clients. We leave congestion
+control implications to future work.
