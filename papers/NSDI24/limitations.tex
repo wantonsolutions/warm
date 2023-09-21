@@ -1,7 +1,7 @@
 \section{Limitations}
 
-As starkly demonstrated above, the main performance limitations of
-our {\sword} prototypes are due to their respective implementations.
+As starkly demonstrated above, the performance  of
+our {\sword} prototypes are hardware limited.
 %ed as user-space software and not on
 %programmable networking hardware.
 %There are additional limitations, in terms of language restrictions
@@ -13,11 +13,43 @@ our {\sword} prototypes are due to their respective implementations.
 %avoid design  which would not be implementable on a programmable
 %switch.
 %
-Even our Clover experiments fall short of the underlying hardware
+
+In addition to the challenge of ACK coalescing, a robust connection
+multiplexing implementation must support worst-case incast
+scenarios where all client requests map to the same connection.
+%\textbf{Connection mapping.} Each memory bound RDMA packet
+%generates a map entry to demultiplex responses back to its
+%original connection. On incast (all clients sending to the
+%same resource) a connection must have enough preallocated
+%mapped entries in its ring buffer for every connected
+%client. 
+%%
+Because RMT switch registers are allocated at compile time,
+statically provisioning for the worst case requires $O(n^2)$
+space complexity ($n$ entries for every connection).
+%Supporting 512 clients requires 2MB of SRAM (1/16th of
+%a Tofino's total buffer space) given this constraint.
+%Storing these 64-bit entries takes 2 pipeline stages in the
+%best case, and 8 in the worst (8-bit registers).
+%In the worst number of in flight requests with $n$ close
+%looped clients is $n$, so $n^2$ is dramatic over
+%provisioning. However, s
+While space-efficient alternatives like hash tables exist,
+%tables have much better space utilization, but
+collisions
+are hard to deal with. For each potential collision,
+additional pipeline stages must be allocated and entries
+must include QP IDs to check for collisions---increasing a
+single hash table lookup to four stages.
+%, which is multiplied for each potential collision.
+At millions of packets per second multiple collisions are common,
+exceeding the pipeline length of our Tofino switches.
+
+
+Even our P4-based Clover experiments fall short of the underlying NIC hardware
 limits.  While our results show significant performance boosts from
 reducing hardware contention, there may be additional bottlenecks we
-have not yet uncovered. In future work we would like to extend our
-measurements to push the limitations of the underlying hardware.
+have not yet uncovered. In future work we would like to push the limits of the underlying hardware.
 Based on our measurements so far, we expect that higher request rates
 will see further benefits from reduced contention.
 

@@ -1,51 +1,46 @@
-This is BibTeX, Version 0.99d (TeX Live 2019/Debian)
+This is BibTeX, Version 0.99d (TeX Live 2021)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: paper.aux
 The style file: acm.bst
 Database file #1: paper.bib
-Repeated entry---line 1825 of file paper.bib
- : @inproceedings {race
- :                     ,
-I'm skipping whatever remains of this entry
-You've used 56 entries,
+You've used 55 entries,
             2253 wiz_defined-function locations,
-            836 strings with 17301 characters,
-and the built_in function-call counts, 28545 in all, are:
-= -- 2665
-> -- 1687
+            831 strings with 17096 characters,
+and the built_in function-call counts, 28039 in all, are:
+= -- 2617
+> -- 1660
 < -- 0
-+ -- 686
-- -- 630
-* -- 2195
-:= -- 4232
-add.period$ -- 166
-call.type$ -- 56
-change.case$ -- 483
++ -- 675
+- -- 620
+* -- 2155
+:= -- 4157
+add.period$ -- 163
+call.type$ -- 55
+change.case$ -- 475
 chr.to.int$ -- 0
-cite$ -- 56
-duplicate$ -- 1289
-empty$ -- 2020
-format.name$ -- 630
-if$ -- 6217
+cite$ -- 55
+duplicate$ -- 1267
+empty$ -- 1981
+format.name$ -- 620
+if$ -- 6107
 int.to.chr$ -- 0
-int.to.str$ -- 56
-missing$ -- 51
-newline$ -- 281
-num.names$ -- 112
-pop$ -- 639
+int.to.str$ -- 55
+missing$ -- 50
+newline$ -- 276
+num.names$ -- 110
+pop$ -- 628
 preamble$ -- 1
-purify$ -- 427
+purify$ -- 420
 quote$ -- 0
-skip$ -- 1027
+skip$ -- 1011
 stack$ -- 0
-substring$ -- 1288
-swap$ -- 566
+substring$ -- 1259
+swap$ -- 558
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 224
+type$ -- 220
 warning$ -- 0
-while$ -- 197
-width$ -- 58
-write$ -- 606
-(There was 1 error message)
+while$ -- 192
+width$ -- 57
+write$ -- 595

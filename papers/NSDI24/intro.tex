@@ -9,15 +9,14 @@ By physically separating compute from memory across a
 network, it is possible to dynamically adjust hardware
 resource allocations to suit changing workloads.  A large
 number of
-proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons}
+proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons,fusee}
 have leveraged the remote direct memory access (RDMA)
 support found in modern network interface cards (NICs) due
 to its low latency, high throughput, and simple verb-based
 interface.  Yet, most share a common drawback: they do not
 support sharing remote memory across compute nodes.  For
-systems which do provide sharing even modest levels of write
-contention crater the performance of those that attempt to
-do so~\cite{clover,sherman}.
+systems that do~\cite{clover,sherman,fusee}, even modest levels of write
+contention crater performance.
 
 The reason behind this limitation is easy to identify: sharing remote
 memory requires coordinating access across multiple clients, yet the

@@ -156,30 +156,31 @@ demand~\cite{ivy,infiniswap, leap, fastswap,legoos}.
 %running application.
 %%
 Other systems require applications to access remote memory explicitly
-through RPC-like APIs~\cite{aifm,reigons,clover,sherman,fasst} which
+through RPC-like APIs~\cite{aifm,reigons,clover,sherman,fasst,fusee} which
 allow the runtimes to apply a variety of optimizations including
 batching and scheduling.
 %%
 Regardless of the method of access, sharing remote memory between
 clients is fundamentally expensive, and at the time of writing no
-RDMA-based transparent system exposes shared memory.  Rather, the few systems
-that attempt to support sharing do so in the context of
+RDMA-based transparent system exposes shared memory.  Rather, the few
+systems that attempt to support sharing do so in the context of
 specific datastructures which allows the runtimes to manage concurrent
-accesses.  We apply \sword\ to two such systems in this paper and
-provide brief overviews below.
+accesses.  We apply \sword\ to two distinct
+contention management schemes---locks and optimistic concurrency
+control---and provide brief overviews below.
 
-\emph{Sherman} is a write-optimized B+Tree for passive remote memory~\cite{sherman}. The
-tree is augmented using entirely 1-sided RDMA operations. Sherman
-improves performance under contention in two ways. First, it
-places locks for each node in the B+Tree in a special region of NIC
-memory exposed by ConnectX-5 NICs.  This small chunk of memory exposes
-the same RDMA interface as host memory, but allows locking operations
-to execute with approximately 3$\times$ the throughput.  Second,
-Sherman's clients employ a hierarchical locking scheme to reduce the
-contention for server-hosted locks.  This client-local optimization
-significantly improves performance in cases where clients are
-collocated; \sword\ seeks to achieve similar efficiencies at the rack
-scale.
+\emph{Locks.}  Sherman is a write-optimized B+Tree for passive remote
+memory implemented using per-node locks~\cite{sherman}. The tree is
+augmented using entirely 1-sided RDMA operations. Sherman improves
+performance under contention in two ways. First, it places locks for
+each node in the B+Tree in a special region of NIC memory exposed by
+ConnectX-5 NICs.  This small chunk of memory exposes the same RDMA
+interface as host memory, but allows locking operations to execute
+with approximately 3$\times$ the throughput.  Second, Sherman's
+clients employ a hierarchical locking scheme to reduce the contention
+for server-hosted locks.  This client-local optimization significantly
+improves performance in cases where clients are collocated;
+\sword\ seeks to achieve similar efficiencies at the rack scale.
 
 %where locks are acquired locally prior
 %to issuing a CAS to remote NIC mapped locks. Locks and unlocks each
@@ -206,21 +207,31 @@ scale.
 %prototypical example of a key-value store for remote DRAM.  Most
 %importantly for our purposes, its design makes the assumption that
 %there are no remote CPU's co-resident with memory. All of
-\emph{Clover} implements a shared remote key-value store using
+
+\emph{Optimistic concurrency.}  Two recent systems support concurrent
+updates to remote key-value stores through optimistic use of
 %remote memory accesses are made via
-1-sided RDMA requests~\cite{clover}.
+1-sided RDMA atomic operations and client-driven resolution protocols. 
 %: reads, writes, and CAS.
-To improve performance, Clover moves metadata storage off of the data
-path. On the data path, reads and writes for a given key are made to
-an append-only linked list stored in remote memory. All RDMA requests
+In Clover, reads and writes for a given key are made to an append-only
+linked list stored in (persistent) remote memory~\cite{clover};
+clients race to update the tail of the list.  In FUSEE, persistence is
+implemented through client-driven replication, so clients race to
+update a majority of replicas in an instance of distributed
+consensus~\cite{fusee}.  In both cases, writes are guarded by CAS
+operations so clients can independently determine the outcome of the
+race.  Because we are interested in the fundamental costs of
+  contention---as opposed the additional challenge of replication---we focus specifically on Clover in this paper, but \sword\ could equally well apply to a (degenerate) non-replicated instantiation of FUSEE.  Indeed, we provide a performance comparision in the evaluation (Section~\ref{s:results}).
+
+In Clover, all RDMA requests
 are targetted at the (presumed) tail of the list and writes are
 guarded by CAS operations. A client may not know the location of the
 tail as other writers concurrently push it forward. When an operation
-fails to land at the tail of the list Clover iteratively traverses the
+fails to land at the tail of the list Clover traverses the
 structure until the tail is found. While this provides no liveness
 guarantees, in the common read-heavy case concurrent clients
 eventually reach the end of the list. To speed up operations clients
-keep caches (i.e., hints) of the end of each key's linked list to
+keep caches of the end of each key's linked list to
 avoid traversals.
 %% When writes are heavy and/or when
 %% particular keys are hot, Clover's performance degrades substantially.

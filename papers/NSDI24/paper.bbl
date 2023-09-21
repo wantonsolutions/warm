@@ -392,11 +392,4 @@
 \newblock Congestion control for large-scale {RDMA} deployments.
 \newblock {\em SIGCOMM Comput. Commun. Rev. 45}, 4 (Aug. 2015), 523–536.
 
-\bibitem{race}
-{\sc Zuo, P., Sun, J., Yang, L., Zhang, S., and Hua, Y.}
-\newblock One-sided {RDMA-Conscious} extendible hashing for disaggregated
-  memory.
-\newblock In {\em 2021 USENIX Annual Technical Conference (USENIX ATC 21)\/}
-  (July 2021), USENIX Association, pp.~15--29.
-
 \end{thebibliography}

@@ -20,16 +20,17 @@ hardware.
 We present \sword, an alternate approach that leverages the \textit{de facto}
 serialization point in rack-scale disaggregated systems---the
 top-of-rack switch---to transparently resolve RDMA races in flight.
-\sword\ runs on programmable switch hardware and accelerates existing
-RDMA-based systems in two ways.  In cases where it can interpose upon
-all requests to a given server, \sword\ multiplexes multiple clients'
-RDMA requests onto shared reliable connections to ensure operation order and remove the need for heavyweight
-atomic operations.
-%and overcome their hardware performance bottlenecks.
-More generally, it can track access patterns and dynamically steer
-RDMA-based updates to append-only data structures commonly employed in
-shared-write situations to avoid triggering expensive client-based
-resolution.  We apply our P4-based prototype to Clover, an
+%% \sword\ accelerates existing
+%% RDMA-based systems in two ways.  In cases where it can interpose upon
+%% all requests to a given server, \sword\ multiplexes multiple clients'
+%% RDMA requests onto shared reliable connections to ensure operation order and remove the need for heavyweight
+%% atomic operations.
+%% %and overcome their hardware performance bottlenecks.
+%% More generally, it can track access patterns and dynamically steer
+%% RDMA-based updates to append-only data structures commonly employed in
+%% shared-write situations to avoid triggering expensive client-based
+%% resolution.
+Our P4-based prototype dramatically improves the performance of Clover, an
 RDMA-based disaggregated key-value store.  Under a
 YCSB-A workload, throughput rises by nearly $35\times$ while bandwidth
 usage and tail latency drop by 16 and 300$\times$, respectively.

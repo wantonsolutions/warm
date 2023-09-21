@@ -31,21 +31,17 @@ with an Edgecore Wedge-100 programmable switch running \sword.
 We configure one server as a Clover memory server, one as a metadata
 server, and the remaining seven as Clover clients.
 
-\subsection{FUSEE}
+%\subsection{FUSEE}
 
-FUSEE is a recent RDMA-based disaggregated memory system
-with similar design principles to clover~\cite{fusee}. Fusee
-is built on RACE hashing~\cite{race}, and uses a one-sided
-snapshot algorithm for replication. Unlike Clover, FUSEE
-manages it's metadata only using one sided operations
-increasing the complexity of its updates. FUSEE is also not
-designed for persistent memory, updates are performed
-opportunistically, and the \textit{first client to finish}
-succeeds in making an update. On our testbed FUSEE scaled to
-256 clients before it was unable to complete our benchmarks.
-(beyond what was reported~\cite{fusee}). We compare \sword
-to FUSEE despite these differences because it is the most
-recent RDMA-based disaggregated memory system.
+%FUSEE is a recent RDMA-based disaggregated memory system
+%with similar design principles to clover~\cite{fusee}. Fusee
+%is built on RACE hashing~\cite{race}, and uses a one-sided
+%snapshot algorithm for replication. Unlike Clover, FUSEE
+%manages it's metadata only using one sided operations
+%increasing the complexity of its updates. FUSEE is also not
+%designed for persistent memory, updates are performed
+%opportunistically, and the \textit{first client to finish}
+%succeeds in making an update.
 
 \subsection{Atomic replacement}
 
@@ -54,7 +50,7 @@ recent RDMA-based disaggregated memory system.
 %  \vskip -0.5em
     \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
     \label{fig:cas_vs_swap}
-%      \vskip -0.5em
+      \vskip -1em
 \end{figure}
 
 \begin{figure*}
@@ -153,13 +149,34 @@ benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.  (Resul
 
 \subsubsection{Throughput}
 
-Figure~\ref{fig:full_system_performance} shows the impact of
-\sword's techniques at various levels of contention.  A
-read-only workload exhibits no contention, so \sword\ simply
-passes through all operations unmodified achieving a maximum
-throughput of approximately 40 million operations per second
-in our testbed.  Clover (shown in blue) performance
-decreases markedly with even 5\% writes; write steering
+Figure~\ref{fig:full_system_performance} shows the impact of \sword's
+techniques at various levels of contention.  A read-only workload
+exhibits no contention, so \sword\ simply passes through all
+operations unmodified achieving a maximum throughput of approximately
+40 million operations per second in our testbed.  As a point of
+comparison, we also plot (in green) the performance of a
+non-replicated instance of FUSEE, in which case their SNAPSHOT consensus algorithm
+degenerates to a lock-based approach.  While FUSEE's absolute read
+throughput on our testbed is considerably higher than reported by the
+original authors on their own hardware, it is less than half that of
+Clover on this workload.  While Clover clients can safely cache the
+linked-list location for popular keys (because any updates will cause
+the next pointer of the returned element to be non-NULL), FUSEE
+clients must always issue two seperate, dependant RDMA reads: one to
+obtain the current location for the desired key, and then one to read
+the value.\footnote{While
+the results in the FUSEE paper suggest it outperforms
+Clover~\cite[Figs. 13--15]{fusee}, Clover's
+client cache is disabled in those experiments, forcing all reads to go through the metadata server.  Moreover, in our experiments, FUSEE fails to scale beyond 256 clients---published results only go to 128~\cite{fusee}.}
+
+%% scaled to
+%% 256 clients before it was unable to complete our benchmarks.
+%% (beyond what was reported~\cite{fusee}). We compare \sword
+%% to FUSEE despite these differences because it is the most
+%% recent RDMA-based disaggregated memory system.
+
+Clover (shown in blue) performance
+decreases markedly with even 5\% writes, nearly matching FUSEE; write steering
 alone (orange) provides minimal performance improvement as
 the vast majority of writes succeed on their first try---it
 is the reads that are failing.  Steering both reads and
@@ -180,11 +197,9 @@ steered writes, however, then out-pace reads causing the
 majority of reads to fail unless \sword\ also applies read
 steering.  (The impact on tail latency is clearly shown in
 Figure~\ref{fig:tail_latency}.)  Of course, in a 100\% write
-workload write steering alone is sufficient. FUSEE (green)
-suffers less from contention as it does not maintain a
-linearized log. However due to it's additional meta-data
-updates reads take two round trips, while writes take three
-or more. \sword achieves between 1.9x and 2.5x higher
+workload write steering alone is sufficient.  While FUSEE
+suffers less from increased contention, its writes require three
+or more RDMA operations; as a result \sword\ pushes Clover to achieve 1.9--2.5$\times$ higher
 throughput than FUSEE.
 
 
