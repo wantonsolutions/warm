@@ -31,6 +31,22 @@ with an Edgecore Wedge-100 programmable switch running \sword.
 We configure one server as a Clover memory server, one as a metadata
 server, and the remaining seven as Clover clients.
 
+\subsection{FUSEE}
+
+FUSEE is a recent RDMA-based disaggregated memory system
+with similar design principles to clover~\cite{fusee}. Fusee
+is built on RACE hashing~\cite{race}, and uses a one-sided
+snapshot algorithm for replication. Unlike Clover, FUSEE
+manages it's metadata only using one sided operations
+increasing the complexity of its updates. FUSEE is also not
+designed for persistent memory, updates are performed
+opportunistically, and the \textit{first client to finish}
+succeeds in making an update. On our testbed FUSEE scaled to
+256 clients before it was unable to complete our benchmarks.
+(beyond what was reported~\cite{fusee}). We compare \sword
+to FUSEE despite these differences because it is the most
+recent RDMA-based disaggregated memory system.
+
 \subsection{Atomic replacement}
 
 \begin{figure}[t]
@@ -137,32 +153,41 @@ benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.  (Resul
 
 \subsubsection{Throughput}
 
-Figure~\ref{fig:full_system_performance} shows the impact of \sword's
-techniques at various levels of contention.  A read-only workload
-exhibits no contention, so \sword\ simply passes through all
-operations unmodified achieving a maximum throughput of approximately
-40 million operations per second in our testbed.  Clover (shown in
-blue) performance decreases markedly with even 5\% writes; write
-steering alone (orange) provides minimal performance improvement as
-the vast majority of writes succeed on their first try---it is the
-reads that are failing.  Steering both reads and writes (red) restores
-performance, although to a slightly lower overall throughput as even
-successful Clover writes require two RDMA operations instead of one.
-%Individual writes, however, can
-%lead to many stale reads immediately thereafter which leads write steering
-%to offer a 1.17$\times$ throughput improvement.
+Figure~\ref{fig:full_system_performance} shows the impact of
+\sword's techniques at various levels of contention.  A
+read-only workload exhibits no contention, so \sword\ simply
+passes through all operations unmodified achieving a maximum
+throughput of approximately 40 million operations per second
+in our testbed.  Clover (shown in blue) performance
+decreases markedly with even 5\% writes; write steering
+alone (orange) provides minimal performance improvement as
+the vast majority of writes succeed on their first try---it
+is the reads that are failing.  Steering both reads and
+writes (red) restores performance, although to a slightly
+lower overall throughput as even successful Clover writes
+require two RDMA operations instead of one.
+%Individual writes, however, can lead to many stale reads
+%immediately thereafter which leads write steering to offer
+%a 1.17$\times$ throughput improvement.
 %
-%Applying QP mapping to the
-%read majorly case adds too much computational overhead to give a
-%benefit when writes are low, and only a few compare and swap
-%operations exist.
+%Applying QP mapping to the read majorly case adds too much
+%computational overhead to give a benefit when writes are
+%low, and only a few compare and swap operations exist.
 %
-At 50\% writes, over half of all write requests fail so applying write
-steering almost doubles performance.  The steered writes, however,
-then out-pace reads causing the majority of reads to fail unless
-\sword\ also applies read steering.  (The impact on tail latency is
-clearly shown in Figure~\ref{fig:tail_latency}.)  Of course, in a
-100\% write workload write steering alone is sufficient.
+At 50\% writes, over half of all write requests fail so
+applying write steering almost doubles performance.  The
+steered writes, however, then out-pace reads causing the
+majority of reads to fail unless \sword\ also applies read
+steering.  (The impact on tail latency is clearly shown in
+Figure~\ref{fig:tail_latency}.)  Of course, in a 100\% write
+workload write steering alone is sufficient. FUSEE (green)
+suffers less from contention as it does not maintain a
+linearized log. However due to it's additional meta-data
+updates reads take two round trips, while writes take three
+or more. \sword achieves between 1.9x and 2.5x higher
+throughput than FUSEE.
+
+
 %
 %This workload leads to enough common case failures that
 %performance overhead of performing QP mapping still yields a

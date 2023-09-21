@@ -31,8 +31,6 @@ def tput_err(ax,rws,ws, clover, fusee=None, sherman=None):
 
 
 
-
-
 ####################### YCSB C
 avg_ops=[1829774,3577880,7008356,13684405,25656091,34720826,39142324,39713784,39970952,40600024,]
 threads=[7,14,28,56,112,168,224,280,336,392,]
@@ -47,9 +45,12 @@ threads=[7,14,28,56,112,168,224,280,336,392,]
 std=[0,0,0,0,0,0,0,0,0,0,]
 read_write_steering_C=   {"ops": avg_ops,"threads": threads, "err": std}
 
-threads= [5,10,20,40,80,160,200]
-avg_ops= [29502.2,125800.2,912565.2,6498447.2,12683884.25,10641378.6,8924234.4 ]
-std=     [0,0,0,0,0,0,0]
+threads = [8, 16, 32, 64, 128, 256]
+# avg_ops= [29502.2,125800.2,912565.2,6498447.2,12683884.25,10641378.6,8924234.4 ]
+avg_ops=[ 0.159183,   0.2876015,  2.2447135, 12.025642,  16.322664,  16.160061 ]
+avg_ops = [ s * 1000000 for s in avg_ops]
+
+std=     [0,0,0,0,0,0]
 fusee_C= {"ops": avg_ops,"threads": threads, "err": std}
 
 avg_ops= [1596000.0, 3074000.0, 5784000.0, 10304000.0, 12781000.0, 12406000.0, 13009000.0]
@@ -59,11 +60,12 @@ sherman_C= {"ops": avg_ops,"threads": threads, "err": std}
 
 
 
-tput_err(ax1,read_write_steering_C,write_steering_C,clover_with_buffering_C, fusee_C, sherman_C)
+# tput_err(ax1,read_write_steering_C,write_steering_C,clover_with_buffering_C, fusee_C, sherman_C)
+tput_err(ax1,read_write_steering_C,write_steering_C,clover_with_buffering_C, fusee_C)
 
 ax1.set_title('0% Writes')
 ax1.set_ylabel('MOPS')
-ax1.legend(loc='lower right', ncol=1)
+ax1.legend(loc='lower right', ncol=1, fontsize=12)
 
 ####################### YCSB B
 avg_ops=[1487724,2655252,4818364,7666020,12365564,13979169,13716786,13427863,12837368,12382960,]
@@ -80,9 +82,15 @@ threads=[7,14,28,56,112,168,224,280,336,392,]
 std=[0,0,0,0,0,0,0,0,0,0,]
 read_write_steering_B=   {"ops": avg_ops,"threads": threads, "err": std}
 
-threads= [5, 10, 20, 40, 80, 160, 200]
-avg_ops= [25471,96619,633937.5,4833325,9352250.4,7582265.6,7111248.8]
-std=     [0,0,0,0,0,0,0]
+
+
+
+
+threads = [8, 16, 32, 64, 128, 256]
+# avg_ops= [25471,96619,633937.5,4833325,9352250.4,7582265.6,7111248.8]
+avg_ops=[ 0.049226,   0.190538,   1.4487765, 10.241494,  14.2780315, 14.2005985]
+avg_ops = [ s * 1000000 for s in avg_ops]
+std=     [0,0,0,0,0,0]
 fusee_B= {"ops": avg_ops,"threads": threads, "err": std}
 
 threads= [5, 10, 20, 40, 80, 160, 200]
@@ -90,7 +98,8 @@ avg_ops= [1467000.0, 2851000.0, 5380000.0, 9705000.0, 12653000.0, 11356000.0, 58
 std=     [0,0,0,0,0,0,0]
 sherman_B= {"ops": avg_ops,"threads": threads, "err": std}
 
-tput_err(ax2,read_write_steering_B,write_steering_B,clover_with_buffering_B,fusee_B,sherman_B)
+# tput_err(ax2,read_write_steering_B,write_steering_B,clover_with_buffering_B,fusee_B,sherman_B)
+tput_err(ax2,read_write_steering_B,write_steering_B,clover_with_buffering_B,fusee_B)
 ax2.set_title('5% Writes')
 #ax1.set_ylim(top=350)
 
@@ -109,9 +118,12 @@ threads=[7,14,28,56,112,168,224,280,336,392,]
 std=[0,0,0,0,0,0,0,0,0,0,]
 read_write_steering_A={"ops": avg_ops,"threads": threads, "err": std}
 
-threads= [5, 10, 20, 40, 80, 160, 200]
-avg_ops= [17501.4,70734.75,501113.4,3760888.8,7634511,6026668.4,5606705.8 ]
-std=     [0,0,0,0,0,0,0]
+# threads= [5, 10, 20, 40, 80, 160, 200]
+threads = [8, 16, 32, 64, 128, 256]
+# avg_ops= [17501.4,70734.75,501113.4,3760888.8,7634511,6026668.4,5606705.8 ]
+avg_ops=[ 0.0360255, 0.145604,   1.0589075,  7.5669515, 11.9509565, 11.9186975]
+avg_ops = [ s * 1000000 for s in avg_ops]
+std=     [0,0,0,0,0,0]
 fusee_A = {"ops": avg_ops,"threads": threads, "err": std}
 
 avg_ops= [846000.0, 1680000.0, 3144000.0, 4767000.0, 4623000.0, 794000.0, 510000.0]
@@ -119,7 +131,8 @@ threads= [5, 10, 20, 40, 80, 160, 200]
 std=     [0,0,0,0,0,0,0]
 sherman_A = {"ops": avg_ops,"threads": threads, "err": std}
 
-tput_err(ax3,read_write_steering_A,write_steering_A,clover_with_buffering_A,fusee_A,sherman_A)
+# tput_err(ax3,read_write_steering_A,write_steering_A,clover_with_buffering_A,fusee_A,sherman_A)
+tput_err(ax3,read_write_steering_A,write_steering_A,clover_with_buffering_A,fusee_A)
 
 
 
@@ -139,9 +152,14 @@ avg_ops=[864548,1637644,3114852,5417666,9386053,13012869,15085964,16979671,16945
 threads=[7,14,28,56,112,168,224,280,336,392,]
 std=[0,0,0,0,0,0,0,0,0,0,]
 read_write_steering_W= {"ops": avg_ops,"threads": threads, "err": std}  
-threads= [5,10,20,40,80,160,200]
-avg_ops= [18148.4,72549.25,441385.25,2539115.8,5442831.2,6340093.2,6736537.]
-std=     [0,0,0,0,0,0,0]
+
+
+# threads= [5,10,20,40,80,160,200]
+threads = [8, 16, 32, 64, 128, 256]
+# avg_ops= [18148.4,72549.25,441385.25,2539115.8,5442831.2,6340093.2,6736537.]
+avg_ops=[0.03022,   0.123381,  0.868236,  6.1967235, 9.7452085, 9.7876635]
+avg_ops = [ s * 1000000 for s in avg_ops]
+std=     [0,0,0,0,0,0]
 fusee_W = {"ops": avg_ops,"threads": threads, "err": std}
 
 avg_ops= [573000.0, 1148000.0, 2056000.0, 2477000.0, 2367000.0, 392000.0, 171000.0]
@@ -149,7 +167,8 @@ threads= [5, 10, 20, 40, 80, 160, 200]
 std=     [0,0,0,0,0,0,0]
 sherman_W = {"ops": avg_ops,"threads": threads, "err": std}
 
-tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W,fusee_W,sherman_W)
+# tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W,fusee_W,sherman_W)
+tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W,fusee_W)
 ax4.set_title('100% Writes')
 
 fig.text(0.515,0.00, "Threads", ha='center', size=18)

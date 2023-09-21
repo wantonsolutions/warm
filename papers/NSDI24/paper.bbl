@@ -1,0 +1,402 @@
+\begin{thebibliography}{10}
+
+\bibitem{reigons}
+{\sc Aguilera, M.~K., Amit, N., Calciu, I., Deguillard, X., Gandhi, J.,
+  Novakovi{\'c}, S., Ramanathan, A., Subrahmanyam, P., Suresh, L., Tati, K.,
+  Venkatasubramanian, R., and Wei, M.}
+\newblock Remote regions: a simple abstraction for remote memory.
+\newblock In {\em 2018 {USENIX} Annual Technical Conference ({USENIX} {ATC}
+  18)\/} (Boston, MA, July 2018), {USENIX} Association, pp.~775--787.
+
+\bibitem{fastswap}
+{\sc Amaro, E., Branner-Augmon, C., Luo, Z., Ousterhout, A., Aguilera, M.~K.,
+  Panda, A., Ratnasamy, S., and Shenker, S.}
+\newblock Can far memory improve job throughput?
+\newblock In {\em Proceedings of the Fifteenth European Conference on Computer
+  Systems\/} (New York, NY, USA, 2020), EuroSys '20, Association for Computing
+  Machinery.
+
+\bibitem{disandapp}
+{\sc Angel, S., Nanavati, M., and Sen, S.}
+\newblock Disaggregation and the application.
+\newblock In {\em 12th {USENIX} Workshop on Hot Topics in Cloud Computing
+  (HotCloud 20)\/} (July 2020), {USENIX} Association.
+
+\bibitem{Grant2021InContRes}
+{\sc Anonymous}.
+\newblock Anonymized workshop paper.
+
+\bibitem{snoop}
+{\sc Balakrishnan, H., Seshan, S., Amir, E., and Katz, R.~H.}
+\newblock Improving tcp/ip performance over wireless networks.
+\newblock In {\em Proceedings of the 1st Annual International Conference on
+  Mobile Computing and Networking\/} (New York, NY, USA, 1995), MobiCom '95,
+  Association for Computing Machinery, p.~2–11.
+
+\bibitem{p4telemetry}
+{\sc Beltman, R., Knossen, S., Hill, J., and Grosso, P.}
+\newblock Using p4 and rdma to collect telemetry data.
+\newblock {\em 2020 IEEE/ACM Innovating the Network for Data-Intensive Science
+  (INDIS)\/} (2020), 1--9.
+
+\bibitem{rethinking}
+{\sc Calciu, I., Imran, M.~T., Puddu, I., Kashyap, S., Maruf, H.~A., Mutlu, O.,
+  and Kolli, A.}
+\newblock Rethinking software runtimes for disaggregated memory.
+\newblock In {\em Proceedings of the 26th ACM International Conference on
+  Architectural Support for Programming Languages and Operating Systems\/} (New
+  York, NY, USA, 2021), ASPLOS 2021, Association for Computing Machinery,
+  p.~79–92.
+
+\bibitem{scalerpc}
+{\sc Chen, Y., Lu, Y., and Shu, J.}
+\newblock Scalable rdma rpc on reliable connection with efficient resource
+  sharing.
+\newblock In {\em Proceedings of the Fourteenth EuroSys Conference 2019\/} (New
+  York, NY, USA, 2019), EuroSys '19, Association for Computing Machinery.
+
+\bibitem{ycsb}
+{\sc Cooper, B.~F., Silberstein, A., Tam, E., Ramakrishnan, R., and Sears, R.}
+\newblock Benchmarking cloud serving systems with {YCSB}.
+\newblock In {\em Proceedings of the 1st ACM Symposium on Cloud Computing\/}
+  (New York, NY, USA, 2010), SoCC '10, Association for Computing Machinery,
+  p.~143–154.
+
+\bibitem{prism}
+{\sc Dharanipragada, S., Joyner, S., Burke, M., Szekeres, A., Nelson, J.,
+  Zhang, I., and Ports, D. R.~K.}
+\newblock Prism: Rethinking the rdma interface for distributed systems.
+\newblock In {\em SOSP 2021\/} (October 2021).
+
+\bibitem{farm}
+{\sc Dragojevi{\'c}, A., Narayanan, D., Castro, M., and Hodson, O.}
+\newblock {FaRM}: Fast remote memory.
+\newblock In {\em 11th {USENIX} Symposium on Networked Systems Design and
+  Implementation ({NSDI} 14)\/} (Seattle, WA, Apr. 2014), {USENIX} Association,
+  pp.~401--414.
+
+\bibitem{the-machine}
+{\sc Faraboschi, P., Keeton, K., Marsland, T., and Milojicic, D.}
+\newblock Beyond processor-centric operating systems.
+\newblock In {\em 15th Workshop on Hot Topics in Operating Systems (HotOS
+  {XV})\/} (Kartause Ittingen, Switzerland, 2015), {USENIX} Association.
+
+\bibitem{requirements}
+{\sc Gao, P.~X., Narayan, A., Karandikar, S., Carreira, J., Han, S., Agarwal,
+  R., Ratnasamy, S., and Shenker, S.}
+\newblock Network requirements for resource disaggregation.
+\newblock In {\em 12th {USENIX} Symposium on Operating Systems Design and
+  Implementation ({OSDI} 16)\/} (Savannah, GA, Nov. 2016), {USENIX}
+  Association, pp.~249--264.
+
+\bibitem{rfc3135}
+{\sc Griner, J., Border, J., Kojo, M., Shelby, Z.~D., and Montenegro, G.}
+\newblock {Performance Enhancing Proxies Intended to Mitigate Link-Related
+  Degradations}.
+\newblock RFC 3135, June 2001.
+
+\bibitem{infiniswap}
+{\sc Gu, J., Lee, Y., Zhang, Y., Chowdhury, M., and Shin, K.~G.}
+\newblock Efficient memory disaggregation with infiniswap.
+\newblock In {\em 14th {USENIX} Symposium on Networked Systems Design and
+  Implementation ({NSDI} 17)\/} (Boston, MA, Mar. 2017), {USENIX} Association,
+  pp.~649--667.
+
+\bibitem{clio-arxiv}
+{\sc Guo, Z., Shan, Y., Luo, X., Huang, Y., and Zhang, Y.}
+\newblock Clio: A hardware-software co-designed disaggregated memory system,
+  2021.
+
+\bibitem{intel-rack}
+{\sc Intel}.
+\newblock Intel rack scale architecture: Faster service delivery and lower
+  {TCO}.
+\newblock
+  https://www.intel.com/content/www/us/en/architecture-and-technology/rack-scale-design-overview.html.
+
+\bibitem{netchain}
+{\sc Jin, X., Li, X., Zhang, H., Foster, N., Lee, J., Soul{\'e}, R., Kim, C.,
+  and Stoica, I.}
+\newblock {NetChain}: {Scale-Free} {Sub-RTT} coordination.
+\newblock In {\em 15th USENIX Symposium on Networked Systems Design and
+  Implementation (NSDI 18)\/} (Renton, WA, Apr. 2018), USENIX Association,
+  pp.~35--49.
+
+\bibitem{netcache}
+{\sc Jin, X., Li, X., Zhang, H., Soul\'{e}, R., Lee, J., Foster, N., Kim, C.,
+  and Stoica, I.}
+\newblock Netcache: Balancing key-value stores with fast in-network caching.
+\newblock In {\em Proceedings of the 26th Symposium on Operating Systems
+  Principles\/} (New York, NY, USA, 2017), SOSP '17, Association for Computing
+  Machinery, p.~121–136.
+
+\bibitem{erpc}
+{\sc Kalia, A., Kaminsky, M., and Andersen, D.}
+\newblock Datacenter {RPCs} can be general and fast.
+\newblock In {\em 16th {USENIX} Symposium on Networked Systems Design and
+  Implementation ({NSDI} 19)\/} (Boston, MA, Feb. 2019), {USENIX} Association,
+  pp.~1--16.
+
+\bibitem{herd}
+{\sc Kalia, A., Kaminsky, M., and Andersen, D.~G.}
+\newblock Using {RDMA} efficiently for key-value services.
+\newblock {\em SIGCOMM Comput. Commun. Rev. 44}, 4 (Aug. 2014), 295–306.
+
+\bibitem{design-guidelines}
+{\sc Kalia, A., Kaminsky, M., and Andersen, D.~G.}
+\newblock Design guidelines for high performance {RDMA} systems.
+\newblock In {\em 2016 {USENIX} Annual Technical Conference ({USENIX} {ATC}
+  16)\/} (Denver, CO, June 2016), {USENIX} Association, pp.~437--450.
+
+\bibitem{fasst}
+{\sc Kalia, A., Kaminsky, M., and Andersen, D.~G.}
+\newblock {FaSST}: Fast, scalable and simple distributed transactions with
+  two-sided ({RDMA}) datagram {RPCs}.
+\newblock In {\em 12th {USENIX} Symposium on Operating Systems Design and
+  Implementation ({OSDI} 16)\/} (Savannah, GA, Nov. 2016), {USENIX}
+  Association, pp.~185--201.
+
+\bibitem{firebox}
+{\sc Karandikar, S., Ou, A., Amid, A., Mao, H., Katz, R., Nikoli\'{c}, B., and
+  Asanovi\'{c}, K.}
+\newblock {FirePerf}: {FPGA}-accelerated full-system hardware/software
+  performance profiling and co-design.
+\newblock In {\em Proceedings of the Twenty-Fifth International Conference on
+  Architectural Support for Programming Languages and Operating Systems\/} (New
+  York, NY, USA, 2020), ASPLOS '20, Association for Computing Machinery,
+  p.~715–731.
+
+\bibitem{tea}
+{\sc Kim, D., Liu, Z., Zhu, Y., Kim, C., Lee, J., Sekar, V., and Seshan, S.}
+\newblock Tea: Enabling state-intensive network functions on programmable
+  switches.
+\newblock In {\em Proceedings of the Annual Conference of the ACM Special
+  Interest Group on Data Communication on the Applications, Technologies,
+  Architectures, and Protocols for Computer Communication\/} (New York, NY,
+  USA, 2020), SIGCOMM '20, Association for Computing Machinery, p.~90–106.
+
+\bibitem{mind}
+{\sc Lee, S.-s., Yu, Y., Tang, Y., Khandelwal, A., Zhong, L., and
+  Bhattacharjee, A.}
+\newblock Mind: In-network memory management for disaggregated data centers.
+\newblock In {\em Proceedings of the ACM SIGOPS 28th Symposium on Operating
+  Systems Principles\/} (New York, NY, USA, 2021), SOSP '21, Association for
+  Computing Machinery, p.~488–504.
+
+\bibitem{eris}
+{\sc Li, J., Michael, E., and Ports, D. R.~K.}
+\newblock Eris: Coordination-free consistent transactions using network
+  multi-sequencing.
+\newblock In {\em Proceedings of the 26th ACM Symposium on Operating Systems
+  Principles (SOSP '17)\/} (October 2017).
+
+\bibitem{no}
+{\sc Li, J., Michael, E., Sharma, N.~K., Szekeres, A., and Ports, D. R.~K.}
+\newblock Just say {NO} to paxos overhead: Replacing consensus with network
+  ordering.
+\newblock In {\em 12th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI 16)\/} (Savannah, GA, Nov. 2016), USENIX Association,
+  pp.~467--483.
+
+\bibitem{hpcc}
+{\sc Li, Y., Miao, R., Liu, H.~H., Zhuang, Y., Feng, F., Tang, L., Cao, Z.,
+  Zhang, M., Kelly, F., Alizadeh, M., and Yu, M.}
+\newblock Hpcc: High precision congestion control.
+\newblock In {\em Proceedings of the ACM Special Interest Group on Data
+  Communication\/} (New York, NY, USA, 2019), SIGCOMM '19, Association for
+  Computing Machinery, p.~44–58.
+
+\bibitem{blade-server}
+{\sc Lim, K., Chang, J., Mudge, T., Ranganathan, P., Reinhardt, S.~K., and
+  Wenisch, T.~F.}
+\newblock Disaggregated memory for expansion and sharing in blade servers.
+\newblock In {\em Proceedings of the 36th Annual International Symposium on
+  Computer Architecture\/} (New York, NY, USA, 2009), ISCA '09, Association for
+  Computing Machinery, p.~267–278.
+
+\bibitem{snap}
+{\sc Marty, M., de~Kruijf, M., Adriaens, J., Alfeld, C., Bauer, S., Contavalli,
+  C., Dalton, M., Dukkipati, N., Evans, W.~C., Gribble, S., Kidd, N., Kononov,
+  R., Kumar, G., Mauer, C., Musick, E., Olson, L., Ryan, M., Rubow, E.,
+  Springborn, K., Turner, P., Valancius, V., Wang, X., and Vahdat, A.}
+\newblock Snap: a microkernel approach to host networking.
+\newblock In {\em In ACM SIGOPS 27th Symposium on Operating Systems
+  Principles\/} (New York, NY, USA, 2019).
+
+\bibitem{leap}
+{\sc Maruf, H.~A., and Chowdhury, M.}
+\newblock Effectively prefetching remote memory with {Leap}.
+\newblock In {\em 2020 {USENIX} Annual Technical Conference ({USENIX} {ATC}
+  20)\/} (July 2020), {USENIX} Association, pp.~843--857.
+
+\bibitem{pilaf}
+{\sc Mitchell, C., Geng, Y., and Li, J.}
+\newblock Using one-sided {RDMA} reads to build a fast, {CPU}-efficient
+  key-value store.
+\newblock In {\em 2013 {USENIX} Annual Technical Conference ({USENIX} {ATC}
+  13)\/} (San Jose, CA, June 2013), {USENIX} Association, pp.~103--114.
+
+\bibitem{cell}
+{\sc Mitchell, C., Montgomery, K., Nelson, L., Sen, S., and Li, J.}
+\newblock Balancing {CPU} and network in the cell distributed {B-Tree} store.
+\newblock In {\em 2016 {USENIX} Annual Technical Conference ({USENIX} {ATC}
+  16)\/} (Denver, CO, June 2016), {USENIX} Association, pp.~451--464.
+
+\bibitem{flock}
+{\sc Monga, S.~K., Kashyap, S., and Min, C.}
+\newblock Birds of a feather flock together: Scaling rdma rpcs with flock.
+\newblock In {\em Proceedings of the ACM SIGOPS 28th Symposium on Operating
+  Systems Principles\/} (New York, NY, USA, 2021), SOSP '21, Association for
+  Computing Machinery, p.~212–227.
+
+\bibitem{ivy}
+{\sc Muthitacharoen, A., Morris, R., Gil, T.~M., and Chen, B.}
+\newblock Ivy: A read/write peer-to-peer file system.
+\newblock In {\em 5th Symposium on Operating Systems Design and Implementation
+  ({OSDI} 02)\/} (Boston, MA, Dec. 2002), {USENIX} Association.
+
+\bibitem{understanding-pcie}
+{\sc Neugebauer, R., Antichi, G., Zazo, J.~F., Audzevich, Y., L\'{o}pez-Buedo,
+  S., and Moore, A.~W.}
+\newblock Understanding pcie performance for end host networking.
+\newblock In {\em Proceedings of the 2018 Conference of the ACM Special
+  Interest Group on Data Communication\/} (New York, NY, USA, 2018), SIGCOMM
+  '18, Association for Computing Machinery, p.~327–341.
+
+\bibitem{zombieland}
+{\sc Nitu, V., Teabe, B., Tchana, A., Isci, C., and Hagimont, D.}
+\newblock Welcome to {Zombieland}: Practical and energy-efficient memory
+  disaggregation in a datacenter.
+\newblock In {\em Proceedings of the Thirteenth EuroSys Conference\/} (New
+  York, NY, USA, 2018), EuroSys '18, ACM, pp.~16:1--16:12.
+
+\bibitem{storm}
+{\sc Novakovic, S., Shan, Y., Kolli, A., Cui, M., Zhang, Y., Eran, H.,
+  Pismenny, B., Liss, L., Wei, M., Tsafrir, D., and Aguilera, M.}
+\newblock Storm: A fast transactional dataplane for remote data structures.
+\newblock In {\em Proceedings of the 12th ACM International Conference on
+  Systems and Storage\/} (New York, NY, USA, 2019), SYSTOR '19, Association for
+  Computing Machinery, p.~97–108.
+
+\bibitem{when-computer}
+{\sc Ports, D. R.~K., and Nelson, J.}
+\newblock When should the network be the computer?
+\newblock In {\em Proceedings of the Workshop on Hot Topics in Operating
+  Systems\/} (New York, NY, USA, 2019), HotOS '19, Association for Computing
+  Machinery, p.~209–215.
+
+\bibitem{aifm}
+{\sc Ruan, Z., Schwarzkopf, M., Aguilera, M.~K., and Belay, A.}
+\newblock {AIFM}: High-performance, application-integrated far memory.
+\newblock In {\em 14th {USENIX} Symposium on Operating Systems Design and
+  Implementation ({OSDI} 20)\/} (Nov. 2020), {USENIX} Association,
+  pp.~315--332.
+
+\bibitem{switchml}
+{\sc Sapio, A., Canini, M., Ho, C.-Y., Nelson, J., Kalnis, P., Kim, C.,
+  Krishnamurthy, A., Moshref, M., Ports, D., and Richtarik, P.}
+\newblock Scaling distributed machine learning with {In-Network} aggregation.
+\newblock In {\em 18th USENIX Symposium on Networked Systems Design and
+  Implementation (NSDI 21)\/} (Apr. 2021), USENIX Association, pp.~785--808.
+
+\bibitem{legoos}
+{\sc Shan, Y., Huang, Y., Chen, Y., and Zhang, Y.}
+\newblock {LegoOS}: A disseminated, distributed {OS} for hardware resource
+  disaggregation.
+\newblock In {\em 13th {USENIX} Symposium on Operating Systems Design and
+  Implementation ({OSDI} 18)\/} (Carlsbad, CA, 2018), {USENIX} Association,
+  pp.~69--87.
+
+\bibitem{supernic}
+{\sc Shan, Y., Lin, W., Kosta, R., Krishnamurthy, A., and Zhang, Y.}
+\newblock Disaggregating and consolidating network functionalities.
+\newblock arXiv, 2021.
+
+\bibitem{fusee}
+{\sc Shen, J., Zuo, P., Luo, X., Yang, T., Su, Y., Zhou, Y., and Lyu, M.~R.}
+\newblock {FUSEE}: A fully {Memory-Disaggregated} {Key-Value} store.
+\newblock In {\em 21st USENIX Conference on File and Storage Technologies (FAST
+  23)\/} (Santa Clara, CA, Feb. 2023), USENIX Association, pp.~81--98.
+
+\bibitem{rma}
+{\sc Singhvi, A., Akella, A., Gibson, D., Wenisch, T.~F., Wong-Chan, M., Clark,
+  S., Martin, M. M.~K., McLaren, M., Chandra, P., Cauble, R., Wassel, H. M.~G.,
+  Montazeri, B., Sabato, S.~L., Scherpelz, J., and Vahdat, A.}
+\newblock 1rma: Re-envisioning remote memory access for multi-tenant
+  datacenters.
+\newblock In {\em Proceedings of the Annual Conference of the ACM Special
+  Interest Group on Data Communication on the Applications, Technologies,
+  Architectures, and Protocols for Computer Communication\/} (New York, NY,
+  USA, 2020), SIGCOMM '20, Association for Computing Machinery, p.~708–721.
+
+\bibitem{clover}
+{\sc Tsai, S.-Y., Shan, Y., and Zhang, Y.}
+\newblock Disaggregating persistent memory and controlling them remotely: An
+  exploration of passive disaggregated key-value stores.
+\newblock In {\em {USENIX} Annual Technical Conference\/} (July 2020),
+  pp.~33--48.
+
+\bibitem{lite}
+{\sc Tsai, S.-Y., and Zhang, Y.}
+\newblock {LITE} kernel {RDMA} support for datacenter applications.
+\newblock In {\em Proceedings of the 26th Symposium on Operating Systems
+  Principles\/} (Shanghai, China, 2017), Association for Computing Machinery,
+  p.~306–324.
+
+\bibitem{sherman}
+{\sc Wang, Q., Lu, Y., and Shu, J.}
+\newblock Sherman: A write-optimized distributed {B+Tree} index on
+  disaggregated memory.
+\newblock In {\em Proceedings of the 2022 International Conference on
+  Management of Data\/} (Philadelphia, PA, 2022), Association for Computing
+  Machinery, p.~1033–1048.
+
+\bibitem{star}
+{\sc Wang, X., Chen, G., Yin, X., Dai, H., Li, B., Fu, B., and Tan, K.}
+\newblock {StaR}: Breaking the scalability limit for {RDMA}.
+\newblock In {\em Proceedings of the 29th IEEE International Conference on
+  Network Protocols (ICNP)\/} (2021).
+
+\bibitem{bedrock}
+{\sc Xing, J., Hsu, K.-F., Qiu, Y., Yang, Z., Liu, H., and Chen, A.}
+\newblock Bedrock: Programmable network support for secure {RDMA} systems.
+\newblock In {\em 31st USENIX Security Symposium (USENIX Security 22)\/}
+  (Boston, MA, Aug. 2022), USENIX Association, pp.~2585--2600.
+
+\bibitem{filemr}
+{\sc Yang, J., Izraelevitz, J., and Swanson, S.}
+\newblock {FileMR}: Rethinking {RDMA} networking for scalable persistent
+  memory.
+\newblock In {\em Proceedings of the 17th USENIX Symposium on Networked Systems
+  Design and Implementation (NSDI)\/} (Feb. 2020), pp.~111--125.
+
+\bibitem{netlock}
+{\sc Yu, Z., Zhang, Y., Braverman, V., Chowdhury, M., and Jin, X.}
+\newblock Netlock: Fast, centralized lock management using programmable
+  switches.
+\newblock In {\em Proceedings of the Annual Conference of the ACM Special
+  Interest Group on Data Communication on the Applications, Technologies,
+  Architectures, and Protocols for Computer Communication\/} (New York, NY,
+  USA, 2020), SIGCOMM '20, Association for Computing Machinery, p.~126–138.
+
+\bibitem{netkv}
+{\sc Zhang, W., Wood, T., and Hwang, J.}
+\newblock {NetKV}: Scalable, self-managing, load balancing as a network
+  function.
+\newblock In {\em 2016 IEEE International Conference on Autonomic Computing
+  (ICAC)\/} (2016), pp.~5--14.
+
+\bibitem{dcqcn}
+{\sc Zhu, Y., Eran, H., Firestone, D., Guo, C., Lipshteyn, M., Liron, Y.,
+  Padhye, J., Raindel, S., Yahia, M.~H., and Zhang, M.}
+\newblock Congestion control for large-scale {RDMA} deployments.
+\newblock {\em SIGCOMM Comput. Commun. Rev. 45}, 4 (Aug. 2015), 523–536.
+
+\bibitem{race}
+{\sc Zuo, P., Sun, J., Yang, L., Zhang, S., and Hua, Y.}
+\newblock One-sided {RDMA-Conscious} extendible hashing for disaggregated
+  memory.
+\newblock In {\em 2021 USENIX Annual Technical Conference (USENIX ATC 21)\/}
+  (July 2021), USENIX Association, pp.~15--29.
+
+\end{thebibliography}

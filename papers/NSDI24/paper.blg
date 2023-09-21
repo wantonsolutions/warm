@@ -1,0 +1,51 @@
+This is BibTeX, Version 0.99d (TeX Live 2019/Debian)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: paper.aux
+The style file: acm.bst
+Database file #1: paper.bib
+Repeated entry---line 1825 of file paper.bib
+ : @inproceedings {race
+ :                     ,
+I'm skipping whatever remains of this entry
+You've used 56 entries,
+            2253 wiz_defined-function locations,
+            836 strings with 17301 characters,
+and the built_in function-call counts, 28545 in all, are:
+= -- 2665
+> -- 1687
+< -- 0
++ -- 686
+- -- 630
+* -- 2195
+:= -- 4232
+add.period$ -- 166
+call.type$ -- 56
+change.case$ -- 483
+chr.to.int$ -- 0
+cite$ -- 56
+duplicate$ -- 1289
+empty$ -- 2020
+format.name$ -- 630
+if$ -- 6217
+int.to.chr$ -- 0
+int.to.str$ -- 56
+missing$ -- 51
+newline$ -- 281
+num.names$ -- 112
+pop$ -- 639
+preamble$ -- 1
+purify$ -- 427
+quote$ -- 0
+skip$ -- 1027
+stack$ -- 0
+substring$ -- 1288
+swap$ -- 566
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 224
+warning$ -- 0
+while$ -- 197
+width$ -- 58
+write$ -- 606
+(There was 1 error message)

@@ -53,6 +53,31 @@ title =  "Congestion Control for Large-Scale {RDMA}
 
 @inproceedings{mom, author = {Ports, Dan R. K. and Li, Jialin and Liu, Vincent and Sharma, Naveen Kr. and Krishnamurthy, Arvind}, title = {Designing Distributed Systems Using Approximate Synchrony in Data Center Networks}, year = {2015}, isbn = {9781931971218}, publisher = {USENIX Association}, address = {USA}, abstract = {Distributed systems are traditionally designed independently from the underlying network, making worst-case assumptions (e.g., complete asynchrony) about its behavior. However, many of today's distributed applications are deployed in data centers, where the network is more reliable, predictable, and extensible. In these environments, it is possible to co-design distributed systems with their network layer, and doing so can offer substantial benefits.This paper explores network-level mechanisms for providing Mostly-Ordered Multicast (MOM): a best-effort ordering property for concurrent multicast operations. Using this primitive, we design Speculative Paxos, a state machine replication protocol that relies on the network to order requests in the normal case. This approach leads to substantial performance benefits: under realistic data center conditions, Speculative Paxos can provide 40% lower latency and 2.6\texttimes{} higher throughput than the standard Paxos protocol. It offers lower latency than a latency-optimized protocol (Fast Paxos) with the same throughput as a throughput-optimized protocol (batching).}, booktitle = {Proceedings of the 12th USENIX Conference on Networked Systems Design and Implementation}, pages = {43–57}, numpages = {15}, location = {Oakland, CA}, series = {NSDI'15} }
 
+@inproceedings {fusee,
+author = {Jiacheng Shen and Pengfei Zuo and Xuchuan Luo and Tianyi Yang and Yuxin Su and Yangfan Zhou and Michael R. Lyu},
+title = {{FUSEE}: A Fully {Memory-Disaggregated} {Key-Value} Store},
+booktitle = {21st USENIX Conference on File and Storage Technologies (FAST 23)},
+year = {2023},
+isbn = {978-1-939133-32-8},
+address = {Santa Clara, CA},
+pages = {81--98},
+url = {https://www.usenix.org/conference/fast23/presentation/shen},
+publisher = {USENIX Association},
+month = feb,
+}
+
+@inproceedings {race,
+author = {Pengfei Zuo and Jiazhao Sun and Liu Yang and Shuangwu Zhang and Yu Hua},
+title = {One-sided {RDMA-Conscious} Extendible Hashing for Disaggregated Memory},
+booktitle = {2021 USENIX Annual Technical Conference (USENIX ATC 21)},
+year = {2021},
+isbn = {978-1-939133-23-6},
+pages = {15--29},
+url = {https://www.usenix.org/conference/atc21/presentation/zuo},
+publisher = {USENIX Association},
+month = jul,
+}
+
 @inproceedings{helios,
 author = {Nightingale, Edmund B and Hodson, Orion and McIlroy, Ross and Hawblitzel, Chris and Hunt, Galen},
 title = {Helios: Heterogeneous Multiprocessing with Satellite Kernels},
