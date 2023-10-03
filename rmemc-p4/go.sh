@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/bin/bash -x
 
 
 #Per host arguments
 HOST=`hostname`
 YAK2="yak-02.sysnet.ucsd.edu"
 PSWITCH="localhost"
+NEW_PSWITCH="ufispace03-sw"
 
 
 #Global variables
@@ -17,6 +18,11 @@ if [ ${HOST} == ${YAK2} ]; then
 elif [ ${HOST} == ${PSWITCH} ]; then
     build_tool="/root/src/warm/rmemc-p4/p4_build.sh"
     RMEM_P4="/root/src/warm/rmemc-p4"
+elif [ ${HOST} == ${NEW_PSWITCH} ]; then
+    build_tool="/home/ssgrant/warm/rmemc-p4/p4_build.sh"
+    RMEM_P4="/home/ssgrant/warm/rmemc-p4"
+    export SDE="/sde/bf-sde-9.9.0"
+    export SDE_INSTALL="${SDE}/install"
 else
     echo "HOST=$HOST we don't have this set up, exiting"
     exit 1
@@ -58,6 +64,8 @@ function build_p4 () {
     if [ ${HOST} == ${YAK2} ]; then
         $build_tool $program_src --with-thrift --with-p4c bf-p4c --p4v 16 -j 30
     elif [ ${HOST} == ${PSWITCH} ]; then
+        $build_tool $program_src P4_ARCHITECTURE=tna P4_VERSION=p4-16 ##--with-thrift
+    elif [ ${HOST} == ${NEW_PSWITCH} ]; then
         $build_tool $program_src P4_ARCHITECTURE=tna P4_VERSION=p4-16 ##--with-thrift
     else
         echo "HOST=$HOST we don't have a correct build set up"
@@ -163,12 +171,16 @@ if [ ${HOST} == ${YAK2} ]; then
 elif [ ${HOST} == ${PSWITCH} ]; then
     run_driver
     run_bfshell
+elif [ ${HOST} == ${NEW_PSWITCH} ]; then
+    run_driver
+    run_bfshell
 else
     echo "$HOST not set up exiting .." 
 fi
 
 
 #main body of execution
+# echo "UNCOMMENT THE SLEEP FUNCTION"
 sleep 4000000
 
 #clean up the execution

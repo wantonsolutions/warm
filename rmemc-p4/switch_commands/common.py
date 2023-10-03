@@ -28,10 +28,10 @@ counter_registers = [
 
 #memory
 yak_0_mac="ec:0d:9a:68:21:d0"
-yak_0_port=48 #29
+yak_0_port=128 #29
 #meta
 yak_1_mac="ec:0d:9a:68:21:cc"
-yak_1_port=52 #30
+yak_1_port=136 #30
 #client
 yeti_5_mac="ec:0d:9a:68:21:a0"
 yeti_5_port=56 #31

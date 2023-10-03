@@ -1240,13 +1240,13 @@ EOF
     #
     # Installing the conf file
     #
-    if [ $P4_VERSION == "p4_16" ]; then
-        echo -n "Installing ${P4_NAME}.conf   ... "
-        mkdir -p ${P4_INSTALL}/share/p4/targets/tofino
-        cp ${P4_INSTALL}/share/tofinopd/${P4_NAME}/${P4_NAME}.conf \
-           ${P4_INSTALL}/share/p4/targets/tofino/${P4_NAME}.conf
-        echo DONE
-    fi
+    # if [ $P4_VERSION == "p4_16" ]; then
+    #     echo -n "Installing ${P4_NAME}.conf   ... "
+    #     mkdir -p ${P4_INSTALL}/share/p4/targets/tofino
+    #     cp ${P4_INSTALL}/share/tofinopd/${P4_NAME}/${P4_NAME}.conf \
+    #        ${P4_INSTALL}/share/p4/targets/tofino/${P4_NAME}.conf
+    #     echo DONE
+    # fi
 
     cd $WORKDIR
     return 0
