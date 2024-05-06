@@ -1,0 +1,38 @@
+\begin{abstract}
+
+Effectively sharing passive remote memory remains an open problem.
+% While emerging standards like CXL promise cache-coherent memory
+% pooling, spec-compliant hardware is not yet commercially
+% available and its feasibility at scale remains unproven.
+Despite its promise, experience with commercial RDMA hardware has
+shown that 1-sided verbs are incapable of managing concurrent updates
+at scale.  Faced with this reality, most prior systems either disallow
+sharing, retreat to 2-sided verbs---which require co-locating computational
+resources with remote memory---or propose new RDMA
+hardware. 
+%
+% Existing RDMA-based systems employ optimistic concurrency
+% approaches that defer serialization to the remote memory server and
+% rely upon heavyweight RDMA atomics to ensure consistency.
+% Unfortunately, atomic operations scale poorly causing these approaches
+% to degrade rapidly under contention.
+%
+We present \sword, an alternate approach that leverages the \textit{de facto}
+serialization point in rack-scale disaggregated systems---the
+top-of-rack switch---to transparently resolve RDMA races in flight.
+%% \sword\ accelerates existing
+%% RDMA-based systems in two ways.  In cases where it can interpose upon
+%% all requests to a given server, \sword\ multiplexes multiple clients'
+%% RDMA requests onto shared reliable connections to ensure operation order and remove the need for heavyweight
+%% atomic operations.
+%% %and overcome their hardware performance bottlenecks.
+%% More generally, it can track access patterns and dynamically steer
+%% RDMA-based updates to append-only data structures commonly employed in
+%% shared-write situations to avoid triggering expensive client-based
+%% resolution.
+Our P4-based prototype dramatically improves the performance of Clover, an
+RDMA-based disaggregated key-value store.  Under a
+YCSB-A workload, throughput rises by nearly $35\times$ while bandwidth
+usage and tail latency drop by 16 and 300$\times$, respectively.
+
+\end{abstract}

@@ -1,0 +1,32 @@
+1) [X]  make a 2 stage diagram for slide 4
+    [X] Show remote memory pages being back
+    [X] use colors to show which clients are using which pages
+
+2) [X] slide 5 Add a visualization of shared memory, something really high level which extends the figure from 4
+
+3) [X] Slide 6 improve diagram to show a CAS operation settting a lock. (perhaps add a concurrent read from another client)
+
+4) [ ]Slide 9) think very hard about this one, it could get 30-60 min on it's own
+    - focus on Atomcis vs Connection
+
+5) [X] Slide 10) Add lock caching information
+    - remove traces of device mapped memory.
+    - use the results in orange as a partial result just like Alex suggested
+    - add aversion of the locking figure, but remove the bottom half.
+
+6) [X] Slide 11) Focus on failures in general, add a brief optimistic point about not talking towards locks anymore
+
+7) [X] slides 19-22 make a clover only version
+    - add a write only version
+    - finally add the read and write line
+
+-------------------------------------------------------------------------
+Todo's round 2) 
+[ ] Slide 9.. Rough attempt in the next half hour
+    --Try multiple times and determine which path is the best
+[ ] Slide 34 - Figure out how to integrate into the talk
+[ ] Slide 21 - Figure out what to say at all here
+
+
+-------------------------------------------------------------------------
+8) do at least 3 practice talks before packing up

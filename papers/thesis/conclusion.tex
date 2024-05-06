@@ -1,0 +1,23 @@
+\section{Conclusion}
+
+We leverage the top-of-rack switch to provide cross-client
+ordering semantics unavailable in today's RDMA standard,
+dramatically increasing performance of systems that rely on
+atomic operations and optimistic concurrency.  Concretely,
+we show that \sword\ can resolve in-network contention and
+enable efficient sharing of remote memory on commodity RDMA
+NICs.  for passive remote memory and show that by resolving
+conflicts in flight,
+
+ Our full-featured DPDK prototype demonstrates the potential of
+ removing atomic operations and relying entirely upon queue-pair
+ ordering guarantees.  While connection multiplexing is currently
+ gated by the single-core performance of DPDK, our P4 steering
+ implementation shows order-of-magnitude gains in the context of one
+ of the highest-performing systems available.
+
+% This paper does not raise any ethical issues.
+% Moreover, we describe how it is
+% possible to replace atomic memory operations with traditional reads
+% and writes to avoid performance limitations inherent in such
+% heavyweight operations.

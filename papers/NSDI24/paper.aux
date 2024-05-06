@@ -100,15 +100,15 @@
 \citation{p4telemetry,bedrock}
 \citation{switchml}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Implementation}{9}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Connection steering}{9}{subsection.5.1}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces SwordBox's DPDK processing pipeline.\relax }}{9}{figure.caption.15}\protected@file@percent }
 \newlabel{fig:system}{{8}{9}{\sword 's DPDK processing pipeline.\relax }{figure.caption.15}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Breakdown of switch resource utilization by SwordBox\ component.\relax }}{9}{figure.caption.16}\protected@file@percent }
 \newlabel{fig:switch_resources}{{9}{9}{Breakdown of switch resource utilization by \sword \ component.\relax }{figure.caption.16}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Connection multiplexing}{9}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Connection steering}{9}{subsection.5.1}\protected@file@percent }
 \citation{ycsb}
 \citation{fusee}
 \citation{fusee}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Connection multiplexing}{10}{subsection.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {6}Evaluation}{10}{section.6}\protected@file@percent }
 \newlabel{s:results}{{6}{10}{Evaluation}{section.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Testbed}{10}{subsection.6.1}\protected@file@percent }
@@ -116,12 +116,12 @@
 \@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.\relax }}{10}{figure.caption.17}\protected@file@percent }
 \newlabel{fig:cas_vs_swap}{{10}{10}{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.\relax }{figure.caption.17}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Steering in Clover}{10}{subsection.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}Throughput}{10}{subsubsection.6.3.1}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Steering applied to Clover with 128-byte objects across 4 YCSB benchmarks. The percentage of workload writes increases from left to right. SwordBox\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times $ respectively.\relax }}{11}{figure.caption.18}\protected@file@percent }
 \newlabel{fig:full_system_performance}{{11}{11}{Steering applied to Clover with 128-byte objects across 4 YCSB benchmarks. The percentage of workload writes increases from left to right. \sword \ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times $ respectively.\relax }{figure.caption.18}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}Bandwidth reduction}{11}{figure.caption.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}Throughput}{11}{subsubsection.6.3.1}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Average number of bytes required per Clover operation on 128-byte objects using each of the three techniques at various write intensities.\relax }}{11}{figure.caption.19}\protected@file@percent }
 \newlabel{fig:bandwidth_reduction}{{12}{11}{Average number of bytes required per Clover operation on 128-byte objects using each of the three techniques at various write intensities.\relax }{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}Bandwidth reduction}{11}{figure.caption.19}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.3}Tail latency}{11}{figure.caption.20}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces 99th-percentile tail latencies of read (solid) and write (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)\relax }}{12}{figure.caption.20}\protected@file@percent }
 \newlabel{fig:tail_latency}{{13}{12}{99th-percentile tail latencies of read (solid) and write (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)\relax }{figure.caption.20}{}}
@@ -148,6 +148,7 @@
 \bibcite{rfc3135}{{14}{}{{}}{{}}}
 \bibcite{infiniswap}{{15}{}{{}}{{}}}
 \bibcite{clio-arxiv}{{16}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {section}{References}{13}{section*.23}\protected@file@percent }
 \bibcite{intel-rack}{{17}{}{{}}{{}}}
 \bibcite{netchain}{{18}{}{{}}{{}}}
 \bibcite{netcache}{{19}{}{{}}{{}}}
@@ -162,7 +163,6 @@
 \bibcite{no}{{28}{}{{}}{{}}}
 \bibcite{hpcc}{{29}{}{{}}{{}}}
 \bibcite{blade-server}{{30}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {section}{References}{13}{section*.23}\protected@file@percent }
 \bibcite{snap}{{31}{}{{}}{{}}}
 \bibcite{leap}{{32}{}{{}}{{}}}
 \bibcite{pilaf}{{33}{}{{}}{{}}}
@@ -188,20 +188,19 @@
 \bibcite{netlock}{{53}{}{{}}{{}}}
 \bibcite{netkv}{{54}{}{{}}{{}}}
 \bibcite{dcqcn}{{55}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Appendix}{14}{appendix.A}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Packet size}{14}{subsection.A.1}\protected@file@percent }
-\newlabel{ss:psize}{{A.1}{14}{Packet size}{subsection.A.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.\relax }}{15}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:packet_size}{{15}{15}{Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.\relax }{figure.caption.24}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {16}{\ignorespaces Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.\relax }}{15}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:contention}{{16}{15}{Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.\relax }{figure.caption.25}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Appendix}{15}{appendix.A}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Packet size}{15}{subsection.A.1}\protected@file@percent }
+\newlabel{ss:psize}{{A.1}{15}{Packet size}{subsection.A.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Contention}{15}{subsection.A.2}\protected@file@percent }
+\newlabel{ss:zipf}{{A.2}{15}{Contention}{subsection.A.2}{}}
 \newlabel{tocindent-1}{0pt}
 \newlabel{tocindent0}{0pt}
 \newlabel{tocindent1}{6.95pt}
 \newlabel{tocindent2}{13.79999pt}
 \newlabel{tocindent3}{20.22pt}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.\relax }}{15}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:packet_size}{{15}{15}{Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.\relax }{figure.caption.24}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {16}{\ignorespaces Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.\relax }}{15}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:contention}{{16}{15}{Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.\relax }{figure.caption.25}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Contention}{15}{subsection.A.2}\protected@file@percent }
-\newlabel{ss:zipf}{{A.2}{15}{Contention}{subsection.A.2}{}}
-\newlabel{TotPages}{{15}{15}{}{page.15}{}}
-\gdef \@abspage@last{15}
+\newlabel{TotPages}{{16}{16}{}{page.16}{}}

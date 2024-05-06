@@ -1,0 +1,92 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def plot_optimal(ax1, optimal, x_space, bars, width):
+
+    line_style=":"
+    line_color="g"
+    for i in range(bars):
+        half_diameter=(width/2)*bars
+        left = x_space[i]-half_diameter
+        right = x_space[i]+half_diameter
+        ax1.plot([left,right],[optimal[i],optimal[i]],linestyle=line_style,color=line_color,linewidth=2)
+
+    ax1.plot([],[],linestyle=line_style,color=line_color,label="Optimal")
+
+def bw_per_op(tup):
+    bpo=[]
+    for t in tup:
+        bpo.append(t[1]/t[0])
+    return bpo
+
+def wins(a,b):
+    for v1,v2 in zip(a,b):
+        print(str(round(v1/v2,1))+"x")
+    
+
+cns_color='#00702eff'                     #indigo
+qp_mapping_color='#9470b9ff'              #ruby
+read_write_steering_color='#cf243cff'     #alice
+write_steering_color='#ed7d31ff'          #kelly
+default_clover_color='#8caff6ff'          #Coral 
+
+
+# labels = [ '0','5','50', '100'] 
+# optimal = [ 0, 1254,1314, 1380]
+# clover=[(38540384,4085705128),(12619792,3588778832),(929800,  1755707042),(901140,  1676371302),]
+# write=[(40399508,4282772272),(13405036,3588778832),(1763680, 3344320676),(17110764,2203168988),]
+# read_write=[(39750630,4221172704),(35235112,3999323710),(27144320,3188139084),(17071776,2198105420),]
+
+labels = [ '5','50', '100'] 
+clover=[(12619792,3588778832),(929800,  1755707042),(901140,  1676371302),]
+write=[(13405036,3588778832),(1763680, 3344320676),(17110764,2203168988),]
+read_write=[(35235112,3999323710),(27144320,3188139084),(17071776,2198105420),]
+
+
+clover=bw_per_op(clover)
+write=bw_per_op(write)
+read_write=bw_per_op(read_write)
+
+
+print(clover)
+print(write)
+print(read_write)
+
+wins(clover,read_write)
+
+x = np.arange(len(labels))  # the label locations
+width = 0.2  # the width of the bars
+
+div=1
+plt.rcParams.update({'font.size': 16})
+fig, ax = plt.subplots(figsize=(8,4), dpi=300)
+#plot_optimal(ax,optimal,x,3,width)
+rects2 = ax.bar(x - width, clover, width, label='Clover',color=default_clover_color,edgecolor='k')
+rects1 = ax.bar(x, write, width, label='Write',color=write_steering_color,edgecolor='k')
+rects0 = ax.bar(x + width, read_write, width, label='Write+Read',color=read_write_steering_color,edgecolor='k')
+
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Bytes Per Operation')
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.set_xlabel("Write Ratio")
+
+#handles, labels = ax.get_legend_handles_labels()
+#order = [1,2,3]
+#ax.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+
+ax.legend()
+
+
+#ax.bar_label(rects1, padding=3)
+#//ax.bar_label(rects2, padding=3)
+figure_name="bandwidth_reduction"
+plt.tight_layout()
+plt.savefig(figure_name+'.pdf')
+plt.savefig(figure_name+'.png')
+
+
+
+

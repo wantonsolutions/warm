@@ -1,0 +1,243 @@
+\section{Background}
+
+We briefly overview RDMA, use of
+programmable switches in disaggregated settings, and passive remote
+memory.
+
+\subsection{RDMA protocol}
+
+RDMA was designed as a protocol for accessing remote memory. It
+defines a set of zero-copy instructions---known as
+\textit{verbs}---that are invoked by clients to read or write memory
+physically located on remote servers, typically without kernel
+involvement on either end.  When run over Ethernet using the RoCEv2
+standard, RDMA NICs located on client and server can cooperate to
+implement congestion~\cite{hpcc,dcqcn} and flow control, reliable
+delivery, and at-most-once delivery semantics.  Before exchanging
+data, RDMA end points establish a queue pair (QP) which defines the
+region(s) of memory each is able to access.  Like Internet transport
+protocols, RDMA queue pairs provide a configurable set of semantics
+depending on the transport mode selected: UDP-like semantics are
+provided by unreliable datagram (UD) and unreliable connections (UC),
+while reliable connections (RC) are similar to TCP, ensuring reliable,
+in-order delivery.  Moreover, reliable connections support so-called
+\emph{1-sided} verbs (e.g., read, write, and compare-and-swap) that
+are executed autonomously by the remote NIC without any remote CPU
+involvement.
+
+The benefits of the various transport modes and
+1-vs-2-sided verbs has been a topic of intense debate.  While reliable
+connections provide enhanced guarantees, their implementation requires
+on-NIC memory, a precious resource, and researchers have observed
+scalability bottlenecks due to memory and cache limitations in the
+Mellanox ConnectX family of RDMA
+NICs~\cite{farm,fasst,erpc,lite,design-guidelines}.  Recent work has
+shown how to overcome limits in terms of the number of
+connections~\cite{storm,flock}, but the ordering guarantees provided
+by RC remain restricted to individual queue pairs.  While unreliable
+transport modes can deliver superior performance and
+scalability~\cite{fasst}, they require the use of 2-sided
+verbs---i.e., involvement of a CPU at the memory server---to ensure
+ordering, a non-starter for passive disaggregated settings.  Unless
+hardware support for more sophisticated 1-sided verbs~\cite{filemr,rma,star}
+becomes available, another approach is required.
+
+
+%% While
+%% host memory can provide better scalability modern NICs have bigger
+%% caches with better cache management~\cite{storm}. In the disaggregated
+%% setting no memory side CPU exists to manage the state making RC the
+%% only option for one sided operations.
+
+%% \todo{connection multiplexing ~\cite{flock}}
+
+%% RDMA
+
+% Remote direct memory access (RDMA) is a network protocol
+% which allows NICs to bypass CPUs and access host memory
+% directly.  The RDMA protocol consists of a set of verbs
+% which abstract remote memory instructions. Instruction
+% execution and connection state are entirely managed by the
+% NIC which exposes the verbs API to the CPU. The CPU
+% registers memory regions for DMA with the NIC and sets up
+% connections (Queue Pairs) with a remote RDMA enabled NIC.
+% %%
+% RDMA connections come in a variety of flavors, each of which
+% enables a different set of RDMA verbs and delivary
+% guarantee~\cite{herd, erpc, storm}. Unreliable Datagram
+% (UD), and Unreliable Connection (UC) operate similar to UDP
+% with no reliable delivery or ordering guarantees and a
+% restricted set of verbs.  Reliable Connected (RC) operates
+% similar to TCP, the NIC manages connection states for each
+% QP and ensures reliable in-order delivery by using sequence
+% numbers and a go-back-n retransmission protocol.
+% %%
+% Serious debate exists over which connections to
+% use~\cite{storm,cell,herd,faast,farm}, each has advantages
+% and disadvantages in terms of NIC resource utilization,
+% throughput, and latency. Disaggregated architectures have no
+% remote CPU's, in this proposed setting RC is the most
+% attractive as it alone enables the use of one-sided verbs
+% :\textit{Read}, \textit{Write}, and the atomic \textit{CAS}
+
+
+%% RDMA Connections
+%% RDMA Atomics
+
+
+
+\subsection{Programmable switches}
+
+
+
+Most prior proposals for
+disaggregation consider rack-scale deployments where
+%. They propose a single rack
+%with
+servers are partitioned into roles: compute, memory, and storage, all
+of which are interconnected by a top-of-rack
+switch~\cite{disandapp,the-machine,intel-rack,firebox,legoos}.  The central
+role of the ToR in this architecture has not gone unnoticed, and
+researchers have observed that a programmable switch can off-load a
+wide variety of traditional operating system
+services~\cite{disandapp,mind,netlock,netkv,netchain,netcache}. The
+constraints in each case are similar: programmable switches have
+limited memory and processing capabilities.  If the computational task
+is too large packets must be recirculated adding
+additional latency and reducing aggregate bandwidth.  Ideal
+applications for programmable switches use little memory, require
+minimal processing and deliver outsized performance benefit.
+%from centralization.
+%, and the billions of operations (in terms of packets)
+%that a switch can process per second.
+%%
+
+Specifically, prior work has shown that programmable switches are able
+to provide rack-scale serialization at low
+cost~\cite{eris,no,when-computer,Grant2021InContRes}, manage
+locks~\cite{netlock}, and track the state required to maintain an
+RDMA reliable connection~\cite{tea}.  Most relatedly, researchers have
+even used a programmable switch to implement a centralized memory
+controller including a unified TLB and cache for passive remote
+memory~\cite{mind}.  Their approach is limited, however, by the
+resource constraints of the switch.  Inspired by performance-enhancing
+TCP proxies of old~\cite{snoop,rfc3135}, we consider a slightly
+different design point where the authoritative state and control logic
+remain at the end points.  In our approach, the ToR simply observes
+and, at times, selectively modifies RDMA
+packets~\cite{switchml,Grant2021InContRes} in-flight to improve
+performance while preserving the semantics of the underlying RDMA
+connections.
+
+%% Others have proposed
+%% leveraging this observation, along with programmable switches' ability
+%% to manage small amounts of state in network, to provide a number of
+%% in-network services~\cite{when-computer}; Mind, for instance, provides
+%% a unified TLB and cache for disaggregated applications~\cite{mind}.
+
+%% , and . These properties make a top-of-rack
+%% programmable switch ideal for managing remote memory as it can guard
+%% access, maintain connections, and provide serialization primitives for
+%% all clients.
+
+%\todo{RDMA middlebox (find citations ~\cite{mind,switchml})}
+
+\subsection{Disaggregated memory}
+
+While 1-sided RDMA allows system designers to place memory on passive
+remote servers, the question of how best to access remote memory
+remains open; existing systems fall into one of two categories.
+Transparent systems present far memory to the application as if it
+were local, using traditional memory virtualization techniques to
+cache pages locally and swap in and out on
+demand~\cite{ivy,infiniswap, leap, fastswap,legoos}.
+%In either case transparency incurs a
+%performance cost as remote accesses cannot be optimized for by the
+%running application.
+%%
+Other systems require applications to access remote memory explicitly
+through RPC-like APIs~\cite{aifm,reigons,clover,sherman,fasst,fusee} which
+allow the runtimes to apply a variety of optimizations including
+batching and scheduling.
+%%
+Regardless of the method of access, sharing remote memory between
+clients is fundamentally expensive, and at the time of writing no
+RDMA-based transparent system exposes shared memory.  Rather, the few
+systems that attempt to support sharing do so in the context of
+specific datastructures which allows the runtimes to manage concurrent
+accesses.  We apply \sword\ to two distinct
+contention management schemes---locks and optimistic concurrency
+control---and provide brief overviews below.
+
+\emph{Locks.}  Sherman is a write-optimized B+Tree for passive remote
+memory implemented using per-node locks~\cite{sherman}. The tree is
+augmented using entirely 1-sided RDMA operations. Sherman improves
+performance under contention in two ways. First, it places locks for
+each node in the B+Tree in a special region of NIC memory exposed by
+ConnectX-5 NICs.  This small chunk of memory exposes the same RDMA
+interface as host memory, but allows locking operations to execute
+with approximately 3$\times$ the throughput.  Second, Sherman's
+clients employ a hierarchical locking scheme to reduce the contention
+for server-hosted locks.  This client-local optimization significantly
+improves performance in cases where clients are collocated;
+\sword\ seeks to achieve similar efficiencies at the rack scale.
+
+%where locks are acquired locally prior
+%to issuing a CAS to remote NIC mapped locks. Locks and unlocks each
+%require a CAS operation.
+
+%The biggest
+%boost in Sherman's performance comes from resolving lock conflicts
+%locally. It assumes that most clients are collocated.
+
+
+%%
+%\sg{(danger zone)} We consider client side optimizations to be highly
+%effective, but also highly restrictive as they assume both collocation and a
+%shared address space for their clients. We focus our attention instead on the
+%fundamental limitations of Sherman's lock based approach.
+
+
+%To demonstrate the effectiveness of {\sword} in practice, we
+%needed to select a passive far memory system with which to experiment.
+%The authors of Clover, a recently published key-value store designed
+%for disaggregated persistent memory~\cite{clover}, made their
+%implementation publicly available and helped us deploy it on our
+%testbed. While Clover targets persistent storage it is also a
+%prototypical example of a key-value store for remote DRAM.  Most
+%importantly for our purposes, its design makes the assumption that
+%there are no remote CPU's co-resident with memory. All of
+
+\emph{Optimistic concurrency.}  Two recent systems support concurrent
+updates to remote key-value stores through optimistic use of
+%remote memory accesses are made via
+1-sided RDMA atomic operations and client-driven resolution protocols. 
+%: reads, writes, and CAS.
+In Clover, reads and writes for a given key are made to an append-only
+linked list stored in (persistent) remote memory~\cite{clover};
+clients race to update the tail of the list.  In FUSEE, persistence is
+implemented through client-driven replication, so clients race to
+update a majority of replicas in an instance of distributed
+consensus~\cite{fusee}.  In both cases, writes are guarded by CAS
+operations so clients can independently determine the outcome of the
+race.  Because we are interested in the fundamental costs of
+  contention---as opposed the additional challenge of replication---we focus specifically on Clover in this paper, but \sword\ could equally well apply to a (degenerate) non-replicated instantiation of FUSEE.  Indeed, we provide a performance comparision in the evaluation (Section~\ref{s:results}).
+
+In Clover, all RDMA requests
+are targetted at the (presumed) tail of the list and writes are
+guarded by CAS operations. A client may not know the location of the
+tail as other writers concurrently push it forward. When an operation
+fails to land at the tail of the list Clover traverses the
+structure until the tail is found. While this provides no liveness
+guarantees, in the common read-heavy case concurrent clients
+eventually reach the end of the list. To speed up operations clients
+keep caches of the end of each key's linked list to
+avoid traversals.
+%% When writes are heavy and/or when
+%% particular keys are hot, Clover's performance degrades substantially.
+By implementing a shared cache at the ToR, \sword\ 
+decreases the likelihood of stale accesses.
+%to stale tail locations.
+%Clover serializes writes with RDMA compare and swap
+%requests which further impact performance.
+
