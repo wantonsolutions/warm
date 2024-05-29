@@ -182,6 +182,8 @@ for server-hosted locks.  This client-local optimization significantly
 improves performance in cases where clients are collocated;
 \sword\ seeks to achieve similar efficiencies at the rack scale.
 
+
+
 %where locks are acquired locally prior
 %to issuing a CAS to remote NIC mapped locks. Locks and unlocks each
 %require a CAS operation.

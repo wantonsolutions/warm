@@ -197,7 +197,8 @@
 
 
 \begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
+  \center
+  \includegraphics[width=0.99\textwidth]{fig/qp_bottleneck.pdf}
   \vskip -1em
 \caption{Max throughput as a function of the number of RoCEv2 RC connections. Each queue pair is managed by a separate 
   core and issues in-lined writes.}
@@ -243,7 +244,8 @@ ordering across such clients.
 \subsection{Switch-enforced ordering}
 
 \begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/qp_reordering.pdf}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/qp_reordering.pdf}
   \vskip -1em    
     \caption{PDF of request reorderings.  Retransmitted requests lead to reordering values of zero.   97\%
     of requests retain their order (delta=1), however reorderings of up to 13
@@ -315,7 +317,8 @@ atomic operations in two basic ways to enforce consistency: implement
 shared locks or optimistic concurrency control.
 
 \begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
+    \center
+  \includegraphics[width=0.99\textwidth]{fig/rdma_concur.pdf}
   \vskip -1em
     \caption{Achieved throughput of RDMA verbs across twenty queue
       pairs on data-independent addresses as a function of request
@@ -385,7 +388,8 @@ from approximately 3 to around 9 MOPS, write operations remain
 dramatically more efficient in either case.
 
 \begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+    \center
+  \includegraphics[width=0.99\textwidth]{fig/cas_vs_writes.pdf}
   \vskip -1em
 
   \caption{ Throughput comparison of serialized RDMA operations in
@@ -398,7 +402,8 @@ dramatically more efficient in either case.
 
 
 \begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/success_rate.pdf}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/success_rate.pdf}
     \vskip -1em
     \caption{Percentage of successful operations in a
       50:50 read-write workload spread across 1,024 keys according
@@ -539,7 +544,8 @@ operations to resolve write/write conflicts before they occur.
 %\subsection{RDMA processing}
 
 \begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/rocev2.pdf}
+    \center
+  \includegraphics[width=0.99\textwidth]{fig/rocev2.pdf}
   \vskip -0.5em
 
     \caption{ RoCEv2 packets consist of an Ethernet, IP, and
@@ -577,16 +583,19 @@ RDMA NICs.  Rather, \sword\ simply moves operations between existing
 connections.
 
 \begin{figure}[t]
-\includegraphics[width=0.485\textwidth]{fig/connection_multiplexing.pdf}
+    \center
+\includegraphics[width=0.99\textwidth]{fig/connection_multiplexing.pdf}
 \vskip -0.5em
 
-    \caption{ RC multiplexing in \sword. Per connection in and out
+    \caption[]{ RC multiplexing in \sword. Per connection in and out
       sequence numbers are tracked to decouple sending and receiving
       QP. Map entries are stored in their outgoing connection's ring
       buffer; the ring diagram shows only the original
-      QP row and sequence number.  In this example three packets
-      are mapped to connection 1, one from each connection. A 
-      packet that arrived on connection 2 was not remapped.}
+      QP row and sequence number.  
+      % In this example three packets
+      % are mapped to connection 1, one from each connection. A 
+      % packet that arrived on connection 2 was not remapped.
+      }
 
     \label{fig:qp_mapping}
       \vskip -0.5em

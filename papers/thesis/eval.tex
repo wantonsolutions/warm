@@ -46,7 +46,8 @@ server, and the remaining seven as Clover clients.
 \subsection{Atomic replacement}
 
 \begin{figure}[t]
-    \includegraphics[width=0.485\textwidth]{fig/cas_vs_swap.pdf}
+  \center
+    \includegraphics[width=0.99\textwidth]{fig/cas_vs_swap.pdf}
 %  \vskip -0.5em
     \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
     \label{fig:cas_vs_swap}
@@ -54,6 +55,7 @@ server, and the remaining seven as Clover clients.
 \end{figure}
 
 \begin{figure*}
+  \center
     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
 %  \vskip -0.5em
     \caption{Steering applied to Clover with 128-byte objects across 4 YCSB
@@ -241,7 +243,8 @@ throughput than FUSEE.
 \subsubsection{Bandwidth reduction}
 
 \begin{figure}
-  \includegraphics[width=0.485\textwidth]{fig/bandwidth_reduction.pdf}
+    \center
+  \includegraphics[width=0.99\textwidth]{fig/bandwidth_reduction.pdf}
   \centering
    \vskip -0.5em
     \caption{Average number of bytes required per Clover
@@ -293,7 +296,8 @@ requests fail as discussed above.
 \subsubsection{Tail latency}
 
 \begin{figure}
-    \includegraphics[width=0.485\textwidth]{fig/99th_latency_dense.pdf}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/99th_latency_dense.pdf}
 \vskip -0.5em
     \caption{99th-percentile tail latencies of read (solid) and write
       (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)}
@@ -358,7 +362,9 @@ dramatic spike in read tail latency.
 \subsubsection{Partial steering}
 
 \begin{figure}
-    \includegraphics[width=0.485\textwidth]{fig/keys_tracked.pdf}
+    \center
+
+    \includegraphics[width=0.99\textwidth]{fig/keys_tracked.pdf}
 \vskip -0.5em
     \caption{Per-client throughput as a function of the number of
       Clover keys \sword\ steers.  50:50 workload averaged 

@@ -203,14 +203,15 @@ are out of order by one to five requests, and some by up to 15.
 %% the PCIe bus.
 
 
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/qp_bottleneck.pdf}
+\begin{figure}
+  \center
+  \includegraphics[width=0.99\textwidth]{fig/qp_bottleneck.pdf}
   \vskip -0.5em
 \caption{Max throughput as a function of the number of RoCEv2 RC connections. Each QP gets a single
 core, and issues in-lined writes. A single connection only offers a fraction of the
 total NIC throughput.} 
-%  \vskip -0.5em
   \label{fig:qp_bottleneck}
+ \vskip -0.5em
 \end{figure}
 
 Happily, the RDMA specification provides the ability to provide
