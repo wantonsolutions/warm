@@ -54,16 +54,43 @@ server, and the remaining seven as Clover clients.
       \vskip -1em
 \end{figure}
 
-\begin{figure*}
-  \center
-    \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
-%  \vskip -0.5em
-    \caption{Steering applied to Clover with 128-byte objects across 4 YCSB
-    benchmarks. The percentage of workload writes increases from left to
-    right. \sword\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times$ respectively.}
-    \label{fig:full_system_performance}
-%      \vskip -0.5em
-\end{figure*}
+% \begin{figure*}
+%   \center
+%     \includegraphics[width=1.0\textwidth]{fig/full_system_performance.pdf}
+% %  \vskip -0.5em
+%     \caption{Steering applied to Clover with 128-byte objects across 4 YCSB
+%     benchmarks. The percentage of workload writes increases from left to
+%     right. \sword\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times$ respectively.}
+%     \label{fig:full_system_performance}
+% %      \vskip -0.5em
+% \end{figure*}
+
+\begin{figure}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-c.pdf}
+    \caption{Swordbox workload performance on a read only workload. \sword's performance adds no observable overhead to clover.}
+    \label{fig:full_system_performance-c}
+\end{figure}
+
+\begin{figure}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-b.pdf}
+    \caption{Swordbox workload performance on 5\% write workload. Due to cache misses and contention \sword gains nearly a 3x performance boost over Clover}
+    \label{fig:full_system_performance-b}
+\end{figure}
+\begin{figure}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-a.pdf}
+    \caption{Swordbox workload performance 50\% write workload (YCSB-A)}
+    \label{fig:full_system_performance-a}
+\end{figure}
+\begin{figure}
+    \center
+    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-d.pdf}
+    \caption{Swordbox workload performance on a write only workload}
+    \label{fig:full_system_performance-w}
+\end{figure}
+
 
 We show that \sword\ is able to overcome the NIC hardware
 bottleneck by replacing CAS operations with writes
@@ -138,7 +165,8 @@ of) server(s)---a resource-intensive task.  Here, we consider the more
 general and lightweight case where \sword\ serves as a
 performance-enhancing proxy and attempts to avoid failed operations by
 steering requests in flight.  We use workloads from the YCSB
-benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.  (Results for a range of sizes are presented in Appendix~\ref{ss:psize}.)
+benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.  
+% (Results for a range of sizes are presented in Appendix~\ref{ss:psize}.)
 %a
 %breakdown of our techniques, mainly read and write caching, QP mapping, and
 %atomic replacement with respect to their effect to system
@@ -151,7 +179,7 @@ benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.  (Resul
 
 \subsubsection{Throughput}
 
-Figure~\ref{fig:full_system_performance} shows the impact of \sword's
+Figures [~\ref{fig:full_system_performance-c}, ~\ref{fig:full_system_performance-b}, ~\ref{fig:full_system_performance-a}, ~\ref{fig:full_system_performance-w}] shows the impact of \sword's
 techniques at various levels of contention.  A read-only workload
 exhibits no contention, so \sword\ simply passes through all
 operations unmodified achieving a maximum throughput of approximately
@@ -382,7 +410,8 @@ Clover keys) of a given server.
 Figure~\ref{fig:keys_tracked} shows per-client throughput as a
 function of the number of keys steered by \sword.  To accentuate the
 impact, we use a Zipf parameter of 1.5---as opposed to 0.99 in prior
-experiments---to enhance the locality of requests.  (See Appendix~\ref{ss:zipf} for a full range.)
+experiments---to enhance the locality of requests.
+  % (See Appendix~\ref{ss:zipf} for a full range.)
 %If a programs state is too large to cache on a switch (millions of keys) but a
 %few hot keys are highly contested, {\sword} can still provide significant
 %benefits by acting on only on the contested state. In the following experiment
