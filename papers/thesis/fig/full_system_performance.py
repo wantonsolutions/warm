@@ -171,6 +171,14 @@ sherman_W = {"ops": avg_ops,"threads": threads, "err": std}
 tput_err(ax4,read_write_steering_W,write_steering_W,clover_with_buffering_W,fusee_W)
 ax4.set_title('100% Writes')
 
-fig.text(0.515,0.00, "Threads", ha='center', size=18)
+textvar = fig.text(0.515,0.00, "Threads", ha='center', size=18)
 plt.tight_layout()
 save_fig(plt)
+textvar.remove()
+axs = [ax1, ax2, ax3, ax4]
+for ax in axs:
+    ax.set_xlabel('Threads')
+    ax.set_ylabel('MOPS')
+    ax.legend(loc='lower right', ncol=1, fontsize=12)
+
+save_figs(plt, fig, [ax1, ax2, ax3, ax4])

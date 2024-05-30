@@ -1,6 +1,10 @@
 import sys
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import numpy as np
+from matplotlib.transforms import Bbox
 
 read_write_steering_label='Write + Read'
 write_steering_label='Write'
@@ -107,6 +111,49 @@ def save_fig(plt):
     name=get_plot_name_from_filename()
     plt.savefig(name+'.pdf')
     plt.savefig(name+'.png')
+
+# def full_extent(ax, pad=0.0):
+#     """Get the full extent of an axes, including axes labels, tick labels, and
+#     titles."""
+#     # For text objects, we need to draw the figure first, otherwise the extents
+#     # are undefined.
+#     ax.figure.canvas.draw()
+#     items = ax.get_xticklabels() + ax.get_yticklabels() 
+# #    items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
+#     items += [ax, ax.title]
+#     bbox = Bbox.union([item.get_window_extent() for item in items])
+    
+def full_extent(ax, pad=0.0):
+    """Get the full extent of an axes, including axes labels, tick labels, and
+    titles."""
+    # For text objects, we need to draw the figure first, otherwise the extents
+    # are undefined.
+    ax.figure.canvas.draw()
+    items = ax.get_xticklabels() + ax.get_yticklabels() 
+#    items += [ax, ax.title, ax.xaxis.label, ax.yaxis.label]
+    items += [ax, ax.title]
+    bbox = Bbox.union([item.get_window_extent() for item in items])
+    return bbox.expanded(1.0 + pad, 1.0 + pad)
+
+def save_figs(plt, fig, axs, pad=0.0):
+    name=get_plot_name_from_filename()
+    subplots=['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p']
+    for ax in axs:
+        # ax.axis('off')
+        ax.set_visible(False)
+
+    if len(axs) > len(subplots):
+        print('too many subplots')
+        exit(1)
+    for i, ax in enumerate(axs):
+        # extent = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+        # fig.savefig(name+"-"+subplots[i]+'.pdf', bbox_inches=extent.expanded(1.20, 1.3))
+        ax.axis('on') 
+        ax.set_visible(True)
+        extent = full_extent(ax, pad).transformed(fig.dpi_scale_trans.inverted())
+        fig.savefig(name+"-"+subplots[i]+'.pdf', bbox_inches=extent)
+        ax.set_visible(False)
+        # ax.axis('off')
 
 # 2003364,120,1000,1.00,50,100,1001806,1712,1628754,16548,19892,68,5
 def read_from_txt(filename):
