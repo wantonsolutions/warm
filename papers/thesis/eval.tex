@@ -1,6 +1,15 @@
 \section{Evaluation}
 \label{s:results}
 
+\begin{figure}[t]
+  \center
+    \includegraphics[width=0.99\textwidth]{fig/cas_vs_swap.pdf}
+%  \vskip -0.5em
+    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
+    \label{fig:cas_vs_swap}
+      \vskip -1em
+\end{figure}
+
 %We use two distinct prototype implementations to demonstrate the
 %potential performance benefits \sword\ can provide.
 
@@ -45,14 +54,6 @@ server, and the remaining seven as Clover clients.
 
 \subsection{Atomic replacement}
 
-\begin{figure}[t]
-  \center
-    \includegraphics[width=0.99\textwidth]{fig/cas_vs_swap.pdf}
-%  \vskip -0.5em
-    \caption{Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}
-    \label{fig:cas_vs_swap}
-      \vskip -1em
-\end{figure}
 
 % \begin{figure*}
 %   \center
@@ -67,29 +68,11 @@ server, and the remaining seven as Clover clients.
 
 \begin{figure}
     \center
-    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-c.pdf}
+    \includegraphics[width=0.75\textwidth]{fig/full_system_performance-c.pdf}
     \caption{Swordbox workload performance on a read only workload. \sword's performance adds no observable overhead to clover.}
     \label{fig:full_system_performance-c}
 \end{figure}
 
-\begin{figure}
-    \center
-    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-b.pdf}
-    \caption{Swordbox workload performance on 5\% write workload. Due to cache misses and contention \sword gains nearly a 3x performance boost over Clover}
-    \label{fig:full_system_performance-b}
-\end{figure}
-\begin{figure}
-    \center
-    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-a.pdf}
-    \caption{Swordbox workload performance 50\% write workload (YCSB-A)}
-    \label{fig:full_system_performance-a}
-\end{figure}
-\begin{figure}
-    \center
-    \includegraphics[width=0.99\textwidth]{fig/full_system_performance-d.pdf}
-    \caption{Swordbox workload performance on a write only workload}
-    \label{fig:full_system_performance-w}
-\end{figure}
 
 
 We show that \sword\ is able to overcome the NIC hardware
@@ -110,6 +93,13 @@ middlebox to 24 so that in our maximal test case each client
 thread flows through exactly one middlebox core for the
 lowest degree of interference between QP.
 
+\begin{figure}
+    \center
+    \includegraphics[width=0.75\textwidth]{fig/full_system_performance-b.pdf}
+    \caption{Swordbox workload performance on 5\% write workload. Due to cache misses and contention \sword gains nearly a 3x performance boost over Clover}
+    \label{fig:full_system_performance-b}
+\end{figure}
+
 %All requests are routed
 %through our middlebox.
 Figure~\ref{fig:cas_vs_swap} shows the results when all requests are
@@ -119,6 +109,8 @@ flow through without modification, each on their own queue pair.  In
 the CAS$\rightarrow$Write (green) configuration {\sword} maps all
 client requests to the same QP at the server to ensure serialization
 and replaces the CAS operation with a simple write.
+
+
 %
 %all client cores request the same address, and as such all are routed
 %onto the same destination QP. Note that this configuration has the
@@ -155,6 +147,14 @@ throughput of our middlebox server: 2.8 MOPS.
 %% requirements and makes storing dynamic connection state tricky given only a
 %% static number of fixed width registers.}
 
+\begin{figure}
+    \center
+    \includegraphics[width=0.75\textwidth]{fig/full_system_performance-a.pdf}
+    \caption{Swordbox workload performance 50\% write workload (YCSB-A)}
+    \label{fig:full_system_performance-a}
+\end{figure}
+
+
 
 
 \subsection{Steering in Clover}
@@ -177,6 +177,7 @@ benchmark~\cite{ycsb} to access 1,024 128-byte objects stored in Clover.
 %% running a 100\% write workload which is intended to emulate other programmatic
 %% workloads which are update heavy.
 
+
 \subsubsection{Throughput}
 
 Figures [~\ref{fig:full_system_performance-c}, ~\ref{fig:full_system_performance-b}, ~\ref{fig:full_system_performance-a}, ~\ref{fig:full_system_performance-w}] shows the impact of \sword's
@@ -198,6 +199,13 @@ the value.\footnote{While
 the results in the FUSEE paper suggest it outperforms
 Clover~\cite[Figs. 13--15]{fusee}, Clover's
 client cache is disabled in those experiments, forcing all reads to go through the metadata server.  Moreover, in our experiments, FUSEE fails to scale beyond 256 clients---published results only go to 128~\cite{fusee}.}
+
+\begin{figure}
+    \center
+    \includegraphics[width=0.75\textwidth]{fig/full_system_performance-d.pdf}
+    \caption{Swordbox workload performance on a write only workload}
+    \label{fig:full_system_performance-w}
+\end{figure}
 
 %% scaled to
 %% 256 clients before it was unable to complete our benchmarks.
