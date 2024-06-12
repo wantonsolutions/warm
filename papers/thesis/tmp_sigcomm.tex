@@ -241,7 +241,7 @@ ordering across such clients.
 
 
 % \subsection{Programmable Switch Serialization}
-\subsection{Switch-enforced ordering}
+\subsection{Switch-Enforced Ordering}
 
 \begin{figure}[t]
     \center
@@ -300,7 +300,7 @@ necessitating retransmission and further cross-flow reordering.
 
 
 
-\subsection{Atomic RDMA operations} 
+\subsection{Atomic RDMA Operations} 
 
 While the RDMA protocol does not have a mechanism to enforce
 cross-flow ordering, it provides atomic verbs that allow applications
@@ -558,7 +558,7 @@ operations to resolve write/write conflicts before they occur.
 %      \vskip -0.5em
 \end{figure}
 
-\subsection{Connection multiplexing}
+\subsection{Connection Multiplexing}
 \label{sec:connection_multiplexing}
 
 RoCEv2 tunnels the original Infiniband-based RDMA protocol on top of
@@ -697,7 +697,7 @@ information) according to their map entries.
 %% This processes is not required if response coalescing is
 %% turned off.
 
-\subsection{State caching}
+\subsection{State Caching}
 
 In addition to connection information, \sword\ can also parse RDMA
 operations to track the current state of memory locations of interest.
@@ -729,7 +729,7 @@ the data size to eight bytes a piece.
 
 
 
-\subsection{Atomic replacement}
+\subsection{Atomic Replacement}
 \label{ss:rewrite}
 
 When \sword\ tracks the state of address locations of interest, it
@@ -787,7 +787,7 @@ value that was overwritten, which \sword\ retrieves from the
 corresponding map entry.
 
 
-\subsection{Applying {\sword} to disaggregated memory}
+\subsection{Applying {\sword} to Disaggregated Memory}
 
 We now describe how we use \sword's techniques to accelerate the
 contention management techniques used by Sherman and Clover.
@@ -1082,7 +1082,7 @@ the current tail, Clover's end-to-end recovery mechanism kicks in.
 %% memory footprint by fingerprinting their packets with id's
 %% for {\sword}.
 
-\subsection{Failure handling}
+\subsection{Failure Handling}
 
 \sword\ collocates functionality---and therefore shares fate---with the
 top-of-rack switch: if \sword\ fails, connectivity was already

@@ -1,15 +1,15 @@
-\section{A case for \sword}
+\section{A Case for \sword}
 
 There has been tremendous interest in resource
 disaggregation in recent years, with both academic and
 industrial researchers chasing the potential for increased
 scalability, power efficiency, and cost
-savings~\cite{blade-server,rethinking,the-machine,requirements,clio-arxiv,firebox,leap,zombieland,storm,aifm,supernic}.
+savings~\cite{blade-server,kona,the-machine,requirements,clio,firebox,leap,zombieland,storm,aifm,supernic}.
 By physically separating compute from memory across a
 network, it is possible to dynamically adjust hardware
 resource allocations to suit changing workloads.  A large
 number of
-proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,reigons,fusee}
+proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,regions,fusee}
 have leveraged the remote direct memory access (RDMA)
 support found in modern network interface cards (NICs) due
 to its low latency, high throughput, and simple verb-based
@@ -82,17 +82,13 @@ connection-based RDMA protocol.
 %% explicitly by a CPU, but implicitly when serialized on the
 %% egress port of a TOR.
 
-We present \sword, a top-of-rack switch that implements two separate
-yet complimentary approaches to accelerating RDMA-based passive
-memory~\cite{Grant2021InContRes}.  Client-driven schemes must rely
-either on mutual exclusion (i.e., locks) or optimistic concurrency
-control (which require multiple round trips to resolve conflicts).
-\sword\ removes the performance bottlenecks of both by 1) multiplexing
-multiple clients' RDMA operations onto shared connections to leverage
-the ordering semantics delivered by reliable connections~\cite{flock},
-and 2) caching small amounts of metadata to dynamically steer
-in-flight RDMA updates to serialize concurrent operations to
-remote-memory indexing structures.
+We present \sword, a top-of-rack switch that implements two separate yet complimentary approaches to
+accelerating RDMA-based passive memory. Client-driven schemes must rely either on mutual exclusion
+(i.e., locks) or optimistic concurrency control (which require multiple round trips to resolve
+conflicts).  \sword\ removes the performance bottlenecks of both by 1) multiplexing multiple
+clients' RDMA operations onto shared connections to leverage the ordering semantics delivered by
+reliable connections~\cite{flock}, and 2) caching small amounts of metadata to dynamically steer
+in-flight RDMA updates to serialize concurrent operations to remote-memory indexing structures.
 
 We apply \sword\ to two remote memory systems that natively
 support sharing: Sherman~\cite{sherman}, which uses locking, and Clover~\cite{clover} that relies on optimistic concurrency.
