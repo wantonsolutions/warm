@@ -55,18 +55,6 @@ instructions and a partial ordering between all other instructions---i.e., all
 other instructions appear to occur strictly before or after the atomic,
 regardless of whether they are themselves atomic.
 
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/rdma_concur.pdf}
-  \vskip -0.5em
-
-    \caption{Achieved throughput of RDMA verbs across twenty queue
-      pairs on data-independent addresses as a function of request
-      concurrency.  When using atomic requests, ConnectX-5 NICs can
-      support approximately 2.7 MOPS per queue pair, up to about 55
-      MOPS in aggregate.}
-    \label{fig:rdma_concur}
-%      \vskip -0.5em
-\end{figure}
 
 
 Atomic primitives enable higher-level serialization structures like locks and

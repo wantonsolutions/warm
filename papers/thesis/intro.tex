@@ -1,40 +1,30 @@
-\section{A Case for \sword}
+% \section{A Case for \sword}
 
-There has been tremendous interest in resource
-disaggregation in recent years, with both academic and
-industrial researchers chasing the potential for increased
-scalability, power efficiency, and cost
-savings~\cite{blade-server,kona,the-machine,requirements,clio,firebox,leap,zombieland,storm,aifm,supernic}.
-By physically separating compute from memory across a
-network, it is possible to dynamically adjust hardware
-resource allocations to suit changing workloads.  A large
-number of
-proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,regions,fusee}
-have leveraged the remote direct memory access (RDMA)
-support found in modern network interface cards (NICs) due
-to its low latency, high throughput, and simple verb-based
-interface.  Yet, most share a common drawback: they do not
-support sharing remote memory across compute nodes.  For
-systems that do~\cite{clover,sherman,fusee}, even modest levels of write
-contention crater performance.
+% There has been tremendous interest in resource disaggregation in recent years, with both academic
+% and industrial researchers chasing the potential for increased scalability, power efficiency, and
+% cost
+% savings~\cite{blade-server,kona,the-machine,requirements,clio,firebox,leap,zombieland,storm,aifm,supernic}.
+% By physically separating compute from memory across a network, it is possible to dynamically adjust
+% hardware resource allocations to suit changing workloads.  A large number of
+% proposals~\cite{infiniswap,fastswap,legoos,clover,sherman,farm,regions,fusee} have leveraged the
+% remote direct memory access (RDMA) support found in modern network interface cards (NICs) due to its
+% low latency, high throughput, and simple verb-based interface.  Yet, most share a common drawback:
+% they do not support sharing remote memory across compute nodes.  For systems that
+% do~\cite{clover,sherman,fusee}, even modest levels of write contention crater performance.
 
-The reason behind this limitation is easy to identify: sharing remote
-memory requires coordinating access across multiple clients, yet the
-RDMA protocol---like TCP---provides a connection-based abstraction;
-while connection-less operation is possible, much like UDP it provides
-essentially no semantic guarantees.  Fundamentally, remote memory
-operations must be ordered to provide coherent access, and the RDMA
-protocol provides two basic mechanisms to do so remotely (i.e., in a
-1-sided fashion): reliable connections that ensure ordering and atomic
-operations that deliver mutual exclusion.  While the performance of
-RDMA connection handling has received considerable attention~\cite{farm,storm,scalerpc},
-connections remain an end-to-end abstraction, and do not provide any
-guarantees regarding operations from distinct clients.  For that,
-systems must rely on atomic operations like compare-and-swap (CAS),
-but their enhanced semantics dictate expensive implementation choices
-on the NIC, dramatically restricting their performance compared to
-simple verbs like read and write~\cite{design-guidelines}.  Moreover,
-atomic operations are available only over reliable connections.
+The reason why sharing remote memory is hard is easy to identify: sharing remote memory requires
+coordinating access across multiple clients, yet the RDMA protocol---like TCP---provides a
+connection-based abstraction; while connection-less operation is possible, much like UDP it provides
+essentially no semantic guarantees.  Fundamentally, remote memory operations must be ordered to
+provide coherent access, and the RDMA protocol provides two basic mechanisms to do so remotely
+(i.e., in a 1-sided fashion): reliable connections that ensure ordering and atomic operations that
+deliver mutual exclusion.  While the performance of RDMA connection handling has received
+considerable attention~\cite{farm,storm,scalerpc}, connections remain an end-to-end abstraction, and
+do not provide any guarantees regarding operations from distinct clients.  For that, systems must
+rely on atomic operations like compare-and-swap (CAS), but their enhanced semantics dictate
+expensive implementation choices on the NIC, dramatically restricting their performance compared to
+simple verbs like read and write~\cite{design-guidelines}.  Moreover, atomic operations are
+available only over reliable connections.
 
 As a result, most existing systems that deliver scalable,
 high-performance shared remote access depend on the presence of
@@ -50,8 +40,7 @@ disaggregated usage case---by, e.g., removing the connection
 abstraction and providing more powerful verbs~\cite{filemr,rma,star}---but such
 hardware is not yet available.
 
-
-In this work, we explore an alternative dimension: rather than relying
+In this chapter, we explore an alternative dimension: rather than relying
 exclusively on end-to-end solutions, we consider leveraging in-network
 resources---specifically programmable switches that are located between
 clients and the remote memory servers---to accelerate systems based on

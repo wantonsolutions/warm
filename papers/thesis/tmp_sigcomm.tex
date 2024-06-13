@@ -302,35 +302,35 @@ necessitating retransmission and further cross-flow reordering.
 
 \subsection{Atomic RDMA Operations} 
 
-While the RDMA protocol does not have a mechanism to enforce
-cross-flow ordering, it provides atomic verbs that allow applications
-to implement their own mechanisms to detect races and/or enforce
-ordering.  The 1-sided \textit{Fetch-and-Add} and
-\textit{Compare-and-Swap} (CAS) operations target 64-bit words in
-remote memory.  Like their traditional CPU counterparts, atomic
-requests appear to execute at a single point in time, ensuring a total
-ordering on all data-dependent instructions and a partial ordering
-between all other instructions---i.e., all other instructions appear
-to occur strictly before or after the atomic, regardless of whether
-they are themselves atomic.  Remote memory systems can use these
-atomic operations in two basic ways to enforce consistency: implement
-shared locks or optimistic concurrency control.
+% While the RDMA protocol does not have a mechanism to enforce
+% cross-flow ordering, it provides atomic verbs that allow applications
+% to implement their own mechanisms to detect races and/or enforce
+% ordering.  The 1-sided \textit{Fetch-and-Add} and
+% \textit{Compare-and-Swap} (CAS) operations target 64-bit words in
+% remote memory.  Like their traditional CPU counterparts, atomic
+% requests appear to execute at a single point in time, ensuring a total
+% ordering on all data-dependent instructions and a partial ordering
+% between all other instructions---i.e., all other instructions appear
+% to occur strictly before or after the atomic, regardless of whether
+% they are themselves atomic.  Remote memory systems can use these
+% atomic operations in two basic ways to enforce consistency: implement
+% shared locks or optimistic concurrency control.
 
-\begin{figure}[t]
-    \center
-  \includegraphics[width=0.99\textwidth]{fig/rdma_concur.pdf}
-  \vskip -1em
-    \caption{Achieved throughput of RDMA verbs across twenty queue
-      pairs on data-independent addresses as a function of request
-      concurrency.  With atomic requests, ConnectX-5 NICs can
-      support approximately 2.7 MOPS per queue pair, and 55
-      MOPS in aggregate.}
+% \begin{figure}[t]
+%     \center
+%   \includegraphics[width=0.99\textwidth]{fig/rdma_concur.pdf}
+%   \vskip -1em
+%     \caption{Achieved throughput of RDMA verbs across twenty queue
+%       pairs on data-independent addresses as a function of request
+%       concurrency.  With atomic requests, ConnectX-5 NICs can
+%       support approximately 2.7 MOPS per queue pair, and 55
+%       MOPS in aggregate.}
 
-    \label{fig:rdma_concur}
-      \vskip -1em
-\end{figure}
+%     \label{fig:rdma_concur}
+%       \vskip -1em
+% \end{figure}
 
-\paragraph{Remote locks}
+% \paragraph{Remote locks}
 In a remote-locking scheme, clients use an atomic RDMA operation to
 attempt to acquire a lock: because the operations are totally ordered
 at most one client will succeed at a time.  Unfortunately, atomics are
@@ -412,7 +412,7 @@ dramatically more efficient in either case.
     \label{fig:success_rate}
 \end{figure}
 
-\paragraph{Optimistic concurrency.}
+% \paragraph{Optimistic concurrency.}
 One way to avoid the overhead of remote lock acquisition in low-load
 situations is to attempt to directly modify the data (using an
 atomic RDMA operation) and recover if the operation fails due to a
@@ -504,7 +504,7 @@ guarantees.
 
 
 
-\section{\sword}
+\section{{\sword}'s Design}
 
 \sword\ is our general-purpose approach to accelerating RDMA-based
 applications like shared disaggregated memory that require operation
