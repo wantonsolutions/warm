@@ -1,10 +1,11 @@
-%\documentclass[10pt,twocolumn]{article}
+\documentclass[10pt,twocolumn]{article}
 %\usepackage{usenix-2020-09}
-\documentclass[sigconf,10pt]{acmart}
+%\documentclass[sigconf,10pt]{acmart}
 
+\usepackage{balance}
 
-%\usepackage{times}
-%\usepackage{fullpage}
+\usepackage{times}
+\usepackage{fullpage}
 
 %% \usepackage{booktabs}  % for \midrule
 %% %\usepackage{subfigure}
@@ -35,14 +36,14 @@
 %% \usepackage{pbox}
 
 %% \let\labelindent\relax
-%% \usepackage{enumitem}
+\usepackage{enumitem}
 
-%% \usepackage{tikz}
-%% \usetikzlibrary{arrows,automata}
-%% \usetikzlibrary{calc,positioning}
-%% \usepackage{lipsum,adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata}
+\usetikzlibrary{calc,positioning}
+\usepackage{lipsum,adjustbox}
 
-%\usepackage{tikz}
+\usepackage{tikz}
 %\usepackage{decorations.pathmorphing}
 %\usepackage{assymb}
 
@@ -79,24 +80,16 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Useful reviewing/feedback annotations
-\input{annotations}
+%\input{annotations}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \sloppy
-
-\renewcommand\footnotetextcopyrightpermission[1]{} 
-\setcopyright{none}
-\settopmatter{printacmref=false, printccs=false, printfolios=true}
-\acmDOI{}
-\acmISBN{}
-\acmPrice{}
-\acmConference[SIGCOMM'23]{ACM Conference}{September 10--14, 2023}{New York, NY, USA}
 
 \begin{document}
 
 %\title{In-network Contention Resolution for Disaggregated Memory}
 
-\title[\sword]{\sword: Accelerating Shared Access\\in RDMA-based Disaggregated Memory }
+\title{\sword: Accelerating Shared Access\\in RDMA-based Disaggregated Memory }
 %  \\ without Skewering Performance}
 %% Looking for a catchy title. Why Sword Box? It sounds kind of cool first off,
 %% easy to remember and say. It fits in the track of other disaggregated research
@@ -108,14 +101,16 @@
 %% and are carefully made to look normal but in truth they actually bend
 %% https://themagicwarehouse.com/tb4002.jpg
 
-\author{NSDI '25 Submission \#470}
+\author{NSDI '25 Fall Submission \#470}
 % \author{NSDI}
 % \author{Stewart Grant and Alex C. Snoeren\\ UC San Diego}
+\date{}
 
+\maketitle
 
 \input{abstract}
 
-\maketitle
+
 
 \input{intro}
 \input{backv2}
