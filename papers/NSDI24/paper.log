@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2023.9.26)  19 SEP 2024 20:58
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023) (preloaded format=pdflatex 2023.9.26)  19 SEP 2024 21:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -591,12 +591,12 @@ File: fig/qp_bottleneck.pdf Graphic file (type pdf)
 Package pdftex.def Info: fig/qp_bottleneck.pdf  used on input line 200.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
  [3 <./fig/qp_bottleneck.pdf>]
-<fig/qp_reordering.pdf, id=40, 578.16pt x 289.08pt>
+<fig/qp_reordering.pdf, id=41, 578.16pt x 289.08pt>
 File: fig/qp_reordering.pdf Graphic file (type pdf)
 <use fig/qp_reordering.pdf>
 Package pdftex.def Info: fig/qp_reordering.pdf  used on input line 246.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
-<fig/rdma_concur.pdf, id=41, 578.16pt x 289.08pt>
+<fig/rdma_concur.pdf, id=42, 578.16pt x 289.08pt>
 File: fig/rdma_concur.pdf Graphic file (type pdf)
 <use fig/rdma_concur.pdf>
 Package pdftex.def Info: fig/rdma_concur.pdf  used on input line 318.
@@ -607,33 +607,37 @@ File: fig/success_rate.pdf Graphic file (type pdf)
 <use fig/success_rate.pdf>
 Package pdftex.def Info: fig/success_rate.pdf  used on input line 401.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
- [5 <./fig/success_rate.pdf>]
-<fig/rocev2.pdf, id=144, 277.92906pt x 125.60706pt>
+<fig/rocev2.pdf, id=114, 277.92906pt x 125.60706pt>
 File: fig/rocev2.pdf Graphic file (type pdf)
 <use fig/rocev2.pdf>
 Package pdftex.def Info: fig/rocev2.pdf  used on input line 542.
 (pdftex.def)             Requested size: 227.83147pt x 102.96777pt.
+ [5 <./fig/success_rate.pdf>]
 <fig/connection_multiplexing.pdf, id=145, 387.96907pt x 180.61098pt>
 File: fig/connection_multiplexing.pdf Graphic file (type pdf)
 <use fig/connection_multiplexing.pdf>
 Package pdftex.def Info: fig/connection_multiplexing.pdf  used on input line 58
 0.
 (pdftex.def)             Requested size: 227.83147pt x 106.06624pt.
- [6 <./fig/rocev2.pdf> <./fig/connection_multiplexing.pdf
 
-pdfTeX warning: pdflatex (file ./fig/connection_multiplexing.pdf): PDF inclusio
-n: multiple pdfs with page group included in a single page
->]
+Underfull \vbox (badness 1014) has occurred while \output is active []
+
+
 Underfull \hbox (badness 1412) in paragraph at lines 655--679
 \OT1/ptm/m/n/10 op-er-a-tions is non-trivial due to op-ti-miza-tions in the
  []
 
+[6 <./fig/rocev2.pdf> <./fig/connection_multiplexing.pdf
+
+pdfTeX warning: pdflatex (file ./fig/connection_multiplexing.pdf): PDF inclusio
+n: multiple pdfs with page group included in a single page
+>]
 LaTeX Font Info:    Trying to load font information for OT1+pcr on input line 8
 24.
-(/usr/local/texlive/2023/texmf-dist/tex/latex/psnfss/ot1pcr.fd
+ (/usr/local/texlive/2023/texmf-dist/tex/latex/psnfss/ot1pcr.fd
 File: ot1pcr.fd 2001/06/04 font definitions for OT1/pcr.
 ) [7]
-Underfull \vbox (badness 1769) has occurred while \output is active []
+Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [8])
 (./implementation.tex
@@ -651,31 +655,29 @@ File: fig/switch_resources.pdf Graphic file (type pdf)
 <use fig/switch_resources.pdf>
 Package pdftex.def Info: fig/switch_resources.pdf  used on input line 41.
 (pdftex.def)             Requested size: 227.83147pt x 97.64299pt.
+
+Underfull \vbox (badness 2165) has occurred while \output is active []
+
+ [9 <./fig/swordbox_overview.pdf>]
 LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 4
 8.
+
 (/usr/local/texlive/2023/texmf-dist/tex/latex/psnfss/ts1ptm.fd
 File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
-)
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
- [9])
-(./eval.tex
-<fig/cas_vs_swap.pdf, id=203, 578.16pt x 289.08pt>
+)) (./eval.tex
+<fig/cas_vs_swap.pdf, id=229, 578.16pt x 289.08pt>
 File: fig/cas_vs_swap.pdf Graphic file (type pdf)
 <use fig/cas_vs_swap.pdf>
 Package pdftex.def Info: fig/cas_vs_swap.pdf  used on input line 49.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
- [10 <./fig/swordbox_overview.pdf> <./fig/switch_resources.pdf>]
-<fig/full_system_performance.pdf, id=290, 1445.4pt x 289.08pt>
+<fig/full_system_performance.pdf, id=230, 1445.4pt x 289.08pt>
 File: fig/full_system_performance.pdf Graphic file (type pdf)
 <use fig/full_system_performance.pdf>
 Package pdftex.def Info: fig/full_system_performance.pdf  used on input line 57
 .
 (pdftex.def)             Requested size: 469.75502pt x 93.94987pt.
 
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
-
+[10 <./fig/switch_resources.pdf>]
 Underfull \hbox (badness 10000) in paragraph at lines 178--204
 []\OT1/ptm/m/n/10 Clover (shown in blue) per-for-mance de-creases
  []
@@ -690,27 +692,20 @@ Underfull \hbox (badness 1077) in paragraph at lines 178--204
 \OT1/ptm/m/n/10 Steer-ing both reads and writes (red) re-stores per-for-
  []
 
-[11 <./fig/cas_vs_swap.pdf>]
-<fig/bandwidth_reduction.pdf, id=327, 578.16pt x 289.08pt>
+<fig/bandwidth_reduction.pdf, id=291, 578.16pt x 289.08pt>
 File: fig/bandwidth_reduction.pdf Graphic file (type pdf)
 <use fig/bandwidth_reduction.pdf>
 Package pdftex.def Info: fig/bandwidth_reduction.pdf  used on input line 244.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
+[11 <./fig/cas_vs_swap.pdf>]
 <fig/99th_latency_dense.pdf, id=328, 578.16pt x 289.08pt>
 File: fig/99th_latency_dense.pdf Graphic file (type pdf)
 <use fig/99th_latency_dense.pdf>
 Package pdftex.def Info: fig/99th_latency_dense.pdf  used on input line 296.
 (pdftex.def)             Requested size: 227.83147pt x 113.91406pt.
-) (./conclusion.tex
-Underfull \vbox (badness 3271) has occurred while \output is active []
-
- [12 <./fig/full_system_performance.pdf> <./fig/bandwidth_reduction.pdf> <./fig
-/99th_latency_dense.pdf>]) (./paper.bbl
-
-Package balance Warning: You have called \balance in second column
-(balance)                Columns might not be balanced.
-
-[13]
+) (./conclusion.tex) [12 <./fig/full_system_performance.pdf> <./fig/bandwidth_r
+eduction.pdf> <./fig/99th_latency_dense.pdf>]
+(./paper.bbl
 Underfull \hbox (badness 10000) in paragraph at lines 111--116
 []\OT1/ptm/m/sc/8 Intel\OT1/ptm/m/n/8 .  In-tel rack scale ar-chi-tec-ture:
  []
@@ -725,12 +720,16 @@ Underfull \hbox (badness 10000) in paragraph at lines 111--116
 \OT1/ptm/m/n/8 https://www.intel.com/content/www/us/en/architecture-and-
  []
 
-[14]
+
+Overfull \vbox (17.84401pt too high) has occurred while \output is active []
+
+
+[13]
 Underfull \hbox (badness 5388) in paragraph at lines 322--331
 \OT1/ptm/m/sc/8 Wong-Chan, M., Clark, S., Mar-tin, M. M. K.,
  []
 
-) (./appendix.tex
+[14]) (./appendix.tex
 <fig/packet_size.pdf, id=466, 361.35pt x 216.81pt>
 File: fig/packet_size.pdf Graphic file (type pdf)
 <use fig/packet_size.pdf>
@@ -741,30 +740,27 @@ File: fig/contention.pdf Graphic file (type pdf)
 <use fig/contention.pdf>
 Package pdftex.def Info: fig/contention.pdf  used on input line 18.
 (pdftex.def)             Requested size: 227.83147pt x 136.70018pt.
- [15 <./fig/packet_size.pdf>])
-Overfull \vbox (1.285pt too high) has occurred while \output is active []
-
- [16 <./fig/contention.pdf>] (./paper.aux) ) 
+) [15 <./fig/contention.pdf> <./fig/packet_size.pdf>]
+(./paper.aux) ) 
 Here is how much of TeX's memory you used:
  15337 strings out of 476025
  331061 string characters out of 5790017
- 1885388 words of memory out of 5000000
+ 1886388 words of memory out of 5000000
  35465 multiletter control sequences out of 15000+600000
  535839 words of font info for 69 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 102i,8n,104p,534b,301s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/local/texlive/2023/texmf-dist
-/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2023/texmf-dist/
-fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2023/texmf-dist/fo
-nts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2023/texmf-dist/fon
-ts/type1/urw/courier/ucrr8a.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1
-/urw/times/utmb8a.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/urw/times
-/utmr8a.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/urw/times/utmri8a.p
-fb>
-Output written on paper.pdf (16 pages, 334987 bytes).
+ 102i,8n,104p,493b,301s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/local/texlive/2023/texmf-dist/fonts/type1/public/amsfonts/
+cm/cmmi10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/amsfonts/c
+m/cmr10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/public/amsfonts/cm/
+cmsy10.pfb></usr/local/texlive/2023/texmf-dist/fonts/type1/urw/courier/ucrr8a.p
+fb></usr/local/texlive/2023/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/l
+ocal/texlive/2023/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texli
+ve/2023/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on paper.pdf (15 pages, 334202 bytes).
 PDF statistics:
- 584 PDF objects out of 1000 (max. 8388607)
- 164 compressed objects within 2 object streams
+ 581 PDF objects out of 1000 (max. 8388607)
+ 162 compressed objects within 2 object streams
  0 named destinations out of 1000 (max. 500000)
  83 words of extra memory for PDF output out of 10000 (max. 10000000)
 

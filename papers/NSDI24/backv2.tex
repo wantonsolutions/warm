@@ -1,7 +1,7 @@
 \section{Background}
 
 We briefly overview RDMA, use of
-programmable switches in disaggregated settings, and passive remote
+programmable switches in disaggregated settings, and remote
 memory.
 
 \subsection{RDMA protocol}
@@ -167,7 +167,7 @@ systems that attempt to support sharing do so in the context of
 specific datastructures which allows the runtimes to manage concurrent
 accesses.  We apply \sword\ to two distinct
 contention management schemes---locks and optimistic concurrency
-control---and provide brief overviews below.
+control---and provide brief overviews.
 
 \emph{Locks.}  Sherman is a write-optimized B+Tree for passive remote
 memory implemented using per-node locks~\cite{sherman}. The tree is

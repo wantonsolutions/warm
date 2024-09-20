@@ -34,7 +34,7 @@ systems must rely on atomic operations like compare-and-swap (CAS),
 but their enhanced semantics dictate expensive implementation choices
 on the NIC, dramatically restricting their performance compared to
 simple verbs like read and write~\cite{design-guidelines}.  Moreover,
-atomic operations are available only over reliable connections.
+atomics are available only over reliable connections.
 
 As a result, most existing systems that deliver scalable,
 high-performance shared remote access depend on the presence of
@@ -67,7 +67,7 @@ single serialization point for all RDMA requests.  As a result, it is
 possible to transparently rewrite RDMA operations in flight to
 orchestrate requests from multiple clients to passive memory servers,
 sidestepping the fundamental bottlenecks present in the current
-connection-based RDMA protocol.
+RDMA protocol.
 
 
 %% Resolving conflicts is hard because no centralized
