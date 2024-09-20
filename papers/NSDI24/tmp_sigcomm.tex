@@ -361,40 +361,40 @@ contention; not shown).
 %% read and write (Figure~\ref{fig:rdma_concur}).
 
 
-One of the difficulties RDMA NICs face when implementing atomic operation
-is ensuring that there are no other conflicting memory operations at
-the server---even ones issued locally.  More generally, any
-main-memory operation issued by the NIC must cross the PCIe bus and
-face potential contention.  Modern nVIDIA Mellanox NICs like the ConnectX-5
-provide a small region of on-NIC memory that can be mapped into the
-address space of RDMA applications,
-%.  Mapping RDMA requests onto NIC memory
-removing the remote PCIe overhead for frequently accessed data.
-(Indeed, Sherman employs this memory region to store its B+Tree locks.)
-%but still requires atomicity across queue pairs.
-Figure~\ref{fig:cas_vs_writes} compares the performance of
-serialized CAS and write operations to addresses in main vs.
-NIC-hosted device memory. CAS operations are issued across many
-queue pairs to achieve maximum throughput while the write operations are
-issued on a single queue pair to enforce serialization.
-%leverage the serialization provided
-%by RDMA's reliable connection abstraction to ensure in-order
-%execution.
-While the use of NIC-hosted memory boosts CAS throughput
-from approximately 3 to around 9 MOPS, write operations remain
-dramatically more efficient in either case.
+%% One of the difficulties RDMA NICs face when implementing atomic operation
+%% is ensuring that there are no other conflicting memory operations at
+%% the server---even ones issued locally.  More generally, any
+%% main-memory operation issued by the NIC must cross the PCIe bus and
+%% face potential contention.  Modern nVIDIA Mellanox NICs like the ConnectX-5
+%% provide a small region of on-NIC memory that can be mapped into the
+%% address space of RDMA applications,
+%% %.  Mapping RDMA requests onto NIC memory
+%% removing the remote PCIe overhead for frequently accessed data.
+%% (Indeed, Sherman employs this memory region to store its B+Tree locks.)
+%% %but still requires atomicity across queue pairs.
+%% Figure~\ref{fig:cas_vs_writes} compares the performance of
+%% serialized CAS and write operations to addresses in main vs.
+%% NIC-hosted device memory. CAS operations are issued across many
+%% queue pairs to achieve maximum throughput while the write operations are
+%% issued on a single queue pair to enforce serialization.
+%% %leverage the serialization provided
+%% %by RDMA's reliable connection abstraction to ensure in-order
+%% %execution.
+%% While the use of NIC-hosted memory boosts CAS throughput
+%% from approximately 3 to around 9 MOPS, write operations remain
+%% dramatically more efficient in either case.
 
-\begin{figure}[t]
-  \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
-  \vskip -1em
+%% \begin{figure}[t]
+%%   \includegraphics[width=0.485\textwidth]{fig/cas_vs_writes.pdf}
+%%   \vskip -1em
 
-  \caption{ Throughput comparison of serialized RDMA operations in
-    NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
-    throughput than CAS in host memory and 2.5$\times$ higher in NIC memory.}
-    %despite being restricted to a single queue pair.  }
-    \label{fig:cas_vs_writes}
-     \vskip -1em
-\end{figure}
+%%   \caption{ Throughput comparison of serialized RDMA operations in
+%%     NIC-mapped device and main memory. Writes obtain 6.2$\times$ higher
+%%     throughput than CAS in host memory and 2.5$\times$ higher in NIC memory.}
+%%     %despite being restricted to a single queue pair.  }
+%%     \label{fig:cas_vs_writes}
+%%      \vskip -1em
+%% \end{figure}
 
 
 \begin{figure}[t]

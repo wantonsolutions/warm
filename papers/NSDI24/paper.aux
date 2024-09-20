@@ -113,68 +113,61 @@
 \citation{rma}
 \citation{snap}
 \citation{prism}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Percentage of successful operations in a 50:50 read-write workload spread across 1,024 keys according to a Zipf(0.99) distribution as a function of thread count. At 240 threads less than 4\% of operations succeed.}}{5}{}\protected@file@percent }
+\newlabel{fig:success_rate}{{4}{5}}
 \@writefile{toc}{\contentsline {paragraph}{Optimistic concurrency.}{5}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces  Throughput comparison of serialized RDMA operations in NIC-mapped device and main memory. Writes obtain 6.2$\times $ higher throughput than CAS in host memory and 2.5$\times $ higher in NIC memory.}}{5}{}\protected@file@percent }
-\newlabel{fig:cas_vs_writes}{{4}{5}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Percentage of successful operations in a 50:50 read-write workload spread across 1,024 keys according to a Zipf(0.99) distribution as a function of thread count. At 240 threads less than 4\% of operations succeed.}}{5}{}\protected@file@percent }
-\newlabel{fig:success_rate}{{5}{5}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Implications}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}SwordBox}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Implications}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}SwordBox}{5}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces  RoCEv2 packets consist of an Ethernet, IP, and UDP header. The RoCE BTH header stores QP data, sequence numbers, flags, and operations. The BTH+ header contains operation specific data: virtual addresses, DMA size, and atomic payloads. }}{6}{}\protected@file@percent }
+\newlabel{fig:roce_header}{{5}{6}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Connection multiplexing}{6}{}\protected@file@percent }
 \newlabel{sec:connection_multiplexing}{{4.1}{6}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces  RoCEv2 packets consist of an Ethernet, IP, and UDP header. The RoCE BTH header stores QP data, sequence numbers, flags, and operations. The BTH+ header contains operation specific data: virtual addresses, DMA size, and atomic payloads. }}{6}{}\protected@file@percent }
-\newlabel{fig:roce_header}{{6}{6}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces  RC multiplexing in SwordBox. Per connection in and out sequence numbers are tracked to decouple sending and receiving QP. Map entries are stored in their outgoing connection's ring buffer; the ring diagram shows only the original QP row and sequence number. In this example three packets are mapped to connection 1, one from each connection. A packet that arrived on connection 2 was not remapped.}}{6}{}\protected@file@percent }
-\newlabel{fig:qp_mapping}{{7}{6}}
 \@writefile{toc}{\contentsline {paragraph}{Connection tracking}{6}{}\protected@file@percent }
-\newlabel{ss:remapping}{{4.1}{7}}
-\@writefile{toc}{\contentsline {paragraph}{Remapping}{7}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces  RC multiplexing in SwordBox. Per connection in and out sequence numbers are tracked to decouple sending and receiving QP. Map entries are stored in their outgoing connection's ring buffer; the ring diagram shows only the original QP row and sequence number. In this example three packets are mapped to connection 1, one from each connection. A packet that arrived on connection 2 was not remapped.}}{6}{}\protected@file@percent }
+\newlabel{fig:qp_mapping}{{6}{6}}
+\newlabel{ss:remapping}{{4.1}{6}}
+\@writefile{toc}{\contentsline {paragraph}{Remapping}{6}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{ACK coalescing}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}State caching}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Atomic replacement}{7}{}\protected@file@percent }
 \newlabel{ss:rewrite}{{4.3}{7}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Disaggregated memory}{7}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Shared locks}{7}{}\protected@file@percent }
+\newlabel{sec:locking-algorithm}{{4.4.1}{7}}
 \citation{netlock}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Disaggregated memory}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Shared locks}{8}{}\protected@file@percent }
-\newlabel{sec:locking-algorithm}{{4.4.1}{8}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}Steering}{8}{}\protected@file@percent }
 \newlabel{sec:steering}{{4.4.2}{8}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Failure handling}{9}{}\protected@file@percent }
 \citation{netcache}
 \citation{p4telemetry}
 \citation{bedrock}
 \citation{switchml}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces SwordBox's DPDK processing pipeline.}}{10}{}\protected@file@percent }
-\newlabel{fig:system}{{8}{10}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Implementation}{10}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Failure handling}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Implementation}{9}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces SwordBox's DPDK processing pipeline.}}{10}{}\protected@file@percent }
+\newlabel{fig:system}{{7}{10}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Breakdown of switch resource utilization by SwordBox\ component.}}{10}{}\protected@file@percent }
+\newlabel{fig:switch_resources}{{8}{10}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Connection steering}{10}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Breakdown of switch resource utilization by SwordBox\ component.}}{10}{}\protected@file@percent }
-\newlabel{fig:switch_resources}{{9}{10}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Connection multiplexing}{10}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Evaluation}{10}{}\protected@file@percent }
+\newlabel{s:results}{{6}{10}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Testbed}{10}{}\protected@file@percent }
 \citation{ycsb}
 \citation{fusee}
 \citation{fusee}
-\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}}{11}{}\protected@file@percent }
-\newlabel{fig:cas_vs_swap}{{10}{11}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Evaluation}{11}{}\protected@file@percent }
-\newlabel{s:results}{{6}{11}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Testbed}{11}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Throughput of conflicting CAS and rewritten CAS requests as a function of client threads/QPs.}}{11}{}\protected@file@percent }
+\newlabel{fig:cas_vs_swap}{{9}{11}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Atomic replacement}{11}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Steering in Clover}{11}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.1}Throughput}{11}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Steering applied to Clover with 128-byte objects across 4 YCSB benchmarks. The percentage of workload writes increases from left to right. SwordBox\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times $ respectively.}}{12}{}\protected@file@percent }
-\newlabel{fig:full_system_performance}{{11}{12}}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Steering applied to Clover with 128-byte objects across 4 YCSB benchmarks. The percentage of workload writes increases from left to right. SwordBox\ throughput relative to Clover is 1.0, 2.8, 32, and 46$\times $ respectively.}}{12}{}\protected@file@percent }
+\newlabel{fig:full_system_performance}{{10}{12}}
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Average number of bytes required per Clover operation on 128-byte objects using each of the three techniques at various write intensities.}}{12}{}\protected@file@percent }
+\newlabel{fig:bandwidth_reduction}{{11}{12}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.2}Bandwidth reduction}{12}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Average number of bytes required per Clover operation on 128-byte objects using each of the three techniques at various write intensities.}}{12}{}\protected@file@percent }
-\newlabel{fig:bandwidth_reduction}{{12}{12}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces 99th-percentile tail latencies of read (solid) and write (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)}}{12}{}\protected@file@percent }
+\newlabel{fig:tail_latency}{{12}{12}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.3}Tail latency}{12}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces 99th-percentile tail latencies of read (solid) and write (striped) Clover operations at various write intensities. (Note logarithmic $y$ axis.)}}{13}{}\protected@file@percent }
-\newlabel{fig:tail_latency}{{13}{13}}
-\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces Per-client throughput as a function of the number of Clover keys SwordBox\ steers. 50:50 workload averaged across 6 hosts each running 56 threads. }}{13}{}\protected@file@percent }
-\newlabel{fig:keys_tracked}{{14}{13}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {6.3.4}Partial steering}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Limitations}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{13}{}\protected@file@percent }
 \bibstyle{acm}
 \bibdata{paper}
 \bibcite{reigons}{1}
@@ -191,6 +184,7 @@
 \bibcite{the-machine}{12}
 \bibcite{requirements}{13}
 \bibcite{rfc3135}{14}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{13}{}\protected@file@percent }
 \bibcite{infiniswap}{15}
 \bibcite{clio-arxiv}{16}
 \bibcite{intel-rack}{17}
@@ -232,13 +226,13 @@
 \bibcite{netlock}{53}
 \bibcite{netkv}{54}
 \bibcite{dcqcn}{55}
-\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.}}{16}{}\protected@file@percent }
-\newlabel{fig:packet_size}{{15}{16}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Appendix}{16}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {16}{\ignorespaces Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.}}{17}{}\protected@file@percent }
-\newlabel{fig:contention}{{16}{17}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Packet size}{17}{}\protected@file@percent }
-\newlabel{ss:psize}{{A.1}{17}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Contention}{17}{}\protected@file@percent }
-\newlabel{ss:zipf}{{A.2}{17}}
-\gdef \@abspage@last{17}
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Performance across RDMA payload sizes using 400 client cores at a 50:50 read/write ratio.}}{15}{}\protected@file@percent }
+\newlabel{fig:packet_size}{{13}{15}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Appendix}{15}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces Performance as a function of Zipf coefficient using 400 client cores on a 50\% write workload with 128-byte objects.}}{16}{}\protected@file@percent }
+\newlabel{fig:contention}{{14}{16}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Packet size}{16}{}\protected@file@percent }
+\newlabel{ss:psize}{{A.1}{16}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.2}Contention}{16}{}\protected@file@percent }
+\newlabel{ss:zipf}{{A.2}{16}}
+\gdef \@abspage@last{16}
